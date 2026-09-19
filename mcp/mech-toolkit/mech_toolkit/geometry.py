@@ -106,6 +106,11 @@ class Cylinder(BaseModel):
     """Un punto del eje (el central de la cara)."""
     length: float
     """Extensión de la cara a lo largo del eje."""
+    internal: bool = True
+    """True = agujero (la normal de la cara apunta hacia el eje); False =
+    saliente o pared exterior. Sin esto, un alojamiento redondo confundía
+    su pared exterior con el asiento (fallo hallado con el NEMA17 de
+    referencia, cuyas esquinas redondeadas son cilindros concéntricos)."""
 
 
 # --- búsqueda ---------------------------------------------------------------
@@ -124,9 +129,36 @@ def find_bore(
     """
     candidatos = [
         c for c in caras
-        if _paralelo(c.axis, frame.axis)
+        if c.internal
+        and _paralelo(c.axis, frame.axis)
         and _distancia_a_recta(frame.origin, c.point, c.axis) <= pos_tol
     ]
+    return max(candidatos, key=lambda c: c.radius, default=None)
+
+
+def _extension_axial(c: Cylinder, frame: Frame) -> tuple[float, float]:
+    """Dónde empieza y acaba la cara, medido a lo largo del eje del frame."""
+    t = _dot(_resta(c.point, frame.origin), _unitario(frame.axis))
+    return t - c.length / 2, t + c.length / 2
+
+
+def find_boss(
+    caras: list[Cylinder], frame: Frame, pos_tol: float = POS_TOL_MM
+) -> Cylinder | None:
+    """El saliente que nace en el frame y sale en el sentido de su eje.
+
+    Lo que queda detrás del frame (p. ej. las esquinas redondeadas del
+    cuerpo de un motor, concéntricas con el saliente) no cuenta.
+    """
+    candidatos = []
+    for c in caras:
+        if c.internal or not _paralelo(c.axis, frame.axis):
+            continue
+        if _distancia_a_recta(frame.origin, c.point, c.axis) > pos_tol:
+            continue
+        inicio, fin = _extension_axial(c, frame)
+        if abs(inicio) <= pos_tol and fin > pos_tol:
+            candidatos.append(c)
     return max(candidatos, key=lambda c: c.radius, default=None)
 
 
@@ -138,7 +170,8 @@ def find_holes_on_circle(
     radio_patron = pcd_mm / 2
     en_su_sitio = [
         c for c in caras
-        if _paralelo(c.axis, frame.axis)
+        if c.internal
+        and _paralelo(c.axis, frame.axis)
         and abs(_distancia_a_recta(c.point, frame.origin, frame.axis) - radio_patron) <= pos_tol
     ]
 

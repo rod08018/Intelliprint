@@ -31,11 +31,19 @@ for cara in forma.Faces:
     # En un cilindro de OpenCASCADE, v es la distancia a lo largo del eje
     # desde Center: el punto medio de la cara está en Center + eje·(v0+v1)/2.
     medio = superficie.Center + eje * ((v0 + v1) / 2.0)
+    # Agujero o saliente: en un agujero la normal de la cara apunta hacia el
+    # eje; en un saliente, hacia fuera. normalAt ya tiene en cuenta si la
+    # cara está invertida.
+    u, v = (u0 + u1) / 2.0, (v0 + v1) / 2.0
+    punto = cara.valueAt(u, v)
+    sobre_eje = superficie.Center + eje * (punto - superficie.Center).dot(eje)
+    interior = cara.normalAt(u, v).dot(punto - sobre_eje) < 0
     caras.append({{
         "radius": superficie.Radius,
         "axis": [eje.x, eje.y, eje.z],
         "point": [medio.x, medio.y, medio.z],
         "length": abs(v1 - v0),
+        "internal": bool(interior),
     }})
 print({prefijo!r} + json.dumps(caras))
 '''

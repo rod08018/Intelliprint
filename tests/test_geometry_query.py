@@ -102,3 +102,42 @@ def test_un_patron_con_el_paso_equivocado_no_aporta_agujeros():
         _cuadro(35), Frame(origin=[0, 0, 0], axis=EJE_Z), pcd_mm=31 * math.sqrt(2)
     )
     assert agujeros == []
+
+
+# --- Interior (agujero) frente a exterior (saliente) ------------------------
+# Fallo encontrado con el NEMA17 de referencia: find_bore elegía el cilindro
+# concéntrico más grande, y el cuerpo del motor tiene esquinas redondeadas
+# de Ø53.84 en el mismo eje. No distinguía un agujero de un saliente.
+
+
+def test_un_alojamiento_redondo_mide_el_asiento_y_no_su_pared_exterior():
+    """El caso típico: un alojamiento de rodamiento es un cilindro EXTERIOR
+    alrededor del asiento INTERIOR. Elegir "el mayor" medía la pared."""
+    asiento = Cylinder(radius=11.05, axis=EJE_Z, point=[0, 0, 3.5], length=7, internal=True)
+    pared = Cylinder(radius=16.0, axis=EJE_Z, point=[0, 0, 3.5], length=7, internal=False)
+
+    taladro = find_bore([asiento, pared], Frame(origin=[0, 0, 0], axis=EJE_Z))
+
+    assert taladro.radius == pytest.approx(11.05)
+
+
+def test_un_saliente_se_busca_como_saliente():
+    """El saliente de centrado del NEMA17 empieza en la cara y sale hacia
+    fuera; las esquinas redondeadas del cuerpo quedan detrás de la cara."""
+    from mech_toolkit.geometry import find_boss
+
+    piloto = Cylinder(radius=11.0, axis=[0, 0, -1], point=[0, 0, 0.8], length=1.6, internal=False)
+    esquinas = Cylinder(radius=26.92, axis=[0, 0, -1], point=[0, 0, -3.9], length=7.75, internal=False)
+
+    saliente = find_boss([piloto, esquinas], Frame(origin=[0, 0, 0], axis=EJE_Z))
+
+    assert saliente.radius == pytest.approx(11.0)
+
+
+def test_los_agujeros_de_un_patron_son_interiores():
+    """Un patrón de pivotes (exteriores) no es un patrón de agujeros."""
+    pivotes = [Cylinder(radius=1.65, axis=EJE_Z, point=[x, y, 3], length=6, internal=False)
+               for x, y in [(15.5, 15.5), (-15.5, 15.5), (15.5, -15.5), (-15.5, -15.5)]]
+
+    assert find_holes_on_circle(pivotes, Frame(origin=[0, 0, 0], axis=EJE_Z),
+                                pcd_mm=31 * math.sqrt(2)) == []

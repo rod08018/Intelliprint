@@ -1,12 +1,14 @@
-"""Modelos de hardware comercial para la librería (F2.3).
+"""Modelos de referencia de la librería (F2.3).
 
-Geometría escrita por un humano con las cotas de la hoja del fabricante:
-ningún modelo de lenguaje debe inventar las medidas de un NEMA17 (§ 10).
+Los modelos de hardware comercial NO los dibuja el sistema: se descargan de
+fuentes independientes (library/models/reference/, con autor y licencia).
+Si el sistema diseñara la pieza y también su referencia con los mismos
+números, que encajen no probaría nada — es circular, el mismo fallo que
+ADR-011. Una referencia dibujada por otra persona a partir del objeto real
+sí puede contradecirnos, y eso es lo que la hace útil.
 
-Posición de montaje: los modelos se construyen en las MISMAS coordenadas
-que las piezas que los alojan (centrados en el origen, con la cara de
-montaje en z=0). Así, al insertar soporte y motor en un ensamblaje de
-FreeCAD quedan montados sin tener que crear uniones.
+Aquí solo se IMPORTAN: el STEP original no se toca, y se genera un .FCStd
+porque "Insert Component" de FreeCAD no acepta STEP.
 """
 
 import json
@@ -18,47 +20,30 @@ from pydantic import BaseModel
 
 PREFIJO = "INTELLIPRINT_MODELO:"
 
-# NEMA17 42x40 simplificado: cuerpo, saliente de centrado, eje y los
-# cuatro M3 roscados de la brida. Suficiente para comprobar encaje; no
-# modela los chaflanes del cuerpo ni el plano del eje.
-_NEMA17 = '''\
+_IMPORTAR = '''\
 import json
 import FreeCAD
 import Part
 
-V = FreeCAD.Vector
-L, H = 42.3, 40.0           # lado y largo del cuerpo
-PILOTO_D, PILOTO_H = 22.0, 2.0
-EJE_D, EJE_L = 5.0, 24.0
-M3_D, M3_PROF, CUADRO = 3.0, 4.5, 31.0
-
-cuerpo = Part.makeBox(L, L, H, V(-L / 2, -L / 2, -H))      # cara en z=0, hacia abajo
-piloto = Part.makeCylinder(PILOTO_D / 2, PILOTO_H, V(0, 0, 0))
-eje = Part.makeCylinder(EJE_D / 2, EJE_L, V(0, 0, 0))
-motor = cuerpo.fuse(piloto).fuse(eje)
-s = CUADRO / 2
-for x, y in [(s, s), (-s, s), (s, -s), (-s, -s)]:
-    motor = motor.cut(Part.makeCylinder(M3_D / 2, M3_PROF, V(x, y, -M3_PROF)))
-motor = motor.removeSplitter()
-
-doc = FreeCAD.newDocument("nema17_42x40")
-obj = doc.addObject("Part::Feature", "nema17_42x40")
-obj.Shape = motor
-obj.Label = "nema17_42x40"
+forma = Part.read({step!r})
+forma.translate(FreeCAD.Vector(0, 0, {dz!r}))
+doc = FreeCAD.newDocument({nombre!r})
+obj = doc.addObject("Part::Feature", {nombre!r})
+obj.Shape = forma
+obj.Label = {nombre!r}
 doc.recompute()
-Part.export([obj], {step!r})
 doc.saveAs({fcstd!r})
-bb = motor.BoundBox
+bb = forma.BoundBox
 print({prefijo!r} + json.dumps({{
     "bbox_mm": [bb.XLength, bb.YLength, bb.ZLength],
     "zmin": bb.ZMin, "zmax": bb.ZMax,
-    "solids": len(motor.Solids), "valid": motor.isValid(),
+    "solids": len(forma.Solids), "valid": forma.isValid(),
     "fcstd_object": obj.Name,
 }}))
 '''
 
 
-class ModeloConstruido(BaseModel):
+class ModeloImportado(BaseModel):
     bbox_mm: list[float]
     zmin: float
     zmax: float
@@ -67,16 +52,27 @@ class ModeloConstruido(BaseModel):
     fcstd_object: str
 
 
-def build_nema17(salida: Path, freecadcmd: str) -> ModeloConstruido:
+def import_reference(
+    step: Path, fcstd: Path, freecadcmd: str, dz: float = 0.0
+) -> ModeloImportado:
+    """STEP de referencia → .FCStd listo para "Insert Component".
+
+    `dz` desplaza el modelo para dejarlo en posición de montaje. Ese valor
+    se MIDE en la geometría del propio modelo (p. ej. dónde está su cara
+    frontal), no se toma de nuestras cotas: si no, volveríamos a la
+    referencia circular.
+    """
     from orchestrator.fcstd import mostrar_solo
 
-    salida = Path(salida)
-    salida.mkdir(parents=True, exist_ok=True)
-    fcstd, step = salida / "nema17_42x40.FCStd", salida / "nema17_42x40.step"
+    fcstd = Path(fcstd)
+    fcstd.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
-        script = Path(tmp) / "nema17.py"
+        script = Path(tmp) / "importar.py"
         script.write_text(
-            _NEMA17.format(step=str(step), fcstd=str(fcstd), prefijo=PREFIJO),
+            _IMPORTAR.format(
+                step=str(Path(step).resolve()), fcstd=str(fcstd.resolve()),
+                nombre=fcstd.stem, dz=float(dz), prefijo=PREFIJO,
+            ),
             encoding="utf-8",
         )
         proceso = subprocess.run(
@@ -84,8 +80,8 @@ def build_nema17(salida: Path, freecadcmd: str) -> ModeloConstruido:
         )
     for linea in proceso.stdout.splitlines():
         if linea.startswith(PREFIJO):
-            modelo = ModeloConstruido(**json.loads(linea[len(PREFIJO):]))
+            modelo = ModeloImportado(**json.loads(linea[len(PREFIJO):]))
             # Sin esto FreeCAD abre el .FCStd con todo oculto (orchestrator/fcstd.py).
             mostrar_solo(fcstd, modelo.fcstd_object)
             return modelo
-    raise RuntimeError(f"no se pudo construir el NEMA17:\n{proceso.stderr[-600:]}")
+    raise RuntimeError(f"no se pudo importar {step}:\n{proceso.stderr[-600:]}")

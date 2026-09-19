@@ -43,3 +43,16 @@ def test_extrae_los_cilindros_reales_del_soporte(tmp_path):
     agujeros = find_holes_on_circle(caras, eje_z, pcd_mm=31 * math.sqrt(2))
     assert len(agujeros) == 4
     assert all(a.radius == pytest.approx(1.65) for a in agujeros)
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_el_extractor_distingue_agujeros_de_salientes(tmp_path):
+    from pathlib import Path
+
+    soporte = extract_cylinders(_nema17(tmp_path), _freecadcmd())
+    assert all(c.internal for c in soporte)  # la placa solo tiene agujeros
+
+    motor = extract_cylinders(Path("library/models/reference/nema17_40mm_obijuan.step"),
+                              _freecadcmd())
+    piloto = next(c for c in motor if abs(2 * c.radius - 22) < 0.01)
+    assert piloto.internal is False
