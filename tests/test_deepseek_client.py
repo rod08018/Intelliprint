@@ -47,3 +47,17 @@ def test_un_error_http_no_se_confunde_con_una_respuesta_del_modelo():
 
     with pytest.raises(httpx.HTTPStatusError):
         cliente.complete("hola")
+
+
+def test_una_respuesta_cortada_por_max_tokens_es_un_error_y_no_un_json_invalido():
+    """Fallo real: deepseek-reasoner pensó 32 768 tokens y devolvió contenido
+    vacío. Tratado como JSON inválido, se gastaban los 3 reintentos (6 min)."""
+    from orchestrator.llm.providers.deepseek import RespuestaCortada
+
+    cliente = DeepSeekClient(
+        api_key="k", model="deepseek-reasoner",
+        transport=httpx.MockTransport(lambda r: httpx.Response(200, json={
+            "choices": [{"finish_reason": "length", "message": {"content": ""}}]})),
+    )
+    with pytest.raises(RespuestaCortada, match="max_tokens=65536"):
+        cliente.complete("hola")
