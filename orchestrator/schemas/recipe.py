@@ -15,6 +15,9 @@ class GeneratorSpec(BaseModel):
     name: str
     required_params: set[str] = set()
     optional_params: set[str] = set()
+    template: str = ""
+    """Fragmento de Python con marcadores `{param}`. Lo escribe un humano,
+    no un LLM: es lo que hace que la receta sea segura de ejecutar."""
 
     @property
     def allowed_params(self) -> set[str]:

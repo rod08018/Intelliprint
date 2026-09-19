@@ -70,26 +70,25 @@ Los 92 GB de RAM hacen que el consumo de los contenedores (`mech-toolkit`, `sim`
 
 | Fase | Nombre | Resultado | Esfuerzo estimado* |
 |------|--------|-----------|--------------------|
-| 0 | Infraestructura | Docker + Ollama + puentes MCP + esqueleto del orquestador | 1 semana |
-| 1 | Pipeline de una pieza | Requerimiento → pieza FreeCAD → STL → PrusaSlicer | 2 semanas |
-| 2 | Herramientas deterministas y QA | `mech-toolkit`, librería de hardware, QA con mediciones | 2 semanas |
-| 3 | Descomposición y ensamble | Varias piezas en paralelo, interfaces, ensamble e interferencias | 3 semanas |
-| 4 | Ingeniería de sistema y simulación | Cinemática, actuación, electrónica, `sim`, reapertura selectiva | 3 semanas |
-| 5 | Interfaz humana, escalamiento y feedback | `HumanPort` con adaptadores CLI/web/Telegram, DeepSeek con presupuesto, calibración con impresiones reales | 3 semanas |
-| 6 | Endurecimiento | Evaluaciones, métricas, documentación, brazo de 6 GDL | 2 semanas |
+| Fase | Nombre | Resultado | Semanas |
+|------|--------|-----------|---------|
+| 0 | Infraestructura | Docker + Ollama + puentes MCP + esqueleto del orquestador | 1 |
+| 1 | Pipeline de una pieza | Contratos, admisión mínima, receta → `build.py` → STL → laminado | 3 |
+| 2 | Herramientas deterministas y QA | `mech-toolkit`, librería de hardware, QA de tres capas | 3 |
+| 3 | Descomposición y ensamble | Varias piezas en paralelo, interfaces, ensamble e interferencias | 3 |
+| 4 | Ingeniería de sistema y simulación | Cinemática, actuación, electrónica, `sim`, fases condicionales | 3 |
+| 5 | Multiproyecto y canal humano | Registro, admisión conversacional, web y Telegram, escalamiento | 4 |
+| 6 | Endurecimiento | Evaluaciones, métricas, documentación, brazo de 6 GDL | 2 |
 
-\* Estimado para dedicación parcial (~10–15 h/semana). Total aproximado: **16 semanas**.
+| Semana | 1 | 2–4 | 5–7 | 8–10 | 11–13 | 14–17 | 18–19 |
+|---|---|---|---|---|---|---|---|
+| **Fase** | 0 | 1 | 2 | 3 | 4 | 5 | 6 |
 
-```
-Semana:   1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16
-Fase 0   ██
-Fase 1      ████
-Fase 2            ████
-Fase 3                  ██████
-Fase 4                        ██████
-Fase 5                              ██████
-Fase 6                                      ████
-```
+Estimado para dedicación parcial (~10–15 h/semana). Total: **19 semanas**.
+
+> **Por qué creció de 15 a 19.** No es un ajuste de estimación, es alcance nuevo: admisión conversacional, registro multiproyecto, clases de producto, `HumanPort` con tres adaptadores y canal de Telegram. Nada de eso estaba en el plan original.
+
+**Las fases 3 y 4 no son estrictamente secuenciales para la clase `robot`.** La resolución de interfaces necesita la cinemática (§ 5), así que la Fase 3 se cierra con `static_part` y `mechanism` —el entregable es la garra— y el `robot` completo no cierra hasta la Fase 4. Por eso los hitos H3 y H4 son de clases distintas.
 
 ---
 
@@ -120,34 +119,33 @@ Convención de IDs: `F<fase>.<tarea>`. Cada tarea tiene un criterio de aceptaci�
 
 ---
 
-### Fase 1 — Pipeline de una pieza (semanas 2–3)
+### Fase 1 — Pipeline de una pieza (semanas 2–4)
 
-**Objetivo:** primer flujo con LLM de extremo a extremo para una pieza simple.
+**Objetivo:** primer flujo con LLM de extremo a extremo para una pieza simple, con los contratos que sostienen toda la arquitectura.
+
+Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto y los canales llegan en la Fase 5; lo que **sí** está aquí desde el principio es la **barrera de admisión**, porque es estructural y retrofitarla después sería rehacer el grafo.
 
 | ID | Tarea | Criterio de aceptación |
 |----|-------|------------------------|
-| F1.1 | Esquemas Pydantic: `Spec`, `PartTask`, `PartResult`, `SlicingReport`, **`Recipe`** | Validación falla con mensajes claros ante datos incompletos |
+| F1.1 | Esquemas Pydantic: `Spec` (**con `class`**, § 4.2), `Interface` (estados `symbolic`/`resolved`), `Recipe`, `PartTask`, `PartResult`, `QaReport`, `SlicingReport` | Validación falla con mensajes claros; una interfaz simbólica con geometría y una resuelta sin ella se rechazan |
 | F1.2 | Salida estructurada: JSON mode de Ollama + validación + reintento con el error | ≥ 90 % de respuestas válidas en 20 pruebas con `qwen3.8` |
-| F1.3 | **Requirements Agent** en modo **admisión conversacional** (§ 4.1): lee texto, fotos y medidas, pregunta por `HumanPort` hasta completar la spec, y **clasifica el producto** (§ 4.2) | Convierte 10 pedidos de prueba en `spec.yaml` válidos; pregunta cuando falta un dato crítico; clasifica correctamente 10 de 10 (incluidos soportes estáticos) |
-| F1.3b | Estado `INTAKE` en el grafo, **sin transición a diseño sin confirmación explícita** | Test: no existe camino de `INTAKE` a `DECOMPOSED` sin la confirmación. Intentarlo lanza error, no avanza |
-| F1.4 | Plantillas de macros FreeCAD (sketch + pad + pocket + fillet, export STL/STEP) y `compose_build_script(recipe)` que las ensambla | Una receta de prueba produce un `build.py` que se ejecuta sin error en `freecadcmd` |
-| F1.5 | RAG mínimo: indexar en Qdrant la documentación de la API Python de FreeCAD (Part/PartDesign/Sketcher) + ejemplos propios | Una consulta "pocket circular en cara superior" devuelve el ejemplo correcto |
-| F1.6 | **Part Designer Agent**: emite `recipe.json` (**no Python**); el orquestador compone `build.py` y lo ejecuta en `freecadcmd` | Soporte NEMA17 generado con dimensiones correctas en ≥ 4 de 5 intentos |
-| F1.7 | Bucle de error en dos niveles: receta inválida → error de esquema al agente (barato, sin ejecutar); fallo de ejecución → traceback al agente (máx. 3) | Tasa de éxito final ≥ 4 de 5; los errores de esquema se detectan sin lanzar FreeCAD |
-| F1.8 | **Slicing/Cost Agent** mínimo: laminar con perfil fijo y leer estadísticas | Reporte con gramos, tiempo y si requiere soportes |
-| F1.9 | Grafo LangGraph lineal: Admisión → Part Designer → Slicing, con estado en `state.sqlite` | Un comando CLI ejecuta todo y deja los artefactos en `workspace/projects/<id>/` |
-| F1.10 | Versionado git automático del proyecto tras cada estado | `git log` del proyecto muestra un commit por etapa |
-| F1.11 | **Registro de proyectos** `workspace/registry.sqlite` (§ 5.1): id fecha+slug, nombre, clase, estado, fechas, coste, **qué espera del humano** | Tres proyectos de clases distintas coexisten; una consulta devuelve cuál espera qué |
-| F1.12 | `submit()` en el `HumanPort` + adaptador CLI (`intelliprint new`), con adjuntos guardados en `intake/` | Un requerimiento con dos fotos crea el proyecto, lo registra y guarda los adjuntos dentro de `workspace/` |
-| F1.13 | `MAX_CONCURRENT_PROJECTS` y cola de proyectos (regla 9 de § 4) | Con el límite en 1, el segundo proyecto queda encolado en vez de competir por la GPU |
+| F1.3 | **Requirements Agent**: produce `spec.yaml` y **clasifica el producto** (`static_part` / `mechanism` / `robot`) | Convierte 10 pedidos de prueba en `spec.yaml` válidos; clasifica correctamente 10 de 10, incluidos soportes estáticos |
+| F1.4 | Estado `INTAKE` con **confirmación obligatoria**, vía `HumanPort` (adaptador CLI de F0.9) | Test estructural: **no existe camino de `INTAKE` a `DECOMPOSED` sin confirmación**. Intentarlo lanza error, no avanza |
+| F1.5 | Plantillas de macros FreeCAD (sketch + pad + pocket + fillet, export STL/STEP) y `compose_build_script(recipe)` que las ensambla | Una receta produce un `build.py` que corre en `freecadcmd` y devuelve el volumen esperado del sólido |
+| F1.6 | RAG mínimo: indexar en Qdrant la API Python de FreeCAD (Part/PartDesign/Sketcher) + ejemplos propios | Una consulta "pocket circular en cara superior" devuelve el ejemplo correcto |
+| F1.7 | **Part Designer Agent**: emite `recipe.json` (**no Python**); el orquestador compone `build.py` y lo ejecuta en `freecadcmd` | Soporte NEMA17 con dimensiones correctas en ≥ 4 de 5 intentos |
+| F1.8 | Bucle de error en dos niveles: receta inválida → error de esquema al agente (barato, sin ejecutar); fallo de ejecución → traceback (máx. 3) | Tasa de éxito final ≥ 4 de 5; los errores de esquema se detectan **sin lanzar FreeCAD** |
+| F1.9 | **Slicing/Cost Agent** mínimo: laminar con perfil fijo y leer estadísticas | Reporte con gramos, tiempo y si requiere soportes |
+| F1.10 | Grafo LangGraph lineal: `INTAKE` → Part Designer → Slicing, con estado en `state.sqlite` | Un comando de consola ejecuta todo y deja los artefactos en `workspace/projects/<id>/` |
+| F1.11 | Versionado git automático del proyecto tras cada estado | `git log` del proyecto muestra un commit por etapa |
 
-**Entregable:** `intelliprint new "soporte para motor NEMA17 atornillable a perfil 2020"` abre la admisión, pregunta lo que falte, y tras confirmar produce `.FCStd`, `.stl`, `.3mf` y reporte, con el proyecto dado de alta en el registro.
+**Entregable:** `intelliprint new "soporte para motor NEMA17 atornillable a perfil 2020"` abre la admisión, pregunta lo que falte por consola, y tras confirmar produce `.FCStd`, `.stl`, `.3mf` y reporte.
 
 **Prueba real:** imprimir el soporte y comprobar que el motor y el perfil encajan. Anotar las holguras reales medidas (entrada para la Fase 2).
 
 ---
 
-### Fase 2 — Herramientas deterministas y QA (semanas 4–5)
+### Fase 2 — Herramientas deterministas y QA (semanas 5–7)
 
 **Objetivo:** que la geometría crítica la haga código y que exista una revisión independiente basada en mediciones.
 
@@ -173,13 +171,15 @@ Convención de IDs: `F<fase>.<tarea>`. Cada tarea tiene un criterio de aceptaci�
 
 ---
 
-### Fase 3 — Descomposición y ensamble (semanas 6–8)
+### Fase 3 — Descomposición y ensamble (semanas 8–10)
 
 **Objetivo:** diseñar productos de varias piezas que encajen entre sí.
 
+**Alcance por clase:** esta fase se cierra con `static_part` y `mechanism`. El `robot` no puede completarse aquí porque `F3.3` necesita la cinemática de la Fase 4 (§ 5).
+
 | ID | Tarea | Criterio de aceptación |
 |----|-------|------------------------|
-| F3.1 | Esquemas `ProductTree` e `Interface` con **estados `symbolic` / `resolved`** (§ 3 de la arquitectura) + validador: toda interfaz referencia piezas existentes, sin ciclos, y **ninguna interfaz `symbolic` puede llegar a la Fase 3** | Árboles inválidos rechazados con mensaje claro; una interfaz sin resolver bloquea el avance |
+| F3.1 | Esquema `ProductTree` + validador de consistencia: toda interfaz referencia piezas existentes, sin ciclos, y **ninguna interfaz `symbolic` llega al diseño de piezas** (el esquema `Interface` es de F1.1) | Árboles inválidos rechazados con mensaje claro; una interfaz sin resolver bloquea el avance |
 | F3.2 | **Decomposition Agent**: árbol + interfaces **simbólicas** (sin cotas ni `frame`) + tareas con dependencias | Para 5 productos de prueba genera árboles razonables revisados a mano; **ninguna salida contiene números inventados** |
 | F3.3 | `resolve_interfaces()`: convierte simbólicas en resueltas usando la hardware library y la salida de la ingeniería de sistema | Toda interfaz de la garra queda resuelta con cotas trazables a `library/`, no a un LLM |
 | F3.4 | **Gate humano #1** vía `HumanPort` (adaptador CLI), **después de resolver interfaces** | El flujo se pausa y se reanuda desde el estado guardado; lo aprobado es lo que se construye |
@@ -197,7 +197,7 @@ Convención de IDs: `F<fase>.<tarea>`. Cada tarea tiene un criterio de aceptaci�
 
 ---
 
-### Fase 4 — Ingeniería de sistema y simulación (semanas 9–11)
+### Fase 4 — Ingeniería de sistema y simulación (semanas 11–13)
 
 **Objetivo:** validar que el mecanismo se mueve y que los actuadores alcanzan.
 
@@ -218,27 +218,33 @@ Convención de IDs: `F<fase>.<tarea>`. Cada tarea tiene un criterio de aceptaci�
 
 ---
 
-### Fase 5 — Interfaz humana, escalamiento y feedback (semanas 12–14)
+### Fase 5 — Multiproyecto y canal humano (semanas 14–17)
+
+**Objetivo:** dejar de ser una herramienta de consola de un proyecto y pasar a ser algo que usas desde el móvil, con varios encargos abiertos a la vez.
 
 | ID | Tarea | Criterio de aceptación |
 |----|-------|------------------------|
-| F5.1 | Política de escalamiento en `router.py` (fallos, complejidad, contexto, petición manual) | Cada escalamiento registra motivo, tokens y costo |
-| F5.2 | Tope `max_usd_per_project` y contador persistente | Al alcanzar el tope se detiene y pide autorización |
-| F5.3 | Filtro de datos salientes: solo texto, sin rutas del host ni archivos | Test que verifica que ninguna ruta `C:\` sale hacia DeepSeek |
-| F5.4 | **Adaptador web** del `HumanPort` (FastAPI + HTMX): lista de proyectos, estado por pieza, reportes, capturas, botones de gate | Ambos gates se aprueban desde el navegador **sin duplicar la lógica de gate** |
-| F5.5 | **Adaptador Telegram** vía OpenClaw: contenedor, lista blanca obligatoria, `ask`/`notify`/**`submit`** con texto e imágenes | Creas un proyecto desde el móvil mandando texto y dos fotos; recibes las preguntas de admisión y un render; respondes y continúa |
-| F5.5b | Consultas de registro por Telegram: qué proyectos hay, estado de uno, qué espera de ti | *"¿qué tengo pendiente?"* devuelve la lista con estados desde `registry.sqlite` |
-| F5.6 | Peticiones de cambio entrantes → `ChangeRequest` → defecto con autor humano, por la maquinaria de reapertura existente | "haz los dedos más largos" reabre solo las piezas afectadas, sin ruta paralela |
-| F5.7 | Seguridad del canal: texto **y contenido de imágenes** como dato, lista blanca de tipos y tamaño de adjuntos, filtro de salida compartido con DeepSeek, escotilla de Python cerrada sin gate | Test de inyección por texto **y por imagen** (una foto con "ignora las instrucciones anteriores" escrito): ninguna ejecuta nada. Ninguna ruta `C:\` sale por Telegram. Un adjunto no permitido se rechaza |
-| F5.8 | **Gate humano #2** con resumen: BOM, placas, gramos, horas, advertencias de QA | Aprobación deja los archivos en `fabrication/` |
-| F5.9 | Instrucciones de ensamble generadas (orden, hardware por paso, capturas) | Documento legible para montar la garra sin ayuda |
-| F5.10 | Registro de feedback de impresión ("flojo", "apretado", "se rompió en X"), también por Telegram | El feedback ajusta el perfil de holguras o crea defectos en la pieza |
+| F5.1 | **Registro de proyectos** `workspace/registry.sqlite` (§ 5.1): id fecha+slug, nombre, clase, estado, fechas, coste, **qué espera del humano** | Tres proyectos de clases distintas coexisten; una consulta devuelve cuál espera qué |
+| F5.2 | `submit()` en el `HumanPort` con **adjuntos** guardados en `intake/` (lista blanca de tipos y tamaño) | Un requerimiento con dos fotos crea el proyecto, lo registra y guarda los adjuntos dentro de `workspace/` |
+| F5.3 | **Admisión conversacional** multivuelta: el Requirements Agent usa las fotos y las medidas y pregunta hasta completar la spec | Un requerimiento vago con dos fotos acaba en una spec completa tras ≤ 4 preguntas |
+| F5.4 | `MAX_CONCURRENT_PROJECTS` y cola de proyectos (regla 9 de § 4) | Con el límite en 1, el segundo proyecto queda encolado en vez de competir por la GPU |
+| F5.5 | **Adaptador web** del `HumanPort` (FastAPI + HTMX): lista de proyectos, estado por pieza, reportes, capturas, botones de gate | Ambos gates se aprueban desde el navegador **sin duplicar la lógica de gate** |
+| F5.6 | **Adaptador Telegram** vía OpenClaw: contenedor, lista blanca obligatoria, `ask`/`notify`/`submit` con texto e imágenes | Creas un proyecto desde el móvil mandando texto y dos fotos; recibes las preguntas de admisión y un render; respondes y continúa |
+| F5.7 | Consultas de registro por Telegram: qué proyectos hay, estado de uno, qué espera de ti | *"¿qué tengo pendiente?"* devuelve la lista con estados desde `registry.sqlite` |
+| F5.8 | Peticiones de cambio entrantes → `ChangeRequest` → defecto con autor humano, por la maquinaria de reapertura existente | "haz los dedos más largos" reabre solo las piezas afectadas, sin ruta paralela |
+| F5.9 | **Seguridad del canal**: texto **y contenido de imágenes** como dato, adjuntos no ejecutables ni fuera de `workspace/`, escotilla de Python cerrada sin gate | Test de inyección por texto **y por imagen** (una foto con "ignora las instrucciones anteriores" escrito): ninguna ejecuta nada. Un adjunto no permitido se rechaza |
+| F5.10 | Política de escalamiento en `router.py` (fallos, complejidad, contexto, petición manual) | Cada escalamiento registra motivo, tokens y costo |
+| F5.11 | Tope `max_usd_per_project` y contador persistente | Al alcanzar el tope se detiene y pide autorización |
+| F5.12 | Filtro de datos salientes, compartido por DeepSeek y Telegram | Test: ninguna ruta `C:\` ni credencial sale por ninguno de los dos destinos |
+| F5.13 | **Gate humano #2** con resumen: BOM, placas, gramos, horas, advertencias de QA | Aprobación deja los archivos en `fabrication/` |
+| F5.14 | Instrucciones de ensamble generadas (orden, hardware por paso, capturas) | Documento legible para montar la garra sin ayuda |
+| F5.15 | Registro de feedback de impresión ("flojo", "apretado", "se rompió en X"), también por Telegram | El feedback ajusta el perfil de holguras o crea defectos en la pieza |
 
-**Entregable:** flujo completo operable desde el navegador **y desde el móvil**. El sistema te consulta por Telegram enviándote renders, tú apruebas gates y pides cambios sin estar delante del PC, y los costos de DeepSeek son visibles.
+**Entregable:** le mandas al bot *"una pieza que sujete un vaso en el carruaje de mi hijo"* con dos fotos, te pregunta lo que falta, apruebas los dos gates desde el móvil y recibes el G-code — con otros dos proyectos abiertos a la vez y los costos de DeepSeek visibles.
 
 ---
 
-### Fase 6 — Endurecimiento (semanas 15–16)
+### Fase 6 — Endurecimiento (semanas 18–19)
 
 | ID | Tarea | Criterio de aceptación |
 |----|-------|------------------------|
@@ -254,21 +260,31 @@ Convención de IDs: `F<fase>.<tarea>`. Cada tarea tiene un criterio de aceptaci�
 ## 5. Dependencias entre tareas críticas
 
 ```
-F0.5 cliente MCP ─┬─► F1.6 Part Designer ─► F2.14 bucle QA ─► F3.7 piezas ─► F3.8 Assembly
+F0.5 cliente MCP ─┬─► F1.7 Part Designer ─► F2.14 bucle QA ─► F3.7 piezas ─► F3.8 Assembly
 F0.6 router LLM ──┘         ▲                      ▲                              │
-F1.4 compose_build_script ──┘                      │                              ▼
-F2.2 librería ─► F2.5 generadores ─► F1.6          │            F4.6 URDF ─► F4.9 Test/Sim
+F1.5 compose_build_script ──┘                      │                              ▼
+F1.1 esquemas ─► F3.1 ProductTree                  │            F4.6 URDF ─► F4.9 Test/Sim
+F2.2 librería ─► F2.5 generadores ─► F1.7          │
 F2.4 perfil ─► F2.9 Tolerances                     │
-F3.1 esquemas ─► F3.2 Decomposition (simbólicas) ──┼─► F3.3 resolve_interfaces ─► F3.4 gate 1
+F3.1 ─► F3.2 Decomposition (simbólicas) ───────────┼─► F3.3 resolve_interfaces ─► F3.4 gate 1
                                                    │              ▲
 F2.10 derive_assertions ───────────────────────────┘              │
-F4.1 sim ─► F4.2 Kinematics ─► F4.4 Actuation ────────────────────┘
-F0.9 HumanPort ─► F3.4 gate 1 ─► F5.4 web ─► F5.5 Telegram
+F4.1 sim ─► F4.2 Kinematics ─► F4.4 Actuation ────────────────────┘   (solo clase `robot`)
+
+F0.9 HumanPort ─► F1.4 INTAKE ─► F3.4 gate 1 ─► F5.5 web ─► F5.6 Telegram
+F1.3 clasificación ─────────────────────────────► F4.10 fases condicionales
 ```
 
-Ruta crítica: F0.5 → F1.4 → F1.6 → F2.5 → F2.14 → F3.2 → F3.3 → F3.8 → F4.6 → F4.9.
+Ruta crítica: F0.5 → F1.5 → F1.7 → F2.5 → F2.14 → F3.2 → F3.3 → F3.8 → F4.6 → F4.9.
 
-> **Dependencia invertida respecto al plan original.** `F3.3 resolve_interfaces` **depende de `F4.2 Kinematics` y `F4.4 Actuation`**: los `frame` salen de la cinemática y el hardware definitivo de la selección de actuadores. Para productos sin cadena cinemática (soporte NEMA17, garra) el resolvedor usa la hardware library y los frames del árbol, y la Fase 3 puede completarse antes de la Fase 4. Para el brazo de 3 y 6 GDL, **la resolución completa no es posible hasta tener la Fase 4**. Es la razón de ser de los dos estados de interfaz: permiten que la Fase 3 avance con lo que sí se puede resolver, en lugar de inventar y corregir después.
+> **La única dependencia que va hacia atrás.** `F3.3 resolve_interfaces` **necesita `F4.2 Kinematics` y `F4.4 Actuation`** cuando el producto es un `robot`: los `frame` salen de la cinemática y el hardware definitivo de la selección de actuadores. Para `static_part` y `mechanism` el resolvedor se apaña con la hardware library y los frames del árbol, así que la Fase 3 **se cierra con la garra** y el brazo espera a la Fase 4.
+>
+> Esto no es un defecto del plan: es la consecuencia de ADR-001 hecha visible. Los dos estados de interfaz existen precisamente para que la Fase 3 avance con lo que se puede resolver de verdad, en lugar de inventar cotas y corregirlas después.
+
+**Dos decisiones de orden que conviene no revertir sin pensarlo:**
+
+- **La barrera de admisión (`F1.4`) va en la Fase 1, no en la 5**, aunque el canal de Telegram sea de la 5. Es una transición del grafo: añadirla después obligaría a rehacer la máquina de estados con el pipeline ya montado encima.
+- **La clasificación (`F1.3`) también va en la Fase 1**, aunque las fases condicionales (`F4.10`) sean de la 4. Es un campo de `Spec` y una instrucción de prompt: si llegara tarde, las fases 3 y 4 se construirían asumiendo `robot` siempre y habría que retrofitarlas.
 
 ---
 
@@ -280,7 +296,7 @@ Ruta crítica: F0.5 → F1.4 → F1.6 → F2.5 → F2.14 → F3.2 → F3.3 → F
 | Herramientas | Chequeos DFM sobre STL con defectos conocidos | `pytest` + set `tests/fixtures/stl/` |
 | Integración | Orquestador ↔ MCP de FreeCAD/PrusaSlicer | `smoke_test` (requiere host con FreeCAD abierto) |
 | Agentes | Salida válida y correcta de cada agente sobre casos fijos | Suite de evaluación (F6.1), con semilla y temperatura bajas |
-| Adversarial | Que el QA no pueda aprobar una pieza defectuosa (F2.12) y que un mensaje de Telegram no pueda ejecutar código (F5.7) | `pytest` con agentes simulados que responden siempre "aprobado" y con mensajes de inyección |
+| Adversarial | Que el QA no pueda aprobar una pieza defectuosa (F2.12), que no se pueda diseñar sin confirmar la admisión (F1.4) y que un mensaje o una imagen de Telegram no puedan ejecutar código (F5.9) | `pytest` con agentes simulados que responden siempre "aprobado", transiciones prohibidas del grafo, y mensajes e imágenes de inyección |
 | Extremo a extremo | Proyectos de referencia completos | CLI `intelliprint eval` |
 | Físico | Impresión y montaje real | Checklist manual por hito |
 
@@ -315,7 +331,8 @@ Todas se calculan desde `state.sqlite` y los logs.
 | Catálogo de generadores insuficiente | **Alta** | Medio | Es el riesgo que sustituye al anterior: se mide con la métrica de escotilla y se ataca escribiendo generadores | Escotilla con DeepSeek mientras tanto |
 | VRAM insuficiente | Baja | Medio | 25 GB de 32 GB con ambos modelos residentes | Descargar `gemma3:12b` y usar `qwen3.8` también para QA |
 | Ollama cae a CPU en silencio (Blackwell) | Media | Alto | Verificación explícita de GPU en F0.3; CUDA 12.8+ | Ollama nativo en Windows en vez de contenedor |
-| Inyección de prompt por Telegram | Baja | Alto | Lista blanca obligatoria; texto entrante como dato; escotilla cerrada sin gate (F5.7) | Desactivar peticiones de cambio y dejar Telegram solo para notificaciones |
+| Inyección de prompt por Telegram (texto o imagen) | Baja | Alto | Lista blanca obligatoria; texto y contenido de imágenes como dato; escotilla cerrada sin gate (F5.9) | Desactivar peticiones de cambio y dejar Telegram solo para notificaciones |
+| El alcance sigue creciendo y las 19 semanas se quedan cortas | **Alta** | Medio | Fases con entregable propio: puedes parar en cualquiera y tener algo que funciona | Recortar la Fase 5 a solo notificaciones por Telegram y operar los gates desde la web |
 | Puente stdio→HTTP inestable | Media | Alto | Reintentos y health checks en el cliente | Correr los MCP dentro de Docker apuntando al RPC de FreeCAD |
 | Decomposition produce árboles incoherentes | Media | Alto | Validador de consistencia + gate humano #1 | Escalar siempre la descomposición a DeepSeek |
 | Simulación lenta o inexacta con mallas complejas | Media | Medio | Mallas simplificadas / primitivas para colisión | Solo chequeo de interferencias estático por pasos |
@@ -329,12 +346,14 @@ Todas se calculan desde `state.sqlite` y los logs.
 | Hito | Fin de semana | Demostración |
 |------|---------------|--------------|
 | H0 | 1 | Cubo creado en FreeCAD y laminado desde el contenedor |
-| H1 | 3 | Soporte NEMA17 desde texto, impreso |
-| H2 | 5 | QA detecta defectos; perfil de holguras calibrado |
-| H3 | 8 | Garra MG996R impresa y montada |
-| H4 | 11 | Brazo 3 GDL impreso y moviéndose |
-| H5 | 14 | Flujo completo desde la UI y desde Telegram, con costos visibles |
-| H6 | 16 | Brazo 6 GDL diseñado; suite de evaluación en verde |
+| H1 | 4 | Soporte NEMA17 desde texto, impreso *(`static_part`)* |
+| H2 | 7 | QA detecta defectos y no puede aprobarlos; perfil de holguras calibrado |
+| H3 | 10 | Garra MG996R impresa y montada *(`mechanism`)* |
+| H4 | 13 | Brazo 3 GDL impreso y moviéndose *(`robot`)* |
+| H5 | 17 | Proyecto creado, consultado y aprobado enteramente desde el móvil, con otros dos abiertos a la vez |
+| H6 | 19 | Brazo 6 GDL diseñado; suite de evaluación en verde |
+
+Los hitos H1, H3 y H4 son de **clases distintas a propósito**: cada uno valida que el grafo hace lo correcto con su clase, incluido saltarse las fases que no aplican.
 
 ---
 
@@ -354,6 +373,6 @@ Todas se calculan desde `state.sqlite` y los logs.
 
 1. ~~Confirmar VRAM~~ — **hecho**: RTX 5090, 32 GB (§ 2.1). Falta definir impresora y material de referencia.
 2. Confirmar cómo se lanzan hoy los MCP de FreeCAD y PrusaSlicer (comando exacto y si son stdio o HTTP).
-3. Crear el bot de Telegram y anotar el chat ID propio (S8), necesario para F5.5.
+3. Crear el bot de Telegram y anotar el chat ID propio (S8), necesario para F5.6. No corre prisa: es de la semana 14.
 4. Ejecutar F0.1–F0.3 (repositorio, compose, Ollama con GPU) **verificando explícitamente que no cae a CPU**.
 5. F0.10: comprobar `freecadcmd` headless en el PC, que es la base del paralelismo de la Fase 3.
