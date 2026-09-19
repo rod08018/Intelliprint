@@ -147,3 +147,12 @@ def test_listas_de_numeros_se_aceptan_y_de_texto_no():
     mal = Recipe(part="p", steps=[RecipeStep(generator="g", params={"points_mm": [[0, "os"]]})])
     with pytest.raises(RecipeError, match="points_mm"):
         mal.validate_against(cat)
+
+
+def test_un_parametro_de_opciones_es_obligatorio():
+    """Fallo real de DeepSeek: omitió `axis` en un cilindro y la receta pasó
+    la validación; reventó después, al componer build.py."""
+    receta = Recipe(part="p", steps=[RecipeStep(
+        generator="generate_bolt_pattern", params={"count": 4, "pcd_mm": 30})])
+    with pytest.raises(RecipeError, match="screw_id"):
+        receta.validate_against(_catalogo_minimo())

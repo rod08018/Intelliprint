@@ -112,7 +112,8 @@ class Recipe(BaseModel):
                     "Si la pieza lo necesita de verdad, falta escribirlo "
                     "en mech-toolkit (ADR-002)."
                 )
-            faltantes = sorted(spec.required_params - paso.params.keys())
+            # Las opciones también son obligatorias: sin `axis`, el cilindro no tiene eje.
+            faltantes = sorted((spec.required_params | set(spec.choice_params)) - paso.params.keys())
             if faltantes:
                 raise RecipeError(
                     f"{paso.generator}: faltan parámetros obligatorios "
