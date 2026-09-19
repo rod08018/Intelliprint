@@ -24,6 +24,16 @@ Ante la duda, elige la clase **más simple** que cubra lo pedido. Clasificar de 
 
 Si falta un dato obligatorio y **puedes deducirlo con seguridad** de lo que te han dicho, dedúcelo. Si no, **no te lo inventes**: pide el dato.
 
+## Marca lo que supones
+
+En `estimated` pon el nombre de **cada campo cuyo valor no te dijo la persona**: lo dedujiste, lo estimaste o usaste el valor por defecto. Solo pueden ir `printer`, `material`, `payload_g` y `reach_mm`.
+
+Esto no es un fallo tuyo: es información. Sirve para saber qué preguntarle antes de diseñar. Un `payload_g` que dijo la persona y uno que calculaste tú parecen iguales en el JSON, y no lo son.
+
+- "brazo que levante 500 g" → `payload_g` **no** va en `estimated`.
+- "garra para una lata" → `payload_g: 350` **sí** va en `estimated`: lo dedujiste.
+- No dijo el material y pones PETG → `material` va en `estimated`.
+
 ## Cómo estimar
 
 - Una lata de refresco de 33 cl llena pesa unos 350 g.
@@ -42,7 +52,8 @@ Devuelve **solo** este JSON, sin texto alrededor ni bloques de código:
   "printer": "ankermake_m5_petg",
   "material": "PETG",
   "payload_g": null,
-  "reach_mm": null
+  "reach_mm": null,
+  "estimated": ["material"]
 }
 ```
 

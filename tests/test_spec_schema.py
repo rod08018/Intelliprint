@@ -58,3 +58,54 @@ def test_spec_de_pieza_estatica_no_exige_nada_de_eso():
 
     assert spec.product_class == "static_part"
     assert spec.reach_mm is None
+
+
+# --- Procedencia de los datos (F1.2) ----------------------------------------
+
+
+def _mecanismo(**extra) -> Spec:
+    return Spec(
+        title="bisagra del gallinero",
+        description="bisagra motorizada para la puerta",
+        product_class="mechanism",
+        printer="ankermake_m5_petg",
+        material="PETG",
+        payload_g=1500,
+        **extra,
+    )
+
+
+def test_la_spec_distingue_lo_que_dijo_el_usuario_de_lo_que_estimo_el_modelo():
+    """El payload_g=1500 de la bisagra se lo inventó el modelo. Sin marca,
+    es indistinguible de un dato del usuario."""
+    spec = _mecanismo(estimated=["payload_g"])
+
+    assert "payload_g" in spec.estimated
+
+
+def test_no_se_puede_marcar_como_estimado_un_campo_que_no_existe():
+    with pytest.raises(ValidationError, match="peso_kg"):
+        _mecanismo(estimated=["peso_kg"])
+
+
+def test_los_estimados_criticos_son_los_que_la_clase_exige():
+    """Lo que la admisión debe preguntar: un dato inventado del que depende
+    una fase posterior. Una bisagra dimensionada para 1.5 kg con una puerta
+    de 4 kg da un servo que no puede con ella."""
+    spec = _mecanismo(estimated=["payload_g", "material"])
+
+    assert spec.estimated_critical == ["payload_g"]
+
+
+def test_una_pieza_estatica_con_material_supuesto_no_tiene_criticos():
+    """Suponer PETG no rompe nada que dependa de ello: no hay que preguntar."""
+    spec = Spec(
+        title="soporte",
+        description="soporte de vaso",
+        product_class="static_part",
+        printer="ankermake_m5_petg",
+        material="PETG",
+        estimated=["material"],
+    )
+
+    assert spec.estimated_critical == []
