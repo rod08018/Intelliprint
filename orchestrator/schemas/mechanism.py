@@ -63,6 +63,16 @@ class PairRuleDef(BaseModel):
     max_gap_mm: float = 0.05
 
 
+class StopDef(BaseModel):
+    """Tope: `a` y `b` se tocan cuando el parámetro vale `at` y, pasado ese
+    valor (hacia `beyond`: "above" = mayor, "below" = menor), se
+    atravesarían. Así se verifica que el tope de verdad para el movimiento."""
+    a: str
+    b: str
+    at: float
+    beyond: Literal["above", "below"]
+
+
 class CheckDef(BaseModel):
     """Requisito medible del usuario, verificado con la cinemática."""
     body: str
@@ -96,6 +106,7 @@ class MechanismSpec(BaseModel):
     pins: list[PinDef] = []
     rules: list[PairRuleDef] = []
     checks: list[CheckDef] = []
+    stops: list[StopDef] = []
 
     @property
     def bodies(self) -> list[Body]:
@@ -141,6 +152,10 @@ class MechanismSpec(BaseModel):
             for n in (r.a, r.b):
                 if n not in conocidos:
                     errores.append(f"regla {r.a}/{r.b}: {n!r} no existe")
+        for t in self.stops:
+            for n in (t.a, t.b):
+                if n not in conocidos:
+                    errores.append(f"tope {t.a}/{t.b}: {n!r} no existe")
         for c in self.checks:
             if c.body not in conocidos:
                 errores.append(f"comprobación {c.description!r}: {c.body!r} no existe")

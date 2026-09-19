@@ -20,7 +20,7 @@ from pydantic import BaseModel
 from mech_toolkit.generators import CATALOGO
 from orchestrator.build import ConstruccionFallida, design_and_build
 from orchestrator.llm.structured import SalidaInvalida
-from orchestrator.mechanisms.checks import joint_axis_problems
+from orchestrator.mechanisms.checks import joint_axis_problems, stop_problems
 from orchestrator.mechanisms.run import MechanismReport, build_mechanism
 from orchestrator.mechanisms.spec_layout import SpecLayout
 
@@ -110,7 +110,8 @@ def design_mechanism(
                 disenar=lambda nombre, c: None,  # ya dibujadas arriba
                 animar=False,
             )
-            feedback = "\n".join(f"- {linea}" for linea in final.collision_summary())
+            feedback = "\n".join(f"- {linea}" for linea in
+                                  final.collision_summary() + stop_problems(spec, layout, steps, freecadcmd))
             ejes = {x.name for x in spec.pins}
             atravesados = sorted({(c.a if c.b in ejes else c.b, c.b if c.b in ejes else c.a)
                                   for c in final.collisions

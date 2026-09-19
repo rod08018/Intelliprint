@@ -127,3 +127,47 @@ def test_una_pieza_que_gira_sin_agujero_en_su_eje_se_explica(tmp_path):
     bien = Recipe(**RECETAS["brazo"])
     build_part(bien, CATALOGO, tmp_path / "ok", _freecadcmd())
     assert joint_axis_problems(spec, {"brazo": tmp_path / "ok" / "brazo.step"}, _freecadcmd()) == []
+
+
+def _corredera_con_pared(tope):
+    from orchestrator.schemas.mechanism import MechanismSpec
+    return MechanismSpec(**{
+        "title": "corredera", "summary": "s",
+        "driver": {"unit": "mm", "start": 0, "end": 25, "step": 5},
+        "parts": [
+            {"name": "base", "brief": "b", "bbox_min": [-20, -10, -4], "bbox_max": [35, 10, 10]},
+            {"name": "carro", "origin": [0, 0, 0.5],
+             "joint": {"type": "prismatic", "axis": [1, 0, 0], "value": "t"},
+             "brief": "c", "bbox_min": [-5, -5, 0], "bbox_max": [5, 5, 5]},
+        ],
+        "stops": [tope],
+    })
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+@pytest.mark.parametrize("tope, esperado", [
+    ({"a": "base", "b": "carro", "at": 25, "beyond": "above"}, None),
+    ({"a": "base", "b": "carro", "at": 20, "beyond": "above"}, "no llega a tocar"),
+    ({"a": "base", "b": "carro", "at": 25, "beyond": "below"}, "no bloquea"),
+])
+def test_un_tope_tiene_que_tocar_en_su_valor_y_bloquear_despues(tmp_path, tope, esperado):
+    """Carro de 10 mm que avanza t mm hacia una pared en x = 30: su cara
+    llega a la pared en t = 25 (cálculo a mano)."""
+    from orchestrator.build import build_part
+    from orchestrator.mechanisms.checks import stop_problems
+    from orchestrator.mechanisms.spec_layout import SpecLayout
+    from orchestrator.schemas.recipe import Recipe
+
+    caja = lambda l, w, h, x, z: {"generator": "generate_box", "params": {  # noqa: E731
+        "length_mm": l, "width_mm": w, "height_mm": h, "x_mm": x, "y_mm": 0, "z_mm": z}}
+    build_part(Recipe(part="base", steps=[caja(55, 20, 4, 7.5, -4), caja(5, 20, 10, 32.5, 0)]),
+               CATALOGO, tmp_path / "base", _freecadcmd())
+    build_part(Recipe(part="carro", steps=[caja(10, 10, 5, 0, 0)]),
+               CATALOGO, tmp_path / "carro", _freecadcmd())
+    spec = _corredera_con_pared(tope)
+    steps = {n: tmp_path / n / f"{n}.step" for n in ("base", "carro")}
+    problemas = stop_problems(spec, SpecLayout(spec), steps, _freecadcmd())
+    if esperado is None:
+        assert problemas == []
+    else:
+        assert any(esperado in p for p in problemas), problemas

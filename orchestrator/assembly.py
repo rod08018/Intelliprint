@@ -59,6 +59,19 @@ if datos.get("fcstd"):
     doc.recompute()
     doc.saveAs(datos["fcstd"])
     print({prefijo!r} + json.dumps({{"objects": [o.Name for o in doc.Objects]}}))
+elif datos.get("gaps"):
+    # Hueco firmado (negativo = volumen común) de pares concretos, por pose.
+    salida = []
+    for frame in datos["frames"]:
+        for a, b in datos["gaps"]:
+            fa = colocar(formas[a], frame["poses"][a])
+            fb = colocar(formas[b], frame["poses"][b])
+            dist = fa.distToShape(fb)[0]
+            if dist < 1e-4:
+                comun = fa.common(fb).Volume
+                dist = -comun if comun > 1e-3 else 0.0
+            salida.append({{"angle": frame["angle"], "a": a, "b": b, "gap_mm": dist}})
+    print({prefijo!r} + json.dumps({{"gaps": salida}}))
 else:
     choques = []
     for frame in datos["frames"]:
@@ -179,3 +192,16 @@ def sweep_collisions(
         for (a, b), regla in (rules or {}).items() for x, y in ((a, b), (b, a))
     }
     return [Collision(**c) for c in _run(datos, freecadcmd)["collisions"]]
+
+
+def pair_gaps(
+    parts: dict[str, Path],
+    pins: dict[str, tuple[float, float]],
+    frames: dict[float, dict[str, Placement]],
+    pares: list[tuple[str, str]],
+    freecadcmd: str,
+) -> list[dict]:
+    """Hueco firmado de cada par en cada pose: negativo = se atraviesan (mm³)."""
+    datos = _datos(parts, pins, frames)
+    datos["gaps"] = [list(p) for p in pares]
+    return _run(datos, freecadcmd)["gaps"]

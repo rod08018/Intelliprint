@@ -33,8 +33,13 @@ class SpecLayout:
         return ida + ida[-2:0:-1] if self.spec.driver.ping_pong else ida
 
     def pair_rules(self):
-        return {(r.a, r.b): (0.0, r.max_gap_mm if r.kind == "contact" else None)
-                for r in self.spec.rules}
+        reglas = {(r.a, r.b): (0.0, r.max_gap_mm if r.kind == "contact" else None)
+                  for r in self.spec.rules}
+        # En un tope las piezas se tocan al final del recorrido: tocarse sí,
+        # atravesarse no (que bloquee de verdad lo comprueba stop_problems).
+        for t in self.spec.stops:
+            reglas.setdefault((t.a, t.b), (0.0, None))
+        return reglas
 
     def label(self, t: float) -> str:
         d = self.spec.driver
