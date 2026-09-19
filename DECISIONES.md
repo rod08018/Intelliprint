@@ -263,3 +263,31 @@ Buscar por contrato no tiene esa debilidad. Un agujero en el sitio equivocado no
 Por eso **cada pieza necesita una `placement`** en el ensamble, y **la asigna la resolución de interfaces** (F3.3), no el `Assembly` Agent. El motivo es de orden: Assembly corre *después* del QA de piezas, así que si la placement viniera de ahí habría que medir en el ensamble en vez de al construir, retrasando la detección de errores justo hasta donde son más caros de arreglar. Es la misma lección que ADR-001.
 
 Para `static_part` de una sola pieza la placement es la identidad, así que en la Fase 1 no cuesta nada — pero el esquema la lleva desde el principio, que es lo que evita descubrirlo en la semana 10 con la garra a medias.
+
+---
+
+## ADR-013 · Mechanism Designer: el agente declara el mecanismo, el código lo verifica
+
+**Estado:** aceptada · **Afecta a:** F3.15, ADR-010 (enmienda), `config/models.yaml`
+
+**Problema.** Para probar mecanismos (retos de bisagra, trinquete, gato de tijera, prensa y leva), la disposición de cada uno la estaba escribiendo a mano quien desarrolla el sistema. El resultado se veía bien, pero no medía lo que Intelliprint sabe hacer: el mecanismo lo diseñaba una persona.
+
+**Decisión.** Un agente, el Mechanism Designer, convierte la petición en texto en un `MechanismSpec`. El agente **declara** y el código **calcula y verifica**:
+
+| Declara el agente | Lo comprueba el código |
+|---|---|
+| Piezas con su enunciado y su caja envolvente | La pieza dibujada por el Part Designer ocupa esa caja |
+| Árbol cinemático con fórmulas | Un intérprete con lista blanca las evalúa en todo el recorrido; nunca `eval` |
+| Requisitos medibles (carrera, giro) | Se miden con la cinemática |
+| Pares en contacto, fijos y topes | Barrido en FreeCAD: contacto ≤ 0.05 mm, nada se atraviesa, el tope toca y bloquea |
+| Articulaciones de giro | La pieza tiene un agujero o un saliente en su eje |
+
+Lo que falla vuelve al agente como motivo concreto, hasta 3 rondas. El ensamble se guarda siempre.
+
+**Modelo.** Con `deepseek-chat`, la bisagra no se cerró en 3 rondas: los fallos eran de geometría espacial (cuerpos que solo se tocan en una arista, un enunciado que se contradice sobre el origen). Se añade el rol `reason`: `deepseek-reasoner` en dev y `qwen3.8` con thinking en prod. Con él, la bisagra salió en la primera ronda.
+
+**Medido al integrarlo** (y por eso está en el código):
+- El modelo de razonamiento piensa unos 30 000 tokens. Con `max_tokens` 32K devolvía vacío, y con el modo JSON no terminaba ni con 64K. Va sin modo JSON y con 64K; una respuesta cortada es un error propio y no gasta reintentos.
+- Cada ronda del Mechanism Designer tarda unos 4 minutos.
+
+**Límite conocido.** Que un diseño pase todas las comprobaciones no significa que sea lo que el usuario imaginaba. La primera bisagra aprobada era en realidad un pivote en plano. Juzgar eso necesita un revisor con visión (capa 3 del QA, § 7.1), que el perfil dev no tiene. Hasta entonces, el GIF lo revisa el usuario.
