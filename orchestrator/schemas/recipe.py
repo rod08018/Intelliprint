@@ -18,6 +18,9 @@ class GeneratorSpec(BaseModel):
     choice_params: dict[str, set[str]] = {}
     """Parámetros de texto y sus únicos valores válidos. Cualquier otro
     parámetro tiene que ser un número o una lista (anidada) de números."""
+    description: str = ""
+    """Qué construye y dónde lo coloca. La ven el Part Designer y el
+    Mechanism Designer: sin ella solo tendrían la firma."""
     template: str = ""
     """Fragmento de Python con marcadores `$param` (string.Template). Lo
     escribe un humano, no un LLM: es lo que hace segura la ejecución.
@@ -48,8 +51,13 @@ class GeneratorCatalog:
         """
         lineas = []
         for spec in self._por_nombre.values():
-            obligatorios = ", ".join(sorted(spec.required_params))
-            lineas.append(f"- `{spec.name}({obligatorios})`")
+            obligatorios = sorted(spec.required_params) + [
+                f"{nombre}: {' | '.join(repr(o) for o in sorted(opciones))}"
+                for nombre, opciones in sorted(spec.choice_params.items())
+            ]
+            lineas.append(f"- `{spec.name}({', '.join(obligatorios)})`")
+            if spec.description:
+                lineas.append(f"    {spec.description}")
             if spec.optional_params:
                 opcionales = ", ".join(sorted(spec.optional_params))
                 lineas.append(f"    opcionales: {opcionales}")

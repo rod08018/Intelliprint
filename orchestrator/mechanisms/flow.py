@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from mech_toolkit.generators import CATALOGO
 from orchestrator.build import ConstruccionFallida, design_and_build
+from orchestrator.llm.structured import SalidaInvalida
 from orchestrator.mechanisms.run import MechanismReport, build_mechanism
 from orchestrator.mechanisms.spec_layout import SpecLayout
 
@@ -89,9 +90,10 @@ def design_mechanism(
                 (destino / "recipe.json").write_text(receta.model_dump_json(indent=2), encoding="utf-8")
                 (destino / "brief.md").write_text(p.brief + "\n", encoding="utf-8")
                 hechas[p.name] = clave
-            except ConstruccionFallida as e:
+            except (ConstruccionFallida, SalidaInvalida) as e:
                 hechas.pop(p.name, None)
-                fallos.append(f"- la pieza «{p.name}» no se pudo dibujar como la describes: {e.motivo}")
+                motivo = getattr(e, "motivo", str(e))
+                fallos.append(f"- la pieza «{p.name}» no se pudo dibujar como la describes: {motivo}")
 
         ultima = n == max_rounds
         if fallos:

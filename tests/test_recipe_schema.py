@@ -156,3 +156,10 @@ def test_un_parametro_de_opciones_es_obligatorio():
         generator="generate_bolt_pattern", params={"count": 4, "pcd_mm": 30})])
     with pytest.raises(RecipeError, match="screw_id"):
         receta.validate_against(_catalogo_minimo())
+
+
+def test_el_catalogo_describe_las_opciones_al_modelo():
+    """Si la descripción no las muestra, el modelo no puede saber que existen
+    (fallo real: tres intentos seguidos sin `axis`)."""
+    texto = _catalogo_minimo().describe()
+    assert "screw_id: 'screw_M3x12' | 'screw_M3x16'" in texto

@@ -37,7 +37,7 @@ Escribe enunciados que se puedan construir con estos:
 
 {catalog}
 
-Detalles: `generate_box` va centrada en (x, y) y apoyada en z (de z a z + alto). `generate_cylinder` tiene la base en (x, y, z) y crece hacia +eje. `generate_hole` es vertical y pasante; `generate_hole_axis` es pasante a lo largo del eje que elijas, por el punto dado. `generate_link` es una barra de estadio con el primer agujero en el origen, el segundo en (distancia, 0), de z = 0 a z = espesor. `generate_ratchet_wheel` va centrada en el origen, de z = 0 a espesor; sus dientes suben en línea recta del fondo (ángulo k·360/N) a la punta (ángulo (k+1)·360/N) y caen en radial, y la rueda avanza girando en sentido antihorario. `generate_prism` extruye un polígono [[x, y], ...] de z a z + espesor. Los cuerpos se suman a lo anterior y los agujeros y vaciados cortan lo anterior.
+Cada generador dice dónde coloca su cuerpo: describe la pieza para que se pueda construir así.
 
 ## Salida
 
