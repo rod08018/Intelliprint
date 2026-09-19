@@ -222,7 +222,7 @@ Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto
 | F3.9 | `interference_check` (booleana de intersección entre pares) con reporte de volumen y ubicación | Detecta interferencias sembradas ≥ 0.05 mm³ |
 | F3.10 | Generación de BOM (`bom.csv`) de piezas impresas + hardware | BOM coincide con el ensamble |
 | F3.11 | QA de ensamble: interfaces coherentes a ambos lados (mismo patrón, misma holgura) Usa `check_fit` (F2.20) en cada interfaz pieza-pieza y pieza-hardware. | Detecta patrones de tornillos desalineados |
-| F3.12 | Reapertura selectiva: un defecto de ensamble reabre solo las piezas/interfaces implicadas El motivo de F2.20 (*"el agujero tiene que ser de al menos Ø…"*) vuelve al Part Designer como defecto, por el mismo bucle que F1.11: el ensamblaje manda a cambiar con el valor concreto, no con un "no encaja". | Tras modificar una interfaz, solo se regeneran las piezas que la usan |
+| F3.12 | Reapertura selectiva: un defecto de ensamble reabre solo las piezas/interfaces implicadas. El motivo de F2.20 (*"el agujero tiene que ser de al menos Ø…"*) vuelve al Part Designer como defecto, por el mismo bucle que F1.11: el ensamblaje manda a cambiar con el valor concreto, no con un "no encaja". | Tras modificar una interfaz, solo se regeneran las piezas que la usan |
 | F3.13 | Slicing por placas: agrupar piezas en la cama y laminar cada placa | Reporte con número de placas, gramos y horas totales |
 
 **Entregable:** garra con MG996R (5–8 piezas) ensamblada sin interferencias, laminada y **impresa y montada físicamente**.

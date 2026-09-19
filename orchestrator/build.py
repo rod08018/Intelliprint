@@ -15,6 +15,7 @@ from orchestrator.fcstd import mostrar_solo
 from orchestrator.recipes.compose import compose_build_script
 from orchestrator.schemas.part_result import BuildOutputError, PartResult
 from orchestrator.schemas.recipe import GeneratorCatalog, Recipe
+from orchestrator.traceability import untraced
 
 MAX_CONSTRUCCIONES = 3
 
@@ -69,6 +70,7 @@ def design_and_build(
     *,
     freecadcmd: str,
     part: str | None = None,
+    request: str | None = None,
     max_construcciones: int = MAX_CONSTRUCCIONES,
 ) -> tuple[Recipe, PartResult]:
     """Diseña y construye, devolviendo al agente el motivo de cada fallo.
@@ -78,12 +80,27 @@ def design_and_build(
     """
     rechazo: tuple[str, str] | None = None
     motivo = ""
-    for _ in range(max_construcciones):
+    for intento in range(max_construcciones):
         receta = agent.design(brief, rechazo=rechazo)
         if part is not None:
             receta = receta.model_copy(update={"part": part})
+
+        # F1.16: las cotas de la petición literal tienen que estar en la
+        # receta. Si faltan, vuelve al agente con el valor exacto; en el
+        # último intento se construye igualmente y queda anotado.
+        perdidas = untraced(request, receta) if request else []
+        if perdidas and intento < max_construcciones - 1:
+            cotas = ", ".join(f"{c:g} mm" for c in perdidas)
+            rechazo = (
+                receta.model_dump_json(indent=2),
+                f"estas cotas de la petición del usuario no aparecen en tu receta: "
+                f"{cotas}. Úsalas tal cual; mandan sobre lo que sepas de este tipo de pieza.",
+            )
+            continue
+
         try:
-            return receta, build_part(receta, catalog, Path(carpeta), freecadcmd)
+            resultado = build_part(receta, catalog, Path(carpeta), freecadcmd)
+            return receta, resultado.model_copy(update={"untraced_mm": perdidas})
         except ConstruccionFallida as error:
             motivo = error.motivo
             rechazo = (receta.model_dump_json(indent=2), motivo)

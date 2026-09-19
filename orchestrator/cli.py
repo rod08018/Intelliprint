@@ -68,7 +68,7 @@ def _grafo(raiz: Path, env: dict):
     def disenar(spec, carpeta, part):
         return design_and_build(
             disenador, spec_to_task(spec).brief, CATALOGO, carpeta,
-            freecadcmd=freecad, part=part,
+            freecadcmd=freecad, part=part, request=spec.request,
         )
 
     deps = Dependencias(
@@ -98,6 +98,9 @@ def _informar(final: dict, nombre: str) -> None:
     print(f"  pieza:    {r['volume_mm3']:.1f} mm³, envolvente {' x '.join(f'{v:g}' for v in r['bbox_mm'])} mm")
     print(f"  laminado: {s['grams']:.1f} g, {s['filament_mm'] / 1000:.2f} m, {h} h {m} min")
     print(f"  proyecto: {final['proyecto']}")
+    if r.get("untraced_mm"):
+        cotas = ", ".join(f"{c:g} mm" for c in r["untraced_mm"])
+        print(f"  ⚠️ cotas de tu petición que NO aparecen en la pieza: {cotas}. Revísala antes de imprimir.")
     print("  ⚠️ el G-code de inicio del perfil de la M5 no está verificado: revísalo antes de imprimir.")
 
 
