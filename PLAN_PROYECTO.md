@@ -349,7 +349,7 @@ Regla: las herramientas deterministas deben tener tests antes de que un agente l
 
 La métrica de la escotilla es la más accionable del conjunto: no mide calidad del modelo, mide **qué te falta construir**. Cada pieza atípica nombra el generador que hay que escribir.
 
-Todas se calculan desde `state.sqlite` y los logs.
+Todas se calculan desde `workspace/state.sqlite`, el registro de proyectos y los logs.
 
 ---
 

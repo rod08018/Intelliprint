@@ -261,6 +261,14 @@ El identificador es **fecha + slug**: legible de un vistazo, ordena cronológica
 
 Es lo que permite, desde Telegram: *"¿qué tengo pendiente?"* → lista con estados, o *"¿cómo va el carruaje?"* → resumen y último render.
 
+### 5.1.1 Dónde vive el estado del grafo
+
+El estado de ejecución (en qué nodo va cada proyecto, qué respondiste, qué se construyó) vive en **`workspace/state.sqlite`, uno para todos**, con un hilo de LangGraph por proyecto. No dentro de la carpeta de cada proyecto.
+
+La razón es de orden: la **admisión ocurre antes de que el proyecto exista en disco** —sin tu confirmación no se crea nada (ADR-008)—, pero su estado sí hay que guardarlo, porque una admisión puede esperar días a tu respuesta. Un `state.sqlite` por proyecto no tendría dónde vivir durante la admisión.
+
+Es lo que permite `intelliprint resume <proyecto>`: si el proceso muere a mitad, se continúa desde el último nodo completado sin repetir lo anterior.
+
 ### 5.2 Artefactos de un proyecto
 
 ```
@@ -285,7 +293,7 @@ workspace/projects/<id>/
 ├── fabrication/             # *.3mf, *.gcode, slicing_report.json
 ├── human/                   # preguntas, respuestas y peticiones de cambio (§ 8.5)
 ├── log/                     # trazas de cada llamada a LLM y herramienta
-└── state.sqlite             # estados de tareas, iteraciones, costos
+└── .git/                   # un commit por etapa, firmado por Crafty (F1.15)
 ```
 
 Dos artefactos merecen atención:
