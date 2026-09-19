@@ -15,18 +15,21 @@ Restricciones de diseño:
 ## 1. Vista general
 
 ```
- Requerimiento del usuario
+ Requerimiento del usuario  (texto + fotos + medidas, por Telegram o CLI)
           │
           ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │  ORQUESTADOR (LangGraph, máquina de estados + blackboard)           │
 │                                                                     │
-│  FASE 1 · Definición                                                │
-│    1. Requirements Agent   → especificación medible (spec.yaml)     │
+│  FASE 0 · Admisión (conversación; NO se diseña nada)                │
+│    1. Requirements Agent   → pregunta, clasifica, redacta spec.yaml │
+│  ── Confirmas la spec ──                                            │
+│                                                                     │
+│  FASE 1 · Descomposición                                            │
 │    2. Decomposition Agent  → árbol del producto + interfaces        │
 │                              SIMBÓLICAS (topología, sin geometría)  │
 │                                                                     │
-│  FASE 2 · Ingeniería de sistema                                     │
+│  FASE 2 · Ingeniería de sistema (SEGÚN CLASE DE PRODUCTO)           │
 │    3. Kinematics Agent     → eslabones, GDL, rangos, cargas         │
 │    4. Actuation Agent      → motores/servos con margen de torque    │
 │    5. Electronics Agent    → MCU, drivers, ruteo de cables          │
@@ -64,11 +67,11 @@ Cada agente es un nodo del grafo con: un prompt de sistema corto, un **esquema J
 | # | Agente | Responsabilidad | Herramientas | Modelo por defecto |
 |---|--------|-----------------|--------------|--------------------|
 | 0 | **Orchestrator** | Avanza la máquina de estados, lanza tareas, aplica reintentos y escalamiento. Es código, no un LLM; solo usa el LLM para resumir y redactar mensajes al humano. | blackboard, `HumanPort` | `qwen3.8` |
-| 1 | **Requirements** | Convierte el texto libre en `spec.yaml`: dimensiones, cargas, alcance, materiales, impresora, presupuesto, restricciones. Pregunta por `HumanPort` si falta algo crítico. | blackboard, `HumanPort` | `qwen3.8` |
+| 1 | **Requirements** | Conduce la **admisión** (§ 4.1): lee tu texto, tus fotos y tus medidas, **pregunta por `HumanPort` hasta completar la spec** y **clasifica el producto** (§ 4.2). Produce `spec.yaml`. Es el único agente que corre antes de tu confirmación. | blackboard, `HumanPort`, visión | `qwen3.8` |
 | 2 | **Decomposition** | Divide el producto en árbol jerárquico (producto → sistemas → subensambles → piezas). Define **interfaces simbólicas** (tipo, piezas, hardware, `fit`) **sin geometría** y crea una tarea por pieza con dependencias. | blackboard, hardware library | `qwen3.8` → **DeepSeek** si el árbol supera ~15 piezas o falla validación |
-| 3 | **Kinematics** | Longitudes de eslabones, GDL, rangos articulares, espacio de trabajo, cargas por articulación. Aporta los `frame` que resuelven las interfaces. | `sim` MCP (ikpy, numpy) | `qwen3.8` |
-| 4 | **Actuation** | Selecciona actuadores de la librería con margen de torque ≥ 1.5×, reductoras, alimentación. Fija el hardware definitivo de las interfaces. | `sim` MCP, hardware library | `qwen3.8` |
-| 5 | **Electronics** | MCU (ESP32/Arduino), drivers, fuente, canales de cable, soportes de PCB. Produce requisitos que se vuelven piezas o features. | hardware library | `qwen3.8` |
+| 3 | **Kinematics** | Longitudes de eslabones, GDL, rangos articulares, espacio de trabajo, cargas por articulación. Aporta los `frame` que resuelven las interfaces. **Solo para `robot`.** | `sim` MCP (ikpy, numpy) | `qwen3.8` |
+| 4 | **Actuation** | Selecciona actuadores de la librería con margen de torque ≥ 1.5×, reductoras, alimentación. Fija el hardware definitivo de las interfaces. **Solo para `robot` y `mechanism`.** | `sim` MCP, hardware library | `qwen3.8` |
+| 5 | **Electronics** | MCU (ESP32/Arduino), drivers, fuente, canales de cable, soportes de PCB. Produce requisitos que se vuelven piezas o features. **Solo para `robot`.** | hardware library | `qwen3.8` |
 | — | *Resolución de interfaces* | **Código, no agente.** Toma las interfaces simbólicas y los resultados de la Fase 2 y produce `frame` y `nominal_mm` definitivos. Falla ruidosamente si algo queda sin resolver. | `mech-toolkit` MCP | — |
 | 6 | **Part Designer** | Diseña **una** pieza. **No escribe Python**: emite una **receta** (lista validada de llamadas a generadores con sus parámetros). `build.py` lo compone el orquestador desde la receta. Varias instancias en paralelo. | `mech-toolkit` MCP, hardware library | `qwen3.8` → **DeepSeek** solo en la escotilla (ver § 6.3) |
 | 7 | **Tolerances / DFM** | Aplica holguras FDM, verifica paredes, voladizos, puentes, orientación de impresión y separación de piezas que no caben en la cama. | `mech-toolkit` MCP, `freecad` MCP | `qwen3.8` |
@@ -149,14 +152,18 @@ Esto es lo que convierte al QA de opinión en verificación (§ 7.1), y es la ra
 ## 4. Máquina de estados y ciclo de corrección
 
 ```
-DRAFT → SPEC_READY → DECOMPOSED → SYSTEM_DESIGNED → INTERFACES_RESOLVED
-      → [gate 1] → PARTS_IN_PROGRESS ──(todas PASS)──► ASSEMBLED → TESTED
+INTAKE ⇄ (preguntas) → [confirmas spec] → SPEC_READY → DECOMPOSED
+      → SYSTEM_DESIGNED → INTERFACES_RESOLVED → [gate 1]
+      → PARTS_IN_PROGRESS ──(todas PASS)──► ASSEMBLED → TESTED
       → SLICED → [gate 2] → RELEASED
                  ▲                                │         │
                  └────── defectos por pieza ◄─────┴─────────┘
 ```
 
-El **gate 1 va después de resolver las interfaces**, no después de la descomposición: apruebas árbol y geometría juntos, ya coherentes, en lugar de aprobar cotas que la Fase 2 va a cambiar de todas formas.
+Dos barreras estructurales, no convenciones:
+
+- **Desde `INTAKE` no se puede entrar en diseño.** El grafo no tiene esa transición. No depende de que un agente se acuerde de preguntar.
+- **El gate 1 va después de resolver las interfaces**, no después de la descomposición: apruebas árbol y geometría juntos, ya coherentes, en lugar de aprobar cotas que la Fase 2 va a cambiar de todas formas.
 
 Reglas del orquestador:
 
@@ -168,6 +175,43 @@ Reglas del orquestador:
 6. Las piezas sin dependencias entre sí se diseñan en paralelo. El límite es **CPU**, no VRAM: cada pieza se construye en su propio proceso `freecadcmd` (§ 9.3).
 7. **Una consulta al humano no detiene el proyecto.** La pieza que pregunta pasa a `BLOCKED_ON_HUMAN` y el planificador sigue con las demás. El estado se persiste: un proyecto puede dormir días esperando respuesta y sobrevivir a un reinicio. Los **gates sí bloquean** — son barreras de proyecto por definición.
 8. **Una petición de cambio del humano es un defecto con autor humano.** Entra por la misma maquinaria de reapertura de las reglas 3 y 4, con los mismos límites de iteración. No hay un camino paralelo para cambios pedidos por Telegram.
+9. **Varios proyectos avanzan a la vez**, limitados por `MAX_CONCURRENT_PROJECTS`. Es un límite distinto de `MAX_PARALLEL_PARTS`: uno gobierna cuántos proyectos progresan, el otro cuántas piezas dentro de cada uno.
+
+### 4.1 Fase 0 — Admisión
+
+El sistema recibe el trabajo por `submit()` (§ 8.5): texto libre, fotos, medidas que hayas tomado, y opcionalmente un STL o STEP de referencia. Entonces el Requirements Agent **conversa** contigo hasta tener una spec completa.
+
+```
+    Tú: "quiero una mejora para el carruaje de mi hijo, que sujete
+         el vaso. Mido 68 mm de diámetro exterior en el tubo."
+         [foto del tubo] [foto del vaso]
+Sistema: "¿El vaso es siempre ese o quieres que valga para varios
+          diámetros? ¿PLA o PETG? ¿Va a estar al sol?"
+    Tú: "PETG, sí al sol, y que valga de 60 a 75"
+Sistema: [resumen de la spec] "¿Arranco?"
+    Tú: "dale"
+```
+
+Propiedades que hacen que esto funcione:
+
+- **No se diseña nada.** No se abre FreeCAD ni se generan piezas. La admisión es barata, así que puedes tener **varias conversaciones abiertas a la vez** sin competir por la GPU.
+- **Es asíncrona.** Respondes cuando puedas; el proyecto espera en `INTAKE` indefinidamente, igual que `BLOCKED_ON_HUMAN` (regla 7).
+- **Las fotos son entrada real**, no adjuntos decorativos: el modelo de diseño tiene visión (§ 6.1), así que un croquis a mano con cotas o la foto del hueco donde tiene que encajar la pieza son información utilizable.
+- **Termina con tu confirmación explícita.** Hasta que no dices que sí, el proyecto no consume GPU ni presupuesto de DeepSeek.
+
+### 4.2 Clases de producto
+
+No todo lo que vas a diseñar es un robot. Un soporte estático no tiene cinemática, y **un agente al que le pides cinemática de un soporte se la inventa** — y esa invención contamina las interfaces. El Requirements Agent clasifica el producto durante la admisión y el grafo **salta las fases que no aplican**:
+
+| Clase | Ejemplos | Fase 2 · Ingeniería de sistema |
+|---|---|---|
+| `static_part` | Soporte de vaso para un carruaje, caja, adaptador, soporte NEMA17 | **Se salta entera** |
+| `mechanism` | Garra con servo, bisagra accionada | Solo Actuation |
+| `robot` | Brazo de 3 o 6 GDL | Kinematics + Actuation + Electronics |
+
+Esto no es solo ahorro de tiempo: es **quitar la oportunidad de alucinar**. Un agente que no corre no puede inventar un dato.
+
+Efecto secundario deseable: las piezas sencillas —que van a ser la mayoría del uso real— no pagan el peaje de un pipeline diseñado para un brazo de 6 ejes. Para `static_part` el camino es admisión → descomposición → interfaces → gate → diseño → QA → laminado.
 
 ---
 
@@ -175,9 +219,31 @@ Reglas del orquestador:
 
 Estado compartido en disco + SQLite, versionado con git para poder volver atrás.
 
+### 5.1 Registro de proyectos
+
+El sistema lleva **muchos proyectos a la vez** y de tipos muy distintos. Un directorio por proyecto no basta: hace falta un índice para poder preguntar "¿qué tengo en marcha?" y "¿cuál está esperando algo de mí?".
+
 ```
-workspace/projects/<proyecto>/
-├── spec.yaml                # salida de Requirements
+workspace/
+├── registry.sqlite              # índice global de todos los proyectos
+└── projects/
+    ├── 2026-09-18-garra-lata/
+    ├── 2026-09-21-soporte-vaso-carruaje/
+    └── 2026-10-02-brazo-3gdl/
+```
+
+El identificador es **fecha + slug**: legible de un vistazo, ordena cronológicamente solo y no colisiona.
+
+`registry.sqlite` guarda por proyecto: `id`, nombre, **clase** (§ 4.2), estado, fecha de creación, última actividad, coste acumulado de DeepSeek y **qué está esperando de ti** (nada / respuesta de admisión / gate 1 / gate 2 / consulta de pieza).
+
+Es lo que permite, desde Telegram: *"¿qué tengo pendiente?"* → lista con estados, o *"¿cómo va el carruaje?"* → resumen y último render.
+
+### 5.2 Artefactos de un proyecto
+
+```
+workspace/projects/<id>/
+├── intake/                  # conversación de admisión: mensajes, fotos y medidas que enviaste
+├── spec.yaml                # salida de Requirements (incluye `class`)
 ├── tree.yaml                # árbol de producto (Decomposition)
 ├── interfaces.yaml          # contratos entre piezas (symbolic → resolved)
 ├── assertions.yaml          # aserciones de QA derivadas de las interfaces (§ 3.3)
@@ -427,6 +493,8 @@ services:
       - OLLAMA_URL=http://ollama:11434
       - INTELLIPRINT_PROFILE=prod       # perfil de models.yaml (prod | dev)
       - HUMAN_CHANNELS=cli,web,telegram # adaptadores activos del HumanPort (§ 8.5)
+      - MAX_CONCURRENT_PROJECTS=2       # proyectos que avanzan a la vez (§ 4, regla 9)
+      - MAX_PARALLEL_PARTS=4            # piezas en paralelo dentro de un proyecto
       - FREECAD_MCP_URL=http://host.docker.internal:8101/sse
       - PRUSASLICER_MCP_URL=http://host.docker.internal:8102/sse
       - MECH_TOOLKIT_MCP_URL=http://mech-toolkit:8000/mcp
@@ -479,11 +547,14 @@ volumes:
 
 Los dos gates, las preguntas del Requirements Agent, las consultas del QA y las peticiones de cambio son **la misma operación**: preguntar algo a un humano y esperar. Se implementan una sola vez.
 
+`submit()` es la dirección contraria y es cómo **nace** un proyecto: le dices al sistema qué quieres, con lo que tengas a mano. Cada adaptador la implementa a su manera — el CLI como `intelliprint new`, el web como un formulario, Telegram como escribirle al bot — y en los tres casos desemboca en el mismo estado `INTAKE` (§ 4.1).
+
 ```
                   ┌──────────────────────────────┐
   Orquestador ───►│  HumanPort                   │
-                  │   ask(pregunta, adjuntos)    │
-                  │   notify(evento)             │
+                  │   ask(pregunta, adjuntos)    │  sistema → humano
+                  │   notify(evento)             │  sistema → humano
+  Orquestador ◄───│   submit(texto, adjuntos)    │  humano  → sistema
                   └──────────────┬───────────────┘
                                  │
               ┌──────────────────┼──────────────────┐
@@ -498,7 +569,16 @@ Esto es lo que unifica el gate por consola y el gate por navegador, que en el pl
 
 **Qué habilita en la práctica.** Como el QA ya renderiza vistas para su capa de visión (§ 7.1), esas mismas imágenes se pueden enviar por Telegram. El sistema no te manda una lista de cotas: te manda **la pieza** y te pregunta si es lo que querías. Y tú puedes pedir cambios desde el móvil sin estar delante del PC — que es justamente el caso de uso, porque si estuvieras delante usarías la UI.
 
-**Comportamiento asíncrono.** Una consulta pone la pieza en `BLOCKED_ON_HUMAN` y el planificador sigue con las demás (regla 7, § 4). Un proyecto puede dormir días esperando una respuesta. Los gates, en cambio, sí bloquean el proyecto entero.
+**Qué puedes adjuntar.** Los adjuntos de `submit()` no son decoración: el modelo tiene visión (§ 6.1), así que son entrada de diseño real.
+
+| Adjunto | Para qué sirve |
+|---|---|
+| Foto del sitio donde va la pieza | Contexto y restricciones de montaje que no sabrías describir |
+| Foto de un croquis a mano con cotas | La forma más rápida de transmitir una idea con medidas |
+| Foto del objeto que debe sujetar | Geometría aproximada del contrario |
+| STL / STEP de referencia | Una pieza existente con la que la nueva debe encajar |
+
+**Comportamiento asíncrono.** Una consulta pone la pieza en `BLOCKED_ON_HUMAN` y el planificador sigue con las demás (regla 7, § 4). Un proyecto puede dormir días esperando una respuesta, y lo mismo vale para la admisión. Los gates, en cambio, sí bloquean el proyecto entero.
 
 #### Reglas de seguridad del canal
 
@@ -508,6 +588,9 @@ Este canal es **entrada no confiable a un sistema que puede ejecutar código** (
 2. **El texto entrante es dato, nunca instrucción.** Un mensaje jamás se concatena a un prompt de sistema. Se procesa como contenido a clasificar, no como orden a obedecer.
 3. **Una petición de cambio nunca abre la escotilla de Python por sí sola.** Requiere gate explícito.
 4. **Filtro de salida.** Igual que con DeepSeek, por Telegram solo sale texto y renders: nunca rutas del host, credenciales ni archivos del PC. Es el mismo filtro, aplicado a un segundo destino.
+5. **Lista blanca de adjuntos.** Solo imágenes (`png`, `jpg`), `stl` y `step`, con tamaño máximo. Nada de comprimidos, documentos ofimáticos ni ejecutables: cada formato adicional es un parser más que puede fallar.
+6. **El contenido de una imagen también es dato.** Un modelo de visión lee el texto que aparece *dentro* de una foto. Una imagen con "ignora las instrucciones anteriores" escrito es un intento de inyección igual que el texto plano, y se trata igual: contenido a interpretar, nunca orden a obedecer.
+7. **Los adjuntos no se ejecutan ni se abren con herramientas del host.** Un STL de referencia se carga para medirlo, no se ejecuta; se guarda dentro de `intake/` del proyecto y nunca fuera de `workspace/`.
 
 Conviene tener presente que las imágenes y el texto que salen por Telegram pasan por servidores de Telegram. Para diseños propios es irrelevante; si algún día trabajas algo confidencial, es una salida de datos más que considerar.
 
@@ -598,9 +681,11 @@ Contenido inicial: tornillería métrica M2–M5, tuercas, insertos térmicos, r
 
 ## 11. Ejemplo de ejecución
 
-**Entrada:** *"Diseña una garra robótica para levantar una lata de refresco, accionada por un servo MG996R, impresora Prusa MK4, PETG."*
+### 11.1 Una garra (clase `mechanism`)
 
-1. **Requirements** → `spec.yaml`: objeto Ø66 mm, 350 g, apertura ≥ 80 mm, MG996R, PETG, cama 250×210×220.
+**Entrada por Telegram:** *"Diseña una garra robótica para levantar una lata de refresco, accionada por un servo MG996R, impresora Prusa MK4, PETG."*
+
+1. **Admisión** → el Requirements Agent pregunta lo que falta (*"¿la lata llena o vacía?"*), clasifica el producto como `mechanism`, y produce `spec.yaml`: objeto Ø66 mm, 350 g, apertura ≥ 80 mm, MG996R, PETG, cama 250×210×220. Confirmas y arranca.
 2. **Decomposition** → 7 piezas: `base_servo`, `engranaje_motriz`, `engranaje_conducido`, `dedo_izq`, `dedo_der`, `eslabon_paralelo ×2`, `almohadilla ×2` (TPU opcional); 9 interfaces **simbólicas**: *"IF-002: `bolt_pattern` entre `base_servo` y el servo, clase `servo_horn`, `fit: clearance`"* — sin una sola cota.
 3. **Kinematics/Actuation** → geometría de dedos paralelos; fuerza de agarre requerida vs. torque del MG996R (margen 2.1× ✓). Confirma el MG996R como actuador.
 4. **Resolución de interfaces** (código) → IF-002 pasa a `resolved`: patrón real del MG996R desde `library/`, `frame` en el origen calculado por Kinematics, M3 a 3.3 mm por `fit: clearance`. **Ningún LLM escribió esos números.**
@@ -613,6 +698,24 @@ Contenido inicial: tornillería métrica M2–M5, tuercas, insertos térmicos, r
 11. **Slicing** → 2 placas, 71 g PETG, 3 h 40 min, sin soportes salvo `base_servo`.
 12. **Gate 2:** revisas en FreeCAD y PrusaSlicer, apruebas → STL/3MF/G-code, BOM (1 MG996R, 6 tornillos M3×12, 6 tuercas M3) e instrucciones de ensamble.
 13. **Feedback** (opcional): tras imprimir escribes por Telegram "el pasador entra muy flojo" → entra como petición de cambio, se traduce a defecto sobre la interfaz del pasador, y el sistema ajusta el perfil de holguras de tu impresora para próximos diseños.
+
+### 11.2 Un soporte de vaso (clase `static_part`)
+
+El caso corto, que va a ser la mayoría del uso real. Muestra lo que se **salta**.
+
+**Entrada por Telegram:** *"una pieza que sujete un vaso en el carruaje de mi hijo, el tubo mide 68 mm de diámetro exterior"* + foto del tubo + foto del vaso.
+
+1. **Admisión** → *"¿vale solo para ese vaso o para varios diámetros? ¿PLA o PETG? ¿va a estar al sol?"* → respondes *"PETG, sí al sol, de 60 a 75 mm"*. Clasifica como **`static_part`**. Confirmas.
+2. **Descomposición** → 2 piezas: `abrazadera_tubo`, `cesta_vaso`; 2 interfaces simbólicas (`bolt_pattern` M4 entre ambas, `clamp` sobre el tubo).
+3. **Fase 2 → se salta entera.** No hay cinemática, ni actuadores, ni electrónica. **Ningún agente tiene ocasión de inventar un dato que no existe.**
+4. **Resolución de interfaces** → M4 a 4.3 mm por `clearance`, diámetro interior de abrazadera 68 + holgura del perfil PETG.
+5. **Gate 1** → apruebas desde el móvil.
+6. **Diseño ×2 en paralelo** → dos recetas, dos procesos `freecadcmd`.
+7. **QA** → capas 1 y 2 en verde; la capa de visión confirma que la cesta está abierta por arriba y la abrazadera partida para poder montarla.
+8. **Laminado** → 1 placa, 48 g PETG, 2 h 10 min.
+9. **Gate 2** → apruebas → STL y G-code listos.
+
+De extremo a extremo sin tocar el PC: empieza en el móvil y termina en el móvil.
 
 ---
 
@@ -680,6 +783,11 @@ Intelliprint/
 | Ollama cae a CPU en silencio (Blackwell) | Verificación explícita de uso de GPU en F0.3; requisito de CUDA 12.8+ documentado (§ 6.1) |
 | Macros con efectos sobre el PC | Superficie casi eliminada (no hay Python en el camino normal); `validate_macro` como red en la escotilla, **declarado explícitamente como no-sandbox** (§ 8.3) |
 | Inyección por el canal de Telegram | Lista blanca obligatoria; texto entrante tratado como dato; la escotilla de Python nunca se abre sin gate (§ 8.5) |
+| Inyección a través de una imagen adjunta | El contenido de una imagen es dato, igual que el texto (regla 6 de § 8.5). Un modelo de visión lee lo que hay escrito dentro de una foto |
+| Empezar a diseñar con una spec incompleta | Fase de admisión con barrera estructural: no existe transición de `INTAKE` a diseño sin tu confirmación (§ 4.1) |
+| Agentes que inventan datos que no aplican (cinemática de un soporte) | Clases de producto: el agente que no aplica **no corre** (§ 4.2). Un agente que no corre no puede alucinar |
+| Varios proyectos saturando la GPU | `MAX_CONCURRENT_PROJECTS` separado de `MAX_PARALLEL_PARTS` (regla 9 de § 4); la admisión no consume GPU |
+| Perder de vista qué proyecto espera qué | `registry.sqlite` guarda por proyecto qué está esperando de ti (§ 5.1), consultable desde Telegram |
 | Una consulta al humano congela el proyecto | `BLOCKED_ON_HUMAN` por pieza; el planificador sigue con las demás (regla 7, § 4) |
 | Costos de DeepSeek | Reglas de escalamiento explícitas y tope por proyecto |
 | Holguras distintas en cada impresora | Perfil por impresora/material calibrado con pieza de prueba y ajustado con feedback |

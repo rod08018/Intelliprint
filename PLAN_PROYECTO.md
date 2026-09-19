@@ -15,8 +15,10 @@ Plan de implementación del sistema descrito en [SISTEMA_MULTIAGENTE.md](SISTEMA
 - Integración con los MCP existentes de FreeCAD y PrusaSlicer (en el host).
 - MCP nuevos: `mech-toolkit` (geometría/tolerancias/DFM) y `sim` (cinemática y colisiones).
 - Librería de hardware comercial.
-- `HumanPort` con tres adaptadores: CLI, UI web mínima y **Telegram vía OpenClaw**, para aprobar gates, recibir consultas con imágenes y pedir cambios a distancia.
-- Proyectos de referencia: soporte NEMA17, garra con MG996R, brazo de 3 GDL y brazo de 6 GDL.
+- `HumanPort` con tres adaptadores: CLI, UI web mínima y **Telegram vía OpenClaw**, para **crear proyectos** (`submit`), aprobar gates, recibir consultas con imágenes y pedir cambios a distancia.
+- **Fase de admisión conversacional**: el sistema pregunta lo que falte antes de empezar a diseñar, aceptando fotos, croquis y medidas.
+- **Multiproyecto**: registro global, proyectos de clases distintas (`static_part`, `mechanism`, `robot`) conviviendo, con fases condicionales según la clase.
+- Proyectos de referencia: soporte NEMA17 y soporte de vaso (`static_part`), garra con MG996R (`mechanism`), brazo de 3 GDL y brazo de 6 GDL (`robot`).
 
 **Fuera del alcance (por ahora)**
 
@@ -126,16 +128,20 @@ Convención de IDs: `F<fase>.<tarea>`. Cada tarea tiene un criterio de aceptaci�
 |----|-------|------------------------|
 | F1.1 | Esquemas Pydantic: `Spec`, `PartTask`, `PartResult`, `SlicingReport`, **`Recipe`** | Validación falla con mensajes claros ante datos incompletos |
 | F1.2 | Salida estructurada: JSON mode de Ollama + validación + reintento con el error | ≥ 90 % de respuestas válidas en 20 pruebas con `qwen3.8` |
-| F1.3 | **Requirements Agent** (prompt en `config/agents/requirements.md`) | Convierte 10 pedidos de prueba en `spec.yaml` válidos; pregunta cuando falta un dato crítico |
+| F1.3 | **Requirements Agent** en modo **admisión conversacional** (§ 4.1): lee texto, fotos y medidas, pregunta por `HumanPort` hasta completar la spec, y **clasifica el producto** (§ 4.2) | Convierte 10 pedidos de prueba en `spec.yaml` válidos; pregunta cuando falta un dato crítico; clasifica correctamente 10 de 10 (incluidos soportes estáticos) |
+| F1.3b | Estado `INTAKE` en el grafo, **sin transición a diseño sin confirmación explícita** | Test: no existe camino de `INTAKE` a `DECOMPOSED` sin la confirmación. Intentarlo lanza error, no avanza |
 | F1.4 | Plantillas de macros FreeCAD (sketch + pad + pocket + fillet, export STL/STEP) y `compose_build_script(recipe)` que las ensambla | Una receta de prueba produce un `build.py` que se ejecuta sin error en `freecadcmd` |
 | F1.5 | RAG mínimo: indexar en Qdrant la documentación de la API Python de FreeCAD (Part/PartDesign/Sketcher) + ejemplos propios | Una consulta "pocket circular en cara superior" devuelve el ejemplo correcto |
 | F1.6 | **Part Designer Agent**: emite `recipe.json` (**no Python**); el orquestador compone `build.py` y lo ejecuta en `freecadcmd` | Soporte NEMA17 generado con dimensiones correctas en ≥ 4 de 5 intentos |
 | F1.7 | Bucle de error en dos niveles: receta inválida → error de esquema al agente (barato, sin ejecutar); fallo de ejecución → traceback al agente (máx. 3) | Tasa de éxito final ≥ 4 de 5; los errores de esquema se detectan sin lanzar FreeCAD |
 | F1.8 | **Slicing/Cost Agent** mínimo: laminar con perfil fijo y leer estadísticas | Reporte con gramos, tiempo y si requiere soportes |
-| F1.9 | Grafo LangGraph lineal: Requirements → Part Designer → Slicing, con estado en `state.sqlite` | Un comando CLI ejecuta todo y deja los artefactos en `workspace/<proyecto>/` |
+| F1.9 | Grafo LangGraph lineal: Admisión → Part Designer → Slicing, con estado en `state.sqlite` | Un comando CLI ejecuta todo y deja los artefactos en `workspace/projects/<id>/` |
 | F1.10 | Versionado git automático del proyecto tras cada estado | `git log` del proyecto muestra un commit por etapa |
+| F1.11 | **Registro de proyectos** `workspace/registry.sqlite` (§ 5.1): id fecha+slug, nombre, clase, estado, fechas, coste, **qué espera del humano** | Tres proyectos de clases distintas coexisten; una consulta devuelve cuál espera qué |
+| F1.12 | `submit()` en el `HumanPort` + adaptador CLI (`intelliprint new`), con adjuntos guardados en `intake/` | Un requerimiento con dos fotos crea el proyecto, lo registra y guarda los adjuntos dentro de `workspace/` |
+| F1.13 | `MAX_CONCURRENT_PROJECTS` y cola de proyectos (regla 9 de § 4) | Con el límite en 1, el segundo proyecto queda encolado en vez de competir por la GPU |
 
-**Entregable:** `intelliprint new "soporte para motor NEMA17 atornillable a perfil 2020"` produce `.FCStd`, `.stl`, `.3mf` y reporte.
+**Entregable:** `intelliprint new "soporte para motor NEMA17 atornillable a perfil 2020"` abre la admisión, pregunta lo que falte, y tras confirmar produce `.FCStd`, `.stl`, `.3mf` y reporte, con el proyecto dado de alta en el registro.
 
 **Prueba real:** imprimir el soporte y comprobar que el motor y el perfil encajan. Anotar las holguras reales medidas (entrada para la Fase 2).
 
@@ -206,7 +212,7 @@ Convención de IDs: `F<fase>.<tarea>`. Cada tarea tiene un criterio de aceptaci�
 | F4.7 | `sweep_collisions` sobre rangos articulares | Detecta autocolisiones sembradas |
 | F4.8 | `stability_test` con carga máxima | Detecta vuelco de una base demasiado pequeña |
 | F4.9 | **Test/Sim Agent**: ejecuta la batería y traduce fallos a defectos por pieza/interfaz | Un fallo de torque reabre Actuation; una colisión reabre las piezas implicadas |
-| F4.10 | Integrar al grafo: Fase 2 del sistema antes del diseño de piezas; Test después del ensamble | Flujo completo para brazo de 3 GDL sin intervención salvo gates |
+| F4.10 | Integrar al grafo con **fases condicionales por clase** (§ 4.2): `static_part` salta la Fase 2 entera, `mechanism` solo corre Actuation, `robot` las tres | Un `static_part` no invoca Kinematics ni Electronics (verificado en el log); el brazo de 3 GDL corre el flujo completo sin intervención salvo gates |
 
 **Entregable:** brazo de 3 GDL con torque validado, sin colisiones en su rango, impreso y movido con servos.
 
@@ -220,9 +226,10 @@ Convención de IDs: `F<fase>.<tarea>`. Cada tarea tiene un criterio de aceptaci�
 | F5.2 | Tope `max_usd_per_project` y contador persistente | Al alcanzar el tope se detiene y pide autorización |
 | F5.3 | Filtro de datos salientes: solo texto, sin rutas del host ni archivos | Test que verifica que ninguna ruta `C:\` sale hacia DeepSeek |
 | F5.4 | **Adaptador web** del `HumanPort` (FastAPI + HTMX): lista de proyectos, estado por pieza, reportes, capturas, botones de gate | Ambos gates se aprueban desde el navegador **sin duplicar la lógica de gate** |
-| F5.5 | **Adaptador Telegram** vía OpenClaw: contenedor, lista blanca obligatoria, envío de texto e imágenes | Recibes un render por Telegram y respondes; el proyecto continúa |
+| F5.5 | **Adaptador Telegram** vía OpenClaw: contenedor, lista blanca obligatoria, `ask`/`notify`/**`submit`** con texto e imágenes | Creas un proyecto desde el móvil mandando texto y dos fotos; recibes las preguntas de admisión y un render; respondes y continúa |
+| F5.5b | Consultas de registro por Telegram: qué proyectos hay, estado de uno, qué espera de ti | *"¿qué tengo pendiente?"* devuelve la lista con estados desde `registry.sqlite` |
 | F5.6 | Peticiones de cambio entrantes → `ChangeRequest` → defecto con autor humano, por la maquinaria de reapertura existente | "haz los dedos más largos" reabre solo las piezas afectadas, sin ruta paralela |
-| F5.7 | Seguridad del canal: texto entrante como dato (nunca prompt de sistema), filtro de salida compartido con DeepSeek, escotilla de Python cerrada sin gate | Test de inyección: un mensaje con instrucciones embebidas no ejecuta nada; ninguna ruta `C:\` sale por Telegram |
+| F5.7 | Seguridad del canal: texto **y contenido de imágenes** como dato, lista blanca de tipos y tamaño de adjuntos, filtro de salida compartido con DeepSeek, escotilla de Python cerrada sin gate | Test de inyección por texto **y por imagen** (una foto con "ignora las instrucciones anteriores" escrito): ninguna ejecuta nada. Ninguna ruta `C:\` sale por Telegram. Un adjunto no permitido se rechaza |
 | F5.8 | **Gate humano #2** con resumen: BOM, placas, gramos, horas, advertencias de QA | Aprobación deja los archivos en `fabrication/` |
 | F5.9 | Instrucciones de ensamble generadas (orden, hardware por paso, capturas) | Documento legible para montar la garra sin ayuda |
 | F5.10 | Registro de feedback de impresión ("flojo", "apretado", "se rompió en X"), también por Telegram | El feedback ajusta el perfil de holguras o crea defectos en la pieza |

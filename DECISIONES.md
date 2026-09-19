@@ -128,3 +128,65 @@ El LLM escribe en una **lista de defectos**, nunca en el veredicto. No existe ni
 **Riesgo específico del hardware.** La 5090 es Blackwell (`sm_120`) y requiere CUDA 12.8+. Una versión antigua de Ollama **no falla: cae a CPU en silencio**. F0.3 debe verificar explícitamente el uso de GPU, o se perderán horas creyendo que el modelo es lento.
 
 **Nota.** Estas elecciones son configuración, no arquitectura. Ninguna de las decisiones ADR-001 a ADR-006 depende de qué modelo se use — que es la señal de que las fronteras están en el sitio correcto.
+
+---
+
+## ADR-008 · Fase de admisión conversacional, con `submit()` en el `HumanPort`
+
+**Estado:** aceptada · **Afecta a:** § 4.1, § 8.5, § 5.2; F1.3, F5.5
+
+**Problema.** El `HumanPort` de ADR-006 solo cubría la dirección sistema → humano (`ask`, `notify`). Las peticiones de cambio iban de humano a sistema, pero **solo sobre un proyecto existente**. No había forma de *arrancar* uno salvo el comando de consola `intelliprint new`, que obliga a estar delante del PC para empezar y luego permite seguirlo desde el móvil — al revés de como se usa en la práctica.
+
+**Decisión.** Se añade una tercera operación al mismo puerto:
+
+```
+ask(pregunta, adjuntos) -> respuesta     sistema → humano
+notify(evento)                           sistema → humano
+submit(texto, adjuntos) -> proyecto      humano  → sistema
+```
+
+Y un estado `INTAKE` delante de todo, donde el Requirements Agent **conversa** hasta completar la spec y el usuario confirma explícitamente antes de que empiece el diseño.
+
+**Por qué un estado y no una convención.** El requisito era "que me pregunte cosas antes de que el sistema empiece a diseñar". Si eso depende de que un agente recuerde preguntar, fallará. Como estado del grafo, **no existe la transición de `INTAKE` a diseño sin confirmación**: es imposible saltárselo.
+
+**Consecuencias.**
+- La admisión no consume GPU: no abre FreeCAD ni diseña. Puede haber varias conversaciones abiertas a la vez.
+- Es asíncrona, como `BLOCKED_ON_HUMAN`: un proyecto puede esperar días en `INTAKE`.
+- Los **adjuntos son entrada de diseño real**, no decoración, porque el stack tiene visión (ADR-007): fotos del sitio de montaje, croquis a mano con cotas, o un STL con el que la pieza debe encajar.
+- Tres reglas de seguridad nuevas (5–7 de § 8.5): lista blanca de tipos y tamaño, el contenido de una imagen es dato (un modelo de visión lee el texto escrito dentro de una foto, así que la inyección por imagen es real), y los adjuntos no se ejecutan ni salen de `workspace/`.
+
+---
+
+## ADR-009 · Registro global de proyectos
+
+**Estado:** aceptada · **Afecta a:** § 5.1, regla 9 de § 4; F1.11
+
+**Problema.** El diseño original asumía un proyecto cada vez: un directorio `workspace/projects/<proyecto>/` con su `state.sqlite`. El uso real es **muchos proyectos simultáneos y heterogéneos** —una garra, un soporte para un carruaje, un brazo— y no había forma de preguntar qué hay en marcha ni cuál espera algo del usuario.
+
+**Decisión.** `workspace/registry.sqlite` como índice global, con identificadores **fecha + slug** (`2026-09-21-soporte-vaso-carruaje`): legibles, ordenables y sin colisiones.
+
+El registro guarda por proyecto: id, nombre, clase, estado, fechas, coste acumulado de DeepSeek y **qué espera de ti**. Ese último campo es el que hace útil preguntar "¿qué tengo pendiente?" desde el móvil.
+
+**Consecuencia.** Aparece `MAX_CONCURRENT_PROJECTS`, distinto de `MAX_PARALLEL_PARTS`: uno limita cuántos proyectos avanzan, el otro cuántas piezas dentro de cada uno. Confundirlos satura la GPU o desaprovecha la CPU.
+
+---
+
+## ADR-010 · Clases de producto y fases condicionales
+
+**Estado:** aceptada · **Afecta a:** § 4.2, § 2; F1.3, F4.10
+
+**Problema.** La arquitectura era **robot-céntrica**. La Fase 2 son tres agentes —Kinematics, Actuation, Electronics— y para un soporte estático los tres sobran. El coste no es el tiempo: es que **un agente al que se le pide la cinemática de un soporte se la inventa**, y esa invención entra en las interfaces y contamina el diseño.
+
+**Decisión.** El Requirements Agent clasifica el producto durante la admisión, y el grafo salta las fases que no aplican:
+
+| Clase | Fase 2 |
+|---|---|
+| `static_part` | se salta entera |
+| `mechanism` | solo Actuation |
+| `robot` | Kinematics + Actuation + Electronics |
+
+**Por qué es una decisión de corrección y no de rendimiento.** Quita la oportunidad de alucinar en lugar de intentar detectarla después. **Un agente que no corre no puede inventar un dato.** Es la misma estrategia que ADR-002 (si no hay Python, no hay Python malo) y ADR-003 (si el LLM no puede aprobar, no aprueba de más): eliminar la posibilidad en vez de vigilarla.
+
+**Efecto secundario.** Las piezas sencillas —la mayoría del uso real— dejan de pagar el peaje de un pipeline diseñado para un brazo de 6 ejes.
+
+**Riesgo residual.** Una clasificación errónea salta una fase que sí hacía falta. Mitigación: la clase aparece en el resumen que confirmas al final de la admisión, así que la corriges antes de que cueste nada.
