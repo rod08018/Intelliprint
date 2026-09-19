@@ -290,4 +290,13 @@ Lo que falla vuelve al agente como motivo concreto, hasta 3 rondas. El ensamble 
 - El modelo de razonamiento piensa unos 30 000 tokens. Con `max_tokens` 32K devolvía vacío, y con el modo JSON no terminaba ni con 64K. Va sin modo JSON y con 64K; una respuesta cortada es un error propio y no gasta reintentos.
 - Cada ronda del Mechanism Designer tarda unos 4 minutos.
 
+**Movimiento por contacto, no por fórmula (ampliación).** La primera versión dejaba que el agente escribiera la fórmula de cualquier pieza. Eso permitió un trinquete que "bloqueaba" porque su fórmula decía que la rueda se quedaba quieta: el ensamble no demostraba nada. Se añaden dos cosas:
+
+- `joint.rest_on`: la pieza no lleva fórmula, se mueve hasta **apoyarse** en otra. El valor lo busca la geometría real en FreeCAD, en cada posición del ciclo (dos pasadas, malla gruesa y fina). Si no llega a apoyarse, es un fallo con su motivo.
+- `blocks`: el sistema fuerza la articulación de una pieza `delta` y comprueba que **se atravesaría** con la que la frena. Un trinquete que no bloquea se cae aquí.
+
+Lo que sigue sin verificarse, y por eso el informe lo dice explícitamente: el movimiento de las piezas motrices (la manivela que alguien gira) es una fórmula impuesta, no un efecto del mecanismo.
+
+**Design Reviewer (ampliación).** Un agente compara la petición literal, requisito por requisito, con lo que MIDIÓ el código. Sus veredictos son `cumple`, `no_cumple` y `no_verificable`; este último es el importante, porque marca lo que hoy nadie comprueba. **No aprueba nada** (ADR-003): es un informe para la persona. Cuando el perfil tenga modelo con visión podrá mirar además los fotogramas.
+
 **Límite conocido.** Que un diseño pase todas las comprobaciones no significa que sea lo que el usuario imaginaba. La primera bisagra aprobada era en realidad un pivote en plano. Juzgar eso necesita un revisor con visión (capa 3 del QA, § 7.1), que el perfil dev no tiene. Hasta entonces, el GIF lo revisa el usuario.
