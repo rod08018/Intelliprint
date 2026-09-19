@@ -21,7 +21,7 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = [".", "mcp/mech-toolkit"]
+pythonpath = [".", "mcp/mech-toolkit", "mcp/sim"]
 # Los tests `gui` abren la interfaz real de FreeCAD y los `llm` llaman a un
 # modelo de verdad (cuestan dinero). Fuera de la suite rápida; se ejecutan
 # con `pytest -m "gui or llm"` antes de cerrar una tarea que toque FreeCAD,
@@ -39,5 +39,5 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 # mech_toolkit vive en mcp/mech-toolkit/ porque será un servicio aparte
 # (F2.1); hasta entonces se instala junto al orquestador.
-where = [".", "mcp/mech-toolkit"]
-include = ["orchestrator*", "mech_toolkit*"]
+where = [".", "mcp/mech-toolkit", "mcp/sim"]
+include = ["orchestrator*", "mech_toolkit*", "sim*"]
