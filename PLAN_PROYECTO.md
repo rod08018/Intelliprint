@@ -339,6 +339,16 @@ Ruta crítica: F0.5 → F1.6 → F1.10 → F2.5 → F2.13 → F2.17 → F3.2 →
 
 Regla: las herramientas deterministas deben tener tests antes de que un agente las use.
 
+### 6.1 Definición de "hecho"
+
+Una tarea **solo está hecha** si cumple las tres condiciones. Salieron de cinco fallos que llegaron al usuario con la suite en verde: una cota perdida entre la petición y la pieza, un `.FCStd` que se abría vacío, una referencia de encaje dibujada por el propio sistema, un QA que confundía agujero con saliente, y una holgura cero dada por buena.
+
+1. **El test falla sin el cambio.** Visto fallar antes de implementar y, para las garantías estructurales, verificado además por mutación: se rompe a propósito el código y se comprueba que el test cae. Un test que nunca ha fallado no ha demostrado nada.
+2. **Hay una verificación en el punto de uso**, donde lo experimenta el usuario: la pieza abierta en FreeCAD, el G-code laminado, la petición que escribió. No la representación intermedia. Es `pytest -m "gui or llm"` (F1.17 (verificación)).
+3. **El valor esperado viene de un oráculo independiente**: un modelo de referencia descargado (`library/models/reference/`, protegido por SHA-256), un cálculo a mano o la petición literal del usuario. **Nunca** de la salida del propio sistema, ni de los mismos números con los que se diseñó la pieza.
+
+Y un criterio físico, no geométrico: **encajar es tener holgura ≥ la del perfil**, no "intersección cero". Tocarse no es encajar (F2.20 (encaje)).
+
 ---
 
 ## 7. Métricas de éxito
