@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Callable
 
 from orchestrator.fcstd import mostrar_solo
 from orchestrator.recipes.compose import compose_build_script
@@ -71,12 +72,17 @@ def design_and_build(
     freecadcmd: str,
     part: str | None = None,
     request: str | None = None,
+    check: Callable[[PartResult], str | None] | None = None,
     max_construcciones: int = MAX_CONSTRUCCIONES,
 ) -> tuple[Recipe, PartResult]:
     """Diseña y construye, devolviendo al agente el motivo de cada fallo.
 
     `part` fija el nombre de la pieza: el modelo podría devolver otro en la
     receta, y los artefactos tienen que llamarse como la tarea.
+
+    `check` mira la pieza YA construida y devuelve el motivo si no vale
+    (p. ej. que está mal colocada para el ensamble). Ese motivo vuelve al
+    agente por el mismo camino que un fallo de FreeCAD.
     """
     rechazo: tuple[str, str] | None = None
     motivo = ""
@@ -100,6 +106,9 @@ def design_and_build(
 
         try:
             resultado = build_part(receta, catalog, Path(carpeta), freecadcmd)
+            defecto = check(resultado) if check is not None else None
+            if defecto:
+                raise ConstruccionFallida(defecto)
             return receta, resultado.model_copy(update={"untraced_mm": perdidas})
         except ConstruccionFallida as error:
             motivo = error.motivo

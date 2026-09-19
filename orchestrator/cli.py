@@ -107,27 +107,38 @@ def _informar(final: dict, nombre: str) -> None:
 def _mecanismo(args, raiz: Path, env: dict, nombre: str) -> None:
     import yaml
 
+    from mech_toolkit.generators import CATALOGO
     from mech_toolkit.profile import PrinterProfile
-    from orchestrator.mechanisms.run import build_mechanism
+    from orchestrator.agents.part_designer import PartDesignerAgent
+    from orchestrator.mechanisms.run import build_mechanism, llm_designer
     from orchestrator.mechanisms.slider_crank import SliderCrankLayout
 
     perfil = PrinterProfile(**yaml.safe_load(
         (raiz / "config/printers/ankermake_m5_petg.yaml").read_text()))
     layout = SliderCrankLayout(stroke_mm=args.carrera, profile=perfil)
+    origen = "referencia" if args.referencia else "modelo"
     carpeta = (_workspace(raiz, env) / "projects"
-               / f"{dt.date.today():%Y-%m-%d}-biela_manivela_{args.carrera:g}mm")
+               / f"{dt.date.today():%Y-%m-%d}-biela_manivela_{args.carrera:g}mm_{origen}")
     print(f"[{nombre}] Biela-manivela-corredera, carrera {args.carrera:g} mm → {carpeta}")
-    informe = build_mechanism(layout, carpeta, _freecadcmd(env),
-                              min_gap_mm=perfil.fit_mm("slide") / 2)
+    freecad = _freecadcmd(env)
+    disenar = None
+    if not args.referencia:
+        router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
+        agente = PartDesignerAgent(_cliente(router, env), CATALOGO)
+        disenar = llm_designer(agente, layout.briefs(), freecad, check=layout.check_bounds)
+        print(f"  las piezas las diseña el modelo ({router.profile_name})")
+    informe = build_mechanism(layout, carpeta, freecad,
+                              min_gap_mm=perfil.fit_mm("slide") / 2, disenar=disenar)
     print(f"  ensamble:  {informe.assembly}  (ábrelo en FreeCAD)")
     print(f"  animación: {informe.animation}")
     if informe.ok:
         print(f"  ✓ sin choques en {len(informe.angles)} posiciones de la vuelta "
               f"(holgura mínima {informe.min_gap_mm:g} mm)")
     else:
-        print(f"  ✗ {len(informe.collisions)} choques:")
-        for c in informe.collisions[:10]:
-            print(f"    - {c.motivo}")
+        print(f"  ✗ choques en {len({c.angle for c in informe.collisions})} de "
+              f"{len(informe.angles)} posiciones:")
+        for linea in informe.collision_summary():
+            print(f"    - {linea}")
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -140,6 +151,8 @@ def main(argv: list[str] | None = None) -> None:
     meca = sub.add_parser("mecanismo", help="diseñar un mecanismo y ver su ensamble animado")
     meca.add_argument("tipo", choices=["biela-manivela"])
     meca.add_argument("--carrera", type=float, required=True, help="carrera de la corredera, mm")
+    meca.add_argument("--referencia", action="store_true",
+                      help="usar las recetas fijas de la disposición en vez del modelo")
     args = parser.parse_args(argv)
 
     raiz = _raiz()

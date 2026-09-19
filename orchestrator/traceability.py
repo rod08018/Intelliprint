@@ -47,6 +47,7 @@ def untraced(peticion: str, receta: Recipe, tol: float = 1e-6) -> list[float]:
     ]
     perdidas: list[float] = []
     for cota in requested_dimensions(peticion):
-        if not any(abs(v - cota) <= tol for v in valores) and cota not in perdidas:
+        # El signo no es parte de la cota: "4 mm por debajo" es -4 en la receta.
+        if not any(abs(abs(v) - cota) <= tol for v in valores) and cota not in perdidas:
             perdidas.append(cota)
     return perdidas

@@ -2,8 +2,9 @@
 animación. El ensamble se guarda SIEMPRE, también si hay choques: es
 justamente cuando más falta hace abrirlo y ver dónde está el problema.
 
-Hoy las piezas salen de las recetas de referencia de la disposición; el
-Part Designer entrará por `disenar` (F3.14 (mecanismo)).
+Las piezas las diseña el Part Designer con `llm_designer`, a partir de
+los enunciados de la disposición (F3.14 (mecanismo)). Sin diseñador se
+usan las recetas de referencia de la disposición.
 """
 
 from pathlib import Path
@@ -13,8 +14,11 @@ from pydantic import BaseModel
 
 from mech_toolkit.generators import CATALOGO
 from orchestrator.assembly import Collision, build_assembly, sweep_collisions
-from orchestrator.build import build_part
-from orchestrator.schemas.recipe import Recipe
+from orchestrator.build import build_part, design_and_build
+from orchestrator.schemas.part_result import PartResult
+
+Disenar = Callable[[str, Path], None]
+"""(pieza, carpeta) → construye la pieza en `carpeta/<pieza>.step`."""
 
 POSE_GUARDADA = 30.0
 """Ángulo del ensamble guardado. No 0°: con la manivela alineada con la
@@ -33,6 +37,44 @@ class MechanismReport(BaseModel):
     def ok(self) -> bool:
         return not self.collisions
 
+    def collision_summary(self) -> list[str]:
+        """Un renglón por par de piezas: en qué ángulos y el peor caso."""
+        pares: dict[tuple[str, str], list[Collision]] = {}
+        for c in self.collisions:
+            pares.setdefault((c.a, c.b), []).append(c)
+        return [
+            f"{a} / {b}: a {', '.join(f'{c.angle:g}°' for c in cs[:6])}"
+            f"{'…' if len(cs) > 6 else ''} ({len(cs)} posiciones). Peor: "
+            + min(cs, key=lambda c: c.gap_mm).motivo
+            for (a, b), cs in pares.items()
+        ]
+
+
+def llm_designer(
+    agent,
+    briefs: dict[str, str],
+    freecadcmd: str,
+    check: Callable[[str, PartResult], str | None] | None = None,
+) -> Disenar:
+    """El Part Designer diseña cada pieza desde su enunciado. El enunciado
+    hace también de petición para la trazabilidad (F1.16 (trazabilidad)):
+    una cota que el modelo pierda vuelve a él con el valor exacto.
+
+    `check(pieza, resultado)` comprueba la pieza construida (p. ej. que esté
+    donde la espera el ensamble); su motivo también vuelve al modelo."""
+
+    def disenar(nombre: str, carpeta: Path) -> None:
+        receta, _ = design_and_build(
+            agent, briefs[nombre], CATALOGO, carpeta,
+            freecadcmd=freecadcmd, part=nombre, request=briefs[nombre],
+            check=(lambda r: check(nombre, r)) if check else None,
+        )
+        # Qué diseñó el modelo y a partir de qué, junto a la pieza.
+        (carpeta / "recipe.json").write_text(receta.model_dump_json(indent=2), encoding="utf-8")
+        (carpeta / "brief.md").write_text(briefs[nombre] + "\n", encoding="utf-8")
+
+    return disenar
+
 
 def build_mechanism(
     layout,
@@ -42,16 +84,18 @@ def build_mechanism(
     min_gap_mm: float,
     angulos: list[float] | None = None,
     animar: bool = True,
-    disenar: Callable[[str, Recipe], Recipe] | None = None,
+    disenar: Disenar | None = None,
 ) -> MechanismReport:
     carpeta = Path(carpeta)
     angulos = list(angulos if angulos is not None else range(0, 360, 10))
 
+    recetas = layout.recipes()
+    if disenar is None:
+        disenar = lambda n, c: build_part(recetas[n], CATALOGO, c, freecadcmd)  # noqa: E731
+
     steps = {}
-    for nombre, receta in layout.recipes().items():
-        if disenar is not None:
-            receta = disenar(nombre, receta)
-        build_part(receta, CATALOGO, carpeta / "parts" / nombre, freecadcmd)
+    for nombre in recetas:
+        disenar(nombre, carpeta / "parts" / nombre)
         steps[nombre] = carpeta / "parts" / nombre / f"{nombre}.step"
 
     poses = {a: layout.poses(a) for a in angulos}

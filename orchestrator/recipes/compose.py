@@ -67,6 +67,8 @@ print({prefix!r} + json.dumps({{
     "part": {part!r},
     "volume_mm3": _forma.Volume,
     "bbox_mm": [_bb.XLength, _bb.YLength, _bb.ZLength],
+    "bbox_min": [_bb.XMin, _bb.YMin, _bb.ZMin],
+    "bbox_max": [_bb.XMax, _bb.YMax, _bb.ZMax],
     "solids": _n_solidos,
     "fcstd_object": _pieza.Name,
 }}))

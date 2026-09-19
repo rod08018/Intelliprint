@@ -15,6 +15,11 @@ class PartResult(BaseModel):
     part: str
     volume_mm3: float
     bbox_mm: list[float]
+    bbox_min: list[float] | None = None
+    bbox_max: list[float] | None = None
+    """Dónde queda la pieza en su propio marco. El tamaño no basta para
+    ensamblar: una placa centrada en el origen y otra que empieza en él
+    miden lo mismo."""
     solids: int
     fcstd_object: str | None = None
     """Nombre interno de la pieza final dentro del .FCStd."""
