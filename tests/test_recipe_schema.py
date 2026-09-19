@@ -21,6 +21,7 @@ def _catalogo_minimo() -> GeneratorCatalog:
             GeneratorSpec(
                 name="generate_bolt_pattern",
                 required_params={"screw_id", "count", "pcd_mm"},
+                choice_params={"screw_id": {"screw_M3x12", "screw_M3x16"}},
             )
         ]
     )
@@ -111,3 +112,38 @@ def test_receta_sin_pasos_se_rechaza():
     """
     with pytest.raises(ValidationError, match="al menos un paso"):
         Recipe(part="base_servo", steps=[])
+
+
+@pytest.mark.parametrize("valor", [
+    "__import__('os').system('rm -rf ~')",
+    "30); import os; os.system('x'",
+    True,
+    None,
+    {"a": 1},
+])
+def test_receta_rechaza_valores_que_no_son_numeros(valor):
+    """Los valores se pegan dentro de build.py, que ejecuta FreeCAD. Si un
+    valor pudiera ser texto, el modelo (o una petición con texto inyectado)
+    podría meter código: se acabaría la garantía de ADR-002."""
+    receta = Recipe(part="p", steps=[RecipeStep(
+        generator="generate_bolt_pattern",
+        params={"screw_id": "screw_M3x12", "count": 4, "pcd_mm": valor})])
+    with pytest.raises(RecipeError, match="pcd_mm"):
+        receta.validate_against(_catalogo_minimo())
+
+
+def test_un_parametro_de_opciones_solo_acepta_sus_opciones():
+    receta = Recipe(part="p", steps=[RecipeStep(
+        generator="generate_bolt_pattern",
+        params={"screw_id": "screw_M3x12'); import os; ('", "count": 4, "pcd_mm": 30})])
+    with pytest.raises(RecipeError, match="screw_id"):
+        receta.validate_against(_catalogo_minimo())
+
+
+def test_listas_de_numeros_se_aceptan_y_de_texto_no():
+    cat = GeneratorCatalog([GeneratorSpec(name="g", required_params={"points_mm"})])
+    ok = Recipe(part="p", steps=[RecipeStep(generator="g", params={"points_mm": [[0, 0], [1, 2.5]]})])
+    ok.validate_against(cat)
+    mal = Recipe(part="p", steps=[RecipeStep(generator="g", params={"points_mm": [[0, "os"]]})])
+    with pytest.raises(RecipeError, match="points_mm"):
+        mal.validate_against(cat)

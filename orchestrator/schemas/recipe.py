@@ -15,6 +15,9 @@ class GeneratorSpec(BaseModel):
     name: str
     required_params: set[str] = set()
     optional_params: set[str] = set()
+    choice_params: dict[str, set[str]] = {}
+    """Parámetros de texto y sus únicos valores válidos. Cualquier otro
+    parámetro tiene que ser un número o una lista (anidada) de números."""
     template: str = ""
     """Fragmento de Python con marcadores `$param` (string.Template). Lo
     escribe un humano, no un LLM: es lo que hace segura la ejecución.
@@ -24,7 +27,7 @@ class GeneratorSpec(BaseModel):
 
     @property
     def allowed_params(self) -> set[str]:
-        return self.required_params | self.optional_params
+        return self.required_params | self.optional_params | set(self.choice_params)
 
 
 class GeneratorCatalog:
@@ -51,6 +54,32 @@ class GeneratorCatalog:
                 opcionales = ", ".join(sorted(spec.optional_params))
                 lineas.append(f"    opcionales: {opcionales}")
         return "\n".join(lineas)
+
+
+def _es_numero(v) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def _es_lista_de_numeros(v) -> bool:
+    return isinstance(v, list) and all(_es_numero(x) or _es_lista_de_numeros(x) for x in v)
+
+
+def _validar_valor(generador: str, spec: GeneratorSpec, nombre: str, valor) -> None:
+    """Los valores se pegan en el código de build.py que ejecuta FreeCAD.
+    Solo números, listas de números u opciones cerradas: un texto libre
+    sería código arbitrario (ADR-002)."""
+    if nombre in spec.choice_params:
+        if valor not in spec.choice_params[nombre]:
+            raise RecipeError(
+                f"{generador}: {nombre}={valor!r} no es válido. "
+                f"Opciones: {sorted(spec.choice_params[nombre])}."
+            )
+        return
+    if not (_es_numero(valor) or _es_lista_de_numeros(valor)):
+        raise RecipeError(
+            f"{generador}: {nombre} tiene que ser un número (en mm o grados), "
+            f"no {valor!r}."
+        )
 
 
 class RecipeStep(BaseModel):
@@ -89,6 +118,8 @@ class Recipe(BaseModel):
                     f"{paso.generator}: faltan parámetros obligatorios "
                     f"{faltantes}."
                 )
+            for nombre, valor in paso.params.items():
+                _validar_valor(paso.generator, spec, nombre, valor)
             desconocidos = sorted(paso.params.keys() - spec.allowed_params)
             if desconocidos:
                 raise RecipeError(

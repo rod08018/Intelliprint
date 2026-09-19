@@ -26,9 +26,11 @@ def _catalogo_con_caja() -> GeneratorCatalog:
         [
             GeneratorSpec(
                 name="generate_box",
-                required_params={"name", "length", "width", "height"},
+                required_params={"length", "width", "height"},
+                # Texto solo como opción cerrada; compose le pone las comillas.
+                choice_params={"name": {"B"}},
                 template=(
-                    'obj = doc.addObject("Part::Box", "$name")\n'
+                    'obj = doc.addObject("Part::Box", $name)\n'
                     "obj.Length = $length\n"
                     "obj.Width = $width\n"
                     "obj.Height = $height"
@@ -54,7 +56,7 @@ def test_compone_el_script_renderizando_la_plantilla_del_generador():
     """Los parámetros de la receta acaban en el código, sustituidos."""
     script = compose_build_script(_receta_cubo_20mm(), _catalogo_con_caja())
 
-    assert 'doc.addObject("Part::Box", "B")' in script
+    assert """doc.addObject("Part::Box", 'B')""" in script
     assert "obj.Length = 20" in script
 
 

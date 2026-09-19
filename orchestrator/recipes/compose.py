@@ -97,7 +97,10 @@ def compose_build_script(
         # real, con dicts, listas por comprensión y bucles. Cualquier `{`
         # literal rompería format, lo que dejaría fuera a casi todo generador
         # no trivial. `substitute` además falla si falta un parámetro.
-        partes.append(Template(spec.template).substitute(**paso.params))
+        # Los valores ya están validados (números, listas de números u
+        # opciones cerradas); repr() pone las opciones entre comillas.
+        valores = {k: repr(v) if isinstance(v, str) else v for k, v in paso.params.items()}
+        partes.append(Template(spec.template).substitute(**valores))
         partes.append("\n")
 
     partes.append(
