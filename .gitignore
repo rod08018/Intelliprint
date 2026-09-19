@@ -1,0 +1,34 @@
+# Proyectos generados: se versionan por separado, no en el repo del sistema
+workspace/
+
+# Artefactos de fabricación que pudieran quedar fuera de workspace/
+*.gcode
+*.3mf
+*.FCStd1
+
+# Secretos: DEEPSEEK_API_KEY y TELEGRAM_BOT_TOKEN vienen del entorno (§ 8.4)
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Estado local
+*.sqlite
+*.sqlite-journal
+log/
+logs/
+
+# Sistema operativo y editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

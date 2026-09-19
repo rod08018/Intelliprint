@@ -1,0 +1,54 @@
+# Modelos y política de escalamiento.
+# Ver SISTEMA_MULTIAGENTE.md § 6 y DECISIONES.md ADR-007.
+#
+# Cambiar de modelo o de perfil NO debe requerir tocar código.
+
+providers:
+  local:
+    base_url: http://ollama:11434
+  deepseek:
+    api_key_env: DEEPSEEK_API_KEY        # requerida; si falta, el escalamiento se desactiva
+    base_url_env: DEEPSEEK_BASE_URL      # opcional
+    base_url_default: https://api.deepseek.com
+    model_env: DEEPSEEK_MODEL            # opcional
+    model_default: deepseek-chat         # o deepseek-reasoner
+
+# Perfiles de hardware. El activo se elige con INTELLIPRINT_PROFILE.
+profiles:
+
+  prod:                                  # PC con RTX 5090 (32 GB VRAM)
+    design: local/qwen3.8                #   27B, tools + thinking + vision — 16.5 GB
+    qa:     local/gemma3:12b             #   revisor distinto, con visión   — ~8 GB
+    embed:  local/nomic-embed-text       #                                  — ~0.3 GB
+    # Total ~25 GB de 32 GB. Requiere OLLAMA_MAX_LOADED_MODELS=2.
+    # La 5090 es Blackwell (sm_120): CUDA 12.8+ y Ollama reciente.
+    # Una versión antigua NO falla, cae a CPU en silencio. Verificar en F0.3.
+
+  dev:                                   # portátil sin GPU, para desarrollar
+    design: local/qwen3:4b
+    qa:     local/qwen3:4b
+    embed:  local/nomic-embed-text
+
+active_profile_env: INTELLIPRINT_PROFILE
+active_profile_default: dev
+
+# Los agentes referencian roles del perfil, nunca modelos concretos.
+agents:
+  requirements:   {model: $design}
+  decomposition:  {model: $design, escalate_to: deepseek, escalate_after_failures: 1}
+  kinematics:     {model: $design}
+  actuation:      {model: $design}
+  electronics:    {model: $design}
+  part_designer:  {model: $design, escalate_to: deepseek, escalate_after_failures: 2}
+  tolerances:     {model: $design}
+  qa:             {model: $qa}           # sin escalamiento: el veredicto no es del LLM (§ 7.1)
+  assembly:       {model: $design}
+  test_sim:       {model: $design}
+  slicing:        {model: $design}
+  default:        {model: $design, escalate_to: deepseek, escalate_after_failures: 2}
+
+escalation:
+  max_usd_per_project: 2.0
+  max_context_tokens_local: 16000
+  # La escotilla de Python libre (§ 6.3) usa SIEMPRE deepseek, no el modelo local.
+  hatch_provider: deepseek

@@ -1,0 +1,43 @@
+# Perfil de impresora + material.
+# Ver SISTEMA_MULTIAGENTE.md § 7.
+#
+# ⚠️ SIN CALIBRAR. Los valores de `fits` son los defaults para boquilla de
+# 0.4 mm y NO son transferibles entre impresoras ni materiales. Deben
+# sustituirse por mediciones reales tras imprimir la pieza de calibración
+# (tarea F2.15). Hasta entonces, espera encajes flojos o apretados.
+
+id: prusa_mk4_petg
+printer: Prusa MK4
+material: PETG
+calibrated: false            # pasa a true cuando F2.15 actualice los valores
+
+nozzle_mm: 0.4
+line_width_mm: 0.42
+layer_height_mm: 0.2
+
+bed_mm: {x: 250, y: 210, z: 220}
+
+# Holguras en diámetro, aplicadas por apply_fit() según el `fit` de la interfaz
+fits:
+  press_mm: 0.10             # encaje a presión
+  slide_mm: 0.20             # encaje deslizante
+  clearance_mm: 0.35         # holgura / movimiento (rango típico 0.30–0.40)
+
+# Agujeros para tornillería métrica
+holes:
+  M3_through_mm: 3.3         # rango típico 3.2–3.4
+  M3_selftap_mm: 2.8         # rosca directa en plástico
+  M3_insert_mm: 4.1          # inserto térmico; confirmar con el fabricante
+  M3_nut_af_mm: 5.9          # entrecaras 5.7 + 0.2 de holgura
+
+# Reglas estructurales
+walls:
+  min_mm: 0.8                # 2 × ancho de línea
+  recommended_mm: 1.2
+  structural_mm: 1.8         # ≈ 4 perímetros
+
+overhang_max_deg: 45
+bridge_max_mm: 10
+
+# Densidad del material, para estimar masa
+density_g_cm3: 1.27
