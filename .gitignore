@@ -32,3 +32,6 @@ logs/
 Thumbs.db
 .idea/
 .vscode/
+
+# Copias de seguridad que deja FreeCAD al sobrescribir un .FCStd
+*.FCBak

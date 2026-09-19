@@ -11,7 +11,8 @@ library/
 ├── motors/      NEMA14, NEMA17
 ├── servos/      SG90, MG90S, MG996R, DS3218
 ├── electronics/ ESP32 DevKit, Arduino Nano, A4988, TMC2209
-└── step/        modelos STEP de cada ítem
+├── step/        modelos STEP de cada ítem
+└── models/      modelos listos para ensamblar en FreeCAD (.FCStd + .step)
 ```
 
 Cada ítem es un YAML validado contra esquema, con su STEP correspondiente:
@@ -28,3 +29,13 @@ step: library/step/nema17_42x40.step
 ```
 
 Se indexa también en Qdrant para búsqueda semántica.
+
+## `models/`: listos para ensamblar
+
+Cada modelo se construye **en posición de montaje**: centrado en el origen y con la cara de montaje en z=0, en las mismas coordenadas que las piezas que lo alojan. Al insertar la pieza y el hardware en un ensamblaje de FreeCAD quedan montados sin crear uniones.
+
+| Modelo | Origen de las cotas |
+|---|---|
+| `nema17_42x40` | Cuerpo 42.3×42.3×40, saliente Ø22×2, eje Ø5×24, 4×M3 de 4.5 mm en cuadro de 31. Simplificado: sin chaflanes ni plano en el eje |
+
+Se regeneran con `mech_toolkit.library_models`. Comprobado contra el soporte NEMA17: intersección de 0 mm³ y distancia de 0 mm, es decir, se tocan sin atravesarse.

@@ -61,4 +61,7 @@ def mostrar_solo(fcstd: Path, objeto: str) -> None:
                     if entrada.filename != "GuiDocument.xml":
                         destino.writestr(entrada, origen.read(entrada.filename))
                 destino.writestr("GuiDocument.xml", _gui_document(objetos, objeto))
+    # El temporal nace con permisos 0600: sin esto el .FCStd quedaba legible
+    # solo por su dueño.
+    shutil.copymode(fcstd, tmp.name)
     shutil.move(tmp.name, fcstd)
