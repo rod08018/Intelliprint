@@ -76,9 +76,15 @@ def _grafo(raiz: Path, env: dict):
         disenar=disenar,
         laminar=lambda stl, salida: slice_stl(stl, raiz / PERFIL_M5, salida),
         port=CliAdapter(),
-        workspace=raiz / "workspace" / "projects",
+        workspace=_workspace(raiz, env) / "projects",
     )
-    return crear_grafo(deps, raiz / "workspace" / "state.sqlite")
+    return crear_grafo(deps, _workspace(raiz, env) / "state.sqlite")
+
+
+def _workspace(raiz: Path, env: dict) -> Path:
+    """`INTELLIPRINT_WORKSPACE` permite ejecutar pruebas en otra carpeta:
+    así una prueba nunca pisa los proyectos reales de `workspace/`."""
+    return Path(env["INTELLIPRINT_WORKSPACE"]) if env.get("INTELLIPRINT_WORKSPACE") else raiz / "workspace"
 
 
 def _informar(final: dict, nombre: str) -> None:
