@@ -115,6 +115,11 @@ def _mecanismo(args, raiz: Path, env: dict, nombre: str) -> None:
 
     perfil = PrinterProfile(**yaml.safe_load(
         (raiz / "config/printers/ankermake_m5_petg.yaml").read_text()))
+    if args.peticion != ["biela-manivela"]:
+        _mecanismo_desde_texto(args, raiz, env, nombre, perfil)
+        return
+    if args.carrera is None:
+        sys.exit("biela-manivela necesita --carrera")
     layout = SliderCrankLayout(stroke_mm=args.carrera, profile=perfil)
     origen = "referencia" if args.referencia else "modelo"
     carpeta = (_workspace(raiz, env) / "projects"
@@ -141,6 +146,48 @@ def _mecanismo(args, raiz: Path, env: dict, nombre: str) -> None:
             print(f"    - {linea}")
 
 
+def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> None:
+    """F3.15 (mecanismos): todo lo decide Intelliprint a partir del texto."""
+    import yaml
+
+    from mech_toolkit.generators import CATALOGO
+    from orchestrator.agents.mechanism_designer import MechanismDesignerAgent
+    from orchestrator.agents.part_designer import PartDesignerAgent
+    from orchestrator.mechanisms.flow import design_mechanism
+    from orchestrator.tasks import slug
+
+    peticion = " ".join(args.peticion)
+    if args.archivo:
+        peticion = Path(peticion).read_text(encoding="utf-8")
+    impresora = yaml.safe_load((raiz / "config/printers/ankermake_m5_petg.yaml").read_text())
+    cama = tuple(impresora["bed_mm"][k] for k in "xyz")
+    hueco = perfil.fit_mm("slide") / 2
+    router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
+    cliente = _cliente(router, env)
+    carpeta = (_workspace(raiz, env) / "projects"
+               / f"{dt.datetime.now():%Y-%m-%d-%H%M}-{slug(peticion.split(chr(10))[0])[:40]}")
+    print(f"[{nombre}] Mecanismo desde tu texto ({router.profile_name}) → {carpeta}")
+    informe = design_mechanism(
+        peticion,
+        MechanismDesignerAgent(cliente, CATALOGO, perfil, cama, hueco),
+        PartDesignerAgent(cliente, CATALOGO),
+        carpeta, _freecadcmd(env), min_gap_mm=hueco,
+    )
+    f = informe.final
+    print()
+    print(f"[{nombre}] {informe.rounds[-1].title}: {len(informe.rounds)} ronda(s)")
+    if f is not None:
+        print(f"  ensamble:  {f.assembly}  (ábrelo en FreeCAD)")
+        print(f"  animación: {f.animation}")
+        for nota in f.notes:
+            print(f"  · {nota}")
+    if informe.ok:
+        print(f"  ✓ sin choques en {len(f.angles)} posiciones; contactos y requisitos cumplidos")
+    else:
+        print("  ✗ no quedó resuelto. Lo último que falló:")
+        print(informe.rounds[-1].feedback)
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="intelliprint")
     sub = parser.add_subparsers(dest="comando", required=True)
@@ -149,8 +196,11 @@ def main(argv: list[str] | None = None) -> None:
     reanudar = sub.add_parser("resume", help="reanudar un proyecto interrumpido")
     reanudar.add_argument("proyecto")
     meca = sub.add_parser("mecanismo", help="diseñar un mecanismo y ver su ensamble animado")
-    meca.add_argument("tipo", choices=["biela-manivela"])
-    meca.add_argument("--carrera", type=float, required=True, help="carrera de la corredera, mm")
+    meca.add_argument("peticion", nargs="+",
+                      help='el mecanismo en texto, o "biela-manivela" con --carrera')
+    meca.add_argument("--archivo", action="store_true",
+                      help="la petición es la ruta de un archivo de texto")
+    meca.add_argument("--carrera", type=float, help="solo biela-manivela: carrera, mm")
     meca.add_argument("--referencia", action="store_true",
                       help="usar las recetas fijas de la disposición en vez del modelo")
     args = parser.parse_args(argv)

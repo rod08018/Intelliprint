@@ -32,6 +32,7 @@ class MechanismReport(BaseModel):
     angles: list[float]
     min_gap_mm: float
     collisions: list[Collision]
+    notes: list[str] = []
 
     @property
     def ok(self) -> bool:
@@ -43,7 +44,7 @@ class MechanismReport(BaseModel):
         for c in self.collisions:
             pares.setdefault((c.a, c.b), []).append(c)
         return [
-            f"{a} / {b}: a {', '.join(f'{c.angle:g}°' for c in cs[:6])}"
+            f"{a} / {b}: con t = {', '.join(f'{c.angle:g}' for c in cs[:6])}"
             f"{'…' if len(cs) > 6 else ''} ({len(cs)} posiciones). Peor: "
             + min(cs, key=lambda c: c.gap_mm).motivo
             for (a, b), cs in pares.items()
@@ -76,6 +77,34 @@ def llm_designer(
     return disenar
 
 
+def reference_bounds(layout, carpeta: Path, freecadcmd: str):
+    """Construye las piezas de referencia de la disposición y devuelve una
+    comprobación `check(pieza, resultado)` contra su caja envolvente.
+
+    Lo que se compara es DÓNDE está la pieza, no cómo está hecha: el modelo
+    puede usar otros generadores, pero la pieza tiene que ocupar el sitio
+    que las poses le asignan."""
+    cajas = {}
+    for nombre, receta in layout.recipes().items():
+        r = build_part(receta, CATALOGO, Path(carpeta) / nombre, freecadcmd)
+        cajas[nombre] = (r.bbox_min, r.bbox_max)
+
+    def check(nombre: str, resultado: PartResult, tol: float = 0.1) -> str | None:
+        lo, hi = cajas[nombre]
+        fuera = [i for i in range(3)
+                 if abs(resultado.bbox_min[i] - lo[i]) > tol or abs(resultado.bbox_max[i] - hi[i]) > tol]
+        if not fuera:
+            return None
+        rango = lambda a, b, i: f"{'xyz'[i]} de {a[i]:.4g} a {b[i]:.4g} mm"  # noqa: E731
+        return (
+            f"la pieza ocupa {', '.join(rango(resultado.bbox_min, resultado.bbox_max, i) for i in fuera)}; "
+            f"el ensamble la necesita en {', '.join(rango(lo, hi, i) for i in fuera)}. "
+            "Revisa el origen, la posición y las medidas de cada cuerpo según el enunciado."
+        )
+
+    return check
+
+
 def build_mechanism(
     layout,
     carpeta: Path,
@@ -86,31 +115,45 @@ def build_mechanism(
     animar: bool = True,
     disenar: Disenar | None = None,
 ) -> MechanismReport:
+    """`layout` es la disposición de un mecanismo. Obligatorio: `recipes()`,
+    `briefs()`, `pins()` y `poses(t)`. Opcional: `frames()` (valores de t de
+    una vuelta o ciclo), `pair_rules()`, `colors`, `label(t)`, `view`,
+    `saved_frame` y `notes()` (líneas para el informe)."""
     carpeta = Path(carpeta)
-    angulos = list(angulos if angulos is not None else range(0, 360, 10))
+    if angulos is None:
+        angulos = layout.frames() if hasattr(layout, "frames") else range(0, 360, 10)
+    angulos = list(angulos)
+    reglas = layout.pair_rules() if hasattr(layout, "pair_rules") else {}
 
-    recetas = layout.recipes()
     if disenar is None:
+        recetas = layout.recipes()
         disenar = lambda n, c: build_part(recetas[n], CATALOGO, c, freecadcmd)  # noqa: E731
 
     steps = {}
-    for nombre in recetas:
+    for nombre in layout.briefs():
         disenar(nombre, carpeta / "parts" / nombre)
         steps[nombre] = carpeta / "parts" / nombre / f"{nombre}.step"
 
     poses = {a: layout.poses(a) for a in angulos}
-    choques = sweep_collisions(steps, layout.pins(), poses, min_gap_mm, freecadcmd)
+    choques = sweep_collisions(steps, layout.pins(), poses, min_gap_mm, freecadcmd, reglas)
 
     ensamble = carpeta / "assembly.FCStd"
-    build_assembly(steps, layout.pins(), layout.poses(POSE_GUARDADA), ensamble, freecadcmd)
+    guardada = getattr(layout, "saved_frame", POSE_GUARDADA)
+    build_assembly(steps, layout.pins(), layout.poses(guardada), ensamble, freecadcmd)
 
     gif = None
     if animar:
         from orchestrator.animation import render_gif, tessellate
 
+        animacion = (
+            [(t, layout.poses(t)) for t in layout.animation_frames()]
+            if hasattr(layout, "animation_frames") else poses
+        )
         gif = render_gif(
-            tessellate(steps, layout.pins(), freecadcmd), poses,
-            carpeta / "animation.gif", title=carpeta.name,
+            tessellate(steps, layout.pins(), freecadcmd), animacion,
+            carpeta / "animation.gif", title=getattr(layout, "title", carpeta.name),
+            colors=getattr(layout, "colors", None), label=getattr(layout, "label", None),
+            view=getattr(layout, "view", (40, -65)),
         )
 
     return MechanismReport(
@@ -120,4 +163,5 @@ def build_mechanism(
         angles=angulos,
         min_gap_mm=min_gap_mm,
         collisions=choques,
+        notes=layout.notes() if hasattr(layout, "notes") else [],
     )

@@ -36,6 +36,9 @@ class DeepSeekClient:
                 "model": self._model,
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": temperature,
+                # Una especificación de mecanismo con sus enunciados pasa de
+                # los 4K tokens por defecto; cortada, no sería JSON válido.
+                "max_tokens": 8192,
                 # La API garantiza JSON sintácticamente válido, pero NO que
                 # cumpla nuestro esquema: la validación y el reintento con el
                 # error siguen haciendo falta (F1.3 (estructurada)).

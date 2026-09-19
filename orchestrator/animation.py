@@ -74,7 +74,9 @@ def _colocar(vertices, pose: Placement):
     import numpy as np
 
     r = np.array(_rotacion(*pose.rotation))
-    return np.asarray(vertices) @ r.T + np.asarray(pose.origin)
+    v = np.array(vertices, dtype=float)
+    v[:, 2] *= pose.scale_z
+    return v @ r.T + np.asarray(pose.origin)
 
 
 def _subdividir(tris, max_lado: float):
@@ -97,12 +99,19 @@ def _subdividir(tris, max_lado: float):
 
 def render_gif(
     meshes: dict[str, Malla],
-    frames: dict[float, dict[str, Placement]],
+    frames,
     out: Path,
     *,
     fps: int = 12,
     title: str = "",
+    colors: dict[str, str] | None = None,
+    label=None,
+    view: tuple[float, float] = (40, -65),
 ) -> Path:
+    """`frames`: {t: poses} o lista de (t, poses), que admite repetir t
+    (una bisagra que abre y vuelve a cerrar).
+    `label(t)` pone el texto de cada fotograma (por defecto "θ = t°")."""
+    frames = list(frames.items()) if isinstance(frames, dict) else list(frames)
     import matplotlib
 
     matplotlib.use("Agg")
@@ -115,11 +124,7 @@ def render_gif(
     luz = np.array([0.3, -0.5, 0.8])
     luz /= np.linalg.norm(luz)
 
-    colocadas = {
-        a: {n: _colocar(meshes[n][0], p) for n, p in poses.items()}
-        for a, poses in frames.items()
-    }
-    todos = np.vstack([v for poses in colocadas.values() for v in poses.values()])
+    todos = np.vstack([_colocar(meshes[n][0], p) for _, poses in frames for n, p in poses.items()])
     lo, hi = todos.min(axis=0), todos.max(axis=0)
 
     # Triángulos grandes (la cara de la base) rompen el orden por
@@ -127,10 +132,12 @@ def render_gif(
     # se subdividen para que ninguno tape a una pieza que tiene encima.
     tris_locales = {n: _subdividir(np.asarray(v)[np.asarray(t)], 6.0)
                     for n, (v, t) in meshes.items()}
-    colores = {n: np.array(to_rgb(COLORES.get(n, COLOR_EJE))) for n in meshes}
+    paleta = {**COLORES, **(colors or {})}
+    colores = {n: np.array(to_rgb(paleta.get(n, COLOR_EJE))) for n in meshes}
+    label = label or (lambda t: f"θ = {t:g}°")
 
     imagenes = []
-    for angulo, poses_frame in frames.items():
+    for angulo, poses_frame in frames:
         todas, caras = [], []
         for nombre, pose in poses_frame.items():
             tris = _colocar(tris_locales[nombre].reshape(-1, 3), pose).reshape(-1, 3, 3)
@@ -149,9 +156,9 @@ def render_gif(
         for i, eje in enumerate("xyz"):
             getattr(ax, f"set_{eje}lim")(lo[i], hi[i])
         ax.set_box_aspect(tuple(np.maximum(hi - lo, 1)), zoom=1.0)
-        ax.view_init(elev=40, azim=-65)
+        ax.view_init(elev=view[0], azim=view[1])
         ax.set_axis_off()
-        ax.set_title(f"{title}  θ = {angulo:g}°".strip())
+        ax.set_title(f"{title}  {label(angulo)}".strip())
         buf = io.BytesIO()
         fig.savefig(buf, format="png", bbox_inches="tight")
         plt.close(fig)

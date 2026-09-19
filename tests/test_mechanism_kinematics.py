@@ -1,0 +1,100 @@
+"""Esquema y cinemática de un mecanismo declarado por el agente (F3.15 (mecanismos)).
+
+Oráculo independiente: la biela-manivela escrita como árbol cinemático con
+fórmulas tiene que dar las mismas posiciones que `sim.linkages`, que se
+probó por su cuenta.
+"""
+
+
+import pytest
+
+from mech_toolkit.geometry import _rotacion
+from orchestrator.mechanisms.kinematics import Kinematics, euler_zyx
+from orchestrator.schemas.mechanism import MechanismSpec
+from sim.linkages import SliderCrank
+
+R, L = 30.0, 90.0
+
+
+def _pieza(nombre, **kw):
+    return {"name": nombre, "brief": "b", "bbox_min": [-1, -1, -1], "bbox_max": [1, 1, 1], **kw}
+
+
+def _biela_manivela(**cambios):
+    spec = {
+        "title": "biela-manivela", "summary": "s",
+        "params": {"r": R, "l": L},
+        "driver": {"start": 0, "end": 360, "step": 30},
+        "parts": [
+            _pieza("bancada"),
+            _pieza("manivela", joint={"type": "revolute", "axis": [0, 0, 1], "value": "t"}),
+            # La biela cuelga del muñón de la manivela y se gira para mirar a la corredera.
+            _pieza("biela", parent="manivela", origin=[R, 0, 5],
+                   joint={"type": "revolute", "axis": [0, 0, 1],
+                          "value": "-t - asin(r*sin(t)/l)"}),
+            _pieza("corredera", joint={"type": "prismatic", "axis": [1, 0, 0],
+                                       "value": "r*cos(t) + sqrt(l**2 - (r*sin(t))**2)"}),
+        ],
+        "pins": [{"name": "eje_muñon", "parent": "manivela", "origin": [R, 0, 0],
+                  "diameter_mm": 3, "length_mm": 10}],
+        "checks": [{"body": "corredera", "measure": "travel", "axis": "x", "expected": 60,
+                    "tolerance": 0.5, "description": "carrera de 60 mm"}],
+    }
+    spec.update(cambios)
+    return MechanismSpec(**spec)
+
+
+def test_la_biela_manivela_declarada_coincide_con_sim_linkages():
+    k = Kinematics(_biela_manivela())
+    oraculo = SliderCrank(R, L)
+    for t in k.frames():
+        pose = k.poses(t)
+        esperado = oraculo.at(t)
+        assert pose["corredera"].origin[0] == pytest.approx(esperado.slider_x, abs=1e-9)
+        # El muñón viaja con la manivela, colgado de ella.
+        assert pose["eje_muñon"].origin[:2] == pytest.approx(esperado.crank_pin, abs=1e-9)
+        # El extremo de la biela cae sobre la corredera.
+        r, p = k.matrices(t)["biela"]
+        punta = [p[i] + L * r[i][0] for i in range(3)]
+        assert punta[0] == pytest.approx(esperado.slider_x, abs=1e-9)
+        assert punta[1] == pytest.approx(0, abs=1e-9)
+
+
+def test_los_requisitos_se_miden_con_la_cinematica():
+    Kinematics(_biela_manivela()).validate()
+    corta = _biela_manivela(params={"r": 20, "l": L})
+    with pytest.raises(ValueError, match="carrera de 60 mm.*40.00"):
+        Kinematics(corta).validate()
+
+
+def test_una_formula_fuera_de_dominio_se_explica_con_el_valor_del_parametro():
+    """Biela más corta que la manivela: la corredera no llega (se bloquea)."""
+    with pytest.raises(ValueError, match="t = 60"):
+        Kinematics(_biela_manivela(params={"r": 30, "l": 20})).validate()
+
+
+def test_la_rotacion_barrida_se_mide_alrededor_de_un_eje():
+    spec = _biela_manivela(checks=[{"body": "manivela", "measure": "rotation", "axis": "z",
+                                    "expected": 360, "tolerance": 1, "description": "vuelta"}])
+    Kinematics(spec).validate()
+
+
+@pytest.mark.parametrize("rot", [[10, 20, 30], [0, 90, 0], [45, -90, 10], [170, 5, -60]])
+def test_euler_ida_y_vuelta(rot):
+    r = _rotacion(*rot)
+    de_vuelta = _rotacion(*euler_zyx(r))
+    for i in range(3):
+        assert de_vuelta[i] == pytest.approx(r[i], abs=1e-9)
+
+
+@pytest.mark.parametrize("cambio, motivo", [
+    ({"parts": [_pieza("a"), _pieza("a")]}, "repetidos"),
+    ({"parts": [_pieza("a", parent="fantasma"), _pieza("b")]}, "fantasma"),
+    ({"parts": [_pieza("a", parent="b"), _pieza("b", parent="a")]}, "ciclo"),
+    ({"parts": [_pieza("a", joint={"type": "revolute", "axis": [0, 0, 1],
+                                  "value": "__import__('os')"}), _pieza("b")]}, "a.joint"),
+    ({"driver": {"start": 0, "end": 360, "step": 1}}, "posiciones"),
+])
+def test_el_esquema_rechaza_especificaciones_incoherentes(cambio, motivo):
+    with pytest.raises(ValueError, match=motivo):
+        _biela_manivela(**cambio)

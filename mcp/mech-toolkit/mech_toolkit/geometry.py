@@ -87,6 +87,9 @@ class Placement(BaseModel):
 
     origin: list[float] = [0.0, 0.0, 0.0]
     rotation: list[float] = [0.0, 0.0, 0.0]
+    scale_z: float = 1.0
+    """Estiramiento a lo largo del z local, antes de girar y mover. Solo para
+    piezas elásticas (un resorte que se comprime); una pieza rígida es 1."""
 
     def to_local(self, frame: Frame) -> Frame:
         """Lleva un frame de coordenadas del ensamble a las de la pieza."""

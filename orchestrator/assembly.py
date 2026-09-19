@@ -39,6 +39,10 @@ def colocar(forma, pose):
     x, y, z = pose["origin"]
     rx, ry, rz = pose["rotation"]
     copia = forma.copy()
+    if pose.get("scale_z", 1.0) != 1.0:
+        m = FreeCAD.Matrix()
+        m.scale(1, 1, pose["scale_z"])
+        copia = copia.transformGeometry(m)
     # Rotation(yaw, pitch, roll) = Rz·Ry·Rx, igual que mech_toolkit.geometry.
     copia.Placement = FreeCAD.Placement(
         FreeCAD.Vector(x, y, z), FreeCAD.Rotation(rz, ry, rx))
@@ -62,16 +66,27 @@ else:
         for a, b in itertools.combinations(sorted(colocadas), 2):
             fa, fb = colocadas[a], colocadas[b]
             dist = fa.distToShape(fb)[0]
-            if dist == 0:
+            if dist < 1e-4:
                 # distToShape da 0 tanto si se tocan como si se solapan:
                 # el volumen común distingue un choque de verdad.
                 comun = fa.common(fb).Volume
-                if comun > 1e-6:
-                    dist = -comun
-            if dist < datos["min_gap"] - 1e-6:
-                choques.append({{"angle": frame["angle"], "a": a, "b": b, "gap_mm": dist}})
+                dist = -comun if comun > 1e-3 else 0.0
+            minimo, maximo = datos["rules"].get(a + "|" + b, (datos["min_gap"], None))
+            if dist < minimo - 1e-6:
+                choques.append({{"angle": frame["angle"], "a": a, "b": b, "gap_mm": dist,
+                                 "min_gap_mm": minimo, "kind": "choque"}})
+            elif maximo is not None and dist > maximo + 1e-6:
+                choques.append({{"angle": frame["angle"], "a": a, "b": b, "gap_mm": dist,
+                                 "min_gap_mm": maximo, "kind": "separacion"}})
     print({prefijo!r} + json.dumps({{"collisions": choques}}))
 '''
+
+
+PairRule = tuple[float, float | None]
+"""(hueco mínimo, hueco máximo o None) para un par de piezas. Por defecto
+el mínimo es la holgura del perfil y no hay máximo. Un par que TIENE que
+tocarse (seguidor y leva) lleva (0, 0.05); uno fijo entre sí (leva y eje
+con ajuste a presión) lleva (0, None): tocarse sí, atravesarse no."""
 
 
 class Collision(BaseModel):
@@ -82,15 +97,22 @@ class Collision(BaseModel):
     """Distancia mínima entre las dos piezas. Negativa = se solapan, y su
     valor absoluto es el volumen común en mm³."""
     min_gap_mm: float
+    """El límite incumplido: el mínimo si es un choque, el máximo si se separan."""
+    kind: str = "choque"
 
     @property
     def motivo(self) -> str:
+        if self.kind == "separacion":
+            return (
+                f"con t = {self.angle:g}, {self.a} y {self.b} se separan {self.gap_mm:.2f} mm; "
+                f"tienen que seguir en contacto (máximo {self.min_gap_mm:g} mm)"
+            )
         if self.gap_mm < 0:
             que = f"se solapan ({-self.gap_mm:.1f} mm³ en común)"
         else:
             que = f"quedan a {self.gap_mm:.2f} mm"
         return (
-            f"a {self.angle:g}° {self.a} y {self.b} {que}; "
+            f"con t = {self.angle:g}, {self.a} y {self.b} {que}; "
             f"hace falta al menos {self.min_gap_mm:g} mm para que no rocen"
         )
 
@@ -146,11 +168,14 @@ def sweep_collisions(
     frames: dict[float, dict[str, Placement]],
     min_gap_mm: float,
     freecadcmd: str,
+    rules: dict[tuple[str, str], PairRule] | None = None,
 ) -> list[Collision]:
-    """Pares de piezas que quedan a menos de `min_gap_mm`, en cada pose."""
+    """Pares de piezas que incumplen su regla de hueco, en cada pose."""
     datos = _datos(parts, pins, frames)
     datos["min_gap"] = min_gap_mm
-    return [
-        Collision(**c, min_gap_mm=min_gap_mm)
-        for c in _run(datos, freecadcmd)["collisions"]
-    ]
+    # El script recorre los pares en orden alfabético: se registran las dos claves.
+    datos["rules"] = {
+        f"{x}|{y}": list(regla)
+        for (a, b), regla in (rules or {}).items() for x, y in ((a, b), (b, a))
+    }
+    return [Collision(**c) for c in _run(datos, freecadcmd)["collisions"]]
