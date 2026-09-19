@@ -1,0 +1,58 @@
+_nota: 'Modelos de terceros, SIN MODIFICAR. Si un SHA-256 no cuadra, el archivo se ha tocado y deja de
+  ser una referencia independiente: lo comprueba tests/test_library_reference.py.'
+modelos:
+- archivo: nema17_40mm_obijuan.step
+  sha256: 7a192833722ef5216bf7916c97870b6d4677db237143e3275305d5e846cc0521
+  descripcion: Motor NEMA 17 42x40
+  autor: obijuan (Juan González Gómez)
+  fecha_original: '2014-11-30'
+  licencia: CC-BY 3.0
+  fuente: https://github.com/FreeCAD/FreeCAD-library
+  ruta_en_fuente: Electronics Parts/Motors/Stepper/NEMA/Old/NEMA-17_Stepper_Motor_40mm.step
+  descargado: '2026-09-19'
+- archivo: bearing_608zz.step
+  sha256: 45246a4cf1bc63c8186ad8de22a74f44a63aecb450294356592c321bf281e3d3
+  descripcion: Rodamiento 608ZZ 8x22x7
+  autor: Normand C
+  fecha_original: '2013-08-05'
+  licencia: CC-BY 3.0
+  fuente: https://github.com/FreeCAD/FreeCAD-library
+  ruta_en_fuente: Mechanical Parts/Bearings/608ZZ_Ball_Bearing.step
+  descargado: '2026-09-19'
+- archivo: screw_m3x10_iso4762.step
+  sha256: 0d17d72f29de23c52f7ccd00715edf76c63ae839eb57c966ab2ac0b057b8b45a
+  descripcion: Tornillo allen M3x10 ISO 4762
+  autor: Peta-T
+  fecha_original: '2015-12-10'
+  licencia: CC-BY 3.0
+  fuente: https://github.com/FreeCAD/FreeCAD-library
+  ruta_en_fuente: Mechanical Parts/Fasteners/Bolts & Screws/Metric/ISO4762 Hexagon socket head cap screws/Screw
+    M3x10 ISO4762 8,8 A2K.step
+  descargado: '2026-09-19'
+- archivo: iso273_m3_close.step
+  sha256: 4bc46aed480793a1b6c0ced11c8fdf5cbc3088350277ff8accb44a677092b870
+  descripcion: Agujero pasante M3 ISO 273, ajuste justo (media de tolerancia)
+  autor: Tony Hursh
+  fecha_original: '2020-08-17'
+  licencia: CC-BY 3.0
+  fuente: https://github.com/FreeCAD/FreeCAD-library
+  ruta_en_fuente: Mechanical Parts/Fasteners/Bolt Clearance Hole Cylinders/Metric/Close/M3/M3CloseMean.step
+  descargado: '2026-09-19'
+- archivo: iso273_m3_normal.step
+  sha256: a37336d6a489eaaa30cf3fe88f7a311c5cf9f5c2631419686b89a1f16448c029
+  descripcion: Agujero pasante M3 ISO 273, ajuste normal (media de tolerancia)
+  autor: Tony Hursh
+  fecha_original: '2020-08-17'
+  licencia: CC-BY 3.0
+  fuente: https://github.com/FreeCAD/FreeCAD-library
+  ruta_en_fuente: Mechanical Parts/Fasteners/Bolt Clearance Hole Cylinders/Metric/Normal/M3/M3NormalMean.step
+  descargado: '2026-09-19'
+- archivo: iso273_m3_loose.step
+  sha256: d77e6c75f4d1bfacec11514b2662a43d82213aaa5dcd724bea7123ac783c0b39
+  descripcion: Agujero pasante M3 ISO 273, ajuste holgado (media de tolerancia)
+  autor: Tony Hursh
+  fecha_original: '2020-08-17'
+  licencia: CC-BY 3.0
+  fuente: https://github.com/FreeCAD/FreeCAD-library
+  ruta_en_fuente: Mechanical Parts/Fasteners/Bolt Clearance Hole Cylinders/Metric/Loose/M3/M3LooseMean.step
+  descargado: '2026-09-19'

@@ -68,3 +68,71 @@ def test_el_fcstd_de_referencia_se_ve_y_queda_en_posicion_de_montaje(tmp_path):
 
     assert list(_visibilidad_gui(fcstd).values()) == [True]
     assert modelo.zmin == pytest.approx(-CARA_FRONTAL_Z, abs=0.01)
+
+
+# --- Integridad del corpus (cambio 4 del plan) -------------------------------
+
+import hashlib  # noqa: E402
+
+import yaml  # noqa: E402
+
+REF = Path("library/models/reference")
+
+
+def _manifiesto():
+    return yaml.safe_load((REF / "manifest.yaml").read_text(encoding="utf-8"))["modelos"]
+
+
+def test_cada_referencia_esta_sin_modificar():
+    """Una referencia que el sistema pudiera regenerar dejaría de ser
+    independiente. Un solo byte cambiado hace fallar esto."""
+    for m in _manifiesto():
+        real = hashlib.sha256((REF / m["archivo"]).read_bytes()).hexdigest()
+        assert real == m["sha256"], f"{m['archivo']} ha cambiado desde que se descargó"
+
+
+def test_no_hay_referencias_sin_procedencia():
+    """Todo STEP de la carpeta está en el manifiesto con autor y licencia."""
+    declarados = {m["archivo"] for m in _manifiesto()}
+    for step in REF.glob("*.step"):
+        assert step.name in declarados, f"{step.name} no tiene procedencia declarada"
+    assert all(m["autor"] and m["licencia"] for m in _manifiesto())
+
+
+# --- Lo que las referencias confirman o contradicen ---------------------------
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_el_608zz_real_tiene_las_cotas_que_usa_el_qa():
+    """derive_assertions usa od=22 y width=7 para un asiento de 608. Aquí
+    se confirman contra un rodamiento que no dibujamos."""
+    caras = extract_cylinders(REF / "bearing_608zz.step", _freecadcmd())
+    agujero = max((c for c in caras if c.internal), key=lambda c: c.radius)
+    exterior = max((c for c in caras if not c.internal), key=lambda c: c.radius)
+
+    assert 2 * agujero.radius == pytest.approx(8.0)
+    assert 2 * exterior.radius == pytest.approx(22.0)
+    assert agujero.length == pytest.approx(7.0)  # el ancho: la cara exterior es
+    # más corta (6.5) por los chaflanes de los cantos
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_el_agujero_m3_del_perfil_esta_dentro_de_la_iso_273():
+    """El M3 pasante del perfil tiene que caer entre el ajuste justo y el
+    holgado de la norma. Hoy cae casi en el justo (3.26 < 3.3 < 3.49)."""
+    perfil = yaml.safe_load(Path("config/printers/ankermake_m5_petg.yaml").read_text())
+    nuestro = perfil["holes"]["M3_through_mm"]
+
+    def diametro(nombre):
+        return 2 * extract_cylinders(REF / f"iso273_m3_{nombre}.step", _freecadcmd())[0].radius
+
+    assert diametro("close") <= nuestro <= diametro("loose")
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_un_tornillo_m3_real_pasa_por_el_agujero_del_perfil():
+    perfil = yaml.safe_load(Path("config/printers/ankermake_m5_petg.yaml").read_text())
+    cana = min(extract_cylinders(REF / "screw_m3x10_iso4762.step", _freecadcmd()),
+               key=lambda c: c.radius)
+
+    assert 2 * cana.radius < perfil["holes"]["M3_through_mm"]
