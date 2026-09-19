@@ -171,3 +171,34 @@ def test_un_tope_tiene_que_tocar_en_su_valor_y_bloquear_despues(tmp_path, tope, 
         assert problemas == []
     else:
         assert any(esperado in p for p in problemas), problemas
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_el_revisor_recibe_lo_medido_y_su_informe_se_guarda(tmp_path):
+    """El revisor solo puede apoyarse en lo que midió el código, y tiene que
+    ver qué movimiento está IMPUESTO por fórmula: es lo que nadie verifica."""
+    from orchestrator.agents.design_reviewer import DesignReviewerAgent
+
+    visto = {}
+
+    class Revisor:
+        def complete(self, prompt):
+            visto["prompt"] = prompt
+            return json.dumps({"items": [
+                {"requirement": "gira 90°", "verdict": "cumple", "comment": "medido"},
+                {"requirement": "es robusto", "verdict": "no_verificable", "comment": "nadie lo probó"}],
+                "summary": "resumen"})
+
+    informe = design_mechanism(
+        "un brazo que gire 90° sobre una base",
+        MechanismDesignerAgent(Guion([json.dumps(_spec(0.5))]), CATALOGO, PERFIL, (235, 235, 250), 0.1),
+        PartDesignerAgent(DisenadorDePiezas(), CATALOGO),
+        tmp_path, _freecadcmd(), min_gap_mm=0.1, animar=False,
+        reviewer=DesignReviewerAgent(Revisor()),
+    )
+    assert "barrido de 3 posiciones" in visto["prompt"]
+    assert "requisito medido con la cinemática" in visto["prompt"]
+    assert "IMPUESTO por fórmula" in visto["prompt"] and "«brazo»" in visto["prompt"]
+    assert informe.review is not None
+    assert len(informe.review.por_veredicto("no_verificable")) == 1
+    assert "no_verificable" in (tmp_path / "review.md").read_text()

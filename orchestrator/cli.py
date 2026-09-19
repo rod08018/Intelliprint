@@ -151,6 +151,7 @@ def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> 
     import yaml
 
     from mech_toolkit.generators import CATALOGO
+    from orchestrator.agents.design_reviewer import DesignReviewerAgent
     from orchestrator.agents.mechanism_designer import MechanismDesignerAgent
     from orchestrator.agents.part_designer import PartDesignerAgent
     from orchestrator.mechanisms.flow import design_mechanism
@@ -175,6 +176,7 @@ def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> 
                                wall_mm=impresora["walls"]["structural_mm"]),
         PartDesignerAgent(cliente, CATALOGO),
         carpeta, _freecadcmd(env), min_gap_mm=hueco,
+        reviewer=DesignReviewerAgent(cliente),
     )
     f = informe.final
     print()
@@ -189,6 +191,15 @@ def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> 
     else:
         print("  ✗ no quedó resuelto. Lo último que falló:")
         print(informe.rounds[-1].feedback)
+    if informe.review is not None:
+        r = informe.review
+        print(f"\n  Revisión frente a tu petición ({len(r.por_veredicto('cumple'))} cumplen, "
+              f"{len(r.por_veredicto('no_cumple'))} no, "
+              f"{len(r.por_veredicto('no_verificable'))} sin verificar):")
+        for i in r.items:
+            if i.verdict != "cumple":
+                print(f"    · {i.verdict}: {i.requirement} — {i.comment}")
+        print(f"    {r.summary}")
 
 
 def main(argv: list[str] | None = None) -> None:
