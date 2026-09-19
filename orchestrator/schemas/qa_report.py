@@ -10,13 +10,17 @@ class Assertion(BaseModel):
 
     name: str
     interface: str
-    expected_mm: float
-    tol_mm: float
-    measured_mm: float
+    expected: float
+    tol: float
+    measured: float
+    unit: Literal["mm", "count"] = "mm"
+    """Mismos nombres que `AssertionSpec` de mech-toolkit a propósito: es
+    ese objeto con la medición ya puesta, y viaja entre servicios como
+    JSON. Dos vocabularios para lo mismo acabarían en un mapeo con bugs."""
 
     @property
     def ok(self) -> bool:
-        return abs(self.measured_mm - self.expected_mm) <= self.tol_mm
+        return abs(self.measured - self.expected) <= self.tol
 
 
 class DfmCheck(BaseModel):

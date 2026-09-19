@@ -6,13 +6,13 @@ Ver SISTEMA_MULTIAGENTE.md § 7.1 y DECISIONES.md ADR-003.
 from orchestrator.schemas.qa_report import Assertion, DfmCheck, Defect, QaReport
 
 
-def _asercion(measured_mm: float) -> Assertion:
+def _asercion(measured: float) -> Assertion:
     return Assertion(
         name="hole_diameter",
         interface="IF-003",
-        expected_mm=22.10,
-        tol_mm=0.05,
-        measured_mm=measured_mm,
+        expected=22.10,
+        tol=0.05,
+        measured=measured,
     )
 
 

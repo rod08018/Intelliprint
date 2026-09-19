@@ -17,6 +17,11 @@ layer_height_mm: 0.2
 
 bed_mm: {x: 250, y: 210, z: 220}
 
+# Cuánto puede desviarse la pieza construida de la cota que exige el contrato
+# antes de considerarse un fallo. NO es una holgura: es la precisión con la que
+# el modelo tiene que acertar. Lo usa la capa 1 del QA (§ 7.1).
+assertion_tol_mm: 0.05
+
 # Holguras en diámetro, aplicadas por apply_fit() según el `fit` de la interfaz
 fits:
   press_mm: 0.10             # encaje a presión
