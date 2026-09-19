@@ -291,7 +291,37 @@ Dos modelos residentes requiere `OLLAMA_MAX_LOADED_MODELS=2`.
 
 **Requisito de plataforma:** la 5090 es Blackwell (`sm_120`) y necesita **CUDA 12.8+** y una versión reciente de Ollama. Las versiones antiguas no fallan de forma visible: **caen a CPU en silencio**. Hay que verificarlo explícitamente (tarea F0.3), porque si no lo haces vas a creer que el modelo es lento cuando en realidad no está usando la GPU.
 
-**Perfiles.** `config/models.yaml` define dos: `prod` (la tabla de arriba, en el PC con la 5090) y `dev` (un modelo pequeño para desarrollar en un portátil sin GPU). Cambiar de perfil no requiere tocar código — solo así el sistema es desarrollable fuera de la máquina de destino.
+**Perfiles.** `config/models.yaml` define dos, y se elige con `INTELLIPRINT_PROFILE`. Cambiar de perfil no requiere tocar código.
+
+| Perfil | Dónde | Diseño | QA | Embeddings |
+|---|---|---|---|---|
+| `prod` | PC con RTX 5090 | `local/qwen3.8` | `local/gemma3:12b` | `local/nomic-embed-text` |
+| `dev` | Portátil sin GPU | `deepseek/deepseek-chat` | `deepseek/deepseek-chat` | — |
+
+### 6.1.1 El perfil `dev` es temporal y hay que migrarlo
+
+> ⚠️ **Deuda técnica declarada.** El perfil `dev` usa **DeepSeek en la nube** para poder desarrollar sin GPU antes de tener la máquina de destino. **No es el diseño objetivo**: la primera restricción del sistema es *local primero* (§ 1), y este perfil la incumple a propósito y de forma temporal.
+
+**Qué hay que hacer para migrar:**
+
+1. Instalar Ollama con CUDA 12.8+ en el PC y descargar `qwen3.8`, `gemma3:12b` y `nomic-embed-text`.
+2. `OLLAMA_MAX_LOADED_MODELS=2`.
+3. `INTELLIPRINT_PROFILE=prod`.
+4. Verificar que **no cae a CPU en silencio** (F0.3).
+5. Volver a pasar todo lo desarrollado con `dev`: es donde van a aparecer los fallos que la nube tapó.
+
+**Qué no se puede desarrollar con `dev`, y hay que dejar para después de migrar:**
+
+| Limitación | Consecuencia |
+|---|---|
+| DeepSeek **no tiene visión** | La capa 3 del QA (§ 7.1) no se puede probar. Las capas 1 y 2 son deterministas y sí |
+| Sin embeddings | El RAG sobre la API de FreeCAD (F1.6) necesita Ollama aunque el resto vaya por la nube |
+| Diseñador y revisor son el mismo modelo | Se pierde la diversidad. No rompe la corrección —el veredicto es aritmético— pero desaparece la segunda red |
+| Latencia de red, no de GPU | Ninguna medida de rendimiento es trasladable |
+
+**Y una advertencia sobre cómo leer lo que funcione aquí:** `deepseek-chat` es bastante **mejor** que `qwen3.8` siguiendo esquemas. Que una receta valide con DeepSeek no significa que vaya a validar en local; que **falle** con DeepSeek sí significa que en local fallará más. Es un suelo optimista: sirve para descartar problemas, nunca para dar algo por bueno.
+
+**Sobre la salida de datos:** con `dev`, todas las specs, interfaces y recetas pasan por la API de DeepSeek. El filtro de datos salientes (§ 6.2) sigue aplicando —solo texto, sin rutas del host— pero el volumen de lo que sale es mucho mayor que en `prod`, donde DeepSeek es solo escalamiento.
 
 ### 6.2 Escalamiento a DeepSeek
 

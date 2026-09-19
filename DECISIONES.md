@@ -129,6 +129,22 @@ El LLM escribe en una **lista de defectos**, nunca en el veredicto. No existe ni
 
 **Nota.** Estas elecciones son configuración, no arquitectura. Ninguna de las decisiones ADR-001 a ADR-006 depende de qué modelo se use — que es la señal de que las fronteras están en el sitio correcto.
 
+### ADR-007b · El perfil `dev` usa DeepSeek — temporal, con fecha de caducidad
+
+**Estado:** aceptada, **temporal** · **Afecta a:** § 6.1.1; `config/models.yaml`, `.env`
+
+**Problema.** El desarrollo empezó en un portátil sin GPU y la máquina de destino (RTX 5090) no estaba disponible. Todo lo que necesita un LLM —F1.2 salida estructurada, F1.3 Requirements, F1.7 Part Designer, F1.8 bucle de error— quedaba bloqueado.
+
+**Decisión.** El perfil `dev` apunta a `deepseek/deepseek-chat` en la nube, con la clave en `.env` (no versionado). El perfil `prod` no cambia.
+
+**Esto incumple la primera restricción del sistema.** "Local primero" (§ 1) dice que DeepSeek es *solo* escalamiento. Aquí es el proveedor principal. Se acepta como **deuda declarada, no como diseño**, y la migración está escrita en § 6.1.1 con su lista de pasos.
+
+**Por qué es tolerable.** Porque las fronteras están donde deben: los agentes referencian roles (`$design`, `$qa`), no modelos. Migrar es cambiar una variable de entorno. Si el diseño hubiera acoplado agentes a modelos concretos, esta decisión sería irreversible en vez de temporal.
+
+**Lo que no se puede dar por bueno hasta migrar.** `deepseek-chat` sigue esquemas mejor que `qwen3.8`, así que **es un suelo optimista**: lo que falle aquí fallará más en local, pero lo que funcione aquí no está validado. Además quedan sin probar la capa 3 del QA (DeepSeek no tiene visión), el RAG (sin embeddings) y toda medida de rendimiento.
+
+**Riesgo principal.** Que el perfil `dev` se quede. La mitigación es que esté escrito como deuda en tres sitios —aquí, en § 6.1.1 y en `models.yaml`— en vez de ser un detalle de configuración que nadie recuerda.
+
 ---
 
 ## ADR-008 · Fase de admisión conversacional, con `submit()` en el `HumanPort`

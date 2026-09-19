@@ -36,7 +36,7 @@ Plan de implementación del sistema descrito en [SISTEMA_MULTIAGENTE.md](SISTEMA
 | S1 | Windows 11 con Docker Desktop (backend WSL2) | `docker version` |
 | S2 | GPU NVIDIA visible en Docker | `docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu22.04 nvidia-smi` |
 | S3 | MCP de FreeCAD y PrusaSlicer funcionando en el host | Ya probados por el usuario |
-| S4 | `DEEPSEEK_API_KEY` definida en Windows | `echo $env:DEEPSEEK_API_KEY` (no vacío) |
+| S4 | `DEEPSEEK_API_KEY` definida en `.env` (no versionado) | Obligatoria con el perfil `dev`; opcional con `prod`, solo para escalamiento |
 | S5 | Python 3.11+ y `uv` en el host para los puentes MCP | `python --version`, `uv --version` |
 | S6 | Impresora y material de referencia definidos | Llenar `config/printers/<impresora>.yaml` |
 | S7 | `freecadcmd` disponible para construcción headless | `freecadcmd -c "print(1)"` responde |
@@ -112,10 +112,13 @@ Convención de IDs: `F<fase>.<tarea>`. Cada tarea tiene un criterio de aceptaci�
 | F0.8 | Logging estructurado (JSONL) de cada llamada a LLM y herramienta | Cada llamada deja una línea en `workspace/<proyecto>/log/` |
 | F0.9 | `HumanPort` con el adaptador CLI (§ 8.5 de la arquitectura): `ask()` y `notify()` | Un `ask()` desde el orquestador bloquea, se responde por consola y el estado se persiste |
 | F0.10 | Verificar `freecadcmd` headless: ejecutar una macro y exportar STL sin GUI | Un cubo se construye y exporta desde un proceso sin interfaz |
+| F0.11 | **Migrar del perfil `dev` al `prod`** (§ 6.1.1 de la arquitectura) y **repasar todo lo desarrollado con DeepSeek** | `INTELLIPRINT_PROFILE=prod` y la suite completa en verde **con modelos locales**. Es donde van a salir los fallos que la nube tapó: `deepseek-chat` sigue esquemas mejor que `qwen3.8` |
 
 **Entregable:** comando `docker compose run orchestrator python -m smoke_test` que crea un cubo en FreeCAD, exporta STL y lo lamina en PrusaSlicer, sin LLM.
 
 **Riesgos:** GPU no disponible en WSL2 → plan B: Ollama nativo en Windows y `OLLAMA_URL=http://host.docker.internal:11434`.
+
+> **Deuda declarada.** Mientras la 5090 no esté disponible se desarrolla con el perfil `dev` (DeepSeek en la nube, § 6.1.1). Incumple *local primero* a propósito y de forma temporal. **F0.11 es la tarea que salda esa deuda**, y no está hecha hasta que la suite pase con modelos locales.
 
 ---
 
@@ -333,6 +336,8 @@ Todas se calculan desde `state.sqlite` y los logs.
 | Ollama cae a CPU en silencio (Blackwell) | Media | Alto | Verificación explícita de GPU en F0.3; CUDA 12.8+ | Ollama nativo en Windows en vez de contenedor |
 | Inyección de prompt por Telegram (texto o imagen) | Baja | Alto | Lista blanca obligatoria; texto y contenido de imágenes como dato; escotilla cerrada sin gate (F5.9) | Desactivar peticiones de cambio y dejar Telegram solo para notificaciones |
 | El alcance sigue creciendo y las 19 semanas se quedan cortas | **Alta** | Medio | Fases con entregable propio: puedes parar en cualquiera y tener algo que funciona | Recortar la Fase 5 a solo notificaciones por Telegram y operar los gates desde la web |
+| **El perfil `dev` se queda** y el sistema acaba dependiendo de la nube | Media | Alto | Deuda escrita en tres sitios (ADR-007b, § 6.1.1 y `models.yaml`) y tarea propia (F0.11) | Asumirlo explícitamente y reescribir la restricción "local primero" en vez de dejarla incumplida en silencio |
+| Lo desarrollado con DeepSeek no funciona con `qwen3.8` | **Alta** | Medio | `deepseek-chat` es un suelo optimista: lo que falla aquí falla más en local. F0.11 repasa todo con modelos locales | Bajar el listón de los agentes: menos campos por esquema, más pasos pequeños |
 | Puente stdio→HTTP inestable | Media | Alto | Reintentos y health checks en el cliente | Correr los MCP dentro de Docker apuntando al RPC de FreeCAD |
 | Decomposition produce árboles incoherentes | Media | Alto | Validador de consistencia + gate humano #1 | Escalar siempre la descomposición a DeepSeek |
 | Simulación lenta o inexacta con mallas complejas | Media | Medio | Mallas simplificadas / primitivas para colisión | Solo chequeo de interferencias estático por pasos |

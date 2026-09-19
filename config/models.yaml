@@ -24,10 +24,32 @@ profiles:
     # La 5090 es Blackwell (sm_120): CUDA 12.8+ y Ollama reciente.
     # Una versión antigua NO falla, cae a CPU en silencio. Verificar en F0.3.
 
-  dev:                                   # portátil sin GPU, para desarrollar
-    design: local/qwen3:4b
-    qa:     local/qwen3:4b
-    embed:  local/nomic-embed-text
+  dev:                                   # portátil sin GPU: DeepSeek en la nube
+    design: deepseek/deepseek-chat
+    qa:     deepseek/deepseek-chat       # sin diversidad de modelo: ver abajo
+    embed:  null                         # DeepSeek no ofrece embeddings
+
+    # ⚠️ PERFIL TEMPORAL DE DESARROLLO. Migrar a `prod` en el PC con la 5090:
+    #        design: local/qwen3.8        (27B, con visión)
+    #        qa:     local/gemma3:12b     (revisor distinto, con visión)
+    #
+    # Qué NO se puede desarrollar ni probar con este perfil:
+    #
+    #   1. Capa 3 del QA (§ 7.1). DeepSeek no tiene visión, así que no puede
+    #      mirar los renders. Las capas 1 y 2 son deterministas y sí se
+    #      prueban enteras; la de visión necesita qwen3.8 o gemma3.
+    #   2. RAG sobre la API de FreeCAD (F1.6). Sin `nomic-embed-text` no hay
+    #      embeddings; requiere Ollama aunque el resto vaya por la nube.
+    #   3. Diversidad de modelo en el QA: diseñador y revisor son el mismo.
+    #      No rompe la corrección —el veredicto es aritmético (ADR-003)—
+    #      pero se pierde la segunda red.
+    #   4. Cualquier medida de rendimiento. La latencia de red no dice nada
+    #      sobre lo que tardará el modelo local.
+    #
+    # Y una advertencia sobre cómo leer los resultados: `deepseek-chat` es
+    # mejor que `qwen3.8` siguiendo esquemas. Si una receta o una spec falla
+    # la validación AQUÍ, en local fallará más. Es un suelo optimista: sirve
+    # para descartar problemas, no para dar nada por bueno.
 
 active_profile_env: INTELLIPRINT_PROFILE
 active_profile_default: dev
