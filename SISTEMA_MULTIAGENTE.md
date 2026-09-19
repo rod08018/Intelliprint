@@ -72,7 +72,7 @@ Cada agente es un nodo del grafo con: un prompt de sistema corto, un **esquema J
 | 3 | **Kinematics** | Longitudes de eslabones, GDL, rangos articulares, espacio de trabajo, cargas por articulación. Aporta los `frame` que resuelven las interfaces. **Solo para `robot`.** | `sim` MCP (ikpy, numpy) | `qwen3.8` |
 | 4 | **Actuation** | Selecciona actuadores de la librería con margen de torque ≥ 1.5×, reductoras, alimentación. Fija el hardware definitivo de las interfaces. **Solo para `robot` y `mechanism`.** | `sim` MCP, hardware library | `qwen3.8` |
 | 5 | **Electronics** | MCU (ESP32/Arduino), drivers, fuente, canales de cable, soportes de PCB. Produce requisitos que se vuelven piezas o features. **Solo para `robot`.** | hardware library | `qwen3.8` |
-| — | *Resolución de interfaces* | **Código, no agente.** Toma las interfaces simbólicas y los resultados de la Fase 2 y produce `frame` y `nominal_mm` definitivos. Falla ruidosamente si algo queda sin resolver. | `mech-toolkit` MCP | — |
+| — | *Resolución de interfaces* | **Código, no agente.** Toma las interfaces simbólicas y los resultados de la Fase 2 y produce `frame` y `nominal_mm` definitivos, **más la `placement` de cada pieza** (§ 3.2). Falla ruidosamente si algo queda sin resolver. | `mech-toolkit` MCP | — |
 | 6 | **Part Designer** | Diseña **una** pieza. **No escribe Python**: emite una **receta** (lista validada de llamadas a generadores con sus parámetros). `build.py` lo compone el orquestador desde la receta. Varias instancias en paralelo. | `mech-toolkit` MCP, hardware library | `qwen3.8` → **DeepSeek** solo en la escotilla (ver § 6.3) |
 | 7 | **Tolerances / DFM** | Aplica holguras FDM, verifica paredes, voladizos, puentes, orientación de impresión y separación de piezas que no caben en la cama. | `mech-toolkit` MCP, `freecad` MCP | `qwen3.8` |
 | 8 | **QA** | Revisor independiente. **No emite el veredicto**: ejecuta mediciones, las compara con las aserciones derivadas del contrato, y añade defectos que las cifras no capturan usando **visión** sobre las vistas renderizadas. Solo puede añadir defectos. | `freecad` MCP (solo lectura), `mech-toolkit` MCP | `gemma3:12b` (residente, con visión) |
@@ -129,6 +129,21 @@ Declara **topología**: qué se une con qué, con qué clase de hardware y con q
 
 El validador rechaza que una interfaz `symbolic` llegue a la Fase 3. El Tolerances Agent traduce `fit` a holguras reales (§ 7) y el Assembly Agent usa `frame` para posicionar piezas.
 
+**Los `frame` están en coordenadas del ensamble**, pero cada pieza se construye y se mide **sola**, en sus propias coordenadas. La resolución de interfaces asigna por tanto una `placement` a cada pieza:
+
+```yaml
+# projects/<id>/tree.yaml
+parts:
+  - id: base_giratoria
+    placement: {origin: [0, 0, 0], rotation: [0, 0, 0]}
+  - id: hombro
+    placement: {origin: [0, 0, 45], rotation: [0, 0, 0]}
+```
+
+La asigna **la resolución de interfaces y no el `Assembly` Agent**, aunque este último parezca su dueño natural. El motivo es de orden: Assembly corre después del QA de piezas, así que si la placement llegara de ahí habría que medir en el ensamble en vez de al construir, y los errores se detectarían justo donde ya son caros de arreglar. Es la misma lección que ADR-001.
+
+Para una pieza única la placement es la identidad, así que no cuesta nada tenerla desde el principio.
+
 ### 3.3 Las interfaces generan el QA
 
 Una interfaz resuelta contiene todo lo necesario para escribir sus propias pruebas. `mech-toolkit` deriva de ella las **aserciones medibles**, sin intervención de ningún modelo:
@@ -137,15 +152,23 @@ Una interfaz resuelta contiene todo lo necesario para escribir sus propias prueb
 # derivado automáticamente de IF-003 (press fit → +0.10 mm, § 7)
 - assert: hole_diameter
   at: IF-003.frame
+  query: {kind: cylindrical_face, axis: parallel, pick: largest_radius}
   expected_mm: 22.10
   tol_mm: 0.05
 - assert: hole_depth
   at: IF-003.frame
+  query: {kind: cylindrical_face, axis: parallel, pick: largest_radius}
   expected_mm: 7.0
   tol_mm: 0.20
 ```
 
 Esto es lo que convierte al QA de opinión en verificación (§ 7.1), y es la razón por la que vale la pena que las interfaces sean un contrato formal y no prosa.
+
+**El `query` también se deriva del tipo de interfaz**, no lo escribe nadie a mano. Es lo que permite que el QA **busque la geometría donde el contrato dice que debe estar**, en vez de pedirle al constructor que le señale qué medir.
+
+> La diferencia importa. Si el generador etiquetara la cara como *"el asiento de IF-003"* y el QA midiera esa etiqueta, un agujero cortado 40 mm desplazado daría PASS: la cara etiquetada mide Ø22.10, solo que está en otro sitio. El QA habría verificado **lo que el constructor afirma**, no lo que hay. Buscando por contrato, un agujero mal colocado produce "no hay nada aquí" — que es un FAIL con el motivo correcto (ADR-011).
+
+**No encontrar la geometría es un FAIL, no un error.** Una aserción sin medición no puede quedar como "no comprobada": eso sería aprobar por omisión.
 
 ---
 
@@ -809,6 +832,8 @@ Intelliprint/
 | Piezas diseñadas por separado no encajan | Interfaces como contrato formal, resueltas por código antes de diseñar (§ 3), holguras centralizadas, chequeo de interferencias en el ensamble |
 | QA aprueba todo | **Estructuralmente imposible**: el veredicto es aritmético y el LLM solo puede añadir defectos (§ 7.1). Modelo distinto como segunda red |
 | Interfaces con cotas inventadas | Estado `symbolic` → `resolved`; el validador impide que una interfaz sin resolver llegue a la Fase 3 |
+| El QA verifica lo que el constructor *dice* haber construido | El QA **busca la geometría por contrato**, no por etiquetas puestas al construir (§ 3.3, ADR-011). Una feature en el sitio equivocado da "no encontrada", no "medida correcta" |
+| Una aserción sin medición pasa por buena | No encontrar la geometría es **FAIL**, nunca "no comprobado": aprobar por omisión es el mismo fallo que aprobar de más |
 | VRAM insuficiente para varios modelos | 25 GB de 32 GB con los dos modelos residentes; `OLLAMA_MAX_LOADED_MODELS=2` |
 | Ollama cae a CPU en silencio (Blackwell) | Verificación explícita de uso de GPU en F0.3; requisito de CUDA 12.8+ documentado (§ 6.1) |
 | Macros con efectos sobre el PC | Superficie casi eliminada (no hay Python en el camino normal); `validate_macro` como red en la escotilla, **declarado explícitamente como no-sandbox** (§ 8.3) |

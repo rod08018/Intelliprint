@@ -206,3 +206,27 @@ El registro guarda por proyecto: id, nombre, clase, estado, fechas, coste acumul
 **Efecto secundario.** Las piezas sencillas —la mayoría del uso real— dejan de pagar el peaje de un pipeline diseñado para un brazo de 6 ejes.
 
 **Riesgo residual.** Una clasificación errónea salta una fase que sí hacía falta. Mitigación: la clase aparece en el resumen que confirmas al final de la admisión, así que la corriges antes de que cueste nada.
+
+---
+
+## ADR-011 · El QA busca la geometría por contrato, no por etiqueta
+
+**Estado:** aceptada · **Afecta a:** § 3.2, § 3.3, § 7.1; F2.13, F3.1, F3.3
+
+**Problema.** `derive_assertions` produce *"agujero Ø22.10 ±0.05 en el frame de IF-003"*. Para comprobarlo hay que **localizar esa geometría** dentro del `.FCStd` de la pieza. Ninguna tarea lo hacía, y sin ese puente la capa 1 del QA no tiene valores que comparar: ADR-003 se queda sin datos.
+
+**Decisión.** El QA **busca la geometría donde el contrato dice que debe estar**. La aserción lleva, además de la cota, una *consulta* derivada del tipo de interfaz: para un `bearing_seat`, "cara cilíndrica con eje paralelo al del frame, centrada en él, de mayor radio dentro de la profundidad". Si no encuentra nada, **eso es un FAIL**, no un error.
+
+**Alternativa descartada: etiquetar durante la construcción.** Lo obvio es que el generador nombre la cara `IF-003__bore` y el QA la busque por nombre. Es inequívoco, barato — y **circular**.
+
+Si el generador etiqueta una cara como el asiento de IF-003 pero la cortó 40 mm desplazada, el QA mide esa cara, obtiene Ø22.10 y da PASS. Habría verificado **lo que el constructor afirma haber construido, no lo que hay**. Es exactamente el fallo de ADR-003 un nivel más abajo: el constructor aportando la prueba de su propio trabajo.
+
+Buscar por contrato no tiene esa debilidad. Un agujero en el sitio equivocado no produce "medida correcta en la cara equivocada": produce "no hay agujero donde el contrato dice", que es un FAIL con el motivo correcto.
+
+**Lo que NO cambia.** La interfaz ya tiene `frame`: no necesita guardar referencias a las features que genera. ADR-001 se queda como está.
+
+**Lo que SÍ cambia: los sistemas de coordenadas.** Los `frame` están en coordenadas del **ensamble** (§ 3.2), pero el QA mide una pieza **sola**, construida en sus propias coordenadas. Nadie definía la transformación entre ambos.
+
+Por eso **cada pieza necesita una `placement`** en el ensamble, y **la asigna la resolución de interfaces** (F3.3), no el `Assembly` Agent. El motivo es de orden: Assembly corre *después* del QA de piezas, así que si la placement viniera de ahí habría que medir en el ensamble en vez de al construir, retrasando la detección de errores justo hasta donde son más caros de arreglar. Es la misma lección que ADR-001.
+
+Para `static_part` de una sola pieza la placement es la identidad, así que en la Fase 1 no cuesta nada — pero el esquema la lleva desde el principio, que es lo que evita descubrirlo en la semana 10 con la garra a medias.
