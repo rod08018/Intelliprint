@@ -22,7 +22,15 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = [".", "mcp/mech-toolkit"]
-addopts = "-q"
+# Los tests `gui` abren la interfaz real de FreeCAD y los `llm` llaman a un
+# modelo de verdad (cuestan dinero). Fuera de la suite rápida; se ejecutan
+# con `pytest -m "gui or llm"` antes de cerrar una tarea que toque FreeCAD,
+# el laminado o un agente (F1.17).
+addopts = "-q -m 'not gui and not llm'"
+markers = [
+    "gui: abre la interfaz gráfica de FreeCAD (lento, abre ventanas)",
+    "llm: llama a un modelo de lenguaje real (lento, cuesta dinero)",
+]
 
 [build-system]
 requires = ["setuptools>=68"]

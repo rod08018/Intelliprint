@@ -1,0 +1,17 @@
+# G-code de inicio de la AnkerMake M5 con config/slicing/ankermake_m5_petg.ini
+# Estado: NO VERIFICADO EN LA IMPRESORA.
+# Cuando una impresión real salga bien, cambia la línea anterior a
+# 'VERIFICADO EN LA IMPRESORA el <fecha>'. Si este test falla, el inicio
+# ha cambiado: revísalo ANTES de actualizar la instantánea.
+M4899 T3 ; Enable v3 jerk and S-curve acceleration
+M104 S150 ; Set hotend temp to 150 degrees to prevent ooze
+M190 S80 ; set and wait for bed temp to stabilize
+M109 S240 ; set final nozzle temp to stabilize
+G28 ;Home
+G21 ; set units to millimeters
+G90 ; use absolute coordinates
+M82 ; use absolute distances for extrusion
+G92 E0
+M107
+G1 E-2.5 F1200
+G92 E0
