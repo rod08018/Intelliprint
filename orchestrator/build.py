@@ -11,6 +11,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from orchestrator.fcstd import mostrar_solo
 from orchestrator.recipes.compose import compose_build_script
 from orchestrator.schemas.part_result import BuildOutputError, PartResult
 from orchestrator.schemas.recipe import GeneratorCatalog, Recipe
@@ -52,9 +53,12 @@ def build_part(
     # El intérprete embebido de FreeCAD ignora PYTHONDONTWRITEBYTECODE.
     shutil.rmtree(carpeta / "__pycache__", ignore_errors=True)
     try:
-        return PartResult.from_build_output(receta.part, proceso.stdout)
+        resultado = PartResult.from_build_output(receta.part, proceso.stdout)
     except BuildOutputError:
         raise ConstruccionFallida(motivo_del_fallo(proceso.stdout + "\n" + proceso.stderr))
+    # Sin esto FreeCAD abre el .FCStd con todo oculto (ver orchestrator/fcstd.py).
+    mostrar_solo(carpeta / f"{receta.part}.FCStd", resultado.fcstd_object)
+    return resultado
 
 
 def design_and_build(

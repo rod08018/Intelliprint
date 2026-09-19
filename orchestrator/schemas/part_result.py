@@ -16,6 +16,8 @@ class PartResult(BaseModel):
     volume_mm3: float
     bbox_mm: list[float]
     solids: int
+    fcstd_object: str | None = None
+    """Nombre interno de la pieza final dentro del .FCStd."""
 
     @classmethod
     def from_build_output(cls, part: str, stdout: str) -> "PartResult":

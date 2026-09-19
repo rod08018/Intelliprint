@@ -50,6 +50,15 @@ if _n_solidos != 1:
 
 _bb = _forma.BoundBox
 
+# La visibilidad que ve el usuario al abrir el .FCStd NO sale de aquí: sin
+# interfaz no hay GuiDocument.xml y FreeCAD lo abre todo oculto. Eso lo
+# arregla orchestrator/fcstd.py después de construir. Esto deja coherente la
+# propiedad del documento y, sobre todo, pone a la pieza final su nombre
+# para poder encontrarla en el árbol al ensamblar.
+for _o in doc.Objects:
+    _o.Visibility = _o is _pieza
+_pieza.Label = {part!r}
+
 Part.export([_pieza], {stl!r})
 Part.export([_pieza], {step!r})
 doc.saveAs({fcstd!r})
@@ -59,6 +68,7 @@ print({prefix!r} + json.dumps({{
     "volume_mm3": _forma.Volume,
     "bbox_mm": [_bb.XLength, _bb.YLength, _bb.ZLength],
     "solids": _n_solidos,
+    "fcstd_object": _pieza.Name,
 }}))
 '''
 
