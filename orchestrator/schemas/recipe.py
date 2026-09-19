@@ -16,8 +16,11 @@ class GeneratorSpec(BaseModel):
     required_params: set[str] = set()
     optional_params: set[str] = set()
     template: str = ""
-    """Fragmento de Python con marcadores `{param}`. Lo escribe un humano,
-    no un LLM: es lo que hace que la receta sea segura de ejecutar."""
+    """Fragmento de Python con marcadores `$param` (string.Template). Lo
+    escribe un humano, no un LLM: es lo que hace segura la ejecución.
+
+    Sintaxis `$` y no `{}` porque el cuerpo es código Python real y las
+    llaves de un dict o de una comprensión colisionarían."""
 
     @property
     def allowed_params(self) -> set[str]:
@@ -32,6 +35,22 @@ class GeneratorCatalog:
 
     def get(self, name: str) -> GeneratorSpec | None:
         return self._por_nombre.get(name)
+
+    def describe(self) -> str:
+        """Descripción para el prompt del Part Designer.
+
+        Se deriva del catálogo en vez de escribirse a mano en el .md: si
+        alguien añade un generador y la lista fuera manual, el agente
+        seguiría sin conocerlo.
+        """
+        lineas = []
+        for spec in self._por_nombre.values():
+            obligatorios = ", ".join(sorted(spec.required_params))
+            lineas.append(f"- `{spec.name}({obligatorios})`")
+            if spec.optional_params:
+                opcionales = ", ".join(sorted(spec.optional_params))
+                lineas.append(f"    opcionales: {opcionales}")
+        return "\n".join(lineas)
 
 
 class RecipeStep(BaseModel):

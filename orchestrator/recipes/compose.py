@@ -7,6 +7,7 @@ sale de un modelo — esa es la propiedad que hace segura la ejecución.
 
 import json
 from pathlib import Path
+from string import Template
 
 from orchestrator.schemas.recipe import GeneratorCatalog, Recipe
 
@@ -67,7 +68,11 @@ def compose_build_script(
     for numero, paso in enumerate(recipe.steps, start=1):
         spec = catalog.get(paso.generator)
         partes.append(f"\n# --- paso {numero}: {paso.generator} ---\n")
-        partes.append(spec.template.format(**paso.params))
+        # `string.Template` y no str.format: las plantillas son código Python
+        # real, con dicts, listas por comprensión y bucles. Cualquier `{`
+        # literal rompería format, lo que dejaría fuera a casi todo generador
+        # no trivial. `substitute` además falla si falta un parámetro.
+        partes.append(Template(spec.template).substitute(**paso.params))
         partes.append("\n")
 
     partes.append(

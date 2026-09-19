@@ -85,3 +85,31 @@ def test_una_respuesta_que_no_es_json_tambien_reintenta():
     )
 
     assert structured(cliente, "diseña un dedo", Pieza).alto_mm == 12.5
+
+
+def test_una_validacion_extra_tambien_dispara_el_reintento():
+    """El esquema no lo comprueba todo.
+
+    Una receta puede ser válida como JSON y llamar a un generador que no
+    existe: eso solo lo sabe el catálogo. Si esa comprobación quedara
+    fuera del bucle, un generador inventado no tendría reintento y se
+    perdería el intento entero.
+    """
+
+    def rechaza_altos(pieza: Pieza) -> None:
+        if pieza.alto_mm > 100:
+            raise ValueError(f"alto_mm={pieza.alto_mm} no cabe en la cama")
+
+    cliente = ClienteGuionizado(
+        [
+            '{"nombre": "torre", "alto_mm": 500}',  # válida, pero no cabe
+            '{"nombre": "torre", "alto_mm": 90}',
+        ]
+    )
+
+    pieza = structured(
+        cliente, "diseña una torre", Pieza, extra_validation=rechaza_altos
+    )
+
+    assert pieza.alto_mm == 90
+    assert "no cabe en la cama" in cliente.prompts[1]

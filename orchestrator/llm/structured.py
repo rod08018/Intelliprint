@@ -5,7 +5,7 @@ Cuando la validación falla, se le reenvía al modelo **el error exacto**,
 que es mucho más útil que repetir la misma petición.
 """
 
-from typing import Protocol, TypeVar
+from typing import Callable, Protocol, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
@@ -28,15 +28,25 @@ def structured(
     schema: type[T],
     *,
     max_intentos: int = MAX_INTENTOS,
+    extra_validation: Callable[[T], None] | None = None,
 ) -> T:
+    """Pide una salida que valide contra `schema`, reintentando con el error.
+
+    `extra_validation` cubre lo que el esquema no puede saber por sí solo
+    —por ejemplo, si una receta llama a un generador que existe— y entra
+    en el mismo bucle: si quedara fuera, ese fallo no tendría reintento.
+    """
     peticion = prompt
     ultimo_error = ""
 
     for intento in range(1, max_intentos + 1):
         respuesta = client.complete(peticion)
         try:
-            return schema.model_validate_json(respuesta)
-        except ValidationError as error:
+            resultado = schema.model_validate_json(respuesta)
+            if extra_validation is not None:
+                extra_validation(resultado)
+            return resultado
+        except (ValidationError, ValueError) as error:
             ultimo_error = str(error)
             peticion = _reintento(prompt, respuesta, ultimo_error, intento)
 

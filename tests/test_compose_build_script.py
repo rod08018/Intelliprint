@@ -28,10 +28,10 @@ def _catalogo_con_caja() -> GeneratorCatalog:
                 name="generate_box",
                 required_params={"name", "length", "width", "height"},
                 template=(
-                    'obj = doc.addObject("Part::Box", "{name}")\n'
-                    "obj.Length = {length}\n"
-                    "obj.Width = {width}\n"
-                    "obj.Height = {height}"
+                    'obj = doc.addObject("Part::Box", "$name")\n'
+                    "obj.Length = $length\n"
+                    "obj.Width = $width\n"
+                    "obj.Height = $height"
                 ),
             )
         ]
@@ -56,6 +56,38 @@ def test_compone_el_script_renderizando_la_plantilla_del_generador():
 
     assert 'doc.addObject("Part::Box", "B")' in script
     assert "obj.Length = 20" in script
+
+
+def test_una_plantilla_con_codigo_python_real_no_se_rompe():
+    """Los generadores de verdad llevan listas, dicts y bucles.
+
+    Cualquier `{` literal en el código reventaría una sustitución basada
+    en str.format, y eso deja fuera a casi todo generador no trivial: un
+    patrón de tornillos necesita una lista de coordenadas.
+    """
+    catalogo = GeneratorCatalog(
+        [
+            GeneratorSpec(
+                name="generate_holes",
+                required_params={"pitch"},
+                template=(
+                    "_p = $pitch\n"
+                    "for _x, _y in [(_p, _p), (-_p, _p)]:\n"
+                    '    _cfg = {"x": _x, "y": _y}\n'
+                    "    doc.addObject('Part::Cylinder', 'h')\n"
+                ),
+            )
+        ]
+    )
+    receta = Recipe(
+        part="placa",
+        steps=[RecipeStep(generator="generate_holes", params={"pitch": 15.5})],
+    )
+
+    script = compose_build_script(receta, catalogo)
+
+    assert "_p = 15.5" in script
+    assert '_cfg = {"x": _x, "y": _y}' in script  # el dict sobrevive intacto
 
 
 def _freecadcmd() -> str | None:
