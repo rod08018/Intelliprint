@@ -35,7 +35,20 @@ if not _solidos:
 
 # Convención: el último sólido es la pieza final.
 _pieza = _solidos[-1]
-_bb = _pieza.Shape.BoundBox
+_forma = _pieza.Shape
+
+# F1.7. Las dos comprobaciones hacen falta: una pieza partida en trozos por
+# un taladro demasiado grande es isValid()=True, y una cáscara abierta tiene
+# un volumen plausible. Fallar aquí, al construir, y no tres fases después.
+if not _forma.isValid():
+    raise RuntimeError("INTELLIPRINT_FALLO: el sólido de la pieza no es válido "
+                       "(forma degenerada o cáscara abierta)")
+_n_solidos = len(_forma.Solids)
+if _n_solidos != 1:
+    raise RuntimeError("INTELLIPRINT_FALLO: la pieza salió en %d sólidos "
+                       "separados; debería ser una sola" % _n_solidos)
+
+_bb = _forma.BoundBox
 
 Part.export([_pieza], {stl!r})
 Part.export([_pieza], {step!r})
@@ -43,9 +56,9 @@ doc.saveAs({fcstd!r})
 
 print({prefix!r} + json.dumps({{
     "part": {part!r},
-    "volume_mm3": _pieza.Shape.Volume,
+    "volume_mm3": _forma.Volume,
     "bbox_mm": [_bb.XLength, _bb.YLength, _bb.ZLength],
-    "solids": len(_solidos),
+    "solids": _n_solidos,
 }}))
 '''
 
