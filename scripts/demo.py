@@ -58,12 +58,20 @@ def _freecadcmd() -> str:
     return ruta
 
 
+def _nombre() -> str:
+    for linea in (RAIZ / ".env").read_text(encoding="utf-8").splitlines():
+        if linea.startswith("AGENT_NAME="):
+            return linea.split("=", 1)[1].strip() or "Crafty"
+    return "Crafty"
+
+
 def main(peticion: str) -> None:
     port = CliAdapter()
     cliente = DeepSeekClient(api_key=_clave())
+    yo = _nombre()
 
     # --- FASE 0 · Admisión ---------------------------------------------------
-    port.notify("Leyendo la petición…")
+    port.notify(f"[{yo}] Leyendo la petición…")
     spec = RequirementsAgent(cliente).draft(peticion)
 
     resumen = (

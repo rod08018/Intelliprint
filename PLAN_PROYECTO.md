@@ -124,6 +124,19 @@ Convención de IDs: `F<fase>.<tarea>`. Cada tarea tiene un criterio de aceptaci�
 
 ---
 
+### Deuda técnica declarada
+
+Dos decisiones que desbloquean trabajo hoy incumpliendo algo del diseño. Están aquí para que se vean juntas y no se conviertan en el estado permanente.
+
+| Deuda | Qué incumple | La salda | Cuándo |
+|---|---|---|---|
+| Perfil `dev` con DeepSeek en la nube (ADR-007b) | *Local primero* (§ 1) | **F0.11** | Al tener la 5090 |
+| Canal de Telegram **abierto**, sin lista blanca (ADR-012) | Regla 1 de § 8.5 | **F5.10** | Antes de usarlo de verdad |
+
+> Sobre la segunda, una precisión que conviene tener delante: **un bot de Telegram no es local aunque corra en tu PC**. Hace *polling* contra los servidores de Telegram, que le entregan los mensajes de cualquiera desde cualquier sitio. Apagar la máquina protege; que sea "local" no. Mientras la deuda viva, quien encuentre el bot puede crear proyectos, gastar saldo de DeepSeek y **contestar las tres barreras** — incluida la que guarda la escotilla de Python.
+
+---
+
 ### Fase 1 — Pipeline de una pieza (semanas 2–5)
 
 **Objetivo:** primer flujo con LLM de extremo a extremo para una pieza simple, con los contratos que sostienen toda la arquitectura.
@@ -246,12 +259,13 @@ Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto
 | F5.7 | Consultas de registro por Telegram: qué proyectos hay, estado de uno, qué espera de ti | *"¿qué tengo pendiente?"* devuelve la lista con estados desde `registry.sqlite` |
 | F5.8 | Peticiones de cambio entrantes → `ChangeRequest` → defecto con autor humano, por la maquinaria de reapertura existente | "haz los dedos más largos" reabre solo las piezas afectadas, sin ruta paralela |
 | F5.9 | **Seguridad del canal**: texto **y contenido de imágenes** como dato, adjuntos no ejecutables ni fuera de `workspace/`, escotilla de Python cerrada sin gate | Test de inyección por texto **y por imagen** (una foto con "ignora las instrucciones anteriores" escrito): ninguna ejecuta nada. Un adjunto no permitido se rechaza |
-| F5.10 | Política de escalamiento en `router.py` (fallos, complejidad, contexto, petición manual) | Cada escalamiento registra motivo, tokens y costo |
-| F5.11 | Tope `max_usd_per_project` y contador persistente | Al alcanzar el tope se detiene y pide autorización |
-| F5.12 | Filtro de datos salientes, compartido por DeepSeek y Telegram | Test: ninguna ruta `C:\` ni credencial sale por ninguno de los dos destinos |
-| F5.13 | **Gate humano #2** con resumen: BOM, placas, gramos, horas, advertencias de QA | Aprobación deja los archivos en `fabrication/` |
-| F5.14 | Instrucciones de ensamble generadas (orden, hardware por paso, capturas) | Documento legible para montar la garra sin ayuda |
-| F5.15 | Registro de feedback de impresión ("flojo", "apretado", "se rompió en X"), también por Telegram | El feedback ajusta el perfil de holguras o crea defectos en la pieza |
+| F5.10 | **Cerrar el canal: lista blanca `TELEGRAM_ALLOWED_USERS`** (salda ADR-012) | El bot responde a los chat IDs de la lista e **ignora al resto**. Sin lista definida, el canal no arranca. Test: un mensaje de un ID ajeno no crea proyecto ni contesta gates |
+| F5.11 | Política de escalamiento en `router.py` (fallos, complejidad, contexto, petición manual) | Cada escalamiento registra motivo, tokens y costo |
+| F5.12 | Tope `max_usd_per_project` y contador persistente | Al alcanzar el tope se detiene y pide autorización |
+| F5.13 | Filtro de datos salientes, compartido por DeepSeek y Telegram | Test: ninguna ruta `C:\` ni credencial sale por ninguno de los dos destinos |
+| F5.14 | **Gate humano #2** con resumen: BOM, placas, gramos, horas, advertencias de QA | Aprobación deja los archivos en `fabrication/` |
+| F5.15 | Instrucciones de ensamble generadas (orden, hardware por paso, capturas) | Documento legible para montar la garra sin ayuda |
+| F5.16 | Registro de feedback de impresión ("flojo", "apretado", "se rompió en X"), también por Telegram | El feedback ajusta el perfil de holguras o crea defectos en la pieza |
 
 **Entregable:** le mandas al bot *"una pieza que sujete un vaso en el carruaje de mi hijo"* con dos fotos, te pregunta lo que falta, apruebas los dos gates desde el móvil y recibes el G-code — con otros dos proyectos abiertos a la vez y los costos de DeepSeek visibles.
 

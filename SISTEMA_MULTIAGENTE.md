@@ -620,6 +620,8 @@ Esto es lo que unifica el gate por consola y el gate por navegador, que en el pl
 
 **OpenClaw** es una pasarela auto-alojada que conecta apps de mensajería con agentes. Aquí se usa **solo como transporte**: no lee ni escribe el blackboard, no toma decisiones de diseño y no aparece en la tabla de agentes. Recibe del orquestador una pregunta y sus adjuntos, la entrega en Telegram, y devuelve la respuesta.
 
+**El sistema se llama Crafty en el canal.** Es el nombre con el que te diriges a él y con el que firma lo que te manda. No es un agente más ni cambia nada de la arquitectura: es la cara visible del orquestador, que por dentro sigue siendo código coordinando once agentes. Se configura con `AGENT_NAME` para que el nombre viva en un solo sitio y no repartido por los prompts.
+
 **Qué habilita en la práctica.** Como el QA ya renderiza vistas para su capa de visión (§ 7.1), esas mismas imágenes se pueden enviar por Telegram. El sistema no te manda una lista de cotas: te manda **la pieza** y te pregunta si es lo que querías. Y tú puedes pedir cambios desde el móvil sin estar delante del PC — que es justamente el caso de uso, porque si estuvieras delante usarías la UI.
 
 **Qué puedes adjuntar.** Los adjuntos de `submit()` no son decoración: el modelo tiene visión (§ 6.1), así que son entrada de diseño real.
@@ -638,6 +640,7 @@ Esto es lo que unifica el gate por consola y el gate por navegador, que en el pl
 Este canal es **entrada no confiable a un sistema que puede ejecutar código** (§ 6.3). No es paranoia: es la consecuencia directa de tener una escotilla de Python.
 
 1. **Lista blanca estricta.** Solo los chat IDs de `TELEGRAM_ALLOWED_USERS`. Sin lista blanca, el canal no arranca.
+   > ⚠️ **Incumplida a propósito durante el desarrollo** (ADR-012): el bot nace abierto. Mientras dure, quien encuentre el bot puede crear proyectos, gastar saldo y **contestar las tres barreras**, incluida la que guarda la escotilla. La salda **F5.10**, y no requiere autenticación de ninguna clase: es una lista de IDs, no un login.
 2. **El texto entrante es dato, nunca instrucción.** Un mensaje jamás se concatena a un prompt de sistema. Se procesa como contenido a clasificar, no como orden a obedecer.
 3. **Una petición de cambio nunca abre la escotilla de Python por sí sola.** Requiere gate explícito.
 4. **Filtro de salida.** Igual que con DeepSeek, por Telegram solo sale texto y renders: nunca rutas del host, credenciales ni archivos del PC. Es el mismo filtro, aplicado a un segundo destino.

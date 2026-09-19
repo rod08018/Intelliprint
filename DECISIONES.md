@@ -209,6 +209,35 @@ El registro guarda por proyecto: id, nombre, clase, estado, fechas, coste acumul
 
 ---
 
+## ADR-012 · El canal de Telegram nace abierto — deuda con fecha
+
+**Estado:** aceptada, **temporal** · **Afecta a:** § 8.5; F5.6, F5.9, `.env`
+
+**Decisión.** Durante el desarrollo, el bot acepta mensajes de cualquiera: sin lista blanca. **Antes de usarlo de verdad hay que cerrarlo** a `TELEGRAM_ALLOWED_USERS`.
+
+**Esto incumple la regla 1 de § 8.5**, que dice que sin lista blanca el canal no arranca. Se acepta como deuda declarada, igual que ADR-007b, y por el mismo motivo: desbloquear trabajo ahora y saldarlo con una tarea propia.
+
+**Una corrección de premisa que conviene dejar escrita**, porque es el error que hace que esto parezca inofensivo:
+
+> Un bot de Telegram **no es local aunque corra en tu PC**. No escucha en tu red: hace *polling* contra los servidores de Telegram, que le entregan los mensajes de quien sea, desde donde sea. Que la máquina esté apagada protege; que el bot sea "local" no. Es seguridad por oscuridad: nadie da con el bot por casualidad, pero nada detiene a quien lo encuentre, y el nombre del bot va dentro del token.
+
+**Lo que queda expuesto mientras la deuda viva:**
+
+| Riesgo | Alcance |
+|---|---|
+| Crear proyectos | Gasta saldo de DeepSeek y GPU de la máquina |
+| Adjuntos | Escriben archivos dentro de `workspace/` |
+| Contestar las barreras | **Las tres barreras de § 4 las contesta quien responda primero** |
+| Escotilla de Python | Una de esas barreras es la que la guarda (§ 6.3) |
+
+El último punto es el que cambia de categoría: pasa de *"un desconocido me gasta dinero"* a *"un desconocido puede aprobar la ejecución de código"*.
+
+**Lo que NO se relaja.** Las reglas 2 a 7 de § 8.5 siguen: el texto y el contenido de las imágenes son dato y nunca instrucción, los adjuntos no se ejecutan ni salen de `workspace/`, y el filtro de salida sigue activo. La deuda es **solo** la lista blanca.
+
+**Cómo se salda (F5.10).** Poner el chat ID propio —y los que se quieran— en `TELEGRAM_ALLOWED_USERS` y devolver la regla 1 a obligatoria. Es una línea de configuración y una condición en el adaptador. **No requiere autenticación de ninguna clase**: el usuario no teclea códigos, el bot simplemente ignora a quien no esté en la lista.
+
+---
+
 ## ADR-011 · El QA busca la geometría por contrato, no por etiqueta
 
 **Estado:** aceptada · **Afecta a:** § 3.2, § 3.3, § 7.1; F2.13, F3.1, F3.3
