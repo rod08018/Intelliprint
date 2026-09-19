@@ -1,0 +1,22 @@
+[project]
+name = "intelliprint"
+version = "0.1.0"
+description = "Sistema multiagente local para diseñar piezas imprimibles en 3D"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.setuptools.packages.find]
+include = ["orchestrator*"]
