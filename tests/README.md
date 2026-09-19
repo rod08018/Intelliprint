@@ -16,6 +16,6 @@ Ver [PLAN_PROYECTO.md](../PLAN_PROYECTO.md) § 6.
 Son las más importantes del repositorio, porque verifican las dos afirmaciones fuertes de la arquitectura:
 
 - **F2.15** — Con un QA Agent simulado que responde siempre "aprobado", una pieza con una cota fuera de tolerancia **debe seguir dando FAIL**. Si esta prueba pasa a verde por las razones equivocadas, la regla dura de § 7.1 se ha roto.
-- **F5.7** — Un mensaje entrante de Telegram con instrucciones embebidas **no debe ejecutar nada**, y ninguna ruta del host debe salir por el canal.
+- **F5.9** — Un mensaje entrante de Telegram con instrucciones embebidas **no debe ejecutar nada**, y ninguna ruta del host debe salir por el canal.
 
 **Regla:** las herramientas deterministas deben tener tests antes de que un agente las use.
