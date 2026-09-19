@@ -98,6 +98,8 @@ Estimado para dedicación parcial (~10–15 h/semana). Total: **21 semanas**.
 
 Convención de IDs: `F<fase>.<tarea>`. Cada tarea tiene un criterio de aceptación verificable.
 
+**Los IDs son estables.** Una vez que el código, los tests y los commits los citan, renumerar deja referencias apuntando a la tarea equivocada. Una tarea que se mueve de fase recibe el siguiente ID libre de su fase nueva, y su ID antiguo se queda en la tabla como nota de adónde fue. Por eso una tabla puede no estar en orden numérico.
+
 ### Fase 0 — Infraestructura (semana 1)
 
 **Objetivo:** que el contenedor del orquestador pueda llamar a un modelo local y a las herramientas de FreeCAD y PrusaSlicer.
@@ -153,7 +155,7 @@ Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto
 | F1.5 | Estado `INTAKE` con **confirmación obligatoria**, vía `HumanPort` (adaptador CLI de F0.9) | Test estructural: **no existe camino de `INTAKE` a `DECOMPOSED` sin confirmación**. Intentarlo lanza error, no avanza |
 | F1.6 | Plantillas de macros FreeCAD (sketch + pad + pocket + fillet, export STL/STEP) y `compose_build_script(recipe)` que las ensambla | Una receta produce un `build.py` que corre en `freecadcmd` y devuelve el volumen esperado del sólido |
 | F1.7 | **Validez del sólido** en el epílogo de `build.py`: `Shape.isValid()` y número de sólidos esperado | Una booleana que deja una forma degenerada **falla al construir**, no tres fases después. Test con un caso de cara coincidente |
-| F1.8 | RAG mínimo: indexar en Qdrant la API Python de FreeCAD (Part/PartDesign/Sketcher) + ejemplos propios | Una consulta "pocket circular en cara superior" devuelve el ejemplo correcto |
+| F1.8 | *Movida a **F2.19**.* Era el RAG sobre la API de FreeCAD. Con ADR-002 el Part Designer ya no escribe Python de FreeCAD, así que el RAG solo sirve a la escotilla, y se fue con ella a la Fase 2 | — |
 | F1.9 | **`Spec` → `PartTask`**: convertir la spec de una pieza en la tarea que recibe el Part Designer | El soporte NEMA17 se diseña desde `spec.yaml` **sin que nadie escriba el enunciado a mano** |
 | F1.10 | **Part Designer Agent**: emite `recipe.json` (**no Python**); el orquestador compone `build.py` y lo ejecuta en `freecadcmd` | Soporte NEMA17 con dimensiones correctas en ≥ 4 de 5 intentos |
 | F1.11 | Bucle de error en dos niveles: receta inválida → error de esquema al agente (barato, sin ejecutar); fallo de ejecución → traceback (máx. 3) | Tasa de éxito final ≥ 4 de 5; los errores de esquema se detectan **sin lanzar FreeCAD** |
@@ -184,6 +186,7 @@ Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto
 | F2.8 | `validate_macro`: análisis estático (AST). **Solo para la escotilla** | Bloquea las macros destructivas del set de prueba; 0 falsos positivos en las plantillas. **Documentado como red de seguridad, no como sandbox** |
 | F2.9 | **La escotilla de Python libre** (§ 6.3): marcar una pieza como atípica, generar macro con DeepSeek, pasar `validate_macro`, ejecutar y registrar el motivo | Una pieza que ningún generador cubre se construye por la escotilla; el motivo queda en `log/`. Con el modelo local **no** se abre |
 | F2.10 | **Métrica de escotilla**: contador persistente de piezas atípicas por proyecto y en global, con el generador que habría hecho falta | La métrica de § 7 se puede consultar y **nombra qué generador escribir** |
+| F2.19 | **RAG para la escotilla** (era F1.8): indexar en Qdrant la API Python de FreeCAD (Part/PartDesign/Sketcher) + ejemplos propios, y usarlo **solo** al generar macros de la escotilla (F2.9) | Una consulta "pocket circular en cara superior" devuelve el ejemplo correcto; una pieza atípica construida por la escotilla usa ese contexto. Requiere Ollama (`nomic-embed-text`) y Qdrant |
 | F2.11 | **Tolerances/DFM Agent** | Aplica holguras según interfaz y deja la pieza orientada para imprimir |
 | F2.12 | `derive_assertions(interface)`: aserciones medibles por tipo de interfaz (**capa 1 del QA**) | Una interfaz `bearing_seat` 608zz `press` produce la aserción Ø22.10 ±0.05 sin intervención de ningún LLM |
 | F2.13 | **Puente aserción ↔ medición** (ADR-011): transformar el `frame` a coordenadas de la pieza con su `placement`, **buscar la geometría que el contrato exige** según el `query` derivado del tipo, y medirla | Las aserciones de F2.12 se resuelven a valores medidos reales. Un agujero desplazado da **"no encontrado" → FAIL**, no una medida correcta en la cara equivocada. **Sin esto la capa 1 no tiene datos y ADR-003 no funciona** |
@@ -303,6 +306,7 @@ F4.1 sim ─► F4.2 Kinematics ─► F4.4 Actuation ────────�
 F0.9 HumanPort ─► F1.5 INTAKE ─► F3.4 gate 1 ─► F5.5 web ─► F5.6 Telegram
 F1.4 clasificación ─────────────────────────────► F4.10 fases condicionales
 F1.12 perfil laminado ──────────────────────────► F1.13 Slicing Agent
+F2.19 RAG ─────────────────────────────────────► F2.9 escotilla
 ```
 
 Ruta crítica: F0.5 → F1.6 → F1.10 → F2.5 → F2.13 → F2.17 → F3.2 → F3.3 → F3.8 → F4.6 → F4.9.

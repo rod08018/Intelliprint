@@ -38,7 +38,7 @@ profiles:
     #   1. Capa 3 del QA (§ 7.1). DeepSeek no tiene visión, así que no puede
     #      mirar los renders. Las capas 1 y 2 son deterministas y sí se
     #      prueban enteras; la de visión necesita qwen3.8 o gemma3.
-    #   2. RAG sobre la API de FreeCAD (F1.6). Sin `nomic-embed-text` no hay
+    #   2. RAG sobre la API de FreeCAD (F2.19, solo escotilla). Sin `nomic-embed-text` no hay
     #      embeddings; requiere Ollama aunque el resto vaya por la nube.
     #   3. Diversidad de modelo en el QA: diseñador y revisor son el mismo.
     #      No rompe la corrección —el veredicto es aritmético (ADR-003)—

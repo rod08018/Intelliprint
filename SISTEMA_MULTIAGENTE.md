@@ -313,7 +313,7 @@ Dos artefactos merecen atención:
 |-----|--------|------|------|
 | Diseño (todos los roles salvo QA) | `qwen3.8` (27B) | 16.5 GB | `tools`, `thinking` y `vision`. Sustituye a `qwen3:8b` |
 | QA (revisor distinto) | `gemma3:12b` | ~8 GB | **Residente en paralelo**. También tiene visión |
-| Embeddings (librería / docs FreeCAD) | `nomic-embed-text` | ~0.3 GB | RAG sobre la API de FreeCAD y la hardware library |
+| Embeddings (librería / docs FreeCAD) | `nomic-embed-text` | ~0.3 GB | RAG sobre la API de FreeCAD (solo para la escotilla, F2.19) y la hardware library |
 | | **Total** | **~25 GB** | Deja margen para contexto largo en 32 GB |
 
 Ya **no hace falta un modelo especializado en código**: con recetas en vez de Python (§ 6.3), lo que se le pide al modelo es rellenar un esquema, no programar. Eso elimina `qwen2.5-coder:14b` del stack y simplifica `models.yaml`.
@@ -346,7 +346,7 @@ Dos modelos residentes requiere `OLLAMA_MAX_LOADED_MODELS=2`.
 | Limitación | Consecuencia |
 |---|---|
 | DeepSeek **no tiene visión** | La capa 3 del QA (§ 7.1) no se puede probar. Las capas 1 y 2 son deterministas y sí |
-| Sin embeddings | El RAG sobre la API de FreeCAD (F1.8) necesita Ollama aunque el resto vaya por la nube |
+| Sin embeddings | El RAG sobre la API de FreeCAD (F2.19) necesita Ollama aunque el resto vaya por la nube. Solo lo usa la escotilla |
 | Diseñador y revisor son el mismo modelo | Se pierde la diversidad. No rompe la corrección —el veredicto es aritmético— pero desaparece la segunda red |
 | Latencia de red, no de GPU | Ninguna medida de rendimiento es trasladable |
 
