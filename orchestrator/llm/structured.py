@@ -9,6 +9,8 @@ from typing import Callable, Protocol, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
+from orchestrator.llm.providers.deepseek import RespuestaCortada
+
 T = TypeVar("T", bound=BaseModel)
 
 MAX_INTENTOS = 3
@@ -40,7 +42,20 @@ def structured(
     ultimo_error = ""
 
     for intento in range(1, max_intentos + 1):
-        respuesta = client.complete(peticion)
+        try:
+            respuesta = client.complete(peticion)
+        except RespuestaCortada as error:
+            # Se quedó sin sitio pensando: no es un JSON malo, es longitud. Se
+            # reintenta pidiendo brevedad en vez de tumbar el proyecto entero
+            # (fallo real: el trinquete murió aquí tras 12 minutos).
+            ultimo_error = str(error)
+            peticion = (
+                f"{prompt}\n\n--- Intento {intento} cortado ---\n"
+                "Te quedaste sin espacio antes de terminar. Razona menos y responde "
+                "ya, con el JSON más corto posible: enunciados breves y solo lo "
+                "imprescindible.\n"
+            )
+            continue
         try:
             resultado = schema.model_validate_json(respuesta)
             if extra_validation is not None:

@@ -55,6 +55,9 @@ def measurements(spec, layout, final: MechanismReport) -> list[str]:
     """Lo que el CÓDIGO comprobó sobre la geometría ya construida. Es lo
     único que el revisor puede tomar como dato."""
     lineas = [
+        (f"se generaron la animación del ciclo ({Path(final.animation).name}) y el ensamble "
+         f"({Path(final.assembly).name}), que el usuario puede abrir en FreeCAD"
+         if final.animation else f"se generó el ensamble ({Path(final.assembly).name})"),
         f"barrido de {len(final.angles)} posiciones del ciclo con hueco mínimo "
         f"{final.min_gap_mm:g} mm: " + ("ninguna pieza toca a otra indebidamente"
                                         if final.ok else f"{len(final.collisions)} incumplimientos"),

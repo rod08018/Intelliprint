@@ -113,3 +113,23 @@ def test_una_validacion_extra_tambien_dispara_el_reintento():
 
     assert pieza.alto_mm == 90
     assert "no cabe en la cama" in cliente.prompts[1]
+
+
+def test_una_respuesta_cortada_se_reintenta_pidiendo_brevedad():
+    """Fallo real: deepseek-reasoner agotó sus tokens y el proyecto entero
+    murió tras 12 minutos. Es longitud, no un esquema mal."""
+    from orchestrator.llm.providers.deepseek import RespuestaCortada
+
+    class Cliente:
+        def __init__(self):
+            self.prompts = []
+
+        def complete(self, prompt):
+            self.prompts.append(prompt)
+            if len(self.prompts) == 1:
+                raise RespuestaCortada("agotó max_tokens=65536")
+            return '{"nombre": "placa", "alto_mm": 6}'
+
+    cliente = Cliente()
+    assert structured(cliente, "haz una placa", Pieza).alto_mm == 6
+    assert "sin espacio antes de terminar" in cliente.prompts[1]
