@@ -1,6 +1,6 @@
-"""Capa 1 del QA: del contrato a valores medidos (F2.13, ADR-011).
+"""Capa 1 del QA: del contrato a valores medidos (F2.13 (puente), ADR-011).
 
-interfaz resuelta → aserciones (F2.12) → caras reales del STEP → búsqueda
+interfaz resuelta → aserciones (F2.12 (derive_assertions)) → caras reales del STEP → búsqueda
 por contrato → `Assertion` con su valor medido, o `None` si no había nada
 donde el contrato dice. El veredicto lo calcula `QaReport`, no esto.
 """

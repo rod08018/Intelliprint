@@ -20,7 +20,7 @@ class PartResult(BaseModel):
     """Nombre interno de la pieza final dentro del .FCStd."""
     untraced_mm: list[float] = []
     """Cotas de la petición literal que no aparecen en la receta tras los
-    reintentos (F1.16). Se muestran en el informe; no rompen la pieza."""
+    reintentos (F1.16 (trazabilidad)). Se muestran en el informe; no rompen la pieza."""
 
     @classmethod
     def from_build_output(cls, part: str, stdout: str) -> "PartResult":

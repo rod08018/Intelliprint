@@ -1,4 +1,4 @@
-"""Construcción de una pieza y bucle de error de segundo nivel (F1.11).
+"""Construcción de una pieza y bucle de error de segundo nivel (F1.11 (bucle)).
 
 Primer nivel (en `structured`): una receta inválida se rechaza por esquema
 o por catálogo sin lanzar FreeCAD. Segundo nivel (aquí): una receta VÁLIDA
@@ -29,7 +29,7 @@ class ConstruccionFallida(RuntimeError):
 def motivo_del_fallo(salida: str) -> str:
     """El motivo que le llega al agente.
 
-    Si el fallo lo detectamos nosotros (F1.7), viene marcado y se extrae
+    Si el fallo lo detectamos nosotros (F1.7 (validez)), viene marcado y se extrae
     limpio. Si es un error de FreeCAD que no provocamos, se pasa el final
     del traceback en crudo: peor redactado, pero mejor que nada.
     """
@@ -85,7 +85,7 @@ def design_and_build(
         if part is not None:
             receta = receta.model_copy(update={"part": part})
 
-        # F1.16: las cotas de la petición literal tienen que estar en la
+        # F1.16 (trazabilidad): las cotas de la petición literal tienen que estar en la
         # receta. Si faltan, vuelve al agente con el valor exacto; en el
         # último intento se construye igualmente y queda anotado.
         perdidas = untraced(request, receta) if request else []

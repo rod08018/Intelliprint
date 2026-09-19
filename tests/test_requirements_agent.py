@@ -1,4 +1,4 @@
-"""Requirements Agent: texto libre → Spec clasificada (F1.3).
+"""Requirements Agent: texto libre → Spec clasificada (F1.4 (requirements)).
 
 Ver SISTEMA_MULTIAGENTE.md § 4.1 y § 4.2.
 """
@@ -44,7 +44,7 @@ def test_convierte_texto_libre_en_una_spec_clasificada():
 
 def test_el_prompt_incluye_las_instrucciones_del_agente_y_la_peticion():
     """El prompt vive en config/agents/, no incrustado en el código:
-    afinarlo es la tarea F6.3 y no debería requerir tocar Python."""
+    afinarlo es la tarea F6.3 (prompts) y no debería requerir tocar Python."""
     cliente = ClienteGuionizado([_SOPORTE])
 
     RequirementsAgent(cliente).draft("sujeta un vaso")
@@ -58,7 +58,7 @@ def test_el_prompt_incluye_las_instrucciones_del_agente_y_la_peticion():
 def test_un_robot_sin_alcance_se_corrige_solo_en_el_reintento():
     """La coherencia entre clase y datos no depende del prompt.
 
-    Guard de integración entre ADR-010 y F1.2: si el modelo dice `robot`
+    Guard de integración entre ADR-010 y F1.3 (estructurada): si el modelo dice `robot`
     y olvida el alcance, lo rechaza el ESQUEMA y el error exacto vuelve
     al modelo. Aunque el prompt estuviera mal escrito, o el modelo lo
     ignorase, no puede colarse una spec de robot sin alcance.

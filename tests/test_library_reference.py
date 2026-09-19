@@ -40,7 +40,7 @@ def test_la_referencia_cumple_las_cotas_normalizadas_de_la_cara_nema17():
 def test_el_soporte_generado_no_se_atraviesa_con_un_motor_que_no_disenamos(tmp_path):
     """Condición NECESARIA, no suficiente: intersección cero = no se
     atraviesan. Tocarse no es encajar: la holgura la comprueba
-    tests/test_fit.py (F2.20). Este test solía llamarse "encaja" y daba por
+    tests/test_fit.py (F2.20 (encaje)). Este test solía llamarse "encaja" y daba por
     buena una holgura de cero."""
     import subprocess
 

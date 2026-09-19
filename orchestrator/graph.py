@@ -1,4 +1,4 @@
-"""Grafo del proyecto (F1.14) con versionado git por etapa (F1.15).
+"""Grafo del proyecto (F1.14 (grafo)) con versionado git por etapa (F1.15 (git)).
 
 Fase 1: un camino lineal admisión → diseño → laminado para una pieza. En
 la Fase 3 se sustituye por el recorrido completo de la máquina de estados
@@ -53,7 +53,7 @@ class Dependencias:
 
 
 def versionar(proyecto: Path, mensaje: str) -> None:
-    """Un commit por etapa en el repo git del propio proyecto (F1.15).
+    """Un commit por etapa en el repo git del propio proyecto (F1.15 (git)).
 
     Firmado como Crafty y no con la identidad del usuario: son cambios
     que hizo el sistema, y así se distinguen de los que haga él a mano.

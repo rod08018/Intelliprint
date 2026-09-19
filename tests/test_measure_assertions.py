@@ -1,6 +1,6 @@
-"""De aserciones derivadas a valores medidos (F2.13).
+"""De aserciones derivadas a valores medidos (F2.13 (puente)).
 
-Ciclo completo: interfaz resuelta → aserciones (F2.12) → caras reales de
+Ciclo completo: interfaz resuelta → aserciones (F2.12 (derive_assertions)) → caras reales de
 la pieza → búsqueda por contrato → valores medidos → veredicto.
 """
 
@@ -86,7 +86,7 @@ def test_agujeros_en_el_sitio_equivocado_no_se_miden_se_declaran_ausentes(tmp_pa
 def test_un_taladro_sin_holgura_aplicada_falla_por_la_cota(tmp_path):
     """Pieza con Ø22 exacto donde el ajuste a presión exige 22.10: el
     agujero existe y se mide, pero la cota no cumple. Es lo que debe
-    corregir el Tolerances Agent (F2.11)."""
+    corregir el Tolerances Agent (F2.11 (tolerances))."""
     step = _nema17(tmp_path, taladro=22.0)
 
     aserciones = measure_interfaces([_asiento()], step, Placement(), PERFIL, _freecadcmd())

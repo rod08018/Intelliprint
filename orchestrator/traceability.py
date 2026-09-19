@@ -1,4 +1,4 @@
-"""Trazabilidad petición → receta (F1.16).
+"""Trazabilidad petición → receta (F1.16 (trazabilidad)).
 
 Guardia determinista: las cotas con unidad que escribió el usuario tienen
 que aparecer en la receta del Part Designer. No se le pregunta a ningún
@@ -8,7 +8,7 @@ Es una heurística, y por eso es conservadora:
 - Solo cuenta como cota un número seguido de "mm" o un patrón "AxB[xC]".
   "NEMA17", "M3" o "perfil 2020" son nombres, no medidas.
 - Se comprueba a la salida del Part Designer, ANTES de aplicar holguras:
-  el Tolerances Agent (F2.11) cambiará 22 por 22.35 a propósito.
+  el Tolerances Agent (F2.11 (tolerances)) cambiará 22 por 22.35 a propósito.
 - Si tras los reintentos una cota sigue sin aparecer, no se rompe la
   construcción: se anota para el informe (puede ser un radio que el
   generador pide como diámetro, por ejemplo).

@@ -37,7 +37,7 @@ if not _solidos:
 _pieza = _solidos[-1]
 _forma = _pieza.Shape
 
-# F1.7. Las dos comprobaciones hacen falta: una pieza partida en trozos por
+# F1.7 (validez). Las dos comprobaciones hacen falta: una pieza partida en trozos por
 # un taladro demasiado grande es isValid()=True, y una cáscara abierta tiene
 # un volumen plausible. Fallar aquí, al construir, y no tres fases después.
 if not _forma.isValid():

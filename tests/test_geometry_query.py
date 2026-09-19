@@ -1,4 +1,4 @@
-"""Búsqueda de geometría por contrato (F2.13, ADR-011). Python puro.
+"""Búsqueda de geometría por contrato (F2.13 (puente), ADR-011). Python puro.
 
 FreeCAD solo extrae hechos (caras cilíndricas del STEP). Decidir cuál
 corresponde a una interfaz se hace aquí, y por eso se prueba sin FreeCAD.

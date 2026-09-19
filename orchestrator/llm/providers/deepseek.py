@@ -38,7 +38,7 @@ class DeepSeekClient:
                 "temperature": temperature,
                 # La API garantiza JSON sintácticamente válido, pero NO que
                 # cumpla nuestro esquema: la validación y el reintento con el
-                # error siguen haciendo falta (F1.2).
+                # error siguen haciendo falta (F1.3 (estructurada)).
                 "response_format": {"type": "json_object"},
             },
         )

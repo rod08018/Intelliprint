@@ -1,4 +1,4 @@
-"""Trazabilidad petición → receta (F1.16).
+"""Trazabilidad petición → receta (F1.16 (trazabilidad)).
 
 El bug real: se pidió "agujeros de 3.3 mm", el resumen perdió la cota y
 el Part Designer puso Ø3.2 sacado de lo que sabe de un NEMA17. La pieza

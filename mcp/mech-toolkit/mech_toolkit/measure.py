@@ -1,4 +1,4 @@
-"""Extracción de hechos geométricos con FreeCAD (F2.13).
+"""Extracción de hechos geométricos con FreeCAD (F2.13 (puente)).
 
 Este script solo LISTA lo que hay: las caras cilíndricas de la pieza. No
 decide qué cara es de qué interfaz; eso lo hace `geometry.py` buscando

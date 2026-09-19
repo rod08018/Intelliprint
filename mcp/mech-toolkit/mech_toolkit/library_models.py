@@ -1,4 +1,4 @@
-"""Modelos de referencia de la librería (F2.3).
+"""Modelos de referencia de la librería (F2.3 (STEP)).
 
 Los modelos de hardware comercial NO los dibuja el sistema: se descargan de
 fuentes independientes (library/models/reference/, con autor y licencia).

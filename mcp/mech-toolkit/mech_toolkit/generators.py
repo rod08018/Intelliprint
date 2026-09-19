@@ -13,7 +13,7 @@ Convenciones de las plantillas:
   que es lo que el epílogo exporta.
 - Marcadores `$param` (string.Template), no `{}`: el cuerpo es Python real.
 
-TODO (F2.1): cuando `mech-toolkit` sea un servicio MCP, `GeneratorSpec` y
+TODO (F2.1 (servicio)): cuando `mech-toolkit` sea un servicio MCP, `GeneratorSpec` y
 `GeneratorCatalog` deberían vivir aquí y el orquestador recibirlos por la
 red. Hoy se importan del orquestador para no duplicar el contrato.
 """

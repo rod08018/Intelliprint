@@ -1,4 +1,4 @@
-"""Encaje físico entre una pieza y su hardware (F2.20).
+"""Encaje físico entre una pieza y su hardware (F2.20 (encaje)).
 
 Encajar NO es "intersección nula": eso cuenta tocarse como encajar, y en
 FDM los agujeros salen algo más pequeños, así que un saliente de Ø22 en un

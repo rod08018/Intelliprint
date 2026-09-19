@@ -1,4 +1,4 @@
-"""Instantánea del G-code de inicio de la AnkerMake M5 (F1.17).
+"""Instantánea del G-code de inicio de la AnkerMake M5 (F1.17 (verificación)).
 
 Es lo primero que ejecuta la impresora. Si cambia —por editar el perfil,
 actualizar PrusaSlicer o regenerar el .ini—, este test falla y obliga a

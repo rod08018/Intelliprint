@@ -1,4 +1,4 @@
-"""Part Designer Agent (F1.7). Ver DECISIONES.md ADR-002.
+"""Part Designer Agent (F1.10 (designer)). Ver DECISIONES.md ADR-002.
 
 No escribe Python: emite una receta de generadores. Un error suyo es un
 parámetro que el esquema rechaza antes de ejecutar nada, en vez de un
@@ -26,7 +26,7 @@ class PartDesignerAgent:
 
     def design(self, tarea: str, rechazo: tuple[str, str] | None = None) -> Recipe:
         """`rechazo` = (receta anterior, motivo por el que FreeCAD no pudo
-        construirla). Es el segundo nivel del bucle de error (F1.11)."""
+        construirla). Es el segundo nivel del bucle de error (F1.11 (bucle))."""
         prompt = (
             f"{self._instrucciones}\n"
             f"## Catálogo de generadores\n\n{self._catalog.describe()}\n"

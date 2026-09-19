@@ -1,4 +1,4 @@
-"""Búsqueda de geometría por contrato (F2.13, ADR-011).
+"""Búsqueda de geometría por contrato (F2.13 (puente), ADR-011).
 
 FreeCAD solo extrae hechos: las caras cilíndricas de la pieza. Aquí se
 decide cuál corresponde a una interfaz, buscando DONDE EL CONTRATO DICE

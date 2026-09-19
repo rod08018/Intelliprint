@@ -1,7 +1,7 @@
-"""Spec → PartTask (F1.9).
+"""Spec → PartTask (F1.9 (PartTask)).
 
 Versión mínima para la Fase 1, con una sola pieza. Cuando haya varias,
-`Decomposition` (F3.2) produce un árbol de tareas y esto desaparece.
+`Decomposition` (F3.2 (decomposition)) produce un árbol de tareas y esto desaparece.
 """
 
 import re

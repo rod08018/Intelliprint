@@ -51,7 +51,7 @@ def _cliente(router: Router, env: dict):
         return DeepSeekClient(api_key=env["DEEPSEEK_API_KEY"], model=ref.model)
     sys.exit(
         f"el perfil {router.profile_name!r} usa {ref.provider}/{ref.model}, y el "
-        "cliente de Ollama todavía no existe: llega con la migración (F0.11)."
+        "cliente de Ollama todavía no existe: llega con la migración (F0.11 (migrar))."
     )
 
 

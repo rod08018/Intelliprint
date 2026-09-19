@@ -1,4 +1,4 @@
-"""Bucle de error, segundo nivel (F1.11).
+"""Bucle de error, segundo nivel (F1.11 (bucle)).
 
 Primer nivel: receta inválida → error de esquema, sin lanzar FreeCAD.
 Segundo nivel: receta VÁLIDA que FreeCAD rechaza al construir → el motivo

@@ -1,7 +1,7 @@
-"""Spec → PartTask (F1.9).
+"""Spec → PartTask (F1.9 (PartTask)).
 
 Con una sola pieza nadie convertía la spec en el enunciado que recibe el
-Part Designer. Con varias lo hará `Decomposition` (F3.2); esto es su
+Part Designer. Con varias lo hará `Decomposition` (F3.2 (decomposition)); esto es su
 versión mínima para la Fase 1.
 """
 

@@ -24,7 +24,7 @@ class PartTask(BaseModel):
     part: str
     brief: str = ""
     """Enunciado que recibe el Part Designer. Con una pieza lo genera
-    `spec_to_task` (F1.9); con varias, `Decomposition` (F3.2)."""
+    `spec_to_task` (F1.9 (PartTask)); con varias, `Decomposition` (F3.2 (decomposition))."""
     state: PartState = "TODO"
     iterations: int = 0
     depends_on: list[str] = []

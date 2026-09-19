@@ -60,7 +60,7 @@ def test_spec_de_pieza_estatica_no_exige_nada_de_eso():
     assert spec.reach_mm is None
 
 
-# --- Procedencia de los datos (F1.2) ----------------------------------------
+# --- Procedencia de los datos (F1.2 (procedencia)) ----------------------------------------
 
 
 def _mecanismo(**extra) -> Spec:

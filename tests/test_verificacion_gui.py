@@ -1,4 +1,4 @@
-"""Verificación en la interfaz real de FreeCAD (F1.17, marcador `gui`).
+"""Verificación en la interfaz real de FreeCAD (F1.17 (verificación), marcador `gui`).
 
 El bug del .FCStd "vacío" pasó los tests porque estos leían el zip, no lo
 que ve el usuario. Este test abre el archivo en la interfaz gráfica y

@@ -1,4 +1,4 @@
-"""Adaptador de consola del HumanPort (F0.9)."""
+"""Adaptador de consola del HumanPort (F0.9 (HumanPort))."""
 
 import sys
 from typing import TextIO

@@ -1,4 +1,4 @@
-"""`intelliprint new` de extremo a extremo (F1.17, marcador `llm`).
+"""`intelliprint new` de extremo a extremo (F1.17 (verificación), marcador `llm`).
 
 Llama a un modelo real y cuesta unos céntimos. Aislado con
 INTELLIPRINT_WORKSPACE: nunca toca el workspace/ de verdad.
@@ -54,7 +54,7 @@ def test_de_la_frase_a_la_pieza(tmp_path, peticion, volumen):
     medido = float(re.search(r"pieza:\s+([\d.]+) mm³", salida).group(1))
     assert medido == pytest.approx(volumen, abs=1.0), salida
 
-    assert "NO aparecen en la pieza" not in salida  # trazabilidad (F1.16)
+    assert "NO aparecen en la pieza" not in salida  # trazabilidad (F1.16 (trazabilidad))
 
     proyecto = next((tmp_path / "projects").iterdir())
     fcstd = next(proyecto.glob("parts/*/*.FCStd"))

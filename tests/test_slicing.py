@@ -1,4 +1,4 @@
-"""Laminado con PrusaSlicer (F1.12 + F1.13).
+"""Laminado con PrusaSlicer (F1.12 (laminado) + F1.13 (slicing)).
 
 Ver PLAN_PROYECTO.md: el perfil de laminado es distinto del de holguras,
 y sin densidad de filamento PrusaSlicer reporta 0 g (lo vimos con el cubo).
@@ -42,7 +42,7 @@ def _cubo_stl(ruta: Path, lado: float = 20.0) -> None:
 
 @pytest.mark.skipif(prusaslicer() is None, reason="PrusaSlicer no disponible")
 def test_el_perfil_de_la_m5_da_gramos_reales(tmp_path):
-    """Criterio de F1.12. Sin densidad en el perfil saldría 0 g, y
+    """Criterio de F1.12 (laminado). Sin densidad en el perfil saldría 0 g, y
     SlicingReport lo rechazaría (es la trampa que vimos con el cubo).
 
     Un cubo de 20 mm son 8 cm³; con relleno parcial el peso real tiene

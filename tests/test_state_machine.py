@@ -61,7 +61,7 @@ def _cli(respuesta: str) -> CliAdapter:
 
 
 def test_la_admision_no_avanza_si_contestas_que_no():
-    """Criterio de F1.4, con la barrera conectada al canal humano real."""
+    """Criterio de F1.5 (INTAKE), con la barrera conectada al canal humano real."""
     with pytest.raises(AprobacionRequerida):
         advance("INTAKE", "SPEC_READY", port=_cli("todavía no\n"))
 

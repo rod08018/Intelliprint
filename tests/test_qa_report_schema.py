@@ -47,7 +47,7 @@ def test_un_defecto_del_llm_da_fail_con_todo_lo_determinista_en_verde():
 
 
 def test_un_qa_agent_complaciente_no_puede_convertir_un_fail_en_pass():
-    """F2.12 a nivel de esquema: la garantía es estructural, no de prompt.
+    """F2.15 (regla) a nivel de esquema: la garantía es estructural, no de prompt.
 
     Simula el peor modelo posible: devuelve `verdict: PASS` y cero defectos
     sobre una pieza con una cota 0.30 mm fuera de tolerancia.

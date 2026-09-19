@@ -45,7 +45,7 @@ def test_receta_rechaza_parametros_obligatorios_que_faltan():
     """Un generador existente llamado con datos incompletos tampoco vale.
 
     El error debe nombrar el parámetro que falta: es lo que se le devuelve
-    al agente para que reintente sin lanzar FreeCAD (F1.7, primer nivel).
+    al agente para que reintente sin lanzar FreeCAD (F1.11 (bucle), primer nivel).
     """
     receta = Recipe(
         part="base_servo",

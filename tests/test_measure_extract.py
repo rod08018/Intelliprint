@@ -1,4 +1,4 @@
-"""Extracción de caras cilíndricas del STEP con FreeCAD (F2.13).
+"""Extracción de caras cilíndricas del STEP con FreeCAD (F2.13 (puente)).
 
 Se usa el STEP y no el .FCStd: el STEP contiene SOLO la pieza final con
 sus cilindros exactos; el .FCStd arrastra brocas, cortes intermedios, etc.

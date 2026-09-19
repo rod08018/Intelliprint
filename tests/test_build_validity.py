@@ -1,4 +1,4 @@
-"""Validez del sólido al construir (F1.7).
+"""Validez del sólido al construir (F1.7 (validez)).
 
 Experimento previo en FreeCAD 1.1.3:
 - Taladro Ø70 en placa de 60: 4 sólidos, isValid()=True, volumen plausible.
@@ -46,7 +46,7 @@ def test_una_pieza_partida_en_trozos_falla_al_construir(tmp_path):
     salida = proceso.stdout + proceso.stderr
 
     assert RESULT_PREFIX not in proceso.stdout
-    assert "4 sólidos" in salida  # el motivo tiene que llegar al agente (F1.11)
+    assert "4 sólidos" in salida  # el motivo tiene que llegar al agente (F1.11 (bucle))
 
 
 @pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")

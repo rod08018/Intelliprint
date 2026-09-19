@@ -1,4 +1,4 @@
-"""Salida estructurada: validar y reintentar con el error (F1.2).
+"""Salida estructurada: validar y reintentar con el error (F1.3 (estructurada)).
 
 Es la base de los once agentes: ninguno devuelve texto libre, todos
 devuelven un esquema validado.

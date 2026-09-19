@@ -1,4 +1,4 @@
-"""Part Designer Agent (F1.7): tarea → receta.
+"""Part Designer Agent (F1.10 (designer)): tarea → receta.
 
 Ver DECISIONES.md ADR-002. No escribe Python: elige generadores.
 """

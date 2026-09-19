@@ -1,4 +1,4 @@
-"""Encaje físico con holgura mínima (F2.20).
+"""Encaje físico con holgura mínima (F2.20 (encaje)).
 
 "Intersección = 0" contaba TOCARSE como ENCAJAR: el soporte de Ø22 contra
 el saliente de Ø22 del motor pasaba, y en FDM ese motor no entra. Encajar
@@ -64,7 +64,7 @@ def test_sin_agujero_donde_dice_el_contrato_no_encaja():
 
 @pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
 def test_el_motivo_dice_que_cambiar_no_solo_que_falla(tmp_path):
-    """El motivo vuelve al Part Designer como defecto (F3.12, reapertura).
+    """El motivo vuelve al Part Designer como defecto (F3.12 (reapertura), reapertura).
     "No encaja" no se puede corregir; "el taladro tiene que ser >= Ø22.35"
     sí: saliente de Ø22 + 2 x 0.175 de holgura radial."""
     resultado = _encaje(tmp_path, taladro=22.0)

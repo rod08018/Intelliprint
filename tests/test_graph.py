@@ -1,4 +1,4 @@
-"""Grafo del proyecto (F1.14) y versionado git por etapa (F1.15).
+"""Grafo del proyecto (F1.14 (grafo)) y versionado git por etapa (F1.15 (git)).
 
 Las dependencias (agentes, construcción, laminado) se inyectan: así el
 grafo se prueba en milisegundos sin LLM ni FreeCAD. Los tests de esas
@@ -105,7 +105,7 @@ def test_el_estado_sobrevive_a_una_caida_y_no_repite_la_admision(tmp_path):
 
 
 def test_cada_etapa_deja_un_commit_en_el_proyecto(tmp_path):
-    """F1.15: el proyecto es un repo git con un commit por etapa, para poder
+    """F1.15 (git): el proyecto es un repo git con un commit por etapa, para poder
     volver atrás y ver qué cambió entre iteraciones."""
     reg = Registro()
     grafo = crear_grafo(_deps(reg, "sí\n", tmp_path), tmp_path / "state.sqlite")

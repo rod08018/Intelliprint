@@ -1,4 +1,4 @@
-"""Mide el criterio de aceptación de F1.2: ≥ 90 % de salidas válidas en 20.
+"""Mide el criterio de aceptación de F1.3 (estructurada): ≥ 90 % de salidas válidas en 20.
 
 Hace llamadas REALES al proveedor del perfil activo, así que no forma
 parte de la suite de tests. Se ejecuta a mano:
@@ -98,7 +98,7 @@ def main(n: int = 20) -> None:
         print(f"{clave:20s} {valor:3d}  ({valor / n:.0%})")
 
     validas = resultados["ok"] + resultados["ok_tras_reintento"]
-    print(f"\nVálidas totales: {validas}/{n} = {validas / n:.0%}  (criterio F1.2: ≥ 90 %)")
+    print(f"\nVálidas totales: {validas}/{n} = {validas / n:.0%}  (criterio F1.3 (estructurada): ≥ 90 %)")
     if intentos_usados:
         print(f"Intentos por éxito: media {sum(intentos_usados)/len(intentos_usados):.2f}")
 

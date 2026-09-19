@@ -35,7 +35,7 @@ class Spec(BaseModel):
     payload_g: float | None = None
 
     estimated: list[str] = []
-    """Campos que el modelo SUPUSO en vez de oírselos al usuario (F1.2).
+    """Campos que el modelo SUPUSO en vez de oírselos al usuario (F1.2 (procedencia)).
 
     Sin esta marca, un `payload_g` inventado es indistinguible de uno
     dicho por el usuario, y la admisión no sabe qué tiene que preguntar."""
@@ -43,7 +43,7 @@ class Spec(BaseModel):
     @property
     def estimated_critical(self) -> list[str]:
         """Estimados de los que depende una fase posterior: los que la
-        admisión debe preguntar (F5.3). Un material supuesto no rompe nada;
+        admisión debe preguntar (F5.3 (admisión)). Un material supuesto no rompe nada;
         una carga inventada da un actuador que no puede con ella."""
         exigidos = _OBLIGATORIOS_POR_CLASE[self.product_class]
         return [c for c in self.estimated if c in exigidos]

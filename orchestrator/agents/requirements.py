@@ -1,4 +1,4 @@
-"""Requirements Agent (F1.3). Ver SISTEMA_MULTIAGENTE.md § 4.1 y § 4.2.
+"""Requirements Agent (F1.4 (requirements)). Ver SISTEMA_MULTIAGENTE.md § 4.1 y § 4.2.
 
 Es el único agente que corre antes de tu confirmación, y el que decide
 la clase de producto — que a su vez decide qué agentes correrán después
@@ -23,7 +23,7 @@ class RequirementsAgent:
 
         Si el modelo clasifica como `robot` u omite un dato obligatorio de
         la clase, el esquema lo rechaza y `structured` le devuelve el error
-        exacto para que lo corrija (ADR-010 + F1.2). La coherencia entre
+        exacto para que lo corrija (ADR-010 + F1.3 (estructurada)). La coherencia entre
         clase y datos no depende del prompt: la impone el esquema.
         """
         partes = [self._instrucciones, "\n## Petición\n", peticion]

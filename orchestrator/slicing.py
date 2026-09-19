@@ -1,9 +1,9 @@
-"""Laminado con PrusaSlicer (F1.12 + F1.13).
+"""Laminado con PrusaSlicer (F1.12 (laminado) + F1.13 (slicing)).
 
 El laminado de una pieza no necesita un LLM: es una llamada determinista
 a PrusaSlicer y leer las estadísticas que deja en el G-code. El "Slicing
 Agent" solo tendrá trabajo de verdad cuando haya que agrupar varias piezas
-en placas (F3.13).
+en placas (F3.13 (placas)).
 """
 
 import os

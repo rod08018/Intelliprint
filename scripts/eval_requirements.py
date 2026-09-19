@@ -1,4 +1,4 @@
-"""Mide el criterio de F1.3: 10 pedidos → spec válida y clase correcta.
+"""Mide el criterio de F1.4 (requirements): 10 pedidos → spec válida y clase correcta.
 
 Llamadas REALES al proveedor del perfil activo. No es parte de la suite.
 
@@ -72,7 +72,7 @@ def main() -> None:
 
     n = len(CASOS)
     print(f"\nSpecs válidas:    {validas}/{n}")
-    print(f"Clase correcta:   {aciertos}/{n}   (criterio F1.4: 10/10)")
+    print(f"Clase correcta:   {aciertos}/{n}   (criterio F1.4 (requirements): 10/10)")
     print(f"Procedencia bien: {procedencia_ok}/{n}   (lo dicho por el usuario no sale como estimado)")
 
 

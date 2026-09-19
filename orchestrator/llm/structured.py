@@ -1,4 +1,4 @@
-"""Salida estructurada con validación y reintento (F1.2).
+"""Salida estructurada con validación y reintento (F1.3 (estructurada)).
 
 Ningún agente devuelve texto libre: todos devuelven un esquema validado.
 Cuando la validación falla, se le reenvía al modelo **el error exacto**,

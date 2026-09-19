@@ -1,4 +1,4 @@
-"""Mide el criterio de F1.7: soporte NEMA17 correcto en ≥ 4 de 5 intentos.
+"""Mide el criterio de F1.10 (designer): soporte NEMA17 correcto en ≥ 4 de 5 intentos.
 
 Ciclo completo y real: el agente emite la receta, el orquestador compone
 `build.py`, FreeCAD lo ejecuta sin GUI, y se comprueba el VOLUMEN del
@@ -113,7 +113,7 @@ def main(n: int = 5) -> None:
             f"pasos={[p.generator.replace('generate_', '') for p in receta.steps]}"
         )
 
-    print(f"\nCorrectos: {correctos}/{n}   (criterio F1.7: ≥ 4/5)")
+    print(f"\nCorrectos: {correctos}/{n}   (criterio F1.10 (designer): ≥ 4/5)")
 
 
 if __name__ == "__main__":

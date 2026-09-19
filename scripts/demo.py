@@ -8,9 +8,9 @@ Designer emite una receta validada contra el catálogo, el orquestador
 compone `build.py` y FreeCAD lo ejecuta sin interfaz.
 
 Lo que AÚN NO hace, y por qué:
-  - No pasa QA: falta el puente aserción↔medición (F2.13).
-  - No usa Telegram: el adaptador es F5.6, semana 16.
-  - No es el grafo de LangGraph (F1.14): aquí los pasos van en línea.
+  - No pasa QA: falta el puente aserción↔medición (F2.13 (puente)).
+  - No usa Telegram: el adaptador es F5.6 (telegram), semana 16.
+  - No es el grafo de LangGraph (F1.14 (grafo)): aquí los pasos van en línea.
 """
 
 import datetime as dt
@@ -169,7 +169,7 @@ def main(peticion: str) -> None:
     for archivo in sorted(carpeta.iterdir()):
         port.notify(f"  {archivo.name}  ({archivo.stat().st_size:,} bytes)")
     port.notify(f"\nEstado del proyecto: {estado} → pieza construida.")
-    port.notify(f"G-code en {fabricacion.relative_to(RAIZ)}. Pendiente: QA (F2.13).")
+    port.notify(f"G-code en {fabricacion.relative_to(RAIZ)}. Pendiente: QA (F2.13 (puente)).")
 
 
 if __name__ == "__main__":
