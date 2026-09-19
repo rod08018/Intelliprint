@@ -45,8 +45,17 @@ if not _forma.isValid():
                        "(forma degenerada o cáscara abierta)")
 _n_solidos = len(_forma.Solids)
 if _n_solidos != 1:
+    # Dónde está cada trozo: con "2 sólidos" a secas el agente no sabe qué
+    # cuerpo quedó suelto (fallo real en la bisagra: tres rondas sin arreglarlo).
+    _trozos = "; ".join(
+        "trozo %d: x de %.4g a %.4g, y de %.4g a %.4g, z de %.4g a %.4g" % (
+            _i + 1, _s.BoundBox.XMin, _s.BoundBox.XMax, _s.BoundBox.YMin,
+            _s.BoundBox.YMax, _s.BoundBox.ZMin, _s.BoundBox.ZMax)
+        for _i, _s in enumerate(_forma.Solids))
     raise RuntimeError("INTELLIPRINT_FALLO: la pieza salió en %d sólidos "
-                       "separados; debería ser una sola" % _n_solidos)
+                       "separados; debería ser una sola (%s). Los cuerpos que "
+                       "forman una pieza tienen que solaparse, no solo tocarse "
+                       "en una cara o una arista." % (_n_solidos, _trozos))
 
 # optimalBoundingBox y no BoundBox: la de una B-spline (resortes) sale holgada
 # y la comprobación de posición del ensamble la daría por mal colocada.

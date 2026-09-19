@@ -21,12 +21,14 @@ PROMPT_PATH = Path("config/agents/mechanism_designer.md")
 class MechanismDesignerAgent:
     def __init__(self, client: LlmClient, catalog: GeneratorCatalog, profile: PrinterProfile,
                  bed_mm: tuple[float, float, float], min_gap_mm: float,
+                 wall_mm: float = 1.8,
                  prompt_path: Path = PROMPT_PATH) -> None:
         self._client = client
         self._instrucciones = prompt_path.read_text(encoding="utf-8").format(
             min_gap=f"{min_gap_mm:g}", bed=" × ".join(f"{v:g}" for v in bed_mm),
             profile_id=profile.id, clearance=f"{profile.fit_mm('clearance'):g}",
             slide=f"{profile.fit_mm('slide'):g}", press=f"{profile.fit_mm('press'):g}",
+            wall=f"{wall_mm:g}",
             catalog=catalog.describe(),
         )
 

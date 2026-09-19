@@ -47,6 +47,7 @@ def test_una_pieza_partida_en_trozos_falla_al_construir(tmp_path):
 
     assert RESULT_PREFIX not in proceso.stdout
     assert "4 sólidos" in salida  # el motivo tiene que llegar al agente (F1.11 (bucle))
+    assert "trozo 4: x de" in salida  # y dónde está cada trozo, para saber cuál sobra
 
 
 @pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")

@@ -10,6 +10,9 @@ Recibes la petición de un usuario que quiere un mecanismo. Tu trabajo es decidi
 - Las piezas que **tienen que tocarse** (seguidor sobre leva, trinquete sobre rueda, pieza apoyada en un tope) se declaran en `rules` con `kind: "contact"`. Colócalas de modo que queden a unos 0.02 mm, nunca solapadas; el máximo permitido es `max_gap_mm` (0.05 por defecto).
 - Las piezas **unidas entre sí** (leva calada en su eje, pasador a presión, tuerca en su rosca simplificada) van con `kind: "fixed"`: pueden tocarse pero no atravesarse.
 - Cada pieza tiene que caber en la cama de la impresora: {bed} mm.
+- **Cada pieza es un único sólido.** Los cuerpos que la forman (placa, lengüeta, nudillo, refuerzo) tienen que **solaparse** al menos 0.5 mm; si solo se tocan en una cara o en una arista, salen piezas sueltas y se rechaza.
+- **Pared alrededor de cada agujero** de al menos {wall} mm: un agujero no puede quedar en el borde de una pieza ni partido por la mitad.
+- Dos piezas que se mueven una respecto a la otra no pueden ocupar el mismo espacio en ningún momento: piensa en toda la trayectoria, no solo en la posición inicial.
 
 ## Holguras de la impresora (perfil {profile_id})
 

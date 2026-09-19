@@ -169,7 +169,8 @@ def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> 
     print(f"[{nombre}] Mecanismo desde tu texto ({router.profile_name}) → {carpeta}")
     informe = design_mechanism(
         peticion,
-        MechanismDesignerAgent(cliente, CATALOGO, perfil, cama, hueco),
+        MechanismDesignerAgent(cliente, CATALOGO, perfil, cama, hueco,
+                               wall_mm=impresora["walls"]["structural_mm"]),
         PartDesignerAgent(cliente, CATALOGO),
         carpeta, _freecadcmd(env), min_gap_mm=hueco,
     )
