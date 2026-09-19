@@ -30,4 +30,7 @@ class RequirementsAgent:
         if adjuntos:
             partes.append("\n\n## Adjuntos\n")
             partes.extend(f"- {a}\n" for a in adjuntos)
-        return structured(self._client, "".join(partes), Spec)
+        spec = structured(self._client, "".join(partes), Spec)
+        # La petición literal la fija el código después de la llamada: el
+        # modelo no puede perderla ni reescribirla al resumir.
+        return spec.model_copy(update={"request": peticion})

@@ -23,6 +23,10 @@ del modelo, así que marcarlos como estimados no aportaría nada."""
 class Spec(BaseModel):
     title: str
     description: str
+    request: str = ""
+    """Petición LITERAL del usuario. La pone el código, no el modelo: el
+    resumen de `description` puede perder cotas y esto no (bug real: el
+    modelo resumió "agujeros de 3.3 mm" y el diseñador acabó usando 3.2)."""
     product_class: ProductClass
     printer: str
     material: str

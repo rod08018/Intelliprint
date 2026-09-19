@@ -20,9 +20,14 @@ def slug(texto: str) -> str:
 
 
 def spec_to_task(spec: Spec) -> PartTask:
-    brief = (
-        f"Pieza: `{slug(spec.title)}`.\n\n"
-        f"{spec.description}\n\n"
-        f"Se imprimirá en {spec.material} en una {spec.printer}."
-    )
+    brief = f"Pieza: `{slug(spec.title)}`.\n\n{spec.description}\n\n"
+    if spec.request:
+        # La petición literal va entera: el resumen de arriba puede haber
+        # perdido cotas, y lo que dijo el usuario manda sobre lo que sepas
+        # tú de ese tipo de pieza.
+        brief += (
+            "Petición literal del usuario. Sus cotas mandan sobre cualquier "
+            f"valor que conozcas para este tipo de pieza:\n> {spec.request}\n\n"
+        )
+    brief += f"Se imprimirá en {spec.material} en una {spec.printer}."
     return PartTask(part=slug(spec.title), brief=brief)

@@ -32,3 +32,13 @@ def test_el_nombre_de_la_pieza_es_un_slug_usable_como_archivo():
 
     assert tarea.part == "soporte_de_vaso_para_carruaje"
     assert tarea.state == "TODO"
+
+
+def test_el_enunciado_lleva_la_peticion_literal_del_usuario():
+    """Las cotas que dio el usuario tienen que llegar al Part Designer
+    aunque el resumen de la spec las haya perdido."""
+    spec = _SPEC.model_copy(update={"request": "agujeros de 3.3 mm en cuadro de 31"})
+
+    tarea = spec_to_task(spec)
+
+    assert "agujeros de 3.3 mm en cuadro de 31" in tarea.brief

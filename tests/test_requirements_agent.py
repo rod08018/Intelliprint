@@ -89,3 +89,28 @@ def test_un_robot_sin_alcance_se_corrige_solo_en_el_reintento():
 
     assert spec.reach_mm == 400
     assert "reach_mm" in cliente.prompts[1]  # el error le dijo qué faltaba
+
+
+def test_la_peticion_literal_se_conserva_aunque_el_resumen_pierda_las_cotas():
+    """Bug encontrado al ejecutar `intelliprint new` de verdad.
+
+    El modelo resumió "agujeros de 3.3 mm en cuadro de 31" como "cuatro
+    agujeros de sujeción". El Part Designer adivinó Ø3.2 a partir de lo
+    que sabe de un NEMA17 y la pieza salió con un valor que contradice lo
+    pedido. La petición literal la pone el CÓDIGO, no el modelo: no puede
+    perderse al resumir.
+    """
+    resumen_sin_cotas = json.dumps(
+        {
+            "title": "Soporte NEMA17",
+            "description": "Placa de montaje con taladro central y cuatro agujeros.",
+            "product_class": "static_part",
+            "printer": "ankermake_m5_petg",
+            "material": "PETG",
+        }
+    )
+    peticion = "placa de 60x60x6 con agujeros de 3.3 mm en cuadro de 31 mm"
+
+    spec = RequirementsAgent(ClienteGuionizado([resumen_sin_cotas])).draft(peticion)
+
+    assert spec.request == peticion
