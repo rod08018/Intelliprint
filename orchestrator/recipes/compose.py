@@ -48,7 +48,9 @@ if _n_solidos != 1:
     raise RuntimeError("INTELLIPRINT_FALLO: la pieza salió en %d sólidos "
                        "separados; debería ser una sola" % _n_solidos)
 
-_bb = _forma.BoundBox
+# optimalBoundingBox y no BoundBox: la de una B-spline (resortes) sale holgada
+# y la comprobación de posición del ensamble la daría por mal colocada.
+_bb = _forma.optimalBoundingBox()
 
 # La visibilidad que ve el usuario al abrir el .FCStd NO sale de aquí: sin
 # interfaz no hay GuiDocument.xml y FreeCAD lo abre todo oculto. Eso lo

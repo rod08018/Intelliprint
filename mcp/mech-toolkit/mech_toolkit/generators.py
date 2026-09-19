@@ -114,6 +114,85 @@ _corte.Tool = _broca_h
 doc.recompute()
 """
 
+
+# --- Cuerpos que se suman a lo anterior -------------------------------------
+# `_sumar` fusiona `_forma` con el último cuerpo, si lo hay. Así una pieza se
+# compone de varios pasos (placa + soportes + cilindros) sin booleanas a mano.
+_SUMAR = """
+_previos = [o for o in doc.Objects if hasattr(o, "Shape") and o.Shape.Volume > 0]
+if _previos:
+    _forma = _previos[-1].Shape.fuse(_forma).removeSplitter()
+_obj = doc.addObject("Part::Feature", "cuerpo")
+_obj.Shape = _forma
+doc.recompute()
+"""
+
+_RESTAR = """
+_previo = [o for o in doc.Objects if hasattr(o, "Shape") and o.Shape.Volume > 0][-1]
+_obj = doc.addObject("Part::Feature", "corte")
+_obj.Shape = _previo.Shape.cut(_herramienta).removeSplitter()
+doc.recompute()
+"""
+
+_EJES = """
+_dir = {"x": FreeCAD.Vector(1, 0, 0), "y": FreeCAD.Vector(0, 1, 0), "z": FreeCAD.Vector(0, 0, 1)}[$axis]
+"""
+
+# Cilindro con la base en (x, y, z) que crece hacia +eje: ejes, nudillos de
+# bisagra, pasadores, discos de leva, casquillos.
+_CILINDRO = _EJES + """
+_forma = Part.makeCylinder(($diameter_mm) / 2.0, $length_mm,
+                           FreeCAD.Vector($x_mm, $y_mm, $z_mm), _dir)
+""" + _SUMAR
+
+# Agujero pasante a lo largo de un eje, que pasa por (x, y, z).
+_AGUJERO_EJE = _EJES + """
+_p = FreeCAD.Vector($x_mm, $y_mm, $z_mm) - _dir * 500.0
+_herramienta = Part.makeCylinder(($diameter_mm) / 2.0, 1000.0, _p, _dir)
+""" + _RESTAR
+
+# Vaciado con una caja (ranuras, alojamientos). Mismo convenio que generate_box.
+_VACIADO = """
+_herramienta = Part.makeBox($length_mm, $width_mm, $height_mm, FreeCAD.Vector(
+    ($x_mm) - ($length_mm) / 2.0, ($y_mm) - ($width_mm) / 2.0, $z_mm))
+""" + _RESTAR
+
+# Prisma de un polígono en planta [[x, y], ...], de z a z + espesor.
+_PRISMA = """
+_pts = [FreeCAD.Vector(_x, _y, $z_mm) for _x, _y in $points_mm]
+_forma = Part.Face(Part.makePolygon(_pts + [_pts[0]])).extrude(FreeCAD.Vector(0, 0, $thickness_mm))
+""" + _SUMAR
+
+# Rueda de trinquete con dientes de sierra, centrada en el origen, de z = 0 a
+# z = espesor. Cada diente sube en línea recta del fondo (ángulo k·p) a la
+# punta (ángulo (k+1)·p) y cae en radial: la cara radial es la que empuja el
+# trinquete. Gira en sentido antihorario para avanzar. El mismo perfil está en
+# sim.ratchet; si cambia aquí, tiene que cambiar allí.
+_RUEDA_TRINQUETE = """
+import math as _m
+_n = int($teeth)
+_p = 2 * _m.pi / _n
+_pts = []
+for _k in range(_n):
+    for _r, _a in ((($root_diameter_mm) / 2.0, _k * _p), (($tip_diameter_mm) / 2.0, (_k + 1) * _p)):
+        _pts.append(FreeCAD.Vector(_r * _m.cos(_a), _r * _m.sin(_a), 0))
+_forma = Part.Face(Part.makePolygon(_pts + [_pts[0]])).extrude(FreeCAD.Vector(0, 0, $thickness_mm))
+""" + _SUMAR
+
+# Resorte helicoidal a lo largo de +z, de z = 0 a z = largo. Representación
+# simplificada: se estira o se comprime escalando en z al ensamblar.
+_RESORTE = """
+# La hélice va de w/2 a L - w/2: con el alambre, el resorte ocupa de 0 a L y
+# sus puntas no se meten en los asientos.
+_helice = Part.makeHelix($pitch_mm, ($length_mm) - ($wire_diameter_mm), ($coil_diameter_mm) / 2.0)
+_helice.translate(FreeCAD.Vector(0, 0, ($wire_diameter_mm) / 2.0))
+_ini = _helice.Edges[0].valueAt(_helice.Edges[0].FirstParameter)
+_tan = _helice.Edges[0].tangentAt(_helice.Edges[0].FirstParameter)
+_perfil = Part.Wire(Part.makeCircle(($wire_diameter_mm) / 2.0, _ini, _tan))
+_forma = Part.Wire(_helice.Edges).makePipeShell([_perfil], True, True)
+""" + _SUMAR
+
+
 CATALOGO = GeneratorCatalog(
     [
         GeneratorSpec(
@@ -146,6 +225,38 @@ CATALOGO = GeneratorCatalog(
             name="generate_hole",
             required_params={"diameter_mm", "x_mm", "y_mm"},
             template=_AGUJERO,
+        ),
+        GeneratorSpec(
+            name="generate_cylinder",
+            required_params={"diameter_mm", "length_mm", "x_mm", "y_mm", "z_mm"},
+            choice_params={"axis": {"x", "y", "z"}},
+            template=_CILINDRO,
+        ),
+        GeneratorSpec(
+            name="generate_hole_axis",
+            required_params={"diameter_mm", "x_mm", "y_mm", "z_mm"},
+            choice_params={"axis": {"x", "y", "z"}},
+            template=_AGUJERO_EJE,
+        ),
+        GeneratorSpec(
+            name="generate_cut_box",
+            required_params={"length_mm", "width_mm", "height_mm", "x_mm", "y_mm", "z_mm"},
+            template=_VACIADO,
+        ),
+        GeneratorSpec(
+            name="generate_prism",
+            required_params={"points_mm", "thickness_mm", "z_mm"},
+            template=_PRISMA,
+        ),
+        GeneratorSpec(
+            name="generate_ratchet_wheel",
+            required_params={"teeth", "tip_diameter_mm", "root_diameter_mm", "thickness_mm"},
+            template=_RUEDA_TRINQUETE,
+        ),
+        GeneratorSpec(
+            name="generate_spring",
+            required_params={"coil_diameter_mm", "wire_diameter_mm", "pitch_mm", "length_mm"},
+            template=_RESORTE,
         ),
     ]
 )
