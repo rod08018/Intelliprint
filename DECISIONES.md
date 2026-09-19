@@ -24,9 +24,9 @@ Fecha de la sesión: **2026-09-18**.
 
 ## ADR-002 · El Part Designer emite recetas, no Python
 
-**Estado:** aceptada · **Afecta a:** § 2, § 5, § 6.3, § 8.3; F1.4, F1.6, F1.7
+**Estado:** aceptada · **Afecta a:** § 2, § 5, § 6.3, § 8.3; F1.6, F1.10, F1.11, F2.9
 
-**Problema.** El documento original estaba a medio camino entre dos arquitecturas incompatibles: F1.6 decía que el agente genera `build.py`, y § 9.2 decía que `mech-toolkit` tiene generadores. La tabla de riesgos calificaba "macros generadas por un modelo pequeño" como probabilidad **alta** e impacto **alto** — el mayor riesgo del proyecto.
+**Problema.** El documento original estaba a medio camino entre dos arquitecturas incompatibles: la tarea del Part Designer decía que el agente genera `build.py`, y § 9.2 decía que `mech-toolkit` tiene generadores. La tabla de riesgos calificaba "macros generadas por un modelo pequeño" como probabilidad **alta** e impacto **alto** — el mayor riesgo del proyecto.
 
 **Decisión.** El Part Designer emite una **receta**: una lista validada contra esquema de llamadas a generadores con sus parámetros. `build.py` lo compone el orquestador. Existe una **escotilla** para piezas atípicas donde sí se permite Python libre, con DeepSeek y `validate_macro`.
 
@@ -41,7 +41,7 @@ Fecha de la sesión: **2026-09-18**.
 
 ## ADR-003 · El veredicto del QA es aritmético; el LLM solo puede añadir defectos
 
-**Estado:** aceptada · **Afecta a:** § 3.3, § 7.1; F2.10–F2.13
+**Estado:** aceptada · **Afecta a:** § 3.3, § 7.1; F2.12–F2.16
 
 **Problema.** El riesgo "QA aprueba todo" estaba mitigado únicamente con "usa otro modelo". Es una defensa débil: un `gemma3:12b` tampoco sabe qué debería medir en una pieza que no diseñó, y sigue siendo un LLM emitiendo un juicio.
 
@@ -133,7 +133,7 @@ El LLM escribe en una **lista de defectos**, nunca en el veredicto. No existe ni
 
 **Estado:** aceptada, **temporal** · **Afecta a:** § 6.1.1; `config/models.yaml`, `.env`
 
-**Problema.** El desarrollo empezó en un portátil sin GPU y la máquina de destino (RTX 5090) no estaba disponible. Todo lo que necesita un LLM —F1.2 salida estructurada, F1.3 Requirements, F1.7 Part Designer, F1.8 bucle de error— quedaba bloqueado.
+**Problema.** El desarrollo empezó en un portátil sin GPU y la máquina de destino (RTX 5090) no estaba disponible. Todo lo que necesita un LLM —F1.3 salida estructurada, F1.4 Requirements, F1.10 Part Designer, F1.11 bucle de error— quedaba bloqueado.
 
 **Decisión.** El perfil `dev` apunta a `deepseek/deepseek-chat` en la nube, con la clave en `.env` (no versionado). El perfil `prod` no cambia.
 
@@ -149,7 +149,7 @@ El LLM escribe en una **lista de defectos**, nunca en el veredicto. No existe ni
 
 ## ADR-008 · Fase de admisión conversacional, con `submit()` en el `HumanPort`
 
-**Estado:** aceptada · **Afecta a:** § 4.1, § 8.5, § 5.2; F1.3, F5.5
+**Estado:** aceptada · **Afecta a:** § 4.1, § 8.5, § 5.2; F1.5, F5.2, F5.3
 
 **Problema.** El `HumanPort` de ADR-006 solo cubría la dirección sistema → humano (`ask`, `notify`). Las peticiones de cambio iban de humano a sistema, pero **solo sobre un proyecto existente**. No había forma de *arrancar* uno salvo el comando de consola `intelliprint new`, que obliga a estar delante del PC para empezar y luego permite seguirlo desde el móvil — al revés de como se usa en la práctica.
 
@@ -175,7 +175,7 @@ Y un estado `INTAKE` delante de todo, donde el Requirements Agent **conversa** h
 
 ## ADR-009 · Registro global de proyectos
 
-**Estado:** aceptada · **Afecta a:** § 5.1, regla 9 de § 4; F1.11
+**Estado:** aceptada · **Afecta a:** § 5.1, regla 9 de § 4; F5.1, F5.4
 
 **Problema.** El diseño original asumía un proyecto cada vez: un directorio `workspace/projects/<proyecto>/` con su `state.sqlite`. El uso real es **muchos proyectos simultáneos y heterogéneos** —una garra, un soporte para un carruaje, un brazo— y no había forma de preguntar qué hay en marcha ni cuál espera algo del usuario.
 
@@ -189,7 +189,7 @@ El registro guarda por proyecto: id, nombre, clase, estado, fechas, coste acumul
 
 ## ADR-010 · Clases de producto y fases condicionales
 
-**Estado:** aceptada · **Afecta a:** § 4.2, § 2; F1.3, F4.10
+**Estado:** aceptada · **Afecta a:** § 4.2, § 2; F1.4, F4.10
 
 **Problema.** La arquitectura era **robot-céntrica**. La Fase 2 son tres agentes —Kinematics, Actuation, Electronics— y para un soporte estático los tres sobran. El coste no es el tiempo: es que **un agente al que se le pide la cinemática de un soporte se la inventa**, y esa invención entra en las interfaces y contamina el diseño.
 

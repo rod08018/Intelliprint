@@ -68,25 +68,27 @@ Los 92 GB de RAM hacen que el consumo de los contenedores (`mech-toolkit`, `sim`
 
 ## 3. Resumen de fases
 
-| Fase | Nombre | Resultado | Esfuerzo estimado* |
-|------|--------|-----------|--------------------|
 | Fase | Nombre | Resultado | Semanas |
 |------|--------|-----------|---------|
 | 0 | Infraestructura | Docker + Ollama + puentes MCP + esqueleto del orquestador | 1 |
-| 1 | Pipeline de una pieza | Contratos, admisión mínima, receta → `build.py` → STL → laminado | 3 |
-| 2 | Herramientas deterministas y QA | `mech-toolkit`, librería de hardware, QA de tres capas | 3 |
+| 1 | Pipeline de una pieza | Contratos, admisión mínima, receta → `build.py` → STL → laminado | 4 |
+| 2 | Herramientas deterministas y QA | `mech-toolkit`, librería de hardware, QA de tres capas, escotilla | 4 |
 | 3 | Descomposición y ensamble | Varias piezas en paralelo, interfaces, ensamble e interferencias | 3 |
 | 4 | Ingeniería de sistema y simulación | Cinemática, actuación, electrónica, `sim`, fases condicionales | 3 |
 | 5 | Multiproyecto y canal humano | Registro, admisión conversacional, web y Telegram, escalamiento | 4 |
 | 6 | Endurecimiento | Evaluaciones, métricas, documentación, brazo de 6 GDL | 2 |
 
-| Semana | 1 | 2–4 | 5–7 | 8–10 | 11–13 | 14–17 | 18–19 |
+| Semana | 1 | 2–5 | 6–9 | 10–12 | 13–15 | 16–19 | 20–21 |
 |---|---|---|---|---|---|---|---|
 | **Fase** | 0 | 1 | 2 | 3 | 4 | 5 | 6 |
 
-Estimado para dedicación parcial (~10–15 h/semana). Total: **19 semanas**.
+Estimado para dedicación parcial (~10–15 h/semana). Total: **21 semanas**.
 
-> **Por qué creció de 15 a 19.** No es un ajuste de estimación, es alcance nuevo: admisión conversacional, registro multiproyecto, clases de producto, `HumanPort` con tres adaptadores y canal de Telegram. Nada de eso estaba en el plan original.
+> **De 15 a 21 semanas, en dos saltos y por motivos distintos.**
+>
+> De 15 a 19 fue **alcance nuevo**: admisión conversacional, registro multiproyecto, clases de producto, `HumanPort` con tres adaptadores y Telegram.
+>
+> De 19 a 21 fue **trabajo que faltaba en el plan** y salió al construir las primeras tareas: el puente entre aserciones y mediciones, el perfil de laminado de PrusaSlicer, la escotilla de Python, la conversión de spec a tarea de pieza, la procedencia de los datos, la validez del sólido y el entorno de desarrollo. No es alcance añadido: son pasos que siempre hicieron falta y no estaban escritos.
 
 **Las fases 3 y 4 no son estrictamente secuenciales para la clase `robot`.** La resolución de interfaces necesita la cinemática (§ 5), así que la Fase 3 se cierra con `static_part` y `mechanism` —el entregable es la garra— y el `robot` completo no cierra hasta la Fase 4. Por eso los hitos H3 y H4 son de clases distintas.
 
@@ -122,7 +124,7 @@ Convención de IDs: `F<fase>.<tarea>`. Cada tarea tiene un criterio de aceptaci�
 
 ---
 
-### Fase 1 — Pipeline de una pieza (semanas 2–4)
+### Fase 1 — Pipeline de una pieza (semanas 2–5)
 
 **Objetivo:** primer flujo con LLM de extremo a extremo para una pieza simple, con los contratos que sostienen toda la arquitectura.
 
@@ -130,17 +132,22 @@ Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto
 
 | ID | Tarea | Criterio de aceptación |
 |----|-------|------------------------|
-| F1.1 | Esquemas Pydantic: `Spec` (**con `class`**, § 4.2), `Interface` (estados `symbolic`/`resolved`), `Recipe`, `PartTask`, `PartResult`, `QaReport`, `SlicingReport` | Validación falla con mensajes claros; una interfaz simbólica con geometría y una resuelta sin ella se rechazan |
-| F1.2 | Salida estructurada: JSON mode de Ollama + validación + reintento con el error | ≥ 90 % de respuestas válidas en 20 pruebas con `qwen3.8` |
-| F1.3 | **Requirements Agent**: produce `spec.yaml` y **clasifica el producto** (`static_part` / `mechanism` / `robot`) | Convierte 10 pedidos de prueba en `spec.yaml` válidos; clasifica correctamente 10 de 10, incluidos soportes estáticos |
-| F1.4 | Estado `INTAKE` con **confirmación obligatoria**, vía `HumanPort` (adaptador CLI de F0.9) | Test estructural: **no existe camino de `INTAKE` a `DECOMPOSED` sin confirmación**. Intentarlo lanza error, no avanza |
-| F1.5 | Plantillas de macros FreeCAD (sketch + pad + pocket + fillet, export STL/STEP) y `compose_build_script(recipe)` que las ensambla | Una receta produce un `build.py` que corre en `freecadcmd` y devuelve el volumen esperado del sólido |
-| F1.6 | RAG mínimo: indexar en Qdrant la API Python de FreeCAD (Part/PartDesign/Sketcher) + ejemplos propios | Una consulta "pocket circular en cara superior" devuelve el ejemplo correcto |
-| F1.7 | **Part Designer Agent**: emite `recipe.json` (**no Python**); el orquestador compone `build.py` y lo ejecuta en `freecadcmd` | Soporte NEMA17 con dimensiones correctas en ≥ 4 de 5 intentos |
-| F1.8 | Bucle de error en dos niveles: receta inválida → error de esquema al agente (barato, sin ejecutar); fallo de ejecución → traceback (máx. 3) | Tasa de éxito final ≥ 4 de 5; los errores de esquema se detectan **sin lanzar FreeCAD** |
-| F1.9 | **Slicing/Cost Agent** mínimo: laminar con perfil fijo y leer estadísticas | Reporte con gramos, tiempo y si requiere soportes |
-| F1.10 | Grafo LangGraph lineal: `INTAKE` → Part Designer → Slicing, con estado en `state.sqlite` | Un comando de consola ejecuta todo y deja los artefactos en `workspace/projects/<id>/` |
-| F1.11 | Versionado git automático del proyecto tras cada estado | `git log` del proyecto muestra un commit por etapa |
+| F1.0 | Entorno de desarrollo: `pyproject.toml`, venv, dependencias, `pytest` configurado | `pytest` corre desde el repo limpio tras un solo comando de instalación |
+| F1.1 | Esquemas Pydantic: `Spec` (**con `class`** y **procedencia por campo**, ver F1.2), `Interface` (`symbolic`/`resolved`), `Recipe`, `PartTask`, `PartResult`, `QaReport`, `SlicingReport` | Validación falla con mensajes claros; una interfaz simbólica con geometría y una resuelta sin ella se rechazan |
+| F1.2 | **Procedencia de los datos**: cada campo de `spec.yaml` marca si lo dijo el usuario o lo estimó el modelo | Una spec con `payload_g` estimado queda distinguible de una con `payload_g` dicho por el usuario |
+| F1.3 | Salida estructurada: JSON mode + validación + reintento con el error exacto | ≥ 90 % de respuestas válidas en 20 pruebas con `qwen3.8` |
+| F1.4 | **Requirements Agent**: produce `spec.yaml`, **clasifica el producto** y **marca qué estimó** | 10 pedidos → specs válidas; clase correcta 10 de 10, incluidos soportes estáticos; los campos inventados quedan marcados como estimados |
+| F1.5 | Estado `INTAKE` con **confirmación obligatoria**, vía `HumanPort` (adaptador CLI de F0.9) | Test estructural: **no existe camino de `INTAKE` a `DECOMPOSED` sin confirmación**. Intentarlo lanza error, no avanza |
+| F1.6 | Plantillas de macros FreeCAD (sketch + pad + pocket + fillet, export STL/STEP) y `compose_build_script(recipe)` que las ensambla | Una receta produce un `build.py` que corre en `freecadcmd` y devuelve el volumen esperado del sólido |
+| F1.7 | **Validez del sólido** en el epílogo de `build.py`: `Shape.isValid()` y número de sólidos esperado | Una booleana que deja una forma degenerada **falla al construir**, no tres fases después. Test con un caso de cara coincidente |
+| F1.8 | RAG mínimo: indexar en Qdrant la API Python de FreeCAD (Part/PartDesign/Sketcher) + ejemplos propios | Una consulta "pocket circular en cara superior" devuelve el ejemplo correcto |
+| F1.9 | **`Spec` → `PartTask`**: convertir la spec de una pieza en la tarea que recibe el Part Designer | El soporte NEMA17 se diseña desde `spec.yaml` **sin que nadie escriba el enunciado a mano** |
+| F1.10 | **Part Designer Agent**: emite `recipe.json` (**no Python**); el orquestador compone `build.py` y lo ejecuta en `freecadcmd` | Soporte NEMA17 con dimensiones correctas en ≥ 4 de 5 intentos |
+| F1.11 | Bucle de error en dos niveles: receta inválida → error de esquema al agente (barato, sin ejecutar); fallo de ejecución → traceback (máx. 3) | Tasa de éxito final ≥ 4 de 5; los errores de esquema se detectan **sin lanzar FreeCAD** |
+| F1.12 | **Perfil de laminado de PrusaSlicer** (`config/slicing/*.ini`) por impresora y material, con **densidad de filamento** | Laminar el soporte devuelve **gramos > 0**. Es distinto de `config/printers/*.yaml` (F2.4), que son holguras |
+| F1.13 | **Slicing/Cost Agent** mínimo: laminar con el perfil de F1.12 y leer estadísticas | Reporte con gramos, tiempo y si requiere soportes |
+| F1.14 | Grafo LangGraph lineal: `INTAKE` → Part Designer → Slicing, con estado en `state.sqlite` | Un comando de consola ejecuta todo y deja los artefactos en `workspace/projects/<id>/` |
+| F1.15 | Versionado git automático del proyecto tras cada estado | `git log` del proyecto muestra un commit por etapa |
 
 **Entregable:** `intelliprint new "soporte para motor NEMA17 atornillable a perfil 2020"` abre la admisión, pregunta lo que falte por consola, y tras confirmar produce `.FCStd`, `.stl`, `.3mf` y reporte.
 
@@ -148,7 +155,7 @@ Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto
 
 ---
 
-### Fase 2 — Herramientas deterministas y QA (semanas 5–7)
+### Fase 2 — Herramientas deterministas y QA (semanas 6–9)
 
 **Objetivo:** que la geometría crítica la haga código y que exista una revisión independiente basada en mediciones.
 
@@ -162,19 +169,22 @@ Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto
 | F2.6 | Chequeos DFM: `check_wall_thickness`, `check_overhangs`, `check_fits_bed`, `suggest_print_orientation` (trimesh) | Detectan los defectos de un set de 10 STL de prueba con fallas conocidas |
 | F2.7 | Macros de medición vía FreeCAD MCP: `measure`, `section_view`, `get_view` | Miden diámetros de agujeros con error < 0.01 mm; las vistas se guardan en `parts/<pieza>/views/` |
 | F2.8 | `validate_macro`: análisis estático (AST). **Solo para la escotilla** | Bloquea las macros destructivas del set de prueba; 0 falsos positivos en las plantillas. **Documentado como red de seguridad, no como sandbox** |
-| F2.9 | **Tolerances/DFM Agent** | Aplica holguras según interfaz y deja la pieza orientada para imprimir |
-| F2.10 | `derive_assertions(interface)`: aserciones medibles por tipo de interfaz (**capa 1 del QA**) | Una interfaz `bearing_seat` 608zz `press` produce la aserción Ø22.10 ±0.05 sin intervención de ningún LLM |
-| F2.11 | **QA Agent de tres capas** (§ 7.1 de la arquitectura): aserciones + DFM + pase libre con visión, y `qa_report.json` | Detecta ≥ 8 de 10 defectos sembrados |
-| F2.12 | **Regla dura del veredicto**: `PASS ⟺ capa1 ∧ capa2 ∧ sin_defectos_LLM`. El LLM escribe en una lista, no en el veredicto | Test adversarial: con un QA Agent forzado a responder siempre "aprobado", una pieza con cota fuera de tolerancia **sigue dando FAIL** |
-| F2.13 | Capa de visión: pasar los renders de `views/` al modelo y pedir defectos | Detecta ≥ 3 de 5 catástrofes sembradas invisibles a las cotas (pocket en cara equivocada, sólido partido, booleana que borra media pieza) |
-| F2.14 | Bucle Part Designer ↔ DFM ↔ QA con máximo 3 iteraciones | Una pieza con defecto sembrado se corrige y pasa |
-| F2.15 | **Pieza de calibración de holguras** generada por el sistema (peine de agujeros y ejes 0.0–0.5 mm) | Tras imprimirla, el usuario introduce los resultados y el perfil se actualiza |
+| F2.9 | **La escotilla de Python libre** (§ 6.3): marcar una pieza como atípica, generar macro con DeepSeek, pasar `validate_macro`, ejecutar y registrar el motivo | Una pieza que ningún generador cubre se construye por la escotilla; el motivo queda en `log/`. Con el modelo local **no** se abre |
+| F2.10 | **Métrica de escotilla**: contador persistente de piezas atípicas por proyecto y en global, con el generador que habría hecho falta | La métrica de § 7 se puede consultar y **nombra qué generador escribir** |
+| F2.11 | **Tolerances/DFM Agent** | Aplica holguras según interfaz y deja la pieza orientada para imprimir |
+| F2.12 | `derive_assertions(interface)`: aserciones medibles por tipo de interfaz (**capa 1 del QA**) | Una interfaz `bearing_seat` 608zz `press` produce la aserción Ø22.10 ±0.05 sin intervención de ningún LLM |
+| F2.13 | **Puente aserción ↔ medición**: dado un `.FCStd` y el `frame` de una interfaz, localizar la feature correspondiente y medirla | Las aserciones de F2.12 se resuelven a valores medidos reales. **Sin esto la capa 1 no tiene datos que comparar y ADR-003 no funciona** |
+| F2.14 | **QA Agent de tres capas** (§ 7.1 de la arquitectura): aserciones + DFM + pase libre con visión, y `qa_report.json` | Detecta ≥ 8 de 10 defectos sembrados |
+| F2.15 | **Regla dura del veredicto**: `PASS ⟺ capa1 ∧ capa2 ∧ sin_defectos_LLM`. El LLM escribe en una lista, no en el veredicto | Test adversarial: con un QA Agent forzado a responder siempre "aprobado", una pieza con cota fuera de tolerancia **sigue dando FAIL** |
+| F2.16 | Capa de visión: pasar los renders de `views/` al modelo y pedir defectos | Detecta ≥ 3 de 5 catástrofes sembradas invisibles a las cotas (pocket en cara equivocada, sólido partido, booleana que borra media pieza) |
+| F2.17 | Bucle Part Designer ↔ DFM ↔ QA con máximo 3 iteraciones | Una pieza con defecto sembrado se corrige y pasa |
+| F2.18 | **Pieza de calibración de holguras** generada por el sistema (peine de agujeros y ejes 0.0–0.5 mm) | Tras imprimirla, el usuario introduce los resultados y el perfil se actualiza |
 
 **Entregable:** soporte NEMA17 regenerado usando generadores de librería, con QA y DFM aprobados; pieza de calibración impresa y perfil ajustado.
 
 ---
 
-### Fase 3 — Descomposición y ensamble (semanas 8–10)
+### Fase 3 — Descomposición y ensamble (semanas 10–12)
 
 **Objetivo:** diseñar productos de varias piezas que encajen entre sí.
 
@@ -200,7 +210,7 @@ Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto
 
 ---
 
-### Fase 4 — Ingeniería de sistema y simulación (semanas 11–13)
+### Fase 4 — Ingeniería de sistema y simulación (semanas 13–15)
 
 **Objetivo:** validar que el mecanismo se mueve y que los actuadores alcanzan.
 
@@ -221,7 +231,7 @@ Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto
 
 ---
 
-### Fase 5 — Multiproyecto y canal humano (semanas 14–17)
+### Fase 5 — Multiproyecto y canal humano (semanas 16–19)
 
 **Objetivo:** dejar de ser una herramienta de consola de un proyecto y pasar a ser algo que usas desde el móvil, con varios encargos abiertos a la vez.
 
@@ -247,7 +257,7 @@ Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto
 
 ---
 
-### Fase 6 — Endurecimiento (semanas 18–19)
+### Fase 6 — Endurecimiento (semanas 20–21)
 
 | ID | Tarea | Criterio de aceptación |
 |----|-------|------------------------|
@@ -263,22 +273,25 @@ Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto
 ## 5. Dependencias entre tareas críticas
 
 ```
-F0.5 cliente MCP ─┬─► F1.7 Part Designer ─► F2.14 bucle QA ─► F3.7 piezas ─► F3.8 Assembly
+F0.5 cliente MCP ─┬─► F1.10 Part Designer ─► F2.17 bucle QA ─► F3.7 piezas ─► F3.8 Assembly
 F0.6 router LLM ──┘         ▲                      ▲                              │
-F1.5 compose_build_script ──┘                      │                              ▼
+F1.6 compose_build_script ──┘                      │                              ▼
 F1.1 esquemas ─► F3.1 ProductTree                  │            F4.6 URDF ─► F4.9 Test/Sim
-F2.2 librería ─► F2.5 generadores ─► F1.7          │
-F2.4 perfil ─► F2.9 Tolerances                     │
+F2.2 librería ─► F2.5 generadores ─► F1.10         │
+F1.9 spec→tarea ──────────────────► F1.10         │
+F2.4 perfil ─► F2.11 Tolerances                    │
 F3.1 ─► F3.2 Decomposition (simbólicas) ───────────┼─► F3.3 resolve_interfaces ─► F3.4 gate 1
                                                    │              ▲
-F2.10 derive_assertions ───────────────────────────┘              │
+F2.12 derive_assertions ─► F2.13 puente medición ──┘              │
+F2.7 measure ──────────────┘                                      │
 F4.1 sim ─► F4.2 Kinematics ─► F4.4 Actuation ────────────────────┘   (solo clase `robot`)
 
-F0.9 HumanPort ─► F1.4 INTAKE ─► F3.4 gate 1 ─► F5.5 web ─► F5.6 Telegram
-F1.3 clasificación ─────────────────────────────► F4.10 fases condicionales
+F0.9 HumanPort ─► F1.5 INTAKE ─► F3.4 gate 1 ─► F5.5 web ─► F5.6 Telegram
+F1.4 clasificación ─────────────────────────────► F4.10 fases condicionales
+F1.12 perfil laminado ──────────────────────────► F1.13 Slicing Agent
 ```
 
-Ruta crítica: F0.5 → F1.5 → F1.7 → F2.5 → F2.14 → F3.2 → F3.3 → F3.8 → F4.6 → F4.9.
+Ruta crítica: F0.5 → F1.6 → F1.10 → F2.5 → F2.13 → F2.17 → F3.2 → F3.3 → F3.8 → F4.6 → F4.9.
 
 > **La única dependencia que va hacia atrás.** `F3.3 resolve_interfaces` **necesita `F4.2 Kinematics` y `F4.4 Actuation`** cuando el producto es un `robot`: los `frame` salen de la cinemática y el hardware definitivo de la selección de actuadores. Para `static_part` y `mechanism` el resolvedor se apaña con la hardware library y los frames del árbol, así que la Fase 3 **se cierra con la garra** y el brazo espera a la Fase 4.
 >
@@ -286,8 +299,8 @@ Ruta crítica: F0.5 → F1.5 → F1.7 → F2.5 → F2.14 → F3.2 → F3.3 → F
 
 **Dos decisiones de orden que conviene no revertir sin pensarlo:**
 
-- **La barrera de admisión (`F1.4`) va en la Fase 1, no en la 5**, aunque el canal de Telegram sea de la 5. Es una transición del grafo: añadirla después obligaría a rehacer la máquina de estados con el pipeline ya montado encima.
-- **La clasificación (`F1.3`) también va en la Fase 1**, aunque las fases condicionales (`F4.10`) sean de la 4. Es un campo de `Spec` y una instrucción de prompt: si llegara tarde, las fases 3 y 4 se construirían asumiendo `robot` siempre y habría que retrofitarlas.
+- **La barrera de admisión (`F1.5`) va en la Fase 1, no en la 5**, aunque el canal de Telegram sea de la 5. Es una transición del grafo: añadirla después obligaría a rehacer la máquina de estados con el pipeline ya montado encima.
+- **La clasificación (`F1.4`) también va en la Fase 1**, aunque las fases condicionales (`F4.10`) sean de la 4. Es un campo de `Spec` y una instrucción de prompt: si llegara tarde, las fases 3 y 4 se construirían asumiendo `robot` siempre y habría que retrofitarlas.
 
 ---
 
@@ -299,7 +312,7 @@ Ruta crítica: F0.5 → F1.5 → F1.7 → F2.5 → F2.14 → F3.2 → F3.3 → F
 | Herramientas | Chequeos DFM sobre STL con defectos conocidos | `pytest` + set `tests/fixtures/stl/` |
 | Integración | Orquestador ↔ MCP de FreeCAD/PrusaSlicer | `smoke_test` (requiere host con FreeCAD abierto) |
 | Agentes | Salida válida y correcta de cada agente sobre casos fijos | Suite de evaluación (F6.1), con semilla y temperatura bajas |
-| Adversarial | Que el QA no pueda aprobar una pieza defectuosa (F2.12), que no se pueda diseñar sin confirmar la admisión (F1.4) y que un mensaje o una imagen de Telegram no puedan ejecutar código (F5.9) | `pytest` con agentes simulados que responden siempre "aprobado", transiciones prohibidas del grafo, y mensajes e imágenes de inyección |
+| Adversarial | Que el QA no pueda aprobar una pieza defectuosa (F2.15), que no se pueda diseñar sin confirmar la admisión (F1.5) y que un mensaje o una imagen de Telegram no puedan ejecutar código (F5.9) | `pytest` con agentes simulados que responden siempre "aprobado", transiciones prohibidas del grafo, y mensajes e imágenes de inyección |
 | Extremo a extremo | Proyectos de referencia completos | CLI `intelliprint eval` |
 | Físico | Impresión y montaje real | Checklist manual por hito |
 
@@ -351,12 +364,12 @@ Todas se calculan desde `state.sqlite` y los logs.
 | Hito | Fin de semana | Demostración |
 |------|---------------|--------------|
 | H0 | 1 | Cubo creado en FreeCAD y laminado desde el contenedor |
-| H1 | 4 | Soporte NEMA17 desde texto, impreso *(`static_part`)* |
-| H2 | 7 | QA detecta defectos y no puede aprobarlos; perfil de holguras calibrado |
-| H3 | 10 | Garra MG996R impresa y montada *(`mechanism`)* |
-| H4 | 13 | Brazo 3 GDL impreso y moviéndose *(`robot`)* |
-| H5 | 17 | Proyecto creado, consultado y aprobado enteramente desde el móvil, con otros dos abiertos a la vez |
-| H6 | 19 | Brazo 6 GDL diseñado; suite de evaluación en verde |
+| H1 | 5 | Soporte NEMA17 desde texto, impreso *(`static_part`)* |
+| H2 | 9 | QA detecta defectos y no puede aprobarlos; perfil de holguras calibrado |
+| H3 | 12 | Garra MG996R impresa y montada *(`mechanism`)* |
+| H4 | 15 | Brazo 3 GDL impreso y moviéndose *(`robot`)* |
+| H5 | 19 | Proyecto creado, consultado y aprobado enteramente desde el móvil, con otros dos abiertos a la vez |
+| H6 | 21 | Brazo 6 GDL diseñado; suite de evaluación en verde |
 
 Los hitos H1, H3 y H4 son de **clases distintas a propósito**: cada uno valida que el grafo hace lo correcto con su clase, incluido saltarse las fases que no aplican.
 

@@ -315,7 +315,7 @@ Dos modelos residentes requiere `OLLAMA_MAX_LOADED_MODELS=2`.
 | Limitación | Consecuencia |
 |---|---|
 | DeepSeek **no tiene visión** | La capa 3 del QA (§ 7.1) no se puede probar. Las capas 1 y 2 son deterministas y sí |
-| Sin embeddings | El RAG sobre la API de FreeCAD (F1.6) necesita Ollama aunque el resto vaya por la nube |
+| Sin embeddings | El RAG sobre la API de FreeCAD (F1.8) necesita Ollama aunque el resto vaya por la nube |
 | Diseñador y revisor son el mismo modelo | Se pierde la diversidad. No rompe la corrección —el veredicto es aritmético— pero desaparece la segunda red |
 | Latencia de red, no de GPU | Ninguna medida de rendimiento es trasladable |
 
