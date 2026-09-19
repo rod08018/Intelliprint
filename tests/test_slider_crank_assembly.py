@@ -84,3 +84,25 @@ def test_el_barrido_encuentra_un_choque_que_solo_ocurre_en_algunos_angulos(pieza
     choque = next(c for c in choques if c.angle == 180 and "eje_pivote" in (c.a, c.b))
     assert choque.gap_mm < HUECO_MIN
     assert "180" in choque.motivo and "eje_pivote" in choque.motivo
+
+
+def test_la_animacion_da_una_vuelta_con_el_mecanismo_en_movimiento(piezas, tmp_path):
+    pytest.importorskip("matplotlib")
+    from PIL import Image, ImageChops
+
+    from orchestrator.animation import render_gif, tessellate
+
+    lay, steps = piezas
+    angulos = [0, 90, 180, 270]
+    gif = render_gif(
+        tessellate(steps, lay.pins(), _freecadcmd()), _poses(lay, angulos),
+        tmp_path / "mecanismo.gif",
+    )
+    with Image.open(gif) as img:
+        assert img.n_frames == len(angulos)
+        img.seek(0)
+        primero = img.convert("RGB")
+        img.seek(2)
+        mitad = img.convert("RGB")
+    # A 0° y a 180° la corredera está en extremos opuestos de la carrera.
+    assert ImageChops.difference(primero, mitad).getbbox() is not None

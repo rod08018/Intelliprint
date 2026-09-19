@@ -228,6 +228,7 @@ Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto
 | F3.11 | QA de ensamble: interfaces coherentes a ambos lados (mismo patrón, misma holgura) Usa `check_fit` (F2.20) en cada interfaz pieza-pieza y pieza-hardware. | Detecta patrones de tornillos desalineados |
 | F3.12 | Reapertura selectiva: un defecto de ensamble reabre solo las piezas/interfaces implicadas. El motivo de F2.20 (*"el agujero tiene que ser de al menos Ø…"*) vuelve al Part Designer como defecto, por el mismo bucle que F1.11: el ensamblaje manda a cambiar con el valor concreto, no con un "no encaja". | Tras modificar una interfaz, solo se regeneran las piezas que la usan |
 | F3.13 | Slicing por placas: agrupar piezas en la cama y laminar cada placa | Reporte con número de placas, gramos y horas totales |
+| F3.14 | Pipeline de **mecanismo** de 1 GDL, empezando por la biela-manivela-corredera (`intelliprint mecanismo`). La disposición la calcula el código a partir de la carrera y de las holguras del perfil (ADR-010, enmienda). El Part Designer diseña cada pieza con enunciados que salen de esa disposición. Siempre se guardan `assembly.FCStd`, con todo visible, y `animation.gif` de una vuelta. El barrido de choques cubre la vuelta completa con holgura mínima física. **Avance:** disposición, ensamble, barrido y animación hechos. Falta que el Part Designer diseñe las piezas; hoy salen de recetas de referencia. | Carrera de 60 mm sin choques en 36 posiciones; un eje demasiado alto se detecta solo a 165–195°; el ensamble se ve completo al abrirlo en la interfaz de FreeCAD |
 
 **Entregable:** garra con MG996R (5–8 piezas) ensamblada sin interferencias, laminada y **impresa y montada físicamente**.
 
@@ -248,7 +249,7 @@ Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto
 | F4.7 | `sweep_collisions` sobre rangos articulares | Detecta autocolisiones sembradas |
 | F4.8 | `stability_test` con carga máxima | Detecta vuelco de una base demasiado pequeña |
 | F4.9 | **Test/Sim Agent**: ejecuta la batería y traduce fallos a defectos por pieza/interfaz | Un fallo de torque reabre Actuation; una colisión reabre las piezas implicadas |
-| F4.10 | Integrar al grafo con **fases condicionales por clase** (§ 4.2): `static_part` salta la Fase 2 entera, `mechanism` solo corre Actuation, `robot` las tres | Un `static_part` no invoca Kinematics ni Electronics (verificado en el log); el brazo de 3 GDL corre el flujo completo sin intervención salvo gates |
+| F4.10 | Integrar al grafo con **fases condicionales por clase** (§ 4.2): `static_part` salta la Fase 2 entera, `mechanism` corre la cinemática determinista y Actuation (ADR-010, enmienda), `robot` las tres | Un `static_part` no invoca Kinematics ni Electronics (verificado en el log); el brazo de 3 GDL corre el flujo completo sin intervención salvo gates |
 
 **Entregable:** brazo de 3 GDL con torque validado, sin colisiones en su rango, impreso y movido con servos.
 

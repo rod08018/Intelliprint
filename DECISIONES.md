@@ -207,6 +207,10 @@ El registro guarda por proyecto: id, nombre, clase, estado, fechas, coste acumul
 
 **Riesgo residual.** Una clasificación errónea salta una fase que sí hacía falta. Mitigación: la clase aparece en el resumen que confirmas al final de la admisión, así que la corriges antes de que cueste nada.
 
+**Enmienda (2026-09-19): un mecanismo sí necesita cinemática.** La tabla decía que un `mechanism` solo corre Actuation. Al construir la biela-manivela-corredera (F3.14 (mecanismo)) se vio que sin cinemática no se puede ni colocar la biela: su ángulo y la posición de la corredera dependen del ángulo de la manivela. Además, el único choque que apareció, el eje del pivote contra la biela, solo ocurre entre 165° y 195°.
+
+La corrección mantiene el principio de la ADR. **La cinemática de un mecanismo de 1 GDL es una fórmula cerrada, no un juicio**, así que la calcula código determinista (`mcp/sim/sim/linkages.py`) y no un agente. El Kinematics Agent sigue reservado a `robot`, donde elegir eslabones y grados de libertad sí es diseño. Para `mechanism`, la Fase 2 queda así: **cinemática determinista + Actuation**.
+
 ---
 
 ## ADR-012 · El canal de Telegram nace abierto — deuda con fecha

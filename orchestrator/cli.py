@@ -104,6 +104,32 @@ def _informar(final: dict, nombre: str) -> None:
     print("  ⚠️ el G-code de inicio del perfil de la M5 no está verificado: revísalo antes de imprimir.")
 
 
+def _mecanismo(args, raiz: Path, env: dict, nombre: str) -> None:
+    import yaml
+
+    from mech_toolkit.profile import PrinterProfile
+    from orchestrator.mechanisms.run import build_mechanism
+    from orchestrator.mechanisms.slider_crank import SliderCrankLayout
+
+    perfil = PrinterProfile(**yaml.safe_load(
+        (raiz / "config/printers/ankermake_m5_petg.yaml").read_text()))
+    layout = SliderCrankLayout(stroke_mm=args.carrera, profile=perfil)
+    carpeta = (_workspace(raiz, env) / "projects"
+               / f"{dt.date.today():%Y-%m-%d}-biela_manivela_{args.carrera:g}mm")
+    print(f"[{nombre}] Biela-manivela-corredera, carrera {args.carrera:g} mm → {carpeta}")
+    informe = build_mechanism(layout, carpeta, _freecadcmd(env),
+                              min_gap_mm=perfil.fit_mm("slide") / 2)
+    print(f"  ensamble:  {informe.assembly}  (ábrelo en FreeCAD)")
+    print(f"  animación: {informe.animation}")
+    if informe.ok:
+        print(f"  ✓ sin choques en {len(informe.angles)} posiciones de la vuelta "
+              f"(holgura mínima {informe.min_gap_mm:g} mm)")
+    else:
+        print(f"  ✗ {len(informe.collisions)} choques:")
+        for c in informe.collisions[:10]:
+            print(f"    - {c.motivo}")
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="intelliprint")
     sub = parser.add_subparsers(dest="comando", required=True)
@@ -111,12 +137,18 @@ def main(argv: list[str] | None = None) -> None:
     nuevo.add_argument("peticion", nargs="+")
     reanudar = sub.add_parser("resume", help="reanudar un proyecto interrumpido")
     reanudar.add_argument("proyecto")
+    meca = sub.add_parser("mecanismo", help="diseñar un mecanismo y ver su ensamble animado")
+    meca.add_argument("tipo", choices=["biela-manivela"])
+    meca.add_argument("--carrera", type=float, required=True, help="carrera de la corredera, mm")
     args = parser.parse_args(argv)
 
     raiz = _raiz()
     os.chdir(raiz)
     env = load_env(raiz / ".env")
     nombre = env.get("AGENT_NAME") or "Crafty"
+    if args.comando == "mecanismo":
+        _mecanismo(args, raiz, env, nombre)
+        return
     grafo = _grafo(raiz, env)
 
     if args.comando == "new":

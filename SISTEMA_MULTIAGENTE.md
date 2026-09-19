@@ -229,7 +229,7 @@ No todo lo que vas a diseñar es un robot. Un soporte estático no tiene cinemá
 | Clase | Ejemplos | Fase 2 · Ingeniería de sistema |
 |---|---|---|
 | `static_part` | Soporte de vaso para un carruaje, caja, adaptador, soporte NEMA17 | **Se salta entera** |
-| `mechanism` | Garra con servo, bisagra accionada | Solo Actuation |
+| `mechanism` | Garra con servo, bisagra accionada, biela-manivela | Cinemática determinista (`sim.linkages`, sin agente) + Actuation (ADR-010, enmienda) |
 | `robot` | Brazo de 3 o 6 GDL | Kinematics + Actuation + Electronics |
 
 Esto no es solo ahorro de tiempo: es **quitar la oportunidad de alucinar**. Un agente que no corre no puede inventar un dato.
