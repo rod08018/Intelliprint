@@ -9,6 +9,15 @@ import httpx
 BASE_URL = "https://api.deepseek.com"
 
 
+def _sin_bloque_de_codigo(texto: str) -> str:
+    """El JSON, aunque venga dentro de un bloque ```json ... ```."""
+    texto = texto.strip()
+    if texto.startswith("```"):
+        texto = texto.split("\n", 1)[1] if "\n" in texto else ""
+        texto = texto.rsplit("```", 1)[0]
+    return texto.strip()
+
+
 class RespuestaCortada(RuntimeError):
     pass
 
@@ -53,6 +62,11 @@ class DeepSeekClient:
             # error siguen haciendo falta (F1.3 (estructurada)).
             "response_format": {"type": "json_object"},
         }
+        if self._razona:
+            # Con el modo JSON, deepseek-reasoner no terminaba de pensar ni con
+            # 65 536 tokens; sin él respondió JSON limpio en ~30 000 (medido en
+            # la bisagra). El esquema se valida igual en `structured`.
+            del cuerpo["response_format"]
         respuesta = self._cliente.post("/chat/completions", json=cuerpo)
         # Un 401 o un 429 no pueden colarse como "respuesta del modelo": se
         # comerían los tres reintentos fallando la validación del esquema.
@@ -64,4 +78,7 @@ class DeepSeekClient:
             raise RespuestaCortada(
                 f"{self._model} agotó max_tokens={self._max_tokens} sin terminar la respuesta"
             )
-        return eleccion["message"]["content"]
+        contenido = eleccion["message"]["content"] or ""
+        if self._razona:
+            contenido = _sin_bloque_de_codigo(contenido)
+        return contenido

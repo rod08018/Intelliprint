@@ -4,6 +4,8 @@ Se prueba contra `httpx.MockTransport`, que ejercita el código real de
 httpx (serialización, cabeceras, parseo) sin salir a la red.
 """
 
+import json
+
 import httpx
 import pytest
 
@@ -61,3 +63,17 @@ def test_una_respuesta_cortada_por_max_tokens_es_un_error_y_no_un_json_invalido(
     )
     with pytest.raises(RespuestaCortada, match="max_tokens=65536"):
         cliente.complete("hola")
+
+
+def test_el_modelo_de_razonamiento_va_sin_modo_json_y_se_le_quita_el_bloque_de_codigo():
+    enviado = {}
+
+    def responder(request):
+        enviado.update(json.loads(request.content))
+        return httpx.Response(200, json={"choices": [{"finish_reason": "stop",
+                              "message": {"content": '```json\n{"a": 1}\n```'}}]})
+
+    cliente = DeepSeekClient(api_key="k", model="deepseek-reasoner",
+                             transport=httpx.MockTransport(responder))
+    assert cliente.complete("hola") == '{"a": 1}'
+    assert "response_format" not in enviado
