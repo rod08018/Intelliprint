@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from mech_toolkit.generators import CATALOGO
 from orchestrator.build import ConstruccionFallida, design_and_build
 from orchestrator.llm.structured import SalidaInvalida
+from orchestrator.mechanisms.checks import joint_axis_problems
 from orchestrator.mechanisms.run import MechanismReport, build_mechanism
 from orchestrator.mechanisms.spec_layout import SpecLayout
 
@@ -95,6 +96,10 @@ def design_mechanism(
                 motivo = getattr(e, "motivo", str(e))
                 fallos.append(f"- la pieza «{p.name}» no se pudo dibujar como la describes: {motivo}")
 
+        if not fallos:
+            steps = {p.name: carpeta / "parts" / p.name / f"{p.name}.step" for p in spec.parts}
+            fallos = [f"- {x}" for x in joint_axis_problems(spec, steps, freecadcmd)]
+
         ultima = n == max_rounds
         if fallos:
             feedback = "\n".join(fallos)
@@ -106,6 +111,14 @@ def design_mechanism(
                 animar=False,
             )
             feedback = "\n".join(f"- {linea}" for linea in final.collision_summary())
+            ejes = {x.name for x in spec.pins}
+            atravesados = sorted({(c.a if c.b in ejes else c.b, c.b if c.b in ejes else c.a)
+                                  for c in final.collisions
+                                  if c.gap_mm < 0 and ({c.a, c.b} & ejes)})
+            for pieza, eje in atravesados:
+                feedback += (f"\n- «{eje}» atraviesa material de «{pieza}»: falta el agujero, "
+                             "no está en el eje del pasador, o el pasador es demasiado largo "
+                             "y se mete en otra pieza")
 
         rondas.append(Round(number=n, title=spec.title, feedback=feedback))
         if not feedback or ultima:

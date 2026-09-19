@@ -103,3 +103,27 @@ def test_si_ninguna_ronda_funciona_el_ensamble_se_guarda_igual(tmp_path):
     assert not informe.ok
     assert (tmp_path / "assembly.FCStd").exists()
     assert informe.final is not None and informe.final.collisions
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_una_pieza_que_gira_sin_agujero_en_su_eje_se_explica(tmp_path):
+    """Fallo real (bisagra): la pieza giraba alrededor de su origen, pero su
+    agujero estaba 30 mm más allá. El motivo tiene que decir dónde está."""
+    from orchestrator.build import build_part
+    from orchestrator.mechanisms.checks import joint_axis_problems
+    from orchestrator.schemas.mechanism import MechanismSpec
+    from orchestrator.schemas.recipe import Recipe
+
+    receta = Recipe(part="brazo", steps=[
+        {"generator": "generate_box", "params": {"length_mm": 40, "width_mm": 10, "height_mm": 5,
+                                                 "x_mm": 0, "y_mm": 0, "z_mm": 0}},
+        {"generator": "generate_hole", "params": {"diameter_mm": 3.35, "x_mm": -15, "y_mm": 0}}])
+    build_part(receta, CATALOGO, tmp_path / "brazo", _freecadcmd())
+    spec = MechanismSpec(**_spec(0.5))
+    problemas = joint_axis_problems(spec, {"brazo": tmp_path / "brazo" / "brazo.step"}, _freecadcmd())
+    assert len(problemas) == 1
+    assert "(-15, 0," in problemas[0] and "ORIGEN LOCAL" in problemas[0]
+
+    bien = Recipe(**RECETAS["brazo"])
+    build_part(bien, CATALOGO, tmp_path / "ok", _freecadcmd())
+    assert joint_axis_problems(spec, {"brazo": tmp_path / "ok" / "brazo.step"}, _freecadcmd()) == []
