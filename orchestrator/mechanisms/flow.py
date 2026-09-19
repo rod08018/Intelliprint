@@ -85,7 +85,11 @@ def design_mechanism(
             try:
                 receta, _ = design_and_build(
                     part_agent, p.brief, CATALOGO, destino, freecadcmd=freecadcmd,
-                    part=p.name, request=p.brief,
+                    # Sin trazabilidad (F1.16 (trazabilidad)): el enunciado trae cotas
+                    # DERIVADAS ("la punta queda a 45 mm" de un enlace de 39) y la
+                    # guardia obligaba a meterlas como parámetro (fallo real en el
+                    # trinquete). Aquí manda la caja envolvente, que es más fuerte.
+                    part=p.name,
                     check=lambda r, nombre=p.name: layout.check_bounds(nombre, r),
                 )
                 (destino / "recipe.json").write_text(receta.model_dump_json(indent=2), encoding="utf-8")
