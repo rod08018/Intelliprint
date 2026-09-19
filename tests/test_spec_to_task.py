@@ -12,7 +12,7 @@ _SPEC = Spec(
     title="soporte de vaso para carruaje",
     description="sujeta un vaso a un tubo de 68 mm de diámetro exterior",
     product_class="static_part",
-    printer="prusa_mk4_petg",
+    printer="ankermake_m5_petg",
     material="PETG",
 )
 

@@ -11,7 +11,7 @@ import yaml
 
 from mech_toolkit.profile import PrinterProfile
 
-PERFIL_YAML = Path("config/printers/prusa_mk4_petg.yaml")
+PERFIL_YAML = Path("config/printers/ankermake_m5_petg.yaml")
 
 
 def _cargar() -> PrinterProfile:

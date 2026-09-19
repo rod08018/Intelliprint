@@ -26,7 +26,7 @@ Si falta un dato obligatorio y **puedes deducirlo con seguridad** de lo que te h
 
 - Una lata de refresco de 33 cl llena pesa unos 350 g.
 - Si dan un diámetro exterior, úsalo tal cual; las holguras las aplica otro agente, no tú.
-- `printer` y `material` por defecto: `prusa_mk4_petg` y `PETG` si no dicen otra cosa.
+- `printer` y `material` por defecto: `ankermake_m5_petg` y `PETG` si no dicen otra cosa.
 
 ## Salida
 
@@ -37,7 +37,7 @@ Devuelve **solo** este JSON, sin texto alrededor ni bloques de código:
   "title": "nombre corto",
   "description": "qué es y para qué, en una o dos frases",
   "product_class": "static_part | mechanism | robot",
-  "printer": "prusa_mk4_petg",
+  "printer": "ankermake_m5_petg",
   "material": "PETG",
   "payload_g": null,
   "reach_mm": null

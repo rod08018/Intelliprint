@@ -38,7 +38,7 @@ Plan de implementación del sistema descrito en [SISTEMA_MULTIAGENTE.md](SISTEMA
 | S3 | MCP de FreeCAD y PrusaSlicer funcionando en el host | Ya probados por el usuario |
 | S4 | `DEEPSEEK_API_KEY` definida en `.env` (no versionado) | Obligatoria con el perfil `dev`; opcional con `prod`, solo para escalamiento |
 | S5 | Python 3.11+ y `uv` en el host para los puentes MCP | `python --version`, `uv --version` |
-| S6 | Impresora y material de referencia definidos | Llenar `config/printers/<impresora>.yaml` |
+| S6 | Impresora y material de referencia: **AnkerMake M5 + PETG** | `config/printers/ankermake_m5_petg.yaml`. Cama 235×235×250, boquilla 0.4, extrusor directo |
 | S7 | `freecadcmd` disponible para construcción headless | `freecadcmd -c "print(1)"` responde |
 | S8 | Bot de Telegram creado y chat ID propio conocido | `TELEGRAM_BOT_TOKEN` y `TELEGRAM_ALLOWED_USERS` definidas |
 
@@ -144,7 +144,7 @@ Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto
 | F1.9 | **`Spec` → `PartTask`**: convertir la spec de una pieza en la tarea que recibe el Part Designer | El soporte NEMA17 se diseña desde `spec.yaml` **sin que nadie escriba el enunciado a mano** |
 | F1.10 | **Part Designer Agent**: emite `recipe.json` (**no Python**); el orquestador compone `build.py` y lo ejecuta en `freecadcmd` | Soporte NEMA17 con dimensiones correctas en ≥ 4 de 5 intentos |
 | F1.11 | Bucle de error en dos niveles: receta inválida → error de esquema al agente (barato, sin ejecutar); fallo de ejecución → traceback (máx. 3) | Tasa de éxito final ≥ 4 de 5; los errores de esquema se detectan **sin lanzar FreeCAD** |
-| F1.12 | **Perfil de laminado de PrusaSlicer** (`config/slicing/*.ini`) por impresora y material, con **densidad de filamento** | Laminar el soporte devuelve **gramos > 0**. Es distinto de `config/printers/*.yaml` (F2.4), que son holguras |
+| F1.12 | **Perfil de laminado de PrusaSlicer** (`config/slicing/*.ini`) para la **AnkerMake M5**: PrusaSlicer **no trae perfil de esta impresora**, así que hay que definirla a mano — cama 235×235×250, boquilla 0.4, velocidades, y G-code de inicio y fin. Incluye **densidad de filamento** | Laminar el soporte devuelve **gramos > 0** y un tiempo realista para la M5. Es distinto de `config/printers/*.yaml` (F2.4), que son holguras |
 | F1.13 | **Slicing/Cost Agent** mínimo: laminar con el perfil de F1.12 y leer estadísticas | Reporte con gramos, tiempo y si requiere soportes |
 | F1.14 | Grafo LangGraph lineal: `INTAKE` → Part Designer → Slicing, con estado en `state.sqlite` | Un comando de consola ejecuta todo y deja los artefactos en `workspace/projects/<id>/` |
 | F1.15 | Versionado git automático del proyecto tras cada estado | `git log` del proyecto muestra un commit por etapa |

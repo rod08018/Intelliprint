@@ -736,9 +736,9 @@ Contenido inicial: tornillería métrica M2–M5, tuercas, insertos térmicos, r
 
 ### 11.1 Una garra (clase `mechanism`)
 
-**Entrada por Telegram:** *"Diseña una garra robótica para levantar una lata de refresco, accionada por un servo MG996R, impresora Prusa MK4, PETG."*
+**Entrada por Telegram:** *"Diseña una garra robótica para levantar una lata de refresco, accionada por un servo MG996R, impresora AnkerMake M5, PETG."*
 
-1. **Admisión** → el Requirements Agent pregunta lo que falta (*"¿la lata llena o vacía?"*), clasifica el producto como `mechanism`, y produce `spec.yaml`: objeto Ø66 mm, 350 g, apertura ≥ 80 mm, MG996R, PETG, cama 250×210×220. Confirmas y arranca.
+1. **Admisión** → el Requirements Agent pregunta lo que falta (*"¿la lata llena o vacía?"*), clasifica el producto como `mechanism`, y produce `spec.yaml`: objeto Ø66 mm, 350 g, apertura ≥ 80 mm, MG996R, PETG, cama 235×235×250. Confirmas y arranca.
 2. **Decomposition** → 7 piezas: `base_servo`, `engranaje_motriz`, `engranaje_conducido`, `dedo_izq`, `dedo_der`, `eslabon_paralelo ×2`, `almohadilla ×2` (TPU opcional); 9 interfaces **simbólicas**: *"IF-002: `bolt_pattern` entre `base_servo` y el servo, clase `servo_horn`, `fit: clearance`"* — sin una sola cota.
 3. **Kinematics/Actuation** → geometría de dedos paralelos; fuerza de agarre requerida vs. torque del MG996R (margen 2.1× ✓). Confirma el MG996R como actuador.
 4. **Resolución de interfaces** (código) → IF-002 pasa a `resolved`: patrón real del MG996R desde `library/`, `frame` en el origen calculado por Kinematics, M3 a 3.3 mm por `fit: clearance`. **Ningún LLM escribió esos números.**
@@ -782,7 +782,7 @@ Intelliprint/
 ├── docker-compose.yml
 ├── config/
 │   ├── models.yaml              # perfiles prod / dev (§ 6.1)
-│   ├── printers/prusa_mk4_petg.yaml
+│   ├── printers/ankermake_m5_petg.yaml
 │   └── agents/*.md              # prompts de sistema por agente
 ├── orchestrator/
 │   ├── Dockerfile

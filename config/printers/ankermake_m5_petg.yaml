@@ -4,18 +4,28 @@
 # ⚠️ SIN CALIBRAR. Los valores de `fits` son los defaults para boquilla de
 # 0.4 mm y NO son transferibles entre impresoras ni materiales. Deben
 # sustituirse por mediciones reales tras imprimir la pieza de calibración
-# (tarea F2.15). Hasta entonces, espera encajes flojos o apretados.
+# (tarea F2.18). Hasta entonces, espera encajes flojos o apretados.
+#
+# ⚠️ Aviso específico de la AnkerMake M5: PrusaSlicer NO trae perfil para
+# esta impresora. Hay que definirla a mano (forma de cama, boquilla,
+# velocidades y G-code de inicio y fin). Eso es parte de F1.12, y sin ello
+# el laminado usará una máquina equivocada.
 
-id: prusa_mk4_petg
-printer: Prusa MK4
+id: ankermake_m5_petg
+printer: AnkerMake M5
 material: PETG
-calibrated: false            # pasa a true cuando F2.15 actualice los valores
+calibrated: false            # pasa a true cuando F2.18 actualice los valores
 
 nozzle_mm: 0.4
 line_width_mm: 0.42
 layer_height_mm: 0.2
 
-bed_mm: {x: 250, y: 210, z: 220}
+bed_mm: {x: 235, y: 235, z: 250}
+
+# La M5 es de extrusor directo y va muy rápida (hasta 500 mm/s). Eso NO afecta
+# a la geometría ni a las holguras, pero sí a las estimaciones de tiempo: los
+# valores por defecto de PrusaSlicer, pensados para otras máquinas, darán
+# tiempos poco realistas hasta que el perfil de laminado esté afinado (F1.12).
 
 # Cuánto puede desviarse la pieza construida de la cota que exige el contrato
 # antes de considerarse un fallo. NO es una holgura: es la precisión con la que

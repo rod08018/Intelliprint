@@ -10,7 +10,7 @@ from mech_toolkit.profile import PrinterProfile
 from orchestrator.schemas.interface import Interface
 
 PERFIL = PrinterProfile(
-    id="prusa_mk4_petg",
+    id="ankermake_m5_petg",
     fits={"press_mm": 0.10, "slide_mm": 0.20, "clearance_mm": 0.35},
     holes={"M3_through_mm": 3.3},
     assertion_tol_mm=0.05,

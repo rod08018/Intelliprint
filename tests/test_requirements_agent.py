@@ -23,7 +23,7 @@ _SOPORTE = json.dumps(
         "title": "soporte de vaso para carruaje",
         "description": "sujeta un vaso a un tubo de 68 mm",
         "product_class": "static_part",
-        "printer": "prusa_mk4_petg",
+        "printer": "ankermake_m5_petg",
         "material": "PETG",
         "payload_g": None,
         "reach_mm": None,
@@ -68,7 +68,7 @@ def test_un_robot_sin_alcance_se_corrige_solo_en_el_reintento():
             "title": "brazo de 3 GDL",
             "description": "brazo para mover piezas pequeñas",
             "product_class": "robot",
-            "printer": "prusa_mk4_petg",
+            "printer": "ankermake_m5_petg",
             "material": "PETG",
         }
     )
@@ -77,7 +77,7 @@ def test_un_robot_sin_alcance_se_corrige_solo_en_el_reintento():
             "title": "brazo de 3 GDL",
             "description": "brazo para mover piezas pequeñas",
             "product_class": "robot",
-            "printer": "prusa_mk4_petg",
+            "printer": "ankermake_m5_petg",
             "material": "PETG",
             "payload_g": 500,
             "reach_mm": 400,
