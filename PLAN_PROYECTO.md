@@ -128,12 +128,16 @@ Convención de IDs: `F<fase>.<tarea>`. Cada tarea tiene un criterio de aceptaci�
 
 ### Deuda técnica declarada
 
-Dos decisiones que desbloquean trabajo hoy incumpliendo algo del diseño. Están aquí para que se vean juntas y no se conviertan en el estado permanente.
+Decisiones que desbloquean trabajo hoy incumpliendo algo del diseño, o que no se pueden cerrar sin un recurso que ahora no está disponible. Están aquí para que se vean juntas y no se conviertan en el estado permanente.
 
 | Deuda | Qué incumple | La salda | Cuándo |
 |---|---|---|---|
 | Perfil `dev` con DeepSeek en la nube (ADR-007b) | *Local primero* (§ 1) | **F0.11** | Al tener la 5090 |
 | Canal de Telegram **abierto**, sin lista blanca (ADR-012) | Regla 1 de § 8.5 | **F5.10** | Antes de usarlo de verdad |
+| Agujero M3 pasante de **3.3** en el perfil de la M5, sin validar | Es casi un ajuste *justo* de la ISO 273 (3.26), y contradice el `clearance_mm: 0.35` del mismo perfil (3.3 implica 0.3). La ISO 273 *normal* es 3.4 | **F2.18** (pieza de calibración) | Al tener la impresora |
+| G-code de inicio de la M5 **no verificado** | Viene del perfil comunitario, no de una impresión real. La instantánea `tests/snapshots/m5_start_gcode.txt` lo marca `NO VERIFICADO` | Primera impresión real | Al tener la impresora |
+
+> **Las dos últimas dependen de la impresora**, que no está disponible ahora. No se corrigen a ciegas: cambiar 3.3 por 3.4 sin imprimir sería sustituir un valor sin validar por otro igual de sin validar. El orden al tener la impresora: (1) revisar las cinco primeras líneas del G-code de inicio e imprimir algo pequeño; (2) imprimir la pieza de calibración (F2.18) y medir; (3) fijar `M3_through_mm` y las holguras con esas medidas, poner `calibrated: true` y marcar la instantánea como verificada.
 
 > Sobre la segunda, una precisión que conviene tener delante: **un bot de Telegram no es local aunque corra en tu PC**. Hace *polling* contra los servidores de Telegram, que le entregan los mensajes de cualquiera desde cualquier sitio. Apagar la máquina protege; que sea "local" no. Mientras la deuda viva, quien encuentre el bot puede crear proyectos, gastar saldo de DeepSeek y **contestar las tres barreras** — incluida la que guarda la escotilla de Python.
 

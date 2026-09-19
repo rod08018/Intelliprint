@@ -40,6 +40,10 @@ fits:
 
 # Agujeros para tornillería métrica
 holes:
+  # ⚠️ DEUDA (PLAN § deuda técnica): 3.3 es casi un ajuste "justo" de la
+  # ISO 273 (3.26) y contradice clearance_mm: 0.35 de arriba. La ISO normal
+  # es 3.4. Pendiente de la pieza de calibración (F2.18), que necesita la
+  # impresora. No cambiar a ciegas.
   M3_through_mm: 3.3         # rango típico 3.2–3.4
   M3_selftap_mm: 2.8         # rosca directa en plástico
   M3_insert_mm: 4.1          # inserto térmico; confirmar con el fabricante
