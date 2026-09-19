@@ -95,7 +95,10 @@ class SliderCrankLayout:
         """Ejes de las articulaciones: nombre -> (diámetro, largo)."""
         capa2_top = 2 * self.gap + 2 * self.thickness
         return {
-            "eje_pivote": (PIN_D, self.base_t + self.gap + self.thickness + 1),
+            # Acaba a media holgura por encima de la manivela: la biela pasa
+            # por encima del pivote cuando la manivela apunta hacia atrás
+            # (~180°). Con 1 mm de más chocaban; lo encontró el barrido.
+            "eje_pivote": (PIN_D, self.base_t + self.gap + self.thickness + self.gap / 2),
             "eje_muñon": (PIN_D, capa2_top + 1 - self.gap),
             "eje_corredera": (PIN_D, capa2_top + 1 - self.gap),
         }

@@ -18,12 +18,12 @@ import zipfile
 from pathlib import Path
 
 
-def _gui_document(objetos: list[str], visible: str) -> str:
+def _gui_document(objetos: list[str], visibles: set[str]) -> str:
     proveedores = "".join(
         f'        <ViewProvider name="{nombre}" expanded="0">\n'
         '            <Properties Count="1" TransientCount="0">\n'
         '                <Property name="Visibility" type="App::PropertyBool" status="1">\n'
-        f'                    <Bool value="{"true" if nombre == visible else "false"}"/>\n'
+        f'                    <Bool value="{"true" if nombre in visibles else "false"}"/>\n'
         "                </Property>\n"
         "            </Properties>\n"
         "        </ViewProvider>\n"
@@ -46,12 +46,18 @@ def mostrar_solo(fcstd: Path, objeto: str) -> None:
     La construcción (brocas, cortes intermedios) queda oculta pero no se
     borra: la historia paramétrica sigue editable en FreeCAD.
     """
+    mostrar(fcstd, {objeto})
+
+
+def mostrar(fcstd: Path, visibles: set[str]) -> None:
+    """Deja visibles en la interfaz exactamente los objetos `visibles`."""
     fcstd = Path(fcstd)
     with zipfile.ZipFile(fcstd) as origen:
         documento = origen.read("Document.xml").decode("utf-8")
         objetos = re.findall(r'<Object name="([^"]+)"', documento)
-        if objeto not in objetos:
-            raise ValueError(f"{objeto!r} no está en {fcstd.name}: {objetos}")
+        faltan = sorted(set(visibles) - set(objetos))
+        if faltan:
+            raise ValueError(f"{faltan} no están en {fcstd.name}: {objetos}")
 
         # Reescribir el zip entero: añadir con modo "a" duplicaría la
         # entrada si el archivo ya tuviera un GuiDocument.xml.
@@ -60,7 +66,7 @@ def mostrar_solo(fcstd: Path, objeto: str) -> None:
                 for entrada in origen.infolist():
                     if entrada.filename != "GuiDocument.xml":
                         destino.writestr(entrada, origen.read(entrada.filename))
-                destino.writestr("GuiDocument.xml", _gui_document(objetos, objeto))
+                destino.writestr("GuiDocument.xml", _gui_document(objetos, set(visibles)))
     # El temporal nace con permisos 0600: sin esto el .FCStd quedaba legible
     # solo por su dueño.
     shutil.copymode(fcstd, tmp.name)
