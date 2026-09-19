@@ -202,6 +202,71 @@ def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> 
         print(f"    {r.summary}")
 
 
+def _diseñar_mecanismo(peticion: str, raiz: Path, env: dict, nombre: str, log):
+    """El trabajo que hace el bot: el mismo flujo del comando `mecanismo`."""
+    import yaml
+
+    from mech_toolkit.generators import CATALOGO
+    from mech_toolkit.profile import PrinterProfile
+    from orchestrator.agents.design_reviewer import DesignReviewerAgent
+    from orchestrator.agents.mechanism_designer import MechanismDesignerAgent
+    from orchestrator.agents.part_designer import PartDesignerAgent
+    from orchestrator.mechanisms.flow import design_mechanism
+    from orchestrator.tasks import slug
+
+    impresora = yaml.safe_load((raiz / "config/printers/ankermake_m5_petg.yaml").read_text())
+    perfil = PrinterProfile(**impresora)
+    cama = tuple(impresora["bed_mm"][k] for k in "xyz")
+    hueco = perfil.fit_mm("slide") / 2
+    router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
+    cliente = _cliente(router, env)
+    carpeta = (_workspace(raiz, env) / "projects"
+               / f"{dt.datetime.now():%Y-%m-%d-%H%M}-{slug(peticion.splitlines()[0])[:40]}")
+    informe = design_mechanism(
+        peticion,
+        MechanismDesignerAgent(_cliente(router, env, "reason"), CATALOGO, perfil, cama, hueco,
+                               wall_mm=impresora["walls"]["structural_mm"]),
+        PartDesignerAgent(cliente, CATALOGO),
+        carpeta, _freecadcmd(env), min_gap_mm=hueco,
+        reviewer=DesignReviewerAgent(cliente), log=log,
+    )
+    f = informe.final
+    lineas = [f"[{nombre}] {informe.rounds[-1].title}: {len(informe.rounds)} ronda(s)"]
+    if f is not None:
+        lineas += [f"· {n}" for n in f.notes]
+        lineas.append("✓ sin choques en el ciclo completo" if informe.ok
+                      else "✗ quedaron problemas:\n" + informe.rounds[-1].feedback)
+    if informe.review is not None:
+        r = informe.review
+        lineas.append(f"\nRevisión: {len(r.por_veredicto('cumple'))} cumplen, "
+                      f"{len(r.por_veredicto('no_cumple'))} no, "
+                      f"{len(r.por_veredicto('no_verificable'))} sin verificar")
+        lineas += [f"· {i.verdict}: {i.requirement} — {i.comment}"
+                   for i in r.items if i.verdict != "cumple"]
+        lineas.append(r.summary)
+    lineas.append(f"\nProyecto: {carpeta}")
+    archivos = [Path(f.animation) for f in [f] if f and f.animation]
+    archivos += [Path(f.assembly) for f in [f] if f and f.assembly]
+    return {"texto": "\n".join(lineas), "archivos": archivos}
+
+
+def _bot(raiz: Path, env: dict, nombre: str) -> None:
+    from orchestrator.human.adapters.telegram import TelegramBot, TelegramClient
+
+    token = env.get("TELEGRAM_BOT_TOKEN")
+    if not token:
+        sys.exit("falta TELEGRAM_BOT_TOKEN en .env (plantilla en .env.example)")
+    print(f"[{nombre}] Escuchando en Telegram. Ctrl+C para parar.")
+    print("  ⚠️ El canal está ABIERTO (ADR-012): cualquiera que escriba al bot puede "
+          "lanzar un proyecto y gastar modelo. Cerrarlo con lista blanca es F5.10 (cerrar).")
+    bot = TelegramBot(
+        TelegramClient(token),
+        lambda peticion, avisar: _diseñar_mecanismo(peticion, raiz, env, nombre, log=avisar),
+        nombre=nombre,
+    )
+    bot.run()
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="intelliprint")
     sub = parser.add_subparsers(dest="comando", required=True)
@@ -209,6 +274,7 @@ def main(argv: list[str] | None = None) -> None:
     nuevo.add_argument("peticion", nargs="+")
     reanudar = sub.add_parser("resume", help="reanudar un proyecto interrumpido")
     reanudar.add_argument("proyecto")
+    sub.add_parser("bot", help="atender peticiones por Telegram (F5.6 (telegram))")
     meca = sub.add_parser("mecanismo", help="diseñar un mecanismo y ver su ensamble animado")
     meca.add_argument("peticion", nargs="+",
                       help='el mecanismo en texto, o "biela-manivela" con --carrera')
@@ -225,6 +291,9 @@ def main(argv: list[str] | None = None) -> None:
     nombre = env.get("AGENT_NAME") or "Crafty"
     if args.comando == "mecanismo":
         _mecanismo(args, raiz, env, nombre)
+        return
+    if args.comando == "bot":
+        _bot(raiz, env, nombre)
         return
     grafo = _grafo(raiz, env)
 
