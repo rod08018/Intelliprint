@@ -45,8 +45,8 @@ def _freecadcmd(env: dict) -> str:
     return ruta
 
 
-def _cliente(router: Router, env: dict):
-    ref = router.for_role("design")
+def _cliente(router: Router, env: dict, role: str = "design"):
+    ref = router.for_role(role)
     if ref.provider == "deepseek":
         return DeepSeekClient(api_key=env["DEEPSEEK_API_KEY"], model=ref.model)
     sys.exit(
@@ -166,10 +166,12 @@ def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> 
     cliente = _cliente(router, env)
     carpeta = (_workspace(raiz, env) / "projects"
                / f"{dt.datetime.now():%Y-%m-%d-%H%M}-{slug(peticion.split(chr(10))[0])[:40]}")
-    print(f"[{nombre}] Mecanismo desde tu texto ({router.profile_name}) → {carpeta}")
+    print(f"[{nombre}] Mecanismo desde tu texto → {carpeta}")
+    print(f"  Mechanism Designer: {router.for_role('reason').model} · "
+          f"Part Designer: {router.for_role('design').model}")
     informe = design_mechanism(
         peticion,
-        MechanismDesignerAgent(cliente, CATALOGO, perfil, cama, hueco,
+        MechanismDesignerAgent(_cliente(router, env, "reason"), CATALOGO, perfil, cama, hueco,
                                wall_mm=impresora["walls"]["structural_mm"]),
         PartDesignerAgent(cliente, CATALOGO),
         carpeta, _freecadcmd(env), min_gap_mm=hueco,
