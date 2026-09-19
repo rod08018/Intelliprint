@@ -12,7 +12,9 @@ class Assertion(BaseModel):
     interface: str
     expected: float
     tol: float
-    measured: float
+    measured: float | None
+    """None = se buscó donde el contrato dice y NO había nada. Es FAIL,
+    nunca "sin comprobar": eso sería aprobar por omisión (ADR-011)."""
     unit: Literal["mm", "count"] = "mm"
     """Mismos nombres que `AssertionSpec` de mech-toolkit a propósito: es
     ese objeto con la medición ya puesta, y viaja entre servicios como
@@ -20,6 +22,8 @@ class Assertion(BaseModel):
 
     @property
     def ok(self) -> bool:
+        if self.measured is None:
+            return False
         return abs(self.measured - self.expected) <= self.tol
 
 

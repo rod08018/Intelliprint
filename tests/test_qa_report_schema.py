@@ -82,3 +82,16 @@ def test_un_chequeo_dfm_fallido_da_fail_con_las_cotas_en_verde():
     )
 
     assert informe.verdict == "FAIL"
+
+
+def test_una_asercion_no_encontrada_da_fail_y_nunca_queda_sin_comprobar():
+    """ADR-011: no encontrar la geometría donde el contrato dice es FAIL.
+    Si quedara como "no comprobada", aprobaría por omisión."""
+    no_encontrada = Assertion(
+        name="hole_diameter", interface="IF-003",
+        expected=22.10, tol=0.05, measured=None,
+    )
+    informe = QaReport(part="base", assertions=[no_encontrada])
+
+    assert no_encontrada.ok is False
+    assert informe.verdict == "FAIL"
