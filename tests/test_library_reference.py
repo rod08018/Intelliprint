@@ -37,10 +37,11 @@ def test_la_referencia_cumple_las_cotas_normalizadas_de_la_cara_nema17():
 
 
 @pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
-def test_el_soporte_generado_encaja_con_un_motor_que_no_disenamos(tmp_path):
-    """La prueba de encaje NO circular: soporte construido por los
-    generadores contra el motor de referencia colocado desde su propia
-    geometría. Intersección cero = no se atraviesan."""
+def test_el_soporte_generado_no_se_atraviesa_con_un_motor_que_no_disenamos(tmp_path):
+    """Condición NECESARIA, no suficiente: intersección cero = no se
+    atraviesan. Tocarse no es encajar: la holgura la comprueba
+    tests/test_fit.py (F2.20). Este test solía llamarse "encaja" y daba por
+    buena una holgura de cero."""
     import subprocess
 
     step_soporte = _nema17(tmp_path)

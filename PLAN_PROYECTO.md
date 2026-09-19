@@ -163,6 +163,8 @@ Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto
 | F1.13 | **Slicing/Cost Agent** mínimo: laminar con el perfil de F1.12 y leer estadísticas | Reporte con gramos, tiempo y si requiere soportes |
 | F1.14 | Grafo LangGraph lineal: `INTAKE` → Part Designer → Slicing, con estado en `state.sqlite` | Un comando de consola ejecuta todo y deja los artefactos en `workspace/projects/<id>/` |
 | F1.15 | Versionado git automático del proyecto tras cada estado | `git log` del proyecto muestra un commit por etapa |
+| F1.16 | **Trazabilidad petición → receta** (`orchestrator/traceability.py`): las cotas con unidad de la petición literal tienen que aparecer en la receta | Una receta con Ø3.2 para una petición de "3.3 mm" se rechaza y se reintenta; "NEMA17", "M3" o "perfil 2020" no dan falsos positivos. Lo que no cuadre tras los reintentos se lista en el resumen del gate |
+| F1.17 | **Suite de verificación en el punto de uso** (marcadores `gui` y `llm`, fuera de la suite rápida): abrir el `.FCStd` en la interfaz real de FreeCAD, `intelliprint new` de extremo a extremo e instantánea del G-code de inicio | `pytest -m "gui or llm"` en verde antes de cerrar cualquier tarea que toque FreeCAD, el laminado o un agente |
 
 **Entregable:** `intelliprint new "soporte para motor NEMA17 atornillable a perfil 2020"` abre la admisión, pregunta lo que falte por consola, y tras confirmar produce `.FCStd`, `.stl`, `.3mf` y reporte.
 
@@ -187,6 +189,7 @@ Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto
 | F2.9 | **La escotilla de Python libre** (§ 6.3): marcar una pieza como atípica, generar macro con DeepSeek, pasar `validate_macro`, ejecutar y registrar el motivo | Una pieza que ningún generador cubre se construye por la escotilla; el motivo queda en `log/`. Con el modelo local **no** se abre |
 | F2.10 | **Métrica de escotilla**: contador persistente de piezas atípicas por proyecto y en global, con el generador que habría hecho falta | La métrica de § 7 se puede consultar y **nombra qué generador escribir** |
 | F2.19 | **RAG para la escotilla** (era F1.8): indexar en Qdrant la API Python de FreeCAD (Part/PartDesign/Sketcher) + ejemplos propios, y usarlo **solo** al generar macros de la escotilla (F2.9) | Una consulta "pocket circular en cara superior" devuelve el ejemplo correcto; una pieza atípica construida por la escotilla usa ese contexto. Requiere Ollama (`nomic-embed-text`) y Qdrant |
+| F2.20 | **Encaje físico con holgura mínima** (`mech_toolkit/fit.py`): holgura radial entre el agujero de la pieza y el saliente del hardware ≥ la que pide el perfil. Sustituye a "intersección = 0", que contaba tocarse como encajar | El soporte de Ø22 contra el NEMA17 de referencia da **FAIL** con el motivo *"el agujero tiene que ser de al menos Ø22.35"*; con Ø22.4 da PASS. El motivo es accionable: dice qué valor poner |
 | F2.11 | **Tolerances/DFM Agent** | Aplica holguras según interfaz y deja la pieza orientada para imprimir |
 | F2.12 | `derive_assertions(interface)`: aserciones medibles por tipo de interfaz (**capa 1 del QA**) | Una interfaz `bearing_seat` 608zz `press` produce la aserción Ø22.10 ±0.05 sin intervención de ningún LLM |
 | F2.13 | **Puente aserción ↔ medición** (ADR-011): transformar el `frame` a coordenadas de la pieza con su `placement`, **buscar la geometría que el contrato exige** según el `query` derivado del tipo, y medirla | Las aserciones de F2.12 se resuelven a valores medidos reales. Un agujero desplazado da **"no encontrado" → FAIL**, no una medida correcta en la cara equivocada. **Sin esto la capa 1 no tiene datos y ADR-003 no funciona** |
@@ -218,8 +221,8 @@ Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto
 | F3.8 | **Assembly Agent**: importa piezas y hardware, posiciona según interfaces, genera `assembly.FCStd` (instancia GUI) | Ensamble de la garra cargado correctamente en FreeCAD |
 | F3.9 | `interference_check` (booleana de intersección entre pares) con reporte de volumen y ubicación | Detecta interferencias sembradas ≥ 0.05 mm³ |
 | F3.10 | Generación de BOM (`bom.csv`) de piezas impresas + hardware | BOM coincide con el ensamble |
-| F3.11 | QA de ensamble: interfaces coherentes a ambos lados (mismo patrón, misma holgura) | Detecta patrones de tornillos desalineados |
-| F3.12 | Reapertura selectiva: un defecto de ensamble reabre solo las piezas/interfaces implicadas | Tras modificar una interfaz, solo se regeneran las piezas que la usan |
+| F3.11 | QA de ensamble: interfaces coherentes a ambos lados (mismo patrón, misma holgura) Usa `check_fit` (F2.20) en cada interfaz pieza-pieza y pieza-hardware. | Detecta patrones de tornillos desalineados |
+| F3.12 | Reapertura selectiva: un defecto de ensamble reabre solo las piezas/interfaces implicadas El motivo de F2.20 (*"el agujero tiene que ser de al menos Ø…"*) vuelve al Part Designer como defecto, por el mismo bucle que F1.11: el ensamblaje manda a cambiar con el valor concreto, no con un "no encaja". | Tras modificar una interfaz, solo se regeneran las piezas que la usan |
 | F3.13 | Slicing por placas: agrupar piezas en la cama y laminar cada placa | Reporte con número de placas, gramos y horas totales |
 
 **Entregable:** garra con MG996R (5–8 piezas) ensamblada sin interferencias, laminada y **impresa y montada físicamente**.
