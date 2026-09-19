@@ -8,7 +8,6 @@ Designer emite una receta validada contra el catálogo, el orquestador
 compone `build.py` y FreeCAD lo ejecuta sin interfaz.
 
 Lo que AÚN NO hace, y por qué:
-  - No lamina: falta el perfil de PrusaSlicer (F1.12) y su agente (F1.13).
   - No pasa QA: falta el puente aserción↔medición (F2.13).
   - No usa Telegram: el adaptador es F5.6, semana 16.
   - No es el grafo de LangGraph (F1.14): aquí los pasos van en línea.
@@ -34,6 +33,7 @@ from orchestrator.human.port import Question  # noqa: E402
 from orchestrator.llm.providers.deepseek import DeepSeekClient  # noqa: E402
 from orchestrator.recipes.compose import RESULT_PREFIX, compose_build_script  # noqa: E402
 from orchestrator.schemas.part_result import PartResult  # noqa: E402
+from orchestrator.slicing import PERFIL_M5, LaminadoFallido, slice_stl  # noqa: E402
 from orchestrator.state_machine import AprobacionRequerida, advance  # noqa: E402
 from orchestrator.tasks import slug, spec_to_task  # noqa: E402
 
@@ -141,11 +141,35 @@ def main(peticion: str) -> None:
         f"\n  volumen: {resultado.volume_mm3:.2f} mm³"
         f"\n  envolvente: {' x '.join(f'{v:g}' for v in resultado.bbox_mm)} mm"
     )
+    # --- Laminado para la AnkerMake M5 ---------------------------------------
+    port.notify("\nLaminando para la AnkerMake M5…")
+    fabricacion = proyecto / "fabrication"
+    fabricacion.mkdir(exist_ok=True)
+    try:
+        informe = slice_stl(
+            carpeta / f"{tarea.part}.stl",
+            RAIZ / PERFIL_M5,
+            fabricacion / f"{tarea.part}.gcode",
+        )
+    except (LaminadoFallido, ValueError) as e:
+        port.notify(f"  el laminado falló: {e}")
+    else:
+        h, m = divmod(informe.time_s // 60, 60)
+        port.notify(
+            f"  {informe.grams:.1f} g de {spec.material}, "
+            f"{informe.filament_mm / 1000:.2f} m de filamento, "
+            f"{h} h {m} min, soportes: {'sí' if informe.needs_supports else 'no'}"
+        )
+        port.notify(
+            "  ⚠️ El G-code de inicio del perfil NO está verificado en la "
+            "impresora: revísalo antes de imprimir (config/slicing/)."
+        )
+
     port.notify(f"\nArtefactos en {carpeta.relative_to(RAIZ)}:")
     for archivo in sorted(carpeta.iterdir()):
         port.notify(f"  {archivo.name}  ({archivo.stat().st_size:,} bytes)")
     port.notify(f"\nEstado del proyecto: {estado} → pieza construida.")
-    port.notify("Pendiente: laminado (F1.13) y QA (F2.13).")
+    port.notify(f"G-code en {fabricacion.relative_to(RAIZ)}. Pendiente: QA (F2.13).")
 
 
 if __name__ == "__main__":
