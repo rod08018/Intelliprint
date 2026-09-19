@@ -44,6 +44,24 @@ class Kinematics:
     def __init__(self, spec: MechanismSpec) -> None:
         self.spec = spec
         self._por_nombre = {b.name: b for b in spec.bodies}
+        self._apoyos: dict[tuple[float, str], float] = {}
+        """Valores resueltos por contacto (F3.15 (mecanismos)): los calcula
+        `solve_contacts` con la geometría real, no una fórmula."""
+
+    def set_solved(self, valores: dict[tuple[float, str], float]) -> None:
+        self._apoyos = dict(valores)
+
+    def joint_value(self, nombre: str, t: float, forzado: dict | None = None) -> float:
+        b = self._por_nombre[nombre]
+        if forzado and nombre in forzado:
+            return forzado[nombre]
+        if b.joint.rest_on is not None:
+            clave = (round(t, 6), nombre)
+            if clave in self._apoyos:
+                return self._apoyos[clave]
+            # Sin resolver todavía: la posición de partida, separada del apoyo.
+            return evaluate(b.joint.rest_on.start, self._vars(t))
+        return evaluate(b.joint.value, self._vars(t))
 
     def frames(self) -> list[float]:
         d = self.spec.driver
@@ -56,18 +74,18 @@ class Kinematics:
     def _vars(self, t: float) -> dict[str, float]:
         return {**self.spec.params, self.spec.driver.name: t}
 
-    def _mundo(self, nombre: str, t: float, cache: dict):
+    def _mundo(self, nombre: str, t: float, cache: dict, forzado: dict | None = None):
         if nombre in cache:
             return cache[nombre]
         b = self._por_nombre[nombre]
         if b.parent is None:
             rp, pp = [[1, 0, 0], [0, 1, 0], [0, 0, 1]], [0.0, 0.0, 0.0]
         else:
-            rp, pp = self._mundo(b.parent, t, cache)
+            rp, pp = self._mundo(b.parent, t, cache, forzado)
         p = [a + c for a, c in zip(pp, _aplicar(rp, b.origin))]
         r = _matmul(rp, _rotacion(*b.rotation))
         if b.joint is not None:
-            v = evaluate(b.joint.value, self._vars(t))
+            v = self.joint_value(nombre, t, forzado)
             if b.joint.type == "revolute":
                 r = _matmul(r, _rodrigues(b.joint.axis, v))
             else:
@@ -76,11 +94,13 @@ class Kinematics:
         cache[nombre] = (r, p)
         return r, p
 
-    def poses(self, t: float) -> dict[str, Placement]:
+    def poses(self, t: float, forzado: dict[str, float] | None = None) -> dict[str, Placement]:
+        """`forzado` fija a mano el valor de alguna articulación (para probar
+        si una pieza podría retroceder: `blocks`)."""
         cache: dict = {}
         salida = {}
         for b in self.spec.bodies:
-            r, p = self._mundo(b.name, t, cache)
+            r, p = self._mundo(b.name, t, cache, forzado)
             escala = evaluate(b.stretch, self._vars(t)) if b.stretch else 1.0
             salida[b.name] = Placement(origin=p, rotation=euler_zyx(r), scale_z=escala)
         return salida

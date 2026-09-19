@@ -15,14 +15,42 @@ from orchestrator.mechanisms.expr import ExprError, check_expr
 MAX_FRAMES = 73
 
 
+class RestOn(BaseModel):
+    """La pieza NO sigue una fórmula: se mueve hasta APOYARSE en otra.
+
+    El sistema busca en la geometría real, en cada posición del ciclo, el
+    primer valor (partiendo de `start` y avanzando hacia `toward`) en el que
+    las dos piezas se tocan. Así un trinquete monta los dientes porque la
+    geometría lo obliga, no porque alguien escriba la fórmula."""
+    target: str
+    start: str
+    """Fórmula del valor de partida: la pieza separada de aquello en lo que
+    se apoya (p. ej. el trinquete levantado)."""
+    toward: Literal["increase", "decrease"]
+    limit: float
+    """Cuánto puede moverse como máximo desde `start` buscando el apoyo."""
+    gap_mm: float = 0.02
+
+
 class Joint(BaseModel):
     type: Literal["revolute", "prismatic"]
     axis: list[float]
     """Eje de la articulación en el marco de la pieza (tras `rotation`),
     pasando por su origen."""
-    value: str
+    value: str | None = None
     """Fórmula del ángulo (grados) o del desplazamiento (mm), en función del
     parámetro del mecanismo y de `params`."""
+    rest_on: RestOn | None = None
+    """Alternativa a `value`: el valor lo decide el contacto con otra pieza."""
+
+    @model_validator(mode="after")
+    def _formula_o_contacto(self) -> "Joint":
+        if (self.value is None) == (self.rest_on is None):
+            raise ValueError(
+                "una articulación lleva `value` (fórmula) o `rest_on` (apoyo en "
+                "otra pieza), pero no las dos ni ninguna"
+            )
+        return self
 
 
 class Body(BaseModel):
@@ -61,6 +89,18 @@ class PairRuleDef(BaseModel):
     """contact: tienen que tocarse en todo el recorrido (hueco ≤ max_gap_mm).
     fixed: van unidas (ajuste, chaveta): pueden tocarse, no atravesarse."""
     max_gap_mm: float = 0.05
+
+
+class BlockDef(BaseModel):
+    """Bloqueo: en la posición `at` del ciclo, `body` NO puede moverse
+    `delta` en su articulación porque `against` se lo impide.
+
+    Es lo que hace que un trinquete sea un trinquete: el sistema comprueba
+    que al intentar retroceder las piezas se atravesarían."""
+    body: str
+    against: str
+    at: float
+    delta: float
 
 
 class StopDef(BaseModel):
@@ -107,6 +147,7 @@ class MechanismSpec(BaseModel):
     rules: list[PairRuleDef] = []
     checks: list[CheckDef] = []
     stops: list[StopDef] = []
+    blocks: list[BlockDef] = []
 
     @property
     def bodies(self) -> list[Body]:
@@ -136,6 +177,8 @@ class MechanismSpec(BaseModel):
         variables = set(self.params) | {self.driver.name}
         for b in self.bodies:
             for campo, texto in (("joint.value", b.joint.value if b.joint else None),
+                                 ("joint.rest_on.start",
+                                  b.joint.rest_on.start if b.joint and b.joint.rest_on else None),
                                  ("stretch", b.stretch)):
                 if texto is None:
                     continue
@@ -152,6 +195,26 @@ class MechanismSpec(BaseModel):
             for n in (r.a, r.b):
                 if n not in conocidos:
                     errores.append(f"regla {r.a}/{r.b}: {n!r} no existe")
+        apoyadas = {b.name for b in self.bodies if b.joint and b.joint.rest_on}
+        for b in self.bodies:
+            if b.parent in apoyadas:
+                errores.append(
+                    f"{b.name}: cuelga de {b.parent!r}, que se apoya por contacto; "
+                    "una pieza apoyada no puede llevar otras encima"
+                )
+            if b.joint and b.joint.rest_on and b.joint.rest_on.target not in conocidos:
+                errores.append(f"{b.name}: se apoya en {b.joint.rest_on.target!r}, que no existe")
+            if b.joint and b.joint.rest_on and b.joint.rest_on.limit <= 0:
+                errores.append(f"{b.name}: el recorrido de búsqueda del apoyo tiene que ser > 0")
+        for bl in self.blocks:
+            for n in (bl.body, bl.against):
+                if n not in conocidos:
+                    errores.append(f"bloqueo {bl.body}/{bl.against}: {n!r} no existe")
+            if bl.delta == 0:
+                errores.append(f"bloqueo {bl.body}/{bl.against}: delta no puede ser 0")
+            cuerpo = next((x for x in self.bodies if x.name == bl.body), None)
+            if cuerpo is not None and cuerpo.joint is None:
+                errores.append(f"bloqueo {bl.body}/{bl.against}: {bl.body!r} no tiene articulación")
         for t in self.stops:
             for n in (t.a, t.b):
                 if n not in conocidos:

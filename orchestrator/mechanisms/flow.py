@@ -21,6 +21,7 @@ from mech_toolkit.generators import CATALOGO
 from orchestrator.build import ConstruccionFallida, design_and_build
 from orchestrator.llm.structured import SalidaInvalida
 from orchestrator.mechanisms.checks import joint_axis_problems, stop_problems
+from orchestrator.mechanisms.contact import SinApoyo, block_problems, solve_contacts
 from orchestrator.mechanisms.run import MechanismReport, build_mechanism
 from orchestrator.mechanisms.spec_layout import SpecLayout
 
@@ -104,6 +105,15 @@ def design_mechanism(
             steps = {p.name: carpeta / "parts" / p.name / f"{p.name}.step" for p in spec.parts}
             fallos = [f"- {x}" for x in joint_axis_problems(spec, steps, freecadcmd)]
 
+        if not fallos and any(b.joint and b.joint.rest_on for b in spec.bodies):
+            # Las piezas que se apoyan encuentran su sitio en la geometría real
+            # ANTES de barrer: su movimiento no lo decide una fórmula.
+            log("    resolviendo apoyos por contacto…")
+            try:
+                solve_contacts(spec, layout.kin, steps, layout.pins(), freecadcmd, layout.frames())
+            except SinApoyo as e:
+                fallos = [f"- {e}"]
+
         ultima = n == max_rounds
         if fallos:
             feedback = "\n".join(fallos)
@@ -114,8 +124,10 @@ def design_mechanism(
                 disenar=lambda nombre, c: None,  # ya dibujadas arriba
                 animar=False,
             )
-            feedback = "\n".join(f"- {linea}" for linea in
-                                  final.collision_summary() + stop_problems(spec, layout, steps, freecadcmd))
+            feedback = "\n".join(f"- {linea}" for linea in (
+                final.collision_summary()
+                + stop_problems(spec, layout, steps, freecadcmd)
+                + block_problems(spec, layout.kin, steps, layout.pins(), freecadcmd)))
             ejes = {x.name for x in spec.pins}
             atravesados = sorted({(c.a if c.b in ejes else c.b, c.b if c.b in ejes else c.a)
                                   for c in final.collisions
