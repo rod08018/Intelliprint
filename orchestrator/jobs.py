@@ -11,6 +11,7 @@ FreeCAD, por el modelo y por el saldo.
 
 import datetime as dt
 import json
+import os
 import shutil
 import signal
 import subprocess
@@ -28,6 +29,12 @@ ARCHIVOS = {
     "peticion": "request.md",
     "registro": "run.log",
 }
+
+
+ENTORNO = {**os.environ, "PYTHONUNBUFFERED": "1"}
+"""Sin esto, Python guarda lo que imprime en un búfer de 8 KB cuando la
+salida es un archivo: `run.log` se queda VACÍO durante rondas enteras y
+quien pregunta por el estado no ve nada (pasó con el Geneva drive)."""
 
 
 BUZON_POR_DEFECTO = Path.home() / ".openclaw" / "workspace" / "intelliprint"
@@ -82,6 +89,7 @@ class JobStore:
         proceso = subprocess.Popen(
             [*self._comando, str(destino / "request.md"), "--archivo", "--carpeta", str(destino)],
             stdout=registro, stderr=subprocess.STDOUT, start_new_session=True,
+            env=ENTORNO,
         )
         self._procesos[nombre] = proceso
         (destino / "job.json").write_text(
@@ -102,6 +110,7 @@ class JobStore:
             [*self._comando, str(destino / "request.md"), "--archivo",
              "--carpeta", str(destino), "--continuar"],
             stdout=registro, stderr=subprocess.STDOUT, start_new_session=True,
+            env=ENTORNO,
         )
         self._procesos[job_id] = proceso
         (destino / "cancelado").unlink(missing_ok=True)
@@ -112,8 +121,6 @@ class JobStore:
         if proceso and proceso.poll() is None:
             # El grupo entero: el proceso lanza freecadcmd por su cuenta.
             try:
-                import os
-
                 os.killpg(os.getpgid(proceso.pid), signal.SIGTERM)
             except (ProcessLookupError, PermissionError):
                 proceso.terminate()

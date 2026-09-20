@@ -5,6 +5,7 @@ mecanismo tarda minutos. Lanza el trabajo, le devuelven un identificador y
 pregunta el estado cuando quiere.
 """
 
+import sys
 import time
 from pathlib import Path
 
@@ -122,3 +123,28 @@ def test_los_archivos_se_dejan_donde_el_canal_puede_leerlos(tmp_path):
     assert Path(entregados["animacion"]).read_bytes() == b"GIF89a"
     # El original no se toca: el buzón es una copia para el canal.
     assert (proyecto / "animation.gif").exists()
+
+
+def test_el_registro_se_ve_mientras_el_trabajo_sigue_aunque_sea_python(tmp_path):
+    """Fallo real: `run.log` estaba VACÍO seis minutos después de lanzar el
+    Geneva drive, y el estado no decía nada.
+
+    Python guarda lo que imprime en un búfer de 8 KB cuando la salida es un
+    archivo, así que una ronda entera no llega al registro. Los demás tests
+    no lo vieron porque lanzan `sh`, que no bufera: el oráculo no se parecía
+    a lo que corre de verdad.
+    """
+    store = JobStore(tmp_path, comando=[
+        sys.executable, "-c",
+        "print('  ronda 1: el diseñador propone'); import time; time.sleep(3)"])
+
+    job = store.start("un mecanismo de ginebra")
+
+    limite = time.time() + 5
+    while "ronda 1" not in store.status(job)["ultimo"] and time.time() < limite:
+        time.sleep(0.05)
+    estado = store.status(job)
+    store.cancel(job)
+
+    assert estado["estado"] == "trabajando"
+    assert "ronda 1: el diseñador propone" in estado["ultimo"]
