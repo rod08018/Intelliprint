@@ -115,3 +115,41 @@ def test_resorte_helicoidal(tmp_path):
     assert r.volume_mm3 == pytest.approx(math.pi * (w / 2) ** 2 * hilo, rel=0.03)
     # El alambre cabe entre 0 y el largo (la caja de una B-spline es algo holgada).
     assert -0.5 < r.bbox_min[2] <= 0.3 and largo - 0.3 <= r.bbox_max[2] < largo + 0.5
+
+
+@needs_freecad
+def test_la_caja_del_resorte_incluye_el_grosor_del_alambre(tmp_path):
+    """4 rondas del trinquete murieron adivinando esto: el agente declaraba
+    ±coil/2 y salía ±(coil+wire)/2. Hasta ahora solo se fijaba la z."""
+    d, w = 8.0, 1.0
+    r = _construir(tmp_path, [("generate_spring", {
+        "coil_diameter_mm": d, "wire_diameter_mm": w, "pitch_mm": 2.0, "length_mm": 10.0})])
+
+    assert r.bbox_min[:2] == pytest.approx([-(d + w) / 2, -(d + w) / 2], abs=0.05)
+    assert r.bbox_max[:2] == pytest.approx([(d + w) / 2, (d + w) / 2], abs=0.05)
+
+
+@needs_freecad
+def test_un_resorte_de_menos_de_una_vuelta_se_rechaza(tmp_path):
+    """`length=3, wire=1.2, pitch=3` son 0.6 vueltas: ni es un resorte ni
+    tiene huella circular, y su caja no hay quien la prediga."""
+    from orchestrator.build import ConstruccionFallida
+
+    with pytest.raises(ConstruccionFallida, match="vuelta"):
+        _construir(tmp_path, [("generate_spring", {
+            "coil_diameter_mm": 8, "wire_diameter_mm": 1.2, "pitch_mm": 3.0, "length_mm": 3.0})])
+
+
+@needs_freecad
+def test_la_caja_de_la_rueda_con_dientes_fuera_de_los_ejes(tmp_path):
+    """Con 12 dientes una punta cae justo sobre cada eje y la caja es ±tip/2.
+    Con 14 no, y la caja real es menor: nadie lo había probado."""
+    n, rt, rr = 14, 24.0, 20.0
+    r = _construir(tmp_path, [("generate_ratchet_wheel", {
+        "teeth": n, "tip_diameter_mm": 2 * rt, "root_diameter_mm": 2 * rr, "thickness_mm": 5})])
+
+    paso = 2 * math.pi / n
+    esperado_y = max(max(rr * math.sin(k * paso), rt * math.sin((k + 1) * paso))
+                     for k in range(n))
+    assert r.bbox_max[1] == pytest.approx(esperado_y, abs=0.05)
+    assert r.bbox_max[1] < rt - 0.3          # y NO es el radio de punta

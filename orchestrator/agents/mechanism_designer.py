@@ -25,6 +25,7 @@ class MechanismDesignerAgent:
                  wall_mm: float = 1.8,
                  prompt_path: Path = PROMPT_PATH) -> None:
         self._client = client
+        self._min_gap_mm = min_gap_mm
         self._instrucciones = prompt_path.read_text(encoding="utf-8").format(
             min_gap=f"{min_gap_mm:g}", bed=" × ".join(f"{v:g}" for v in bed_mm),
             profile_id=profile.id, clearance=f"{profile.fit_mm('clearance'):g}",
@@ -54,7 +55,7 @@ class MechanismDesignerAgent:
                     "qué cambias (con números) y qué esperas conseguir"
                 )
             Kinematics(spec).validate()
-            problemas = mechanism_problems(spec)
+            problemas = mechanism_problems(spec, self._min_gap_mm)
             if problemas:
                 raise ValueError("; ".join(problemas))
 

@@ -46,6 +46,36 @@ def joint_axis_problems(spec: MechanismSpec, steps: dict[str, Path], freecadcmd:
     return problemas
 
 
+def _apoyadas_a_cero(spec: MechanismSpec, min_gap_mm: float) -> list[str]:
+    """Piezas colocadas JUSTO sobre la cara de otra: el barrido lo devuelve
+    como «quedan a 0.00 mm», un renglón por par, y el agente acaba
+    reescribiendo el mecanismo entero en vez de subirlas una décima."""
+    if min_gap_mm <= 0:
+        return []
+    cajas = {p.name: (p.bbox_min, p.bbox_max) for p in spec.parts}
+    pegadas = []
+    for p in spec.parts:
+        if p.name not in cajas or p.joint is None and p.parent is None:
+            continue
+        base_z = p.origin[2] + cajas[p.name][0][2]
+        for otra in spec.parts:
+            if otra is p or otra.parent is not None:
+                continue
+            techo = otra.origin[2] + cajas[otra.name][1][2]
+            if 0 <= base_z - techo < min_gap_mm:
+                pegadas.append((p.name, otra.name, techo + min_gap_mm - base_z))
+                break
+    if not pegadas:
+        return []
+    nombres = ", ".join(f"«{a}» sobre «{b}»" for a, b, _ in pegadas)
+    subir = max(d for _, _, d in pegadas)
+    return [
+        f"estas piezas se apoyan sin holgura: {nombres}. Entre dos piezas que no se "
+        f"tocan hacen falta {min_gap_mm:g} mm: súbelas {subir:.2f} mm, o decláralas en "
+        "contacto si de verdad tienen que tocarse."
+    ]
+
+
 def stop_problems(spec: MechanismSpec, layout, steps: dict[str, Path], freecadcmd: str,
                   max_gap_mm: float = 0.05) -> list[str]:
     """Cada tope declarado tiene que tocar en `at` y bloquear más allá."""
@@ -70,7 +100,7 @@ def stop_problems(spec: MechanismSpec, layout, steps: dict[str, Path], freecadcm
     return problemas
 
 
-def mechanism_problems(spec: MechanismSpec) -> list[str]:
+def mechanism_problems(spec: MechanismSpec, min_gap_mm: float = 0.0) -> list[str]:
     """Lo que el agente no puede dejar sin verificar, mirando su propia
     declaración. Sale de un fallo real: un trinquete aprobado que no
     trinqueteaba, porque nada obligaba a declarar contactos ni bloqueos.
@@ -120,4 +150,5 @@ def mechanism_problems(spec: MechanismSpec) -> list[str]:
                 "no hay nada que verificar sobre ella. Declara con qué va unida o en "
                 "contacto (`rules`), o qué la mueve."
             )
+    problemas += _apoyadas_a_cero(spec, min_gap_mm)
     return problemas

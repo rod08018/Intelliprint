@@ -35,6 +35,26 @@ def huella_de_fallo(feedback: str) -> str:
     return re.sub(r"[-+]?\d+(?:[.,]\d+)?", "#", feedback).strip()
 
 
+def huella_de_plan(plan: dict | None, nombres=()) -> str:
+    """La IDEA del plan: QUÉ PIEZAS toca. Los nombres de las piezas son
+    identificadores estables; la redacción no. Comparar el texto literal no
+    servía —"subo el brazo" y "elevo el brazo" nunca coinciden— y el atasco
+    no saltaba nunca.
+
+    Sin lista de nombres se cae a las palabras del plan, que es mejor que nada.
+    """
+    if not plan:
+        return ""
+    import unicodedata
+
+    texto = " ".join(str(plan.get(c, "")) for c in ("causa", "cambio"))
+    texto = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode().lower()
+    tocadas = {n for n in nombres if n.lower() in texto}
+    if tocadas:
+        return " ".join(sorted(tocadas))
+    return " ".join(sorted({w for w in re.findall(r"[a-z_]{4,}", texto)}))
+
+
 MAX_RONDAS = 40
 """Red de seguridad, no el criterio: el sistema itera HASTA QUE el mecanismo
 funciona. Lo que lo detiene es el presupuesto (F5.12 (tope)) o atascarse
@@ -211,7 +231,7 @@ def design_mechanism(
 
         # Antes de gastar FreeCAD: lo que el agente no puede dejar sin
         # verificar se ve en su propia declaración.
-        fallos = [f"- {x}" for x in mechanism_problems(spec)]
+        fallos = [f"- {x}" for x in mechanism_problems(spec, min_gap_mm)]
         for p in [] if fallos else spec.parts:
             clave = (p.brief, tuple(p.bbox_min), tuple(p.bbox_max))
             destino = carpeta / "parts" / p.name
@@ -229,6 +249,7 @@ def design_mechanism(
                     # trinquete). Aquí manda la caja envolvente, que es más fuerte.
                     part=p.name,
                     check=lambda r, nombre=p.name: layout.check_bounds(nombre, r),
+                    check_es_de_la_caja=True,
                 )
                 (destino / "recipe.json").write_text(receta.model_dump_json(indent=2), encoding="utf-8")
                 (destino / "brief.md").write_text(p.brief + "\n", encoding="utf-8")
@@ -303,8 +324,8 @@ def design_mechanism(
         # ¿Se está repitiendo? Volver a proponer lo mismo no arregla nada.
         # El muro y la idea con la que se intenta tirarlo: repetir la misma
         # idea contra el mismo muro es atasco, aunque cambien los números.
-        huella = huella_de_fallo(feedback) + "||" + huella_de_fallo(
-            json.dumps(plan, ensure_ascii=False, sort_keys=True) if plan else "")
+        huella = huella_de_fallo(feedback) + "||" + huella_de_plan(
+            plan, [b.name for b in spec.bodies])
         motivos_vistos[huella] = motivos_vistos.get(huella, 0) + 1
         repetido = motivos_vistos[huella]
         if repetido >= REPETICIONES_PARA_ATASCO:

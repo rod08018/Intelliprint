@@ -27,6 +27,12 @@ class ConstruccionFallida(RuntimeError):
         self.motivo = motivo
 
 
+class CajaNoCuadra(ConstruccionFallida):
+    """La pieza está bien dibujada pero no ocupa la caja declarada. Eso suele
+    ser de quien la declaró, no de quien la dibujó: sube sin gastar el resto
+    de intentos del Part Designer."""
+
+
 def motivo_del_fallo(salida: str) -> str:
     """El motivo que le llega al agente.
 
@@ -73,6 +79,7 @@ def design_and_build(
     part: str | None = None,
     request: str | None = None,
     check: Callable[[PartResult], str | None] | None = None,
+    check_es_de_la_caja: bool = False,
     max_construcciones: int = MAX_CONSTRUCCIONES,
 ) -> tuple[Recipe, PartResult]:
     """Diseña y construye, devolviendo al agente el motivo de cada fallo.
@@ -108,8 +115,15 @@ def design_and_build(
             resultado = build_part(receta, catalog, Path(carpeta), freecadcmd)
             defecto = check(resultado) if check is not None else None
             if defecto:
+                # Un desacuerdo de CAJA suele ser de quien la declaró, no de
+                # quien dibujó: se le da una corrección al Part Designer y, si
+                # sigue, se sube el problema en vez de gastar los tres intentos.
+                if check_es_de_la_caja and intento >= 1:
+                    raise CajaNoCuadra(f"la caja declarada no cuadra: {defecto}")
                 raise ConstruccionFallida(defecto)
             return receta, resultado.model_copy(update={"untraced_mm": perdidas})
+        except CajaNoCuadra:
+            raise
         except ConstruccionFallida as error:
             motivo = error.motivo
             rechazo = (receta.model_dump_json(indent=2), motivo)

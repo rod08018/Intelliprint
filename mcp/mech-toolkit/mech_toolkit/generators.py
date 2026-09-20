@@ -182,6 +182,12 @@ _forma = Part.Face(Part.makePolygon(_pts + [_pts[0]])).extrude(FreeCAD.Vector(0,
 # Resorte helicoidal a lo largo de +z, de z = 0 a z = largo. Representación
 # simplificada: se estira o se comprime escalando en z al ensamblar.
 _RESORTE = """
+_vueltas = (($length_mm) - ($wire_diameter_mm)) / ($pitch_mm)
+if _vueltas < 1:
+    raise RuntimeError(
+        "INTELLIPRINT_FALLO: el resorte sale de %.2f vueltas (largo %s, alambre %s, paso %s): "
+        "menos de una vuelta no es un resorte. Alarga el resorte o baja el paso."
+        % (_vueltas, $length_mm, $wire_diameter_mm, $pitch_mm))
 # La hélice va de w/2 a L - w/2: con el alambre, el resorte ocupa de 0 a L y
 # sus puntas no se meten en los asientos.
 _helice = Part.makeHelix($pitch_mm, ($length_mm) - ($wire_diameter_mm), ($coil_diameter_mm) / 2.0)
@@ -215,7 +221,7 @@ CATALOGO = GeneratorCatalog(
         ),
         GeneratorSpec(
             name="generate_link",
-            description='Barra de estadio: primer agujero en el origen, segundo en (center_distance, 0), de z = 0 a z = espesor. Para manivelas, bielas, brazos.',
+            description='Barra de estadio: primer agujero en el origen, segundo en (center_distance, 0), de z = 0 a z = espesor. Para manivelas, bielas, brazos. Caja: x de −ancho/2 a distancia+ancho/2, y ±ancho/2, z de 0 a espesor.',
             required_params={"center_distance_mm", "width_mm", "thickness_mm",
                              "hole_diameter_mm"},
             template=_BARRA,
@@ -234,7 +240,7 @@ CATALOGO = GeneratorCatalog(
         ),
         GeneratorSpec(
             name="generate_cylinder",
-            description='Cilindro con la base en (x, y, z) que crece hacia + del eje elegido. Se suma a lo anterior.',
+            description='Cilindro con la base en (x, y, z) que crece hacia + del eje elegido. Se suma a lo anterior. Caja: un cuadrado de lado el diámetro alrededor del eje, y la longitud a lo largo de él.',
             required_params={"diameter_mm", "length_mm", "x_mm", "y_mm", "z_mm"},
             choice_params={"axis": {"x", "y", "z"}},
             template=_CILINDRO,
@@ -254,19 +260,19 @@ CATALOGO = GeneratorCatalog(
         ),
         GeneratorSpec(
             name="generate_prism",
-            description='Polígono [[x, y], ...] en planta extruido de z a z + espesor. Se suma a lo anterior.',
+            description='Polígono [[x, y], ...] en planta extruido de z a z + espesor. Se suma a lo anterior. Caja: la del polígono, y de z a z+espesor.',
             required_params={"points_mm", "thickness_mm", "z_mm"},
             template=_PRISMA,
         ),
         GeneratorSpec(
             name="generate_ratchet_wheel",
-            description='Rueda de trinquete centrada en el origen, de z = 0 a espesor. Cada diente sube en línea recta del fondo (ángulo k·360/N) a la punta (ángulo (k+1)·360/N) y cae en radial: avanza girando en sentido antihorario. Se suma a lo anterior; el agujero del eje va aparte.',
+            description='Rueda de trinquete centrada en el origen, de z = 0 a espesor. Cada diente sube en línea recta del fondo (ángulo k·360/N) a la punta (ángulo (k+1)·360/N) y cae en radial: avanza girando en sentido antihorario. Se suma a lo anterior; el agujero del eje va aparte. Caja: NO es ±tip/2 salvo que una punta caiga sobre el eje; es el máximo de r·cos y r·sin sobre los vértices del perfil.',
             required_params={"teeth", "tip_diameter_mm", "root_diameter_mm", "thickness_mm"},
             template=_RUEDA_TRINQUETE,
         ),
         GeneratorSpec(
             name="generate_spring",
-            description='Resorte helicoidal a lo largo de z, de z = 0 a z = largo, centrado en el eje Z.',
+            description='Resorte helicoidal a lo largo de z, de z = 0 a z = largo, centrado en el eje Z. Caja: en planta ±(coil+wire)/2 (el alambre sobresale del diámetro de espira), en z de 0 a largo. Necesita al menos una vuelta: (largo − alambre)/paso ≥ 1.',
             required_params={"coil_diameter_mm", "wire_diameter_mm", "pitch_mm", "length_mm"},
             template=_RESORTE,
         ),

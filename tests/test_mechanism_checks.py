@@ -77,3 +77,47 @@ def test_las_formulas_que_dependen_del_ciclo_se_aceptan(formula):
                 joint={"type": "revolute", "axis": [0, 0, 1], "value": formula})
 
     assert not any("brazo" in p for p in mechanism_problems(spec))
+
+
+def test_una_pieza_apoyada_a_cero_milimetros_se_avisa_con_el_numero_exacto():
+    """Rondas 5 y 12 del trinquete: 3 y 6 renglones de «quedan a 0.00 mm»
+    porque las piezas se colocan justo sobre la cara de la base. Es
+    aritmética sobre el spec: no hace falta abrir FreeCAD para verlo."""
+    spec = _spec(parts=[
+        {"name": "base", "brief": "b", "bbox_min": [-50, -50, 0], "bbox_max": [50, 50, 8]},
+        {"name": "rueda", "origin": [0, 0, 8], "brief": "b",
+         "bbox_min": [-20, -20, 0], "bbox_max": [20, 20, 6],
+         "joint": {"type": "revolute", "axis": [0, 0, 1], "value": "t"}},
+    ])
+
+    problemas = mechanism_problems(spec, min_gap_mm=0.1)
+
+    assert len(problemas) == 1
+    assert "rueda" in problemas[0] and "base" in problemas[0]
+    assert "0.1" in problemas[0]      # cuánto hay que subirla
+
+
+def test_una_pieza_con_holgura_suficiente_no_molesta():
+    spec = _spec(parts=[
+        {"name": "base", "brief": "b", "bbox_min": [-50, -50, 0], "bbox_max": [50, 50, 8]},
+        {"name": "rueda", "origin": [0, 0, 8.2], "brief": "b",
+         "bbox_min": [-20, -20, 0], "bbox_max": [20, 20, 6],
+         "joint": {"type": "revolute", "axis": [0, 0, 1], "value": "t"}},
+    ])
+
+    assert mechanism_problems(spec, min_gap_mm=0.1) == []
+
+
+def test_varias_piezas_apoyadas_igual_se_agrupan_en_un_renglon():
+    """La ronda 12 devolvió 6 renglones del mismo error y el agente reescribió
+    el mecanismo entero en vez de subir las piezas 0.2 mm."""
+    piezas = [{"name": "base", "brief": "b", "bbox_min": [-50, -50, 0], "bbox_max": [50, 50, 8]}]
+    for nombre in ("rueda", "palanca", "pawl"):
+        piezas.append({"name": nombre, "origin": [0, 0, 8], "brief": "b",
+                       "bbox_min": [-5, -5, 0], "bbox_max": [5, 5, 4],
+                       "joint": {"type": "revolute", "axis": [0, 0, 1], "value": "t"}})
+
+    problemas = mechanism_problems(_spec(parts=piezas), min_gap_mm=0.1)
+
+    assert len(problemas) == 1
+    assert all(n in problemas[0] for n in ("rueda", "palanca", "pawl"))

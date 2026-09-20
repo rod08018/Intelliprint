@@ -458,3 +458,46 @@ def test_repetir_el_mismo_plan_ante_el_mismo_fallo_es_atasco(tmp_path):
     texto = (tmp_path / "blocked.md").read_text(encoding="utf-8")
     assert "Qué intentó" in texto and "lo subo un poco" in texto
     assert "Qué puedes hacer" in texto
+
+
+def test_la_huella_del_plan_mira_que_piezas_toca_no_como_lo_redacta():
+    """El plan es prosa: dos redacciones distintas de la misma idea no se
+    repiten nunca literalmente, así que el atasco no saltaba y el bucle
+    corría hasta agotar el presupuesto."""
+    from orchestrator.mechanisms.flow import huella_de_plan
+
+    a = {"causa": "el pawl roza la rueda", "cambio": "subo pawl 0.5 mm y alejo rueda",
+         "espera": "que no choquen"}
+    b = {"causa": "creo que el pawl toca la rueda antes de tiempo",
+         "cambio": "muevo el pawl 0.8 mm hacia arriba, separando la rueda",
+         "espera": "dejar de chocar"}
+    c = {"causa": "el muelle no empuja", "cambio": "cambio el muelle por uno de lámina",
+         "espera": "que empuje"}
+
+    piezas = ["pawl", "rueda", "muelle"]
+    assert huella_de_plan(a, piezas) == huella_de_plan(b, piezas)   # misma idea, otra redacción
+    assert huella_de_plan(a, piezas) != huella_de_plan(c, piezas)   # idea distinta
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_tres_veces_la_misma_idea_con_otras_palabras_es_atasco(tmp_path):
+    planes = [
+        {"causa": "el brazo roza la base", "cambio": "subo el brazo 0.4 mm", "espera": "que no roce"},
+        {"causa": "parece que el brazo toca la base", "cambio": "elevo el brazo 0.6 mm",
+         "espera": "no rozar"},
+        {"causa": "el brazo sigue rozando la base", "cambio": "muevo el brazo 0.7 mm arriba",
+         "espera": "que deje de rozar"},
+    ]
+    especs = [json.dumps(_spec(0.0))]
+    for p in planes:
+        s = _spec(0.0)
+        s["fix_plan"] = p
+        especs.append(json.dumps(s))
+    informe = design_mechanism(
+        "un brazo", MechanismDesignerAgent(Guion(especs * 3), CATALOGO, PERFIL, (235, 235, 250), 0.1),
+        PartDesignerAgent(DisenadorDePiezas(), CATALOGO), tmp_path, _freecadcmd(),
+        min_gap_mm=0.1, animar=False,
+    )
+
+    assert informe.stopped_because == "atascado"
+    assert len(informe.rounds) <= 4

@@ -114,3 +114,19 @@ def test_una_comprobacion_fallida_tras_construir_vuelve_al_agente(tmp_path):
     assert len(cliente.prompts) == 2
     assert "el taladro central tiene que ser mayor" in cliente.prompts[1]
     assert resultado.volume_mm3 < 60 * 60 * 6 - 400
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_una_caja_que_no_cuadra_no_quema_los_tres_intentos(tmp_path):
+    """4 rondas del trinquete se fueron así: la pieza estaba bien dibujada y
+    era la caja DECLARADA la que no cuadraba, pero se le pedía al Part
+    Designer que arreglara un desacuerdo que no era suyo."""
+    cliente = ClienteGuionizado([_receta(8)] * 3)
+    agente = PartDesignerAgent(cliente, CATALOGO)
+
+    with pytest.raises(ConstruccionFallida, match="caja"):
+        design_and_build(agente, "placa", CATALOGO, tmp_path, freecadcmd=_freecadcmd(),
+                         check=lambda r: "la pieza ocupa x de -30 a 30; se necesita de 0 a 60",
+                         check_es_de_la_caja=True)
+
+    assert len(cliente.prompts) == 2      # un intento y una corrección, no tres
