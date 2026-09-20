@@ -166,3 +166,20 @@ def test_un_nombre_de_articulacion_que_no_existe_se_rechaza():
             "driver": {"start": 0, "end": 90, "step": 45},
             "parts": [_pieza("base"), _pieza("m", stretch="q_fantasma")],
         })
+
+
+@pytest.mark.parametrize("campo, valor", [
+    ("origin", []), ("origin", [1, 2]), ("rotation", []), ("rotation", [0, 0, 0, 0]),
+])
+def test_una_posicion_incompleta_se_rechaza_en_vez_de_reventar(campo, valor):
+    """Fallo real: el agente mandó `rotation: []` y el proceso murió con un
+    TypeError dentro del cálculo de poses, sin mensaje que pudiera corregir."""
+    with pytest.raises(ValueError, match=campo):
+        _biela_manivela(parts=[_pieza("a"), _pieza("b", **{campo: valor})])
+
+
+def test_un_eje_de_articulacion_incompleto_tambien():
+    with pytest.raises(ValueError, match="eje"):
+        _biela_manivela(parts=[
+            _pieza("a"),
+            _pieza("b", joint={"type": "revolute", "axis": [0, 1], "value": "t"})])

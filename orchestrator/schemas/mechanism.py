@@ -206,7 +206,19 @@ class MechanismSpec(BaseModel):
                     check_expr(texto, con_articulaciones if campo == "stretch" else variables)
                 except ExprError as e:
                     errores.append(f"{b.name}.{campo}: {e}")
-            if b.joint is not None and sum(x * x for x in b.joint.axis) < 1e-9:
+            for campo in ("origin", "rotation"):
+                valor = getattr(b, campo)
+                if len(valor) != 3:
+                    errores.append(
+                        f"{b.name}: `{campo}` tiene {len(valor)} valores y necesita 3 "
+                        "(x, y, z en mm, o rx, ry, rz en grados)"
+                    )
+            if b.joint is not None and len(b.joint.axis) != 3:
+                errores.append(
+                    f"{b.name}: el eje de la articulación tiene {len(b.joint.axis)} "
+                    "valores y necesita 3"
+                )
+            elif b.joint is not None and sum(x * x for x in b.joint.axis) < 1e-9:
                 errores.append(f"{b.name}: el eje de la articulación es nulo")
         for p in self.parts:
             if any(lo >= hi for lo, hi in zip(p.bbox_min, p.bbox_max)) or len(p.bbox_min) != 3:
