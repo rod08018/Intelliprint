@@ -25,6 +25,11 @@ class RespuestaCortada(RuntimeError):
     pass
 
 
+class ConexionCaida(RuntimeError):
+    """La red se cortó a media respuesta. No es culpa del modelo ni del
+    esquema: se reintenta, y si no se recupera se dice claro."""
+
+
 class TiempoAgotado(RuntimeError):
     """La llamada pasó del plazo TOTAL. No vale el plazo de lectura de httpx:
     se reinicia con cada byte, y DeepSeek manda caracteres de mantenimiento
@@ -40,6 +45,8 @@ class DeepSeekClient:
         timeout: float | None = None,
         transport: httpx.BaseTransport | None = None,
         deadline_s: float | None = None,
+        intentos_de_red: int = 3,
+        espera_reintento_s: float = 2.0,
     ) -> None:
         self._model = model
         self.tokens = {"entrada": 0, "salida": 0}
@@ -54,6 +61,8 @@ class DeepSeekClient:
         # Plazo total de una llamada, de principio a fin. El de razonamiento
         # piensa varios minutos; más allá de esto, algo va mal.
         self._deadline_s = deadline_s if deadline_s is not None else (1200.0 if razona else 300.0)
+        self._intentos_de_red = intentos_de_red
+        self._espera_reintento_s = espera_reintento_s
         # Medido en la bisagra: ~30 000 tokens de pensamiento. Con 32 768 se
         # quedaba sin sitio y devolvía la respuesta vacía (finish_reason=length).
         self._max_tokens = 65536 if razona else 8192
@@ -69,8 +78,21 @@ class DeepSeekClient:
         )
 
     def _pedir_con_plazo(self, cuerpo: dict) -> dict:
-        """Lee la respuesta a trozos vigilando el reloj: así se puede cortar
-        una llamada que no avanza aunque el servidor siga mandando bytes."""
+        """Lee la respuesta a trozos vigilando el reloj, y reintenta si la red
+        se corta: un corte no puede tumbar un proyecto de media hora."""
+        for intento in range(1, self._intentos_de_red + 1):
+            try:
+                return self._leer(cuerpo)
+            except httpx.HTTPError as e:
+                if isinstance(e, httpx.HTTPStatusError) or intento == self._intentos_de_red:
+                    if isinstance(e, httpx.HTTPStatusError):
+                        raise
+                    raise ConexionCaida(
+                        f"la conexión con {self._model} se cortó {intento} veces seguidas: {e}"
+                    ) from None
+                time.sleep(self._espera_reintento_s * intento)
+
+    def _leer(self, cuerpo: dict) -> dict:
         limite = time.monotonic() + self._deadline_s
         trozos = []
         with self._cliente.stream("POST", "/chat/completions", json=cuerpo) as respuesta:

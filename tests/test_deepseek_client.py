@@ -114,3 +114,35 @@ def test_una_respuesta_normal_llega_entera_aunque_venga_a_trozos():
     )
 
     assert cliente.complete("hola") == '{"a": 1}'
+
+
+def test_una_conexion_que_se_corta_se_reintenta_sola():
+    """Fallo real: DeepSeek cortó la respuesta a medias en la ronda 8 y tumbó
+    un proyecto de media hora. Un corte de red es para reintentarlo."""
+    intentos = []
+
+    def responder(request):
+        intentos.append(1)
+        if len(intentos) == 1:
+            raise httpx.RemoteProtocolError("peer closed connection", request=request)
+        return httpx.Response(200, json={"choices": [{"finish_reason": "stop",
+                              "message": {"content": '{"a": 1}'}}]})
+
+    cliente = DeepSeekClient(api_key="k", model="deepseek-chat", espera_reintento_s=0,
+                             transport=httpx.MockTransport(responder))
+
+    assert cliente.complete("hola") == '{"a": 1}'
+    assert len(intentos) == 2
+
+
+def test_si_la_red_no_se_recupera_se_dice_claro():
+    from orchestrator.llm.providers.deepseek import ConexionCaida
+
+    def responder(request):
+        raise httpx.RemoteProtocolError("peer closed connection", request=request)
+
+    cliente = DeepSeekClient(api_key="k", model="deepseek-chat", espera_reintento_s=0,
+                             transport=httpx.MockTransport(responder))
+
+    with pytest.raises(ConexionCaida, match="3 veces"):
+        cliente.complete("hola")

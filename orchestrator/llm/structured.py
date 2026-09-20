@@ -9,7 +9,8 @@ from typing import Callable, Protocol, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
-from orchestrator.llm.providers.deepseek import RespuestaCortada, TiempoAgotado
+from orchestrator.llm.providers.deepseek import (
+    ConexionCaida, RespuestaCortada, TiempoAgotado)
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -44,7 +45,7 @@ def structured(
     for intento in range(1, max_intentos + 1):
         try:
             respuesta = client.complete(peticion)
-        except (RespuestaCortada, TiempoAgotado) as error:
+        except (RespuestaCortada, TiempoAgotado, ConexionCaida) as error:
             # Se quedó sin sitio pensando: no es un JSON malo, es longitud. Se
             # reintenta pidiendo brevedad en vez de tumbar el proyecto entero
             # (fallo real: el trinquete murió aquí tras 12 minutos).
