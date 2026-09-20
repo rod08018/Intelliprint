@@ -42,10 +42,17 @@ class MechanismDesignerAgent:
                 "\n## Tu diseño anterior NO funciona\n\n"
                 f"Diseño:\n{anterior}\n\n"
                 f"Lo que falló al construirlo y moverlo:\n{motivo}\n\n"
-                "Corrígelo. Cambia lo necesario (medidas, posiciones, holguras, "
-                "fórmulas) sin dejar de cumplir la petición.\n"
+                "Corrígelo. Antes de tocar nada, PLANIFICA: rellena `fix_plan` con "
+                "`causa` (por qué crees que falla), `cambio` (qué vas a cambiar, con "
+                "números) y `espera` (qué debería medir el sistema si aciertas). Luego "
+                "aplica ese cambio al diseño sin dejar de cumplir la petición.\n"
             )
         def comprobar(spec: MechanismSpec) -> None:
+            if rechazo is not None and spec.fix_plan is None:
+                raise ValueError(
+                    "falta `fix_plan`: al corregir hay que decir la causa que supones, "
+                    "qué cambias (con números) y qué esperas conseguir"
+                )
             Kinematics(spec).validate()
             problemas = mechanism_problems(spec)
             if problemas:

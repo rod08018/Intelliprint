@@ -135,9 +135,19 @@ class Driver(BaseModel):
     """Texto de cada fotograma, p. ej. "manivela" → "manivela = 90°"."""
 
 
+class FixPlan(BaseModel):
+    """Cómo piensa arreglar el fallo anterior. Es obligatorio al corregir:
+    sin él, el agente vuelve a proponer a ciegas y nadie sabe qué intentó.
+    Además permite distinguir una idea nueva de repetir la misma."""
+    causa: str
+    cambio: str
+    espera: str
+
+
 class MechanismSpec(BaseModel):
     title: str
     summary: str
+    fix_plan: FixPlan | None = None
     assumptions: list[str] = []
     """Decisiones que tomó el agente donde el usuario dijo "tú decides"."""
     params: dict[str, float] = {}

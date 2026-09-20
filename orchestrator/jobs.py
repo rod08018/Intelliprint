@@ -23,6 +23,7 @@ ARCHIVOS = {
     "ensamble": "assembly.FCStd",
     "revision": "review.md",
     "coste": "design_cost.md",
+    "bloqueo": "blocked.md",
     "mecanismo": "mechanism.json",
     "peticion": "request.md",
     "registro": "run.log",
@@ -48,6 +49,11 @@ def entregar(proyecto: Path, buzon: Path | None = None) -> dict[str, str]:
             copia = destino / archivo
             shutil.copy2(origen, copia)
             entregados[nombre] = str(copia)
+    # Las imágenes de evidencia del bloqueo: es lo que deja ver el problema.
+    for imagen in sorted(proyecto.glob("fallo_*.png")):
+        copia = destino / imagen.name
+        shutil.copy2(imagen, copia)
+        entregados.setdefault("evidencias", []).append(str(copia))
     return entregados
 
 

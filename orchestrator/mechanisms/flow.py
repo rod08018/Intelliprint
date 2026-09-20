@@ -55,6 +55,8 @@ class Round(BaseModel):
     number: int
     title: str
     feedback: str = ""
+    plan: dict | None = None
+    """Lo que el agente dijo que iba a cambiar en esta ronda y por qué."""
     """Lo que falló en esta ronda y se le devolvió al agente ("" si nada)."""
 
 
@@ -120,6 +122,32 @@ def measurements(spec, layout, final: MechanismReport) -> list[str]:
             "movimiento IMPUESTO por fórmula (nadie comprueba que lo cause el mecanismo): "
             + ", ".join(f"«{n}»" for n in sin_verificar))
     return lineas
+
+
+def _evidencias(carpeta, spec, rondas, parada, final, layout, peticion, gasto,
+                freecadcmd, log) -> None:
+    """Deja el parte con evidencias para que la persona decida con datos."""
+    from orchestrator.mechanisms.evidence import escribir_bloqueo, render_frame
+
+    imagenes = []
+    try:
+        if final is not None and final.collisions:
+            from orchestrator.animation import tessellate
+
+            peor = min(final.collisions, key=lambda c: c.gap_mm)
+            mallas = tessellate({n: Path(p) for n, p in final.parts.items()},
+                                layout.pins(), freecadcmd)
+            nombre = f"fallo_t{peor.angle:g}.png"
+            render_frame(mallas, layout.poses(peor.angle), carpeta / nombre,
+                         title=f"{peor.a} / {peor.b} · {spec.driver.name} = {peor.angle:g}",
+                         resaltar={peor.a, peor.b})
+            imagenes.append(nombre)
+    except Exception as e:  # una imagen que falla no puede tapar el parte
+        log(f"    (no se pudo dibujar la evidencia: {e})")
+    planes = [{"ronda": r.number, **(r.plan or {})} for r in rondas if r.plan]
+    escribir_bloqueo(carpeta, titulo=spec.title, parada=parada, gasto_usd=gasto,
+                     rondas=[r.model_dump() for r in rondas], imagenes=imagenes,
+                     peticion=peticion, planes=planes)
 
 
 def design_mechanism(
@@ -266,13 +294,17 @@ def design_mechanism(
                         f"- requisito del usuario sin cumplir — {i.requirement}: {i.comment}"
                         for i in incumplidos)
 
-        rondas.append(Round(number=n, title=spec.title, feedback=feedback))
+        plan = spec.fix_plan.model_dump() if spec.fix_plan else None
+        rondas.append(Round(number=n, title=spec.title, feedback=feedback, plan=plan))
         if not feedback:
             parada = "resuelto"
             break
 
         # ¿Se está repitiendo? Volver a proponer lo mismo no arregla nada.
-        huella = huella_de_fallo(feedback)
+        # El muro y la idea con la que se intenta tirarlo: repetir la misma
+        # idea contra el mismo muro es atasco, aunque cambien los números.
+        huella = huella_de_fallo(feedback) + "||" + huella_de_fallo(
+            json.dumps(plan, ensure_ascii=False, sort_keys=True) if plan else "")
         motivos_vistos[huella] = motivos_vistos.get(huella, 0) + 1
         repetido = motivos_vistos[huella]
         if repetido >= REPETICIONES_PARA_ATASCO:
@@ -303,6 +335,9 @@ def design_mechanism(
             "\n".join([f"# Revisión: {spec.title}", "", review.summary, ""]
                       + [f"- **{i.verdict}** — {i.requirement}: {i.comment}" for i in review.items]),
             encoding="utf-8")
+    if parada != "resuelto":
+        _evidencias(carpeta, spec, rondas, parada, final, layout, peticion,
+                    presupuesto.gastado_usd() if presupuesto else 0.0, freecadcmd, log)
     if presupuesto is not None:
         # El coste se guarda SIEMPRE, también si el proyecto no salió: saber
         # en qué se fue el dinero es lo que deja decidir si vale la pena seguir.
