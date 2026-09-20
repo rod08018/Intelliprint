@@ -1,0 +1,27 @@
+# Finales de línea. Sin esto, un `git clone` en Windows con
+# core.autocrlf=true convierte LF a CRLF al sacar los archivos, y eso NO es
+# cosmético: cambia los bytes.
+#
+# Costó un fallo real. El corpus de referencia de `library/models/reference/`
+# está protegido por hash (test_cada_referencia_esta_sin_modificar), y los
+# .step son texto: al clonar el repo en Windows, el NEMA17 llegó con CRLF,
+# su SHA256 dejó de cuadrar con el manifiesto y el test se puso rojo. El
+# archivo estaba intacto; lo había tocado git.
+#
+# Además todo esto acaba dentro de un contenedor Linux, donde un script con
+# CRLF falla con un error que no dice lo que pasa ("\r: command not found").
+
+# Por defecto: el repositorio guarda LF y lo entrega LF, también en Windows.
+* text=auto eol=lf
+
+# Geometría: bytes intactos, pase lo que pase. Los .step son texto, pero son
+# el ORIGINAL DESCARGADO y su valor está en no haber cambiado.
+*.step binary
+*.stp  binary
+*.FCStd binary
+*.FCStd1 binary
+*.stl  binary
+*.3mf  binary
+*.gcode binary
+*.gif  binary
+*.png  binary
