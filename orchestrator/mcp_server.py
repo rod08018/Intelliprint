@@ -125,6 +125,21 @@ def continuar_proyecto(proyecto: str = "") -> dict:
 
 
 @mcp.tool()
+def ordenar_proyectos(archivar_fallidos: bool = False) -> dict:
+    """Índice de los proyectos del workspace: qué es cada uno, si quedó
+    aprobado o falló, cuántas rondas costó y cuánto se gastó. Con
+    `archivar_fallidos`, mueve lo no aprobado a `archivo/` (no borra nada)."""
+    from orchestrator.registry import archivar, escribir_indice, indice
+
+    raiz = _raiz()
+    workspace = Path(os.environ.get("INTELLIPRINT_WORKSPACE") or raiz / "workspace")
+    proyectos = workspace / "projects"
+    movidos = archivar(proyectos, workspace / "archivo") if archivar_fallidos else []
+    return {"indice": str(escribir_indice(proyectos)), "archivados": movidos,
+            "proyectos": indice(proyectos)}
+
+
+@mcp.tool()
 def cancelar_proyecto(proyecto: str) -> dict:
     """Detiene un proyecto en marcha."""
     store = _store()

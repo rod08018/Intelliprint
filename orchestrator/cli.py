@@ -265,6 +265,24 @@ def _diseñar_mecanismo(peticion: str, raiz: Path, env: dict, nombre: str, log):
     return {"texto": "\n".join(lineas), "archivos": archivos}
 
 
+def _proyectos(args, raiz: Path, env: dict, nombre: str) -> None:
+    from orchestrator.registry import archivar, escribir_indice, indice
+
+    proyectos = _workspace(raiz, env) / "projects"
+    if args.archivar:
+        movidos = archivar(proyectos, _workspace(raiz, env) / "archivo")
+        print(f"[{nombre}] Movidos a archivo/ (no se borró nada): {len(movidos)}")
+        for m in movidos:
+            print(f"  · {m}")
+    indice_path = escribir_indice(proyectos)
+    filas = indice(proyectos)
+    print(f"[{nombre}] {len(filas)} proyectos en projects/ · índice en {indice_path}")
+    for f in filas:
+        marca = {"aprobado": "✓", "antiguo": "·", "fallido": "✗",
+                 "en marcha": "…", "incompleto": "?"}[f["estado"]]
+        print(f"  {marca} {f['id']}  {f['rondas']} rondas  {f['usd']:.2f} USD  {f['titulo'][:40]}")
+
+
 def _bot(raiz: Path, env: dict, nombre: str) -> None:
     from orchestrator.human.adapters.telegram import TelegramBot, TelegramClient
 
@@ -290,6 +308,9 @@ def main(argv: list[str] | None = None) -> None:
     reanudar = sub.add_parser("resume", help="reanudar un proyecto interrumpido")
     reanudar.add_argument("proyecto")
     sub.add_parser("bot", help="atender peticiones por Telegram (F5.6 (telegram))")
+    proy = sub.add_parser("proyectos", help="listar proyectos y ordenar el workspace")
+    proy.add_argument("--archivar", action="store_true",
+                      help="mover lo no aprobado a workspace/archivo (no borra nada)")
     meca = sub.add_parser("mecanismo", help="diseñar un mecanismo y ver su ensamble animado")
     meca.add_argument("peticion", nargs="+",
                       help='el mecanismo en texto, o "biela-manivela" con --carrera')
@@ -312,6 +333,9 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.comando == "bot":
         _bot(raiz, env, nombre)
+        return
+    if args.comando == "proyectos":
+        _proyectos(args, raiz, env, nombre)
         return
     grafo = _grafo(raiz, env)
 
