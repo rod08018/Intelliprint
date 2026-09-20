@@ -183,6 +183,16 @@ Y un estado `INTAKE` delante de todo, donde el Requirements Agent **conversa** h
 
 El registro guarda por proyecto: id, nombre, clase, estado, fechas, coste acumulado de DeepSeek y **qué espera de ti**. Ese último campo es el que hace útil preguntar "¿qué tengo pendiente?" desde el móvil.
 
+**Enmienda (2026-09-20): el registro no es una base de datos, y «en marcha» hay que medirlo.** No existe `registry.sqlite`. `orchestrator/registry.py` clasifica cada proyecto por **lo que hay dentro de su carpeta** —`rounds.json`, `design_cost.json`, `job.json`, los artefactos—, y escribe un `INDEX.md` legible. Un índice aparte se desincroniza con la realidad; la carpeta no puede.
+
+Lo caro fue acertar con **«en marcha»**, porque de eso depende que el canal humano diga «sigue trabajando» o «se colgó». Tres cosas que costaron un fallo cada una:
+
+- **Estar en la tabla de procesos no es estar trabajando.** Un proceso terminado cuyo padre no ha recogido queda **zombi**, y `os.kill(pid, 0)` responde que sí existe. El mecanismo de Ginebra falló a las 09:42 y seis horas después el registro seguía diciendo «en marcha». Ahora se mira además el estado con `ps`: una `Z` es un muerto.
+- **Llevar mucho tiempo no es estar colgado.** La primera regla miraba el tiempo total y Crafty avisó de un cuelgue con el trinquete trabajando bien desde hacía 53 minutos. Lo que vale es **cuánto lleva sin escribir**: `parece_colgado` son 12 minutos sin tocar un archivo.
+- **Esa señal de vida hay que dejarla salir.** Python bufera 8 KB cuando la salida va a un archivo, así que `run.log` se quedaba vacío rondas enteras: ningún archivo tocado, proyecto aparentemente colgado, y quien preguntaba por el estado no tenía nada que leer. Los trabajos arrancan sin búfer (`PYTHONUNBUFFERED`).
+
+Y una regla que no es técnica: **archivar no es borrar**. Lo no aprobado se **mueve** a `archivo/` con todo dentro, porque un intento fallido es la única prueba de por qué algo no funcionó.
+
 **Consecuencia.** Aparece `MAX_CONCURRENT_PROJECTS`, distinto de `MAX_PARALLEL_PARTS`: uno limita cuántos proyectos avanzan, el otro cuántas piezas dentro de cada uno. Confundirlos satura la GPU o desaprovecha la CPU.
 
 ---
