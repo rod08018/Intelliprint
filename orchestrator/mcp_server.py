@@ -101,17 +101,27 @@ def estado_proyecto(proyecto: str = "") -> dict:
 
 @mcp.tool()
 def archivos_proyecto(proyecto: str = "") -> dict:
-    """Rutas de los archivos de un proyecto: la animación del movimiento
-    (GIF), el ensamble para FreeCAD, la revisión frente a la petición y el
-    diseño del mecanismo. Manda al usuario el GIF y el ensamble."""
-    store = _store()
-    if not proyecto:
-        proyectos = store.list(1)
-        if not proyectos:
+    """Archivos del proyecto, ya copiados donde el canal puede leerlos:
+    `animacion` (el GIF del movimiento, lo PRIMERO que hay que mandar),
+    `ensamble` (.FCStd para abrir en FreeCAD), `revision` y `coste`.
+
+    Si no aparece `animacion`, el proyecto todavía no la generó: dilo en vez
+    de mandar otra cosa en su lugar."""
+    from orchestrator.jobs import entregar
+
+    carpeta = _proyectos() / proyecto if proyecto else None
+    if carpeta is None:
+        filas = indice(_proyectos())
+        if not filas:
             return {"error": "no hay proyectos todavía"}
-        proyecto = proyectos[0]["id"]
-    archivos = store.artifacts(proyecto)
-    return archivos or {"error": f"{proyecto} todavía no tiene archivos"}
+        carpeta = Path(filas[0]["carpeta"])
+    if not carpeta.exists():
+        return {"error": f"no existe el proyecto {proyecto!r}"}
+    archivos = entregar(carpeta)
+    if "animacion" not in archivos:
+        archivos["aviso"] = ("este proyecto todavía no tiene animación; "
+                             "no mandes otro archivo como si lo fuera")
+    return archivos
 
 
 @mcp.tool()

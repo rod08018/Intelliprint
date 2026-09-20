@@ -11,6 +11,7 @@ FreeCAD, por el modelo y por el saldo.
 
 import datetime as dt
 import json
+import shutil
 import signal
 import subprocess
 from pathlib import Path
@@ -26,6 +27,28 @@ ARCHIVOS = {
     "peticion": "request.md",
     "registro": "run.log",
 }
+
+
+BUZON_POR_DEFECTO = Path.home() / ".openclaw" / "workspace" / "intelliprint"
+"""Dónde dejar copias para el canal. OpenClaw se niega a mandar archivos
+fuera de su propia carpeta, así que Intelliprint los deja allí listos
+(fallo real: Crafty no pudo enviarte el GIF y mandó el .FCStd)."""
+
+
+def entregar(proyecto: Path, buzon: Path | None = None) -> dict[str, str]:
+    """Copia los archivos del proyecto al buzón del canal y devuelve dónde
+    quedaron. No toca los originales."""
+    proyecto = Path(proyecto)
+    destino = Path(buzon or BUZON_POR_DEFECTO) / proyecto.name
+    destino.mkdir(parents=True, exist_ok=True)
+    entregados = {}
+    for nombre, archivo in ARCHIVOS.items():
+        origen = proyecto / archivo
+        if origen.exists():
+            copia = destino / archivo
+            shutil.copy2(origen, copia)
+            entregados[nombre] = str(copia)
+    return entregados
 
 
 class JobStore:

@@ -343,3 +343,18 @@ def test_el_coste_desglosado_se_guarda_en_la_carpeta_del_proyecto(tmp_path):
     assert "Mechanism Designer" in texto
     assert "ronda 1 · diseño del mecanismo" in texto
     assert (tmp_path / "design_cost.json").exists()
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_siempre_queda_la_animacion_aunque_el_mecanismo_no_salga(tmp_path):
+    """Se perdió al reescribir el bucle: los proyectos terminaban sin GIF y
+    era lo único que el usuario quería ver."""
+    mecanico = Guion([json.dumps(_spec(0.0))] * 6)
+    informe = design_mechanism(
+        "un brazo", MechanismDesignerAgent(mecanico, CATALOGO, PERFIL, (235, 235, 250), 0.1),
+        PartDesignerAgent(DisenadorDePiezas(), CATALOGO), tmp_path, _freecadcmd(),
+        min_gap_mm=0.1,
+    )
+    assert not informe.ok                       # se atascó...
+    assert informe.final.animation is not None  # ...y aun así hay animación
+    assert (tmp_path / "animation.gif").exists()

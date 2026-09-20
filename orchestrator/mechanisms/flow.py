@@ -257,6 +257,14 @@ def design_mechanism(
         log(f"    ✗ vuelve al Mechanism Designer:\n{feedback}")
         rechazo = (texto_spec, feedback + aviso)
 
+    if final is not None and animar and final.animation is None:
+        # La animación, una vez y del último diseño montado. Al reescribir el
+        # bucle este paso se perdió y los proyectos salían sin GIF: es lo
+        # primero que mira el usuario, así que se hace pase lo que pase.
+        log("    animación…")
+        final = build_mechanism(layout, carpeta, freecadcmd, min_gap_mm=min_gap_mm,
+                                disenar=lambda nombre, c: None, animar=True)
+
     if reviewer is not None and final is not None and review is None:
         if presupuesto is not None:
             presupuesto.etapa("revisión final")

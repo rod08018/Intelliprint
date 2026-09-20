@@ -103,3 +103,22 @@ def test_reanudar_un_proyecto_usa_su_carpeta_y_conserva_el_registro(tmp_path):
     registro = (tmp_path / job / "run.log").read_text()
     assert registro.count("segunda vuelta") == 2   # se añade, no se pisa
     assert len(list(tmp_path.iterdir())) == 1      # no crea otro proyecto
+
+
+def test_los_archivos_se_dejan_donde_el_canal_puede_leerlos(tmp_path):
+    """OpenClaw no manda archivos fuera de su carpeta, así que Intelliprint
+    los deja allí listos (fallo real: Crafty no pudo enviar el GIF)."""
+    from orchestrator.jobs import entregar
+
+    proyecto = tmp_path / "proyecto"
+    proyecto.mkdir()
+    (proyecto / "animation.gif").write_bytes(b"GIF89a")
+    (proyecto / "assembly.FCStd").write_bytes(b"zip")
+    buzon = tmp_path / "buzon"
+
+    entregados = entregar(proyecto, buzon)
+
+    assert Path(entregados["animacion"]).parent == buzon / "proyecto"
+    assert Path(entregados["animacion"]).read_bytes() == b"GIF89a"
+    # El original no se toca: el buzón es una copia para el canal.
+    assert (proyecto / "animation.gif").exists()
