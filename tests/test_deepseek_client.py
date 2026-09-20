@@ -77,3 +77,40 @@ def test_el_modelo_de_razonamiento_va_sin_modo_json_y_se_le_quita_el_bloque_de_c
                              transport=httpx.MockTransport(responder))
     assert cliente.complete("hola") == '{"a": 1}'
     assert "response_format" not in enviado
+
+
+def test_una_llamada_que_no_termina_se_corta_por_plazo_total():
+    """Fallo real: 54 minutos colgado. El plazo de lectura de httpx se
+    reinicia con cada byte, y DeepSeek manda caracteres de mantenimiento en
+    las peticiones largas, así que nunca saltaba."""
+    import time
+
+    from orchestrator.llm.providers.deepseek import TiempoAgotado
+
+    def goteo():
+        for _ in range(100):
+            time.sleep(0.05)
+            yield b" "          # mantenimiento: datos que no son la respuesta
+
+    cliente = DeepSeekClient(
+        api_key="k", model="deepseek-chat", deadline_s=0.3,
+        transport=httpx.MockTransport(lambda r: httpx.Response(200, content=goteo())),
+    )
+
+    inicio = time.time()
+    with pytest.raises(TiempoAgotado, match="0.3"):
+        cliente.complete("hola")
+    assert time.time() - inicio < 3
+
+
+def test_una_respuesta_normal_llega_entera_aunque_venga_a_trozos():
+    """El plazo no puede cortar una respuesta que sí está llegando."""
+    cliente = DeepSeekClient(
+        api_key="k", model="deepseek-chat", deadline_s=10,
+        transport=httpx.MockTransport(lambda r: httpx.Response(200, content=iter([
+            b'{"choices": [{"finish_reason": "stop",',
+            b' "message": {"content": "{\\"a\\": 1}"}}]}',
+        ]))),
+    )
+
+    assert cliente.complete("hola") == '{"a": 1}'

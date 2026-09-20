@@ -4,6 +4,9 @@ Perfil `dev` únicamente. Ver DECISIONES.md ADR-007b: es deuda temporal,
 no el diseño objetivo.
 """
 
+import json
+import time
+
 import httpx
 
 BASE_URL = "https://api.deepseek.com"
@@ -22,6 +25,12 @@ class RespuestaCortada(RuntimeError):
     pass
 
 
+class TiempoAgotado(RuntimeError):
+    """La llamada pasó del plazo TOTAL. No vale el plazo de lectura de httpx:
+    se reinicia con cada byte, y DeepSeek manda caracteres de mantenimiento
+    en las peticiones largas (fallo real: 54 minutos colgado)."""
+
+
 class DeepSeekClient:
     def __init__(
         self,
@@ -30,6 +39,7 @@ class DeepSeekClient:
         base_url: str = BASE_URL,
         timeout: float | None = None,
         transport: httpx.BaseTransport | None = None,
+        deadline_s: float | None = None,
     ) -> None:
         self._model = model
         self.tokens = {"entrada": 0, "salida": 0}
@@ -41,6 +51,9 @@ class DeepSeekClient:
         # El modelo de razonamiento piensa antes de responder: minutos, no
         # segundos, y su pensamiento cuenta dentro de max_tokens.
         razona = "reasoner" in model
+        # Plazo total de una llamada, de principio a fin. El de razonamiento
+        # piensa varios minutos; más allá de esto, algo va mal.
+        self._deadline_s = deadline_s if deadline_s is not None else (1200.0 if razona else 300.0)
         # Medido en la bisagra: ~30 000 tokens de pensamiento. Con 32 768 se
         # quedaba sin sitio y devolvía la respuesta vacía (finish_reason=length).
         self._max_tokens = 65536 if razona else 8192
@@ -54,6 +67,26 @@ class DeepSeekClient:
                 "Content-Type": "application/json",
             },
         )
+
+    def _pedir_con_plazo(self, cuerpo: dict) -> dict:
+        """Lee la respuesta a trozos vigilando el reloj: así se puede cortar
+        una llamada que no avanza aunque el servidor siga mandando bytes."""
+        limite = time.monotonic() + self._deadline_s
+        trozos = []
+        with self._cliente.stream("POST", "/chat/completions", json=cuerpo) as respuesta:
+            # Un 401 o un 429 no pueden colarse como "respuesta del modelo": se
+            # comerían los tres reintentos fallando la validación del esquema.
+            if respuesta.status_code >= 400:
+                respuesta.read()
+                respuesta.raise_for_status()
+            for trozo in respuesta.iter_bytes():
+                trozos.append(trozo)
+                if time.monotonic() > limite:
+                    raise TiempoAgotado(
+                        f"{self._model} pasó de {self._deadline_s:g} s sin terminar la "
+                        "respuesta; se corta la llamada"
+                    )
+        return json.loads(b"".join(trozos))
 
     @property
     def modelo(self) -> str:
@@ -77,11 +110,7 @@ class DeepSeekClient:
             # 65 536 tokens; sin él respondió JSON limpio en ~30 000 (medido en
             # la bisagra). El esquema se valida igual en `structured`.
             del cuerpo["response_format"]
-        respuesta = self._cliente.post("/chat/completions", json=cuerpo)
-        # Un 401 o un 429 no pueden colarse como "respuesta del modelo": se
-        # comerían los tres reintentos fallando la validación del esquema.
-        respuesta.raise_for_status()
-        cuerpo_respuesta = respuesta.json()
+        cuerpo_respuesta = self._pedir_con_plazo(cuerpo)
         uso = cuerpo_respuesta.get("usage") or {}
         entrada, salida = uso.get("prompt_tokens", 0), uso.get("completion_tokens", 0)
         self.tokens["entrada"] += entrada
