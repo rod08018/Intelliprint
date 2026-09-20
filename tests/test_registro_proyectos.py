@@ -144,3 +144,19 @@ def test_una_carpeta_tocada_hace_poco_cuenta_como_en_marcha(tmp_path):
 
     assert movidos == []
     assert indice(proyectos)[0]["estado"] == "en marcha"
+
+
+def test_colgado_se_mide_por_lo_que_lleva_sin_escribir_no_por_lo_que_lleva_corriendo(tmp_path):
+    """Crafty avisó de que el trinquete estaba colgado cuando llevaba 53
+    minutos trabajando bien: la regla miraba el tiempo total, no la última
+    señal de vida."""
+    trabajando = _proyecto(tmp_path, "2026-09-19-1400-trabajando")   # escrito ahora
+    parado = _proyecto(tmp_path, "2026-09-19-1300-parado")
+    (parado / "job.json").write_text(json.dumps({"pid": os.getpid()}), encoding="utf-8")
+    _envejecer(parado, horas=0.5)      # vivo, pero sin escribir nada hace media hora
+
+    filas = {f["id"]: f for f in indice(tmp_path)}
+
+    assert filas[trabajando.name]["parece_colgado"] is False
+    assert filas[parado.name]["parece_colgado"] is True
+    assert filas[parado.name]["segundos_sin_moverse"] > 12 * 60

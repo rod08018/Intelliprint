@@ -20,6 +20,11 @@ import shutil
 import time
 from pathlib import Path
 
+COLGADO_S = 12 * 60
+"""Un proyecto vivo escribe algo cada pocos minutos (una ronda tarda ~4).
+Si lleva más de esto sin tocar un archivo, algo va mal. Lo que NO sirve es
+mirar cuánto lleva en marcha: un mecanismo difícil tarda una hora."""
+
 RECIENTE_S = 30 * 60
 """Una carpeta tocada hace poco puede ser un proyecto en marcha lanzado a
 mano, sin job.json. Archivarla le quita la carpeta al proceso mientras
@@ -73,6 +78,8 @@ def estado_de(carpeta: Path) -> dict:
 
     return {
         "id": carpeta.name,
+        "segundos_sin_moverse": int(tocado_hace),
+        "parece_colgado": estado == "en marcha" and tocado_hace > COLGADO_S,
         "titulo": mecanismo.get("title") or peticion or carpeta.name,
         "peticion": peticion,
         "estado": estado,
