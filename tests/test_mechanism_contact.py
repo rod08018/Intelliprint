@@ -7,6 +7,7 @@ une pivote y centro.
 """
 
 import math
+import re
 
 import pytest
 
@@ -87,3 +88,53 @@ def test_un_bloqueo_se_comprueba_moviendo_la_pieza_contra_lo_que_la_frena(piezas
         **{**bloqueo, "delta": 5})]})
     problemas = block_problems(spec_mal, kin, piezas, {}, _freecadcmd())
     assert len(problemas) == 1 and "NO bloquea" in problemas[0]
+
+
+def _hueco(piezas, kin, valor, t=0, a="palanca", b="disco"):
+    from orchestrator.assembly import pair_gaps
+    return pair_gaps(piezas, {}, {t: kin.poses(t, {a: valor})}, [(a, b)], _freecadcmd())[0]["gap_mm"]
+
+
+def test_el_apoyo_resuelto_deja_el_hueco_dentro_de_la_banda_del_contacto(piezas):
+    """Fallo real (11 de 19 rondas del trinquete): el solucionador aceptaba la
+    PRIMERA muestra con hueco ≤ 0.02, y eso incluye un solape de 14 mm³. El
+    barrido juzgaba después el mismo par con otro criterio y lo rechazaba."""
+    spec = _spec()
+    kin = Kinematics(spec)
+    resueltos = solve_contacts(spec, kin, piezas, {}, _freecadcmd(), kin.frames())
+
+    for t in kin.frames():
+        hueco = _hueco(piezas, kin, resueltos[(t, "palanca")], t)
+        assert 0 <= hueco <= 0.05, f"con t={t} el apoyo quedó en {hueco}"
+
+
+def test_si_el_punto_de_partida_ya_penetra_se_dice_eso_y_no_otra_cosa(piezas):
+    """Con `start` dentro del objetivo el solucionador devolvía ese mismo
+    valor, con todo su solape, y sin avisar."""
+    spec = _spec(start="180")          # apuntando al disco: la barra lo atraviesa
+    with pytest.raises(SinApoyo, match="punto de partida"):
+        solve_contacts(spec, Kinematics(spec), piezas, {}, _freecadcmd(), [0])
+
+
+def test_cuando_no_toca_se_informa_el_hueco_MINIMO_y_donde(piezas):
+    """Informaba el hueco del ÚLTIMO punto del barrido, no el más cercano:
+    al agente se le daba un número que no era su mejor aproximación."""
+    spec = _spec(start="240", limite=8.0)
+    with pytest.raises(SinApoyo) as e:
+        solve_contacts(spec, Kinematics(spec), piezas, {}, _freecadcmd(), [0])
+
+    assert "más cerca" in str(e.value)
+    numeros = [float(x) for x in re.findall(r"\d+\.\d+", str(e.value))]
+    minimo = min(_hueco(piezas, Kinematics(spec), v) for v in (240, 236, 232))
+    assert any(abs(n - minimo) < 0.5 for n in numeros), str(e.value)
+
+
+def test_la_regla_de_contacto_del_apoyo_se_deriva_sola(piezas):
+    """Un `rest_on` sin regla de contacto explícita era un fallo garantizado:
+    el barrido exigía 0.1 mm donde el solucionador dejaba 0.02."""
+    from orchestrator.mechanisms.spec_layout import SpecLayout
+
+    reglas = SpecLayout(_spec()).pair_rules()
+
+    assert reglas[("palanca", "disco")][0] == 0.0
+    assert reglas[("palanca", "disco")][1] is not None

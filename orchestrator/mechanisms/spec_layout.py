@@ -39,6 +39,16 @@ class SpecLayout:
         # atravesarse no (que bloquee de verdad lo comprueba stop_problems).
         for t in self.spec.stops:
             reglas.setdefault((t.a, t.b), (0.0, None))
+        # Una pieza apoyada TOCA aquello en lo que se apoya: si no se declara,
+        # el barrido le exigiría la holgura de una pieza suelta y siempre
+        # fallaría (fallo real: 11 rondas del trinquete).
+        from orchestrator.mechanisms.contact import BANDA_POR_DEFECTO
+
+        for b in self.spec.bodies:
+            if b.joint and b.joint.rest_on:
+                reglas.setdefault(
+                    (b.name, b.joint.rest_on.target),
+                    (0.0, max(b.joint.rest_on.gap_mm, BANDA_POR_DEFECTO)))
         return reglas
 
     def label(self, t: float) -> str:
