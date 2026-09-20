@@ -137,3 +137,32 @@ def test_una_vez_resuelto_el_apoyo_el_requisito_si_se_juzga():
 
     with pytest.raises(ValueError, match="carrera del seguidor"):
         k.validate()
+
+
+def test_una_formula_puede_usar_el_valor_de_otra_articulacion():
+    """Un resorte se comprime lo que se mueve la pieza que lo aplasta. Hasta
+    ahora `stretch` solo veía el ciclo, así que el resorte tenía que ser
+    rígido — y un resorte rígido no devuelve nada."""
+    spec = MechanismSpec(**{
+        "title": "t", "summary": "s", "params": {"l0": 20},
+        "driver": {"start": 0, "end": 90, "step": 45},
+        "parts": [
+            _pieza("base"),
+            _pieza("vastago", joint={"type": "prismatic", "axis": [0, 0, 1], "value": "-t/10"}),
+            _pieza("muelle", stretch="(l0 + q_vastago) / l0"),
+        ],
+    })
+
+    k = Kinematics(spec)
+
+    assert k.poses(0)["muelle"].scale_z == pytest.approx(1.0)
+    assert k.poses(90)["muelle"].scale_z == pytest.approx((20 - 9) / 20)
+
+
+def test_un_nombre_de_articulacion_que_no_existe_se_rechaza():
+    with pytest.raises(ValueError, match="q_fantasma"):
+        MechanismSpec(**{
+            "title": "t", "summary": "s",
+            "driver": {"start": 0, "end": 90, "step": 45},
+            "parts": [_pieza("base"), _pieza("m", stretch="q_fantasma")],
+        })

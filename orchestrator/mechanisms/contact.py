@@ -75,6 +75,11 @@ def solve_contacts(spec, kin, steps: dict[str, Path], pins: dict, freecadcmd: st
     resueltos: dict[tuple[float, str], float] = {}
     for b in apoyadas:
         r = b.joint.rest_on
+        if r.carry:
+            resueltos.update(_resolver_con_memoria(
+                spec, kin, b, steps, pins, freecadcmd, frames, resueltos))
+            kin.set_solved(resueltos)
+            continue
         banda = _banda(spec, b)
         sentido = 1 if r.toward == "increase" else -1
         inicio = {t: kin.joint_value(b.name, t) for t in frames}
@@ -136,6 +141,46 @@ def solve_contacts(spec, kin, steps: dict[str, Path], pins: dict, freecadcmd: st
                 mejores[t] = horquillas[t][0]
             resueltos[(round(t, 6), b.name)] = mejores[t]
         kin.set_solved(resueltos)
+    return resueltos
+
+
+def _resolver_con_memoria(spec, kin, b, steps, pins, freecadcmd, frames, previos) -> dict:
+    """Una pieza EMPUJADA: parte de donde quedó y solo se mueve lo que la
+    obliguen. Así una rueda de trinquete avanza cuando la uña entra y se
+    queda donde llegó cuando sale, sin que nadie escriba su fórmula.
+
+    Se resuelve fotograma a fotograma —cada uno depende del anterior— en dos
+    llamadas a FreeCAD: una malla y un afinado dentro del tramo.
+    """
+    r = b.joint.rest_on
+    banda = _banda(spec, b)
+    sentido = 1 if r.toward == "increase" else -1
+    valor = kin.joint_value(b.name, frames[0])
+    resueltos = dict(previos)
+
+    for t in frames:
+        for ronda, muestras in ((0, MUESTRAS_GRUESAS), (1, MUESTRAS_GRUESAS)):
+            paso = r.limit if ronda == 0 else r.limit / MUESTRAS_GRUESAS
+            candidatos = _muestras(valor, paso, sentido, muestras)
+            serie = sorted(_medir(kin, b.name, {t: candidatos}, steps, pins,
+                                  r.target, freecadcmd)[t],
+                           key=lambda x: sentido * x[0])
+            if serie[0][1] >= 0:
+                break          # nadie la empuja: se queda donde estaba
+            tocado = next((i for i, (_, d) in enumerate(serie) if d >= 0), None)
+            if tocado is None:
+                mejor_v, mejor_d = max(serie, key=lambda x: x[1])
+                raise SinApoyo(
+                    f"«{b.name}» está siendo atravesada por «{r.target}» con "
+                    f"{spec.driver.name} = {t:g} y no puede apartarse: recorre "
+                    f"{r.limit:g} y lo mejor que consigue es solaparse {-mejor_d:.1f} mm³ "
+                    f"(con el valor {mejor_v:.2f}). Separa las piezas o revisa el perfil "
+                    "que las empuja."
+                )
+            valor = serie[tocado][0]
+            if serie[tocado][1] <= banda:
+                break          # ya está apoyada justo, sin necesidad de afinar
+        resueltos[(round(t, 6), b.name)] = valor
     return resueltos
 
 

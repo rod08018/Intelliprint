@@ -141,8 +141,16 @@ def mechanism_problems(spec: MechanismSpec, min_gap_mm: float = 0.0) -> list[str
                     "declara cómo se sujeta."
                 )
             movil = usa_ciclo
-        if b.stretch is not None and _nombres(_parse(b.stretch), b.stretch) & ciclo:
-            movil = True
+        if b.stretch is not None:
+            usados = _nombres(_parse(b.stretch), b.stretch)
+            if usados:
+                movil = True
+            else:
+                problemas.append(
+                    f"«{b.name}» declara un estiramiento constante ({b.stretch}): una pieza "
+                    "elástica que no se deforma no devuelve nada. Hazlo depender del ciclo "
+                    f"o de lo que se mueve la pieza que la comprime (`q_<pieza>`)."
+                )
         padre_movil = b.parent is not None
         if not movil and not padre_movil and b.name not in emparejadas:
             problemas.append(

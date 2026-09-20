@@ -138,3 +138,55 @@ def test_la_regla_de_contacto_del_apoyo_se_deriva_sola(piezas):
 
     assert reglas[("palanca", "disco")][0] == 0.0
     assert reglas[("palanca", "disco")][1] is not None
+
+
+@pytest.fixture(scope="module")
+def bloques(tmp_path_factory):
+    """Dos cajas: un empujador que va y vuelve, y un carro que solo se mueve
+    cuando lo empujan. Es el caso más limpio para probar la memoria."""
+    carpeta = tmp_path_factory.mktemp("memoria")
+    caja = lambda n: Recipe(part=n, steps=[{"generator": "generate_box", "params": {
+        "length_mm": 10, "width_mm": 10, "height_mm": 5, "x_mm": 5, "y_mm": 0, "z_mm": 0}}])
+    for nombre in ("carro", "empujador"):
+        build_part(caja(nombre), CATALOGO, carpeta / nombre, _freecadcmd())
+    return {n: carpeta / n / f"{n}.step" for n in ("carro", "empujador")}
+
+
+def _carro_empujado(carry=True):
+    """El empujador avanza y vuelve; el carro empieza delante de él."""
+    return MechanismSpec(**{
+        "title": "memoria", "summary": "s",
+        "driver": {"start": 0, "end": 180, "step": 45},
+        "parts": [
+            {"name": "carro", "brief": "b", "bbox_min": [0, -5, 0], "bbox_max": [10, 5, 5],
+             "joint": {"type": "prismatic", "axis": [1, 0, 0],
+                       "rest_on": {"target": "empujador", "start": "20", "toward": "increase",
+                                   "limit": 40, "carry": carry}}},
+            {"name": "empujador", "brief": "b", "bbox_min": [0, -5, 0], "bbox_max": [10, 5, 5],
+             "joint": {"type": "prismatic", "axis": [1, 0, 0], "value": "30*sin(t)"}},
+        ],
+    })
+
+
+def test_la_pieza_con_memoria_solo_avanza_cuando_la_empujan(bloques):
+    """El empujador entra (t: 0→90) y empuja el carro; al salir (90→180) el
+    carro NO retrocede: se queda donde llegó."""
+    spec = _carro_empujado()
+    kin = Kinematics(spec)
+    resueltos = solve_contacts(spec, kin, bloques, {}, _freecadcmd(), kin.frames())
+
+    valores = [resueltos[(t, "carro")] for t in kin.frames()]
+    assert valores == sorted(valores), f"el carro retrocedió: {valores}"
+    assert valores[0] == pytest.approx(20, abs=0.5)      # nadie lo ha tocado aún
+    assert valores[2] == pytest.approx(40, abs=0.6)      # empujado: 30 del empujador + su largo
+    assert valores[-1] == pytest.approx(valores[2], abs=0.5)   # y ahí se queda
+
+
+def test_sin_memoria_la_misma_pieza_ni_siquiera_se_puede_resolver(bloques):
+    """El contraste: sin `carry`, cada fotograma parte del mismo sitio fijo,
+    así que en cuanto el empujador llega lo atraviesa y no hay solución. Con
+    memoria, el carro va delante de él. Por eso hace falta la memoria."""
+    spec = _carro_empujado(carry=False)
+
+    with pytest.raises(SinApoyo, match="punto de partida"):
+        solve_contacts(spec, Kinematics(spec), bloques, {}, _freecadcmd(), [45])

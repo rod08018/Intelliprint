@@ -60,8 +60,8 @@ class Kinematics:
             if clave in self._apoyos:
                 return self._apoyos[clave]
             # Sin resolver todavía: la posición de partida, separada del apoyo.
-            return evaluate(b.joint.rest_on.start, self._vars(t))
-        return evaluate(b.joint.value, self._vars(t))
+            return evaluate(b.joint.rest_on.start, self._vars_base(t))
+        return evaluate(b.joint.value, self._vars_base(t))
 
     def frames(self) -> list[float]:
         d = self.spec.driver
@@ -71,8 +71,27 @@ class Kinematics:
             valores.append(d.end)
         return [round(v, 6) for v in valores]
 
-    def _vars(self, t: float) -> dict[str, float]:
+    def _vars_base(self, t: float) -> dict[str, float]:
         return {**self.spec.params, self.spec.driver.name: t}
+
+    def _vars(self, t: float) -> dict[str, float]:
+        """Los parámetros, el ciclo y el valor de cada articulación como
+        `q_<pieza>`. Solo las fórmulas de estiramiento los ven: un resorte se
+        comprime lo que se mueve quien lo aplasta, y eso no se puede escribir
+        en función del ciclo cuando lo decide un contacto. Las fórmulas de las
+        articulaciones NO los ven, para que no puedan depender unas de otras."""
+        valores = self._vars_base(t)
+        base = dict(valores)
+        for b in self.spec.bodies:
+            if b.joint is None:
+                continue
+            if b.joint.rest_on is not None:
+                clave = (round(t, 6), b.name)
+                valores[f"q_{b.name}"] = self._apoyos.get(
+                    clave, evaluate(b.joint.rest_on.start, base))
+            else:
+                valores[f"q_{b.name}"] = evaluate(b.joint.value, base)
+        return valores
 
     def _mundo(self, nombre: str, t: float, cache: dict, forzado: dict | None = None):
         if nombre in cache:

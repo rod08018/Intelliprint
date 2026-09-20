@@ -121,3 +121,32 @@ def test_varias_piezas_apoyadas_igual_se_agrupan_en_un_renglon():
 
     assert len(problemas) == 1
     assert all(n in problemas[0] for n in ("rueda", "palanca", "pawl"))
+
+
+def test_un_estiramiento_constante_no_es_un_resorte():
+    """En las 19 rondas el resorte llevaba `stretch: "1"` —rígido— porque no
+    podía depender de nada. Ahora puede, así que un resorte que no se
+    deforma es un error."""
+    spec = _spec(parts=[
+        {"name": "base", "brief": "b", "bbox_min": [-50, -50, -5], "bbox_max": [50, 50, 0]},
+        {"name": "muelle", "brief": "b", "bbox_min": [-4, -4, 0], "bbox_max": [4, 4, 20],
+         "stretch": "1"},
+        {"name": "vastago", "brief": "b", "bbox_min": [-3, -3, 0], "bbox_max": [3, 3, 40],
+         "joint": {"type": "prismatic", "axis": [0, 0, 1], "value": "-t/10"}},
+    ], rules=[{"a": "muelle", "b": "vastago", "kind": "contact"}])
+
+    problemas = mechanism_problems(spec)
+
+    assert any("muelle" in p and "no se deforma" in p for p in problemas)
+
+
+def test_un_estiramiento_que_depende_de_algo_esta_bien():
+    spec = _spec(parts=[
+        {"name": "base", "brief": "b", "bbox_min": [-50, -50, -5], "bbox_max": [50, 50, 0]},
+        {"name": "muelle", "brief": "b", "bbox_min": [-4, -4, 0], "bbox_max": [4, 4, 20],
+         "stretch": "(20 + q_vastago) / 20"},
+        {"name": "vastago", "brief": "b", "bbox_min": [-3, -3, 0], "bbox_max": [3, 3, 40],
+         "joint": {"type": "prismatic", "axis": [0, 0, 1], "value": "-t/10"}},
+    ], rules=[{"a": "muelle", "b": "vastago", "kind": "contact"}])
+
+    assert not any("muelle" in p for p in mechanism_problems(spec))

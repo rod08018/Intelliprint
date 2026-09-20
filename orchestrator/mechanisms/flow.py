@@ -135,8 +135,11 @@ def measurements(spec, layout, final: MechanismReport) -> list[str]:
         *(f"apoyo resuelto con la geometría real, no con una fórmula: «{b.name}» sobre "
           f"«{b.joint.rest_on.target}»" for b in spec.bodies if b.joint and b.joint.rest_on),
     ]
+    # Sin el filtro por `parent`: desde la ronda 12 del trinquete el agente
+    # colgó la rueda de la base y este aviso dejó de salir, justo cuando más
+    # falta hacía.
     sin_verificar = [b.name for b in spec.bodies
-                     if b.joint and b.joint.value is not None and b.parent is None]
+                     if b.joint and b.joint.value is not None]
     if sin_verificar:
         lineas.append(
             "movimiento IMPUESTO por fórmula (nadie comprueba que lo cause el mecanismo): "

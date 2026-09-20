@@ -28,6 +28,11 @@ class RestOn(BaseModel):
     se apoya (p. ej. el trinquete levantado)."""
     toward: Literal["increase", "decrease"]
     limit: float
+    carry: bool = False
+    """Con memoria: el punto de partida de cada fotograma es el valor resuelto
+    en el anterior, y la pieza solo se mueve si la empujan. Es lo que hace que
+    una rueda de trinquete avance y se quede donde llegó, en vez de que su
+    avance lo escriba una fórmula."""
     """Cuánto puede moverse como máximo desde `start` buscando el apoyo."""
     gap_mm: float = 0.02
 
@@ -185,6 +190,11 @@ class MechanismSpec(BaseModel):
                 visto.add(p)
                 p = next(x.parent for x in self.bodies if x.name == p)
         variables = set(self.params) | {self.driver.name}
+        # Solo el estiramiento puede mirar lo que se mueven las articulaciones
+        # (`q_<pieza>`): si pudieran las articulaciones, dependerían unas de
+        # otras y no habría forma de calcularlas.
+        con_articulaciones = variables | {
+            f"q_{b.name}" for b in self.bodies if b.joint is not None}
         for b in self.bodies:
             for campo, texto in (("joint.value", b.joint.value if b.joint else None),
                                  ("joint.rest_on.start",
@@ -193,7 +203,7 @@ class MechanismSpec(BaseModel):
                 if texto is None:
                     continue
                 try:
-                    check_expr(texto, variables)
+                    check_expr(texto, con_articulaciones if campo == "stretch" else variables)
                 except ExprError as e:
                     errores.append(f"{b.name}.{campo}: {e}")
             if b.joint is not None and sum(x * x for x in b.joint.axis) < 1e-9:
