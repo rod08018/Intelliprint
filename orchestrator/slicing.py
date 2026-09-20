@@ -11,6 +11,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Callable
 
 from orchestrator.schemas.slicing_report import SlicingReport
 
@@ -81,3 +82,53 @@ def slice_stl(stl: Path, perfil: Path, salida: Path) -> SlicingReport:
         needs_supports=soportes == "1",
         parts=[Path(stl).stem],
     )
+
+
+def elegir_laminador(raiz: Path, env) -> "Callable[[Path, Path], SlicingReport]":
+    """Cómo se lamina aquí: en el host por el puente, o con el binario local.
+
+    PrusaSlicer se queda FUERA del contenedor a propósito (F0.4 (proxy)): es
+    el programa con el que la persona comprueba qué va a imprimir antes de
+    mandarlo a la máquina, y tiene que ser el suyo, con su versión y sus
+    ajustes. FreeCAD sí va dentro, porque nadie lo mira: construye y calla.
+
+    Con `PRUSASLICER_BRIDGE` definido se lamina en el host; sin él, con el
+    binario de siempre. Un solo sitio decide, para que el grafo y el CLI no
+    tengan que saber dónde está corriendo el sistema.
+    """
+    destino = env.get("PRUSASLICER_BRIDGE")
+    if not destino:
+        return lambda stl, salida: slice_stl(stl, raiz / PERFIL_M5, salida)
+
+    from orchestrator.hostpaths import a_ruta_del_host
+    from orchestrator.mcp.client import ClienteMCP
+
+    workspace = env.get("INTELLIPRINT_WORKSPACE") or "/workspace"
+    host_workspace = env.get("HOST_WORKSPACE") or ""
+    herramienta = env.get("PRUSASLICER_BRIDGE_TOOL") or "laminar"
+    cliente = ClienteMCP(destino)
+
+    def laminar(stl: Path, salida: Path) -> SlicingReport:
+        respuesta = cliente.llamar(
+            herramienta,
+            # as_posix() y no str(): la ruta del contenedor es POSIX
+            # SIEMPRE, y str() de un Path en Windows daría barras
+            # invertidas que el traductor no reconoce como suyas.
+            stl=a_ruta_del_host(Path(stl).as_posix(), workspace, host_workspace),
+            salida=a_ruta_del_host(Path(salida).as_posix(), workspace, host_workspace),
+            # El NOMBRE del perfil, no su ruta: el catálogo lo resuelve el
+            # host dentro de su config/slicing/. La ruta del contenedor
+            # (/app/config/…) allí no existe.
+            perfil=PERFIL_M5.name,
+        )
+        if not respuesta.get("ok"):
+            # Traducirlo aquí: dejar pasar el diccionario reventaría más
+            # tarde con un KeyError que no dice qué falló.
+            raise LaminadoFallido(
+                respuesta.get("error") or "el host no dijo por qué falló"
+            )
+        return SlicingReport(**{
+            c: respuesta[c] for c in SlicingReport.model_fields if c in respuesta
+        })
+
+    return laminar

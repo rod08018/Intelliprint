@@ -1,0 +1,90 @@
+# Intelliprint en contenedores (F0.2 (docker)).
+#
+# Salda la deuda «todo corre nativo, no en contenedores» de PLAN_PROYECTO.md:
+# hasta ahora el sistema solo existía como instalación hecha a mano en un
+# ordenador —rutas absolutas, un LaunchAgent que solo existe en macOS,
+# secretos copiados a mano— y nada de eso lo verificaba un test.
+#
+# REPARTO. FreeCAD va DENTRO: es una herramienta interna, construye y calla.
+# PrusaSlicer se queda FUERA, en el PC, porque es donde la persona mira qué
+# va a imprimir; el contenedor se lo pide por el puente del host, que hay
+# que tener arrancado (scripts/start-host-mcps.ps1).
+#
+#   docker compose run --rm orchestrator mecanismo peticion.md --archivo
+#   docker compose run --rm suite            # la suite rápida, en Linux
+#   docker compose up -d ollama              # modelos locales con la 5090
+
+services:
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: docker/orchestrator.Dockerfile
+    image: intelliprint/orchestrator:dev
+    env_file: [.env]
+    environment:
+      # FreeCAD es el de Linux, no el .exe que el .env nombra para el host.
+      FREECADCMD: /opt/freecad/usr/bin/freecadcmd
+      # Vacío a propósito: aquí dentro NO hay PrusaSlicer. Si alguien
+      # intentara laminar sin puente, el error tiene que decir eso y no
+      # buscar un .exe de Windows que nunca va a estar.
+      PRUSASLICER: ""
+      INTELLIPRINT_WORKSPACE: /workspace
+      OLLAMA_URL: http://ollama:11434
+    volumes:
+      # El trabajo de la persona. Montado, nunca copiado: lo que el sistema
+      # diseña tiene que poder abrirse con el FreeCAD del escritorio, y sus
+      # STL tiene que poder verlos el PrusaSlicer del PC.
+      - ./workspace:/workspace
+      # Los perfiles y la librería se editan a mano y deben verse al momento,
+      # sin reconstruir la imagen. Solo lectura: el contenedor no los cambia.
+      - ./config:/app/config:ro
+      - ./library:/app/library:ro
+
+  # La suite rápida, en el mismo contenedor donde corre el sistema.
+  #
+  # POR QUÉ AQUÍ Y NO EN WINDOWS: corriéndola nativa en Windows caen 19
+  # tests y ninguno por un fallo del sistema. Son tres cosas del sistema
+  # operativo —`open()` sin encoding se lee como cp1252 y no como UTF-8,
+  # algún test llama a `/bin/sh`, y un proceso zombi no se comporta igual—.
+  # El contenedor es el sitio donde la suite dice la verdad sobre el código.
+  suite:
+    extends:
+      service: orchestrator
+    entrypoint: ["python3", "-m", "pytest"]
+    volumes:
+      - ./workspace:/workspace
+      - ./config:/app/config:ro
+      - ./library:/app/library:ro
+      # El código en vivo: para ver un cambio no hace falta reconstruir.
+      - ./orchestrator:/app/orchestrator:ro
+      - ./tests:/app/tests:ro
+      - ./mcp:/app/mcp:ro
+      - ./scripts:/app/scripts:ro
+
+  # Modelos locales en la RTX 5090.
+  #
+  # Está listo pero NO en uso: el perfil activo sigue siendo `dev`
+  # (DeepSeek). Cambiarlo es F0.11 (migrar), que además necesita el cliente
+  # de Ollama, y hoy `cli.py` sale con un error claro si el perfil no es
+  # DeepSeek. Dejarlo definido aquí es lo que hace que F0.11 sea un cambio
+  # de una variable y no una tarde de montaje.
+  ollama:
+    image: ollama/ollama:latest
+    environment:
+      # El modelo de diseño y el del QA residentes a la vez (§ 6.1): si se
+      # descargan mutuamente, cada turno paga la recarga.
+      OLLAMA_MAX_LOADED_MODELS: 2
+    volumes:
+      - ollama:/root/.ollama
+    ports: ["11434:11434"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  ollama:

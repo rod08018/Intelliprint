@@ -21,7 +21,7 @@ from orchestrator.graph import Dependencias, crear_grafo
 from orchestrator.human.adapters.cli import CliAdapter
 from orchestrator.llm.providers.deepseek import DeepSeekClient
 from orchestrator.llm.router import Router
-from orchestrator.slicing import PERFIL_M5, slice_stl
+from orchestrator.slicing import elegir_laminador
 from orchestrator.tasks import spec_to_task
 
 
@@ -74,7 +74,7 @@ def _grafo(raiz: Path, env: dict):
     deps = Dependencias(
         requirements=RequirementsAgent(cliente),
         disenar=disenar,
-        laminar=lambda stl, salida: slice_stl(stl, raiz / PERFIL_M5, salida),
+        laminar=elegir_laminador(raiz, env),
         port=CliAdapter(),
         workspace=_workspace(raiz, env) / "projects",
     )
