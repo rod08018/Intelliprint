@@ -20,6 +20,7 @@ from pathlib import Path
 from mcp.server import MCPServer
 
 from orchestrator.jobs import JobStore
+from orchestrator.registry import estado_de, indice
 
 mcp = MCPServer(
     "intelliprint",
@@ -35,6 +36,12 @@ def _raiz() -> Path:
         if (carpeta / "config" / "models.yaml").exists():
             return carpeta
     sys.exit("ejecuta intelliprint-mcp dentro del repo de Intelliprint")
+
+
+def _proyectos() -> Path:
+    raiz = _raiz()
+    workspace = Path(os.environ.get("INTELLIPRINT_WORKSPACE") or raiz / "workspace")
+    return workspace / "projects"
 
 
 def _store() -> JobStore:
@@ -72,17 +79,24 @@ def disenar_mecanismo(peticion: str) -> dict:
 @mcp.tool()
 def estado_proyecto(proyecto: str = "") -> dict:
     """Cómo va un proyecto: si sigue trabajando, en qué ronda y lo último
-    que hizo. Sin argumento, el más reciente."""
-    store = _store()
-    if not proyecto:
-        proyectos = store.list(1)
-        if not proyectos:
+    que hizo. Sin argumento, el más reciente.
+
+    Mira el workspace entero, no solo lo que se lanzó desde aquí: un
+    proyecto arrancado por consola cuenta igual."""
+    carpeta = _proyectos() / proyecto if proyecto else None
+    if carpeta is None:
+        filas = indice(_proyectos())
+        if not filas:
             return {"estado": "no hay proyectos todavía"}
-        proyecto = proyectos[0]["id"]
-    try:
-        return store.status(proyecto)
-    except KeyError as e:
-        return {"error": str(e)}
+        carpeta = Path(filas[0]["carpeta"])
+    if not carpeta.exists():
+        return {"error": f"no existe el proyecto {proyecto!r}"}
+    estado = estado_de(carpeta)
+    registro = carpeta / "run.log"
+    if registro.exists():
+        estado["ultimo"] = "\n".join(
+            registro.read_text(errors="ignore").strip().splitlines()[-12:])
+    return estado
 
 
 @mcp.tool()
@@ -102,8 +116,9 @@ def archivos_proyecto(proyecto: str = "") -> dict:
 
 @mcp.tool()
 def listar_proyectos(limite: int = 10) -> list[dict]:
-    """Los proyectos más recientes con su estado."""
-    return _store().list(limite)
+    """Los proyectos más recientes del workspace con su estado, sus rondas y
+    lo que costó cada uno; los lanzados por consola también."""
+    return indice(_proyectos())[:limite]
 
 
 @mcp.tool()

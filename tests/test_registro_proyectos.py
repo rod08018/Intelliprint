@@ -75,8 +75,8 @@ def test_un_proyecto_en_marcha_no_se_confunde_con_uno_fallido(tmp_path):
 
 
 def test_el_indice_se_escribe_legible_y_ordenado_por_fecha(tmp_path):
-    _envejecer(_resuelto(tmp_path, "2026-09-19-1000-bisagra", coste=0.42))
-    _envejecer(_fallido(tmp_path, "2026-09-19-1100-gato", coste=1.90))
+    _envejecer(_resuelto(tmp_path, "2026-09-19-1000-bisagra", coste=0.42), horas=3)
+    _envejecer(_fallido(tmp_path, "2026-09-19-1100-gato", coste=1.90), horas=2)
 
     escribir_indice(tmp_path)
 

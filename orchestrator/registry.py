@@ -87,8 +87,10 @@ def estado_de(carpeta: Path) -> dict:
 def indice(carpeta: Path) -> list[dict]:
     """Todos los proyectos, del más reciente al más antiguo."""
     carpeta = Path(carpeta)
+    # Por fecha real: los nombres antiguos no llevan hora y quedarían arriba.
     proyectos = [p for p in carpeta.iterdir() if p.is_dir()]
-    return [estado_de(p) for p in sorted(proyectos, key=lambda p: p.name, reverse=True)]
+    return [estado_de(p) for p in sorted(
+        proyectos, key=lambda p: (p.stat().st_mtime, p.name), reverse=True)]
 
 
 def escribir_indice(carpeta: Path) -> Path:
