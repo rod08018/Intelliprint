@@ -151,6 +151,8 @@ def design_mechanism(
                 log(f"    ✋ {e}")
                 parada = "presupuesto"
                 break
+        if presupuesto is not None:
+            presupuesto.etapa(f"ronda {n} · diseño del mecanismo")
         log(f"  ronda {n}: el Mechanism Designer propone el mecanismo…")
         spec = mechanism_agent.design(peticion, rechazo=rechazo)
         texto_spec = spec.model_dump_json(indent=2)
@@ -166,6 +168,8 @@ def design_mechanism(
             destino = carpeta / "parts" / p.name
             if hechas.get(p.name) == clave and (destino / f"{p.name}.step").exists():
                 continue
+            if presupuesto is not None:
+                presupuesto.etapa(f"ronda {n} · pieza «{p.name}»")
             log(f"    el Part Designer dibuja «{p.name}»…")
             try:
                 receta, _ = design_and_build(
@@ -223,6 +227,8 @@ def design_mechanism(
             # El juicio del revisor también es retroalimentación: un requisito
             # incumplido que solo se cuenta al final no lo corrige nadie.
             if not feedback and reviewer is not None and revisiones < MAX_RONDAS_DE_REVISION:
+                if presupuesto is not None:
+                    presupuesto.etapa(f"ronda {n} · revisión")
                 log("    revisión del diseño frente a tu petición…")
                 review = reviewer.review(peticion, spec, measurements(spec, layout, final))
                 incumplidos = review.por_veredicto("no_cumple")
@@ -252,6 +258,8 @@ def design_mechanism(
         rechazo = (texto_spec, feedback + aviso)
 
     if reviewer is not None and final is not None and review is None:
+        if presupuesto is not None:
+            presupuesto.etapa("revisión final")
         log("    revisión del diseño frente a tu petición…")
         review = reviewer.review(peticion, spec, measurements(spec, layout, final))
     if review is not None:
@@ -259,6 +267,10 @@ def design_mechanism(
             "\n".join([f"# Revisión: {spec.title}", "", review.summary, ""]
                       + [f"- **{i.verdict}** — {i.requirement}: {i.comment}" for i in review.items]),
             encoding="utf-8")
+    if presupuesto is not None:
+        # El coste se guarda SIEMPRE, también si el proyecto no salió: saber
+        # en qué se fue el dinero es lo que deja decidir si vale la pena seguir.
+        presupuesto.escribir(carpeta)
     (carpeta / "rounds.json").write_text(
         json.dumps([r.model_dump() for r in rondas], indent=2, ensure_ascii=False), encoding="utf-8")
     return FlowReport(rounds=rondas, final=final, spec_path=str(spec_path), review=review,

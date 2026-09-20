@@ -289,16 +289,16 @@ def test_al_agotarse_el_presupuesto_se_para_y_se_pregunta(tmp_path):
 
         def __init__(self, guion):
             self._guion = guion
-            self.tokens = {"entrada": 0, "salida": 0}
+            self.llamadas = []
 
         def complete(self, prompt):
-            self.tokens["entrada"] += 1_000_000
+            self.llamadas.append({"modelo": self.modelo, "entrada": 1_000_000, "salida": 0})
             return self._guion.complete(prompt)
 
     cliente = Caro(Guion([json.dumps(_spec(0.0))] * 5))
     presupuesto = Presupuesto(0.5, {"deepseek-chat": {"in_usd_per_mtok": 0.28,
                                                       "out_usd_per_mtok": 0.42}})
-    presupuesto.vigila(cliente)
+    presupuesto.vigila(cliente, "Mechanism Designer")
 
     informe = design_mechanism(
         "un brazo", MechanismDesignerAgent(cliente, CATALOGO, PERFIL, (235, 235, 250), 0.1),
@@ -308,3 +308,38 @@ def test_al_agotarse_el_presupuesto_se_para_y_se_pregunta(tmp_path):
 
     assert informe.stopped_because == "presupuesto"
     assert len(informe.rounds) == 2
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_el_coste_desglosado_se_guarda_en_la_carpeta_del_proyecto(tmp_path):
+    """Aunque el proyecto no salga: saber en qué se fue el dinero es lo que
+    deja decidir si vale la pena seguir."""
+    from orchestrator.llm.cost import Presupuesto
+
+    class Medido:
+        modelo = "deepseek-chat"
+
+        def __init__(self, guion):
+            self._guion = guion
+            self.llamadas = []
+
+        def complete(self, prompt):
+            self.llamadas.append({"modelo": self.modelo, "entrada": 1000, "salida": 500})
+            return self._guion.complete(prompt)
+
+    mecanico = Medido(Guion([json.dumps(_spec(0.0))] * 6))
+    presupuesto = Presupuesto(2.0, {"deepseek-chat": {"in_usd_per_mtok": 0.28,
+                                                      "out_usd_per_mtok": 0.42}})
+    presupuesto.vigila(mecanico, "Mechanism Designer")
+    piezas = DisenadorDePiezas()
+
+    design_mechanism(
+        "un brazo", MechanismDesignerAgent(mecanico, CATALOGO, PERFIL, (235, 235, 250), 0.1),
+        PartDesignerAgent(piezas, CATALOGO), tmp_path, _freecadcmd(),
+        min_gap_mm=0.1, animar=False, presupuesto=presupuesto,
+    )
+
+    texto = (tmp_path / "design_cost.md").read_text(encoding="utf-8")
+    assert "Mechanism Designer" in texto
+    assert "ronda 1 · diseño del mecanismo" in texto
+    assert (tmp_path / "design_cost.json").exists()

@@ -35,6 +35,9 @@ class DeepSeekClient:
         self.tokens = {"entrada": 0, "salida": 0}
         """Lo gastado por este cliente. El tope de gasto del proyecto sale de
         aquí (F5.12 (tope)), no de un número de rondas inventado."""
+        self.llamadas: list[dict] = []
+        """Una entrada por llamada, para desglosar el coste: un total no
+        dice en qué se fue el dinero."""
         # El modelo de razonamiento piensa antes de responder: minutos, no
         # segundos, y su pensamiento cuenta dentro de max_tokens.
         razona = "reasoner" in model
@@ -80,8 +83,10 @@ class DeepSeekClient:
         respuesta.raise_for_status()
         cuerpo_respuesta = respuesta.json()
         uso = cuerpo_respuesta.get("usage") or {}
-        self.tokens["entrada"] += uso.get("prompt_tokens", 0)
-        self.tokens["salida"] += uso.get("completion_tokens", 0)
+        entrada, salida = uso.get("prompt_tokens", 0), uso.get("completion_tokens", 0)
+        self.tokens["entrada"] += entrada
+        self.tokens["salida"] += salida
+        self.llamadas.append({"modelo": self._model, "entrada": entrada, "salida": salida})
         eleccion = cuerpo_respuesta["choices"][0]
         if eleccion.get("finish_reason") == "length":
             # Tampoco una respuesta cortada: el reintento "corrige el JSON"

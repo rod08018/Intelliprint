@@ -169,8 +169,8 @@ def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> 
     mecanico = _cliente(router, env, "reason")
     presupuesto = Presupuesto.from_config(
         yaml.safe_load((raiz / "config" / "models.yaml").read_text(encoding="utf-8")))
-    presupuesto.vigila(cliente)
-    presupuesto.vigila(mecanico)
+    presupuesto.vigila(cliente, "Part Designer / Design Reviewer")
+    presupuesto.vigila(mecanico, "Mechanism Designer")
     carpeta = Path(args.carpeta) if args.carpeta else (
         _workspace(raiz, env) / "projects"
         / f"{dt.datetime.now():%Y-%m-%d-%H%M}-{slug(peticion.split(chr(10))[0])[:40]}")
@@ -194,7 +194,8 @@ def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> 
         "rondas": " — se alcanzó el límite de rondas",
     }[informe.stopped_because]
     print(f"[{nombre}] {informe.rounds[-1].title}: {len(informe.rounds)} ronda(s)"
-          f"{motivo_parada}. Gasto: {informe.spent_usd:.2f} USD")
+          f"{motivo_parada}. Gasto: {informe.spent_usd:.2f} USD "
+          f"(desglose en design_cost.md)")
     if f is not None:
         print(f"  ensamble:  {f.assembly}  (ábrelo en FreeCAD)")
         print(f"  animación: {f.animation}")

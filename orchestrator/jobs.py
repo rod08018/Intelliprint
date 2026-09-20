@@ -21,6 +21,7 @@ ARCHIVOS = {
     "animacion": "animation.gif",
     "ensamble": "assembly.FCStd",
     "revision": "review.md",
+    "coste": "design_cost.md",
     "mecanismo": "mechanism.json",
     "peticion": "request.md",
     "registro": "run.log",
