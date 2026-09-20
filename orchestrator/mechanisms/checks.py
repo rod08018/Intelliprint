@@ -10,6 +10,7 @@ un solape, pero no dice POR QUÉ. Esto sí.
 from pathlib import Path
 
 from mech_toolkit.geometry import Frame, _distancia_a_recta, _paralelo
+from orchestrator.mechanisms.expr import _nombres, _parse
 from mech_toolkit.measure import extract_cylinders
 from orchestrator.assembly import pair_gaps
 from orchestrator.schemas.mechanism import MechanismSpec
@@ -66,4 +67,57 @@ def stop_problems(spec: MechanismSpec, layout, steps: dict[str, Path], freecadcm
             problemas.append(
                 f"{nombre} no bloquea: con t = {mas_alla:g} siguen sin tocarse "
                 f"({despues:.2f} mm), así que el movimiento podría seguir")
+    return problemas
+
+
+def mechanism_problems(spec: MechanismSpec) -> list[str]:
+    """Lo que el agente no puede dejar sin verificar, mirando su propia
+    declaración. Sale de un fallo real: un trinquete aprobado que no
+    trinqueteaba, porque nada obligaba a declarar contactos ni bloqueos.
+
+    Dos reglas, las dos deterministas:
+
+    1. Una articulación cuyo valor no depende del ciclo no es una
+       articulación: es una pieza colocada y quieta.
+    2. Una pieza que ni se mueve ni toca a ninguna otra no pinta nada: o es
+       decoración, o le falta declarar su contacto.
+    """
+    problemas = []
+    ciclo = {spec.driver.name}
+    emparejadas = {n for r in spec.rules for n in (r.a, r.b)}
+    emparejadas |= {n for t in spec.stops for n in (t.a, t.b)}
+    emparejadas |= {n for b in spec.blocks for n in (b.body, b.against)}
+    emparejadas |= {b.joint.rest_on.target for b in spec.bodies
+                    if b.joint and b.joint.rest_on}
+
+    # La bancada está quieta por definición: es el suelo del mecanismo. Se
+    # exime la primera pieza fija declarada, que es como la escriben siempre.
+    suelo = next((b.name for b in spec.parts if b.joint is None and b.parent is None), None)
+
+    for b in spec.bodies:
+        if b.name == suelo:
+            continue
+        movil = False
+        if b.joint is not None and b.joint.rest_on is not None:
+            movil = True
+        elif b.joint is not None:
+            usa_ciclo = bool(_nombres(_parse(b.joint.value), b.joint.value) & ciclo)
+            if not usa_ciclo:
+                problemas.append(
+                    f"«{b.name}» declara una articulación {b.joint.type} con valor constante "
+                    f"({b.joint.value}): así nunca se mueve. Si de verdad se mueve, su valor "
+                    f"tiene que depender de {spec.driver.name}; si se mueve porque otra pieza "
+                    "la empuja, usa `rest_on`; y si está quieta, quítale la articulación y "
+                    "declara cómo se sujeta."
+                )
+            movil = usa_ciclo
+        if b.stretch is not None and _nombres(_parse(b.stretch), b.stretch) & ciclo:
+            movil = True
+        padre_movil = b.parent is not None
+        if not movil and not padre_movil and b.name not in emparejadas:
+            problemas.append(
+                f"«{b.name}» no se mueve en todo el ciclo y no toca a ninguna otra pieza: "
+                "no hay nada que verificar sobre ella. Declara con qué va unida o en "
+                "contacto (`rules`), o qué la mueve."
+            )
     return problemas

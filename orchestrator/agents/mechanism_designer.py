@@ -11,6 +11,7 @@ from pathlib import Path
 
 from mech_toolkit.profile import PrinterProfile
 from orchestrator.llm.structured import LlmClient, structured
+from orchestrator.mechanisms.checks import mechanism_problems
 from orchestrator.mechanisms.kinematics import Kinematics
 from orchestrator.schemas.mechanism import MechanismSpec
 from orchestrator.schemas.recipe import GeneratorCatalog
@@ -44,7 +45,10 @@ class MechanismDesignerAgent:
                 "Corrígelo. Cambia lo necesario (medidas, posiciones, holguras, "
                 "fórmulas) sin dejar de cumplir la petición.\n"
             )
-        return structured(
-            self._client, prompt, MechanismSpec,
-            extra_validation=lambda spec: Kinematics(spec).validate(),
-        )
+        def comprobar(spec: MechanismSpec) -> None:
+            Kinematics(spec).validate()
+            problemas = mechanism_problems(spec)
+            if problemas:
+                raise ValueError("; ".join(problemas))
+
+        return structured(self._client, prompt, MechanismSpec, extra_validation=comprobar)

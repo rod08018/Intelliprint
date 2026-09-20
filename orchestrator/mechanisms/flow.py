@@ -21,7 +21,8 @@ from mech_toolkit.generators import CATALOGO
 from orchestrator.build import ConstruccionFallida, design_and_build
 from orchestrator.llm.cost import PresupuestoAgotado
 from orchestrator.llm.structured import SalidaInvalida
-from orchestrator.mechanisms.checks import joint_axis_problems, stop_problems
+from orchestrator.mechanisms.checks import (
+    joint_axis_problems, mechanism_problems, stop_problems)
 from orchestrator.mechanisms.contact import SinApoyo, block_problems, solve_contacts
 from orchestrator.mechanisms.run import MechanismReport, build_mechanism
 from orchestrator.mechanisms.spec_layout import SpecLayout
@@ -162,8 +163,10 @@ def design_mechanism(
         layout = SpecLayout(spec)
         log(f"    «{spec.title}»: {len(spec.parts)} piezas, {len(spec.pins)} pasadores/ejes")
 
-        fallos = []
-        for p in spec.parts:
+        # Antes de gastar FreeCAD: lo que el agente no puede dejar sin
+        # verificar se ve en su propia declaración.
+        fallos = [f"- {x}" for x in mechanism_problems(spec)]
+        for p in [] if fallos else spec.parts:
             clave = (p.brief, tuple(p.bbox_min), tuple(p.bbox_max))
             destino = carpeta / "parts" / p.name
             if hechas.get(p.name) == clave and (destino / f"{p.name}.step").exists():
