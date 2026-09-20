@@ -20,7 +20,8 @@ PERFIL = PrinterProfile(id="m5", fits={"press_mm": 0.10, "slide_mm": 0.20, "clea
 
 
 def _spec(z_brazo: float) -> dict:
-    """Un brazo que gira sobre una base con un pasador vertical."""
+    """Un brazo que gira sobre una base con un pasador vertical. Con z < 0 el
+    brazo se hunde en la base: un solape de verdad, no un apoyo a 0 mm."""
     return {
         "title": "Brazo giratorio", "summary": "s", "assumptions": ["pasador de Ø3"],
         "driver": {"start": 0, "end": 90, "step": 45, "label": "giro"},
@@ -81,7 +82,7 @@ class DisenadorDePiezas:
 @pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
 def test_un_choque_vuelve_al_agente_y_la_ronda_siguiente_lo_corrige(tmp_path):
     # Ronda 1: el brazo en z = 0 se hunde en la base. Ronda 2: z = 0.5.
-    mecanico = Guion([json.dumps(_spec(0.0)), json.dumps(_correccion(0.5))])
+    mecanico = Guion([json.dumps(_spec(-2.0)), json.dumps(_correccion(0.5))])
     piezas = DisenadorDePiezas()
     informe = design_mechanism(
         "un brazo que gire 90° sobre una base",
@@ -101,7 +102,7 @@ def test_un_choque_vuelve_al_agente_y_la_ronda_siguiente_lo_corrige(tmp_path):
 
 @pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
 def test_si_ninguna_ronda_funciona_el_ensamble_se_guarda_igual(tmp_path):
-    mecanico = Guion([json.dumps(_spec(0.0)), json.dumps(_correccion(0.0))])
+    mecanico = Guion([json.dumps(_spec(-2.0)), json.dumps(_correccion(-2.0))])
     informe = design_mechanism(
         "un brazo", MechanismDesignerAgent(mecanico, CATALOGO, PERFIL, (235, 235, 250), 0.1),
         PartDesignerAgent(DisenadorDePiezas(), CATALOGO),
@@ -216,7 +217,7 @@ def test_se_puede_continuar_un_proyecto_fallido_sin_empezar_de_cero(tmp_path):
     """Sin esto, reintentar tiraba a la basura lo aprendido en 5 rondas: el
     modelo volvía a proponer desde la nada y repetía los mismos fallos."""
     # Primer intento: una sola ronda, que falla por choque.
-    mecanico = Guion([json.dumps(_spec(0.0))])
+    mecanico = Guion([json.dumps(_spec(-2.0))])
     design_mechanism(
         "un brazo que gire sobre una base",
         MechanismDesignerAgent(mecanico, CATALOGO, PERFIL, (235, 235, 250), 0.1),
@@ -274,7 +275,7 @@ def test_lo_que_el_revisor_marca_como_no_cumple_vuelve_al_disenador(tmp_path):
 def test_si_se_atasca_repitiendo_el_mismo_fallo_para_y_lo_dice(tmp_path):
     """Sin esto, un fallo que el modelo no sabe arreglar quema el presupuesto
     entero repitiendo la misma propuesta."""
-    mecanico = Guion([json.dumps(_spec(0.0))] + [json.dumps(_correccion(0.0))] * 11)
+    mecanico = Guion([json.dumps(_spec(-2.0))] + [json.dumps(_correccion(-2.0))] * 11)
     informe = design_mechanism(
         "un brazo", MechanismDesignerAgent(mecanico, CATALOGO, PERFIL, (235, 235, 250), 0.1),
         PartDesignerAgent(DisenadorDePiezas(), CATALOGO),
@@ -302,7 +303,7 @@ def test_al_agotarse_el_presupuesto_se_para_y_se_pregunta(tmp_path):
             self.llamadas.append({"modelo": self.modelo, "entrada": 1_000_000, "salida": 0})
             return self._guion.complete(prompt)
 
-    cliente = Caro(Guion([json.dumps(_spec(0.0))] + [json.dumps(_correccion(0.0))] * 4))
+    cliente = Caro(Guion([json.dumps(_spec(-2.0))] + [json.dumps(_correccion(-2.0))] * 4))
     presupuesto = Presupuesto(0.5, {"deepseek-chat": {"in_usd_per_mtok": 0.28,
                                                       "out_usd_per_mtok": 0.42}})
     presupuesto.vigila(cliente, "Mechanism Designer")
@@ -334,7 +335,7 @@ def test_el_coste_desglosado_se_guarda_en_la_carpeta_del_proyecto(tmp_path):
             self.llamadas.append({"modelo": self.modelo, "entrada": 1000, "salida": 500})
             return self._guion.complete(prompt)
 
-    mecanico = Medido(Guion([json.dumps(_spec(0.0))] * 6))
+    mecanico = Medido(Guion([json.dumps(_spec(-2.0))] * 6))
     presupuesto = Presupuesto(2.0, {"deepseek-chat": {"in_usd_per_mtok": 0.28,
                                                       "out_usd_per_mtok": 0.42}})
     presupuesto.vigila(mecanico, "Mechanism Designer")
@@ -356,7 +357,7 @@ def test_el_coste_desglosado_se_guarda_en_la_carpeta_del_proyecto(tmp_path):
 def test_siempre_queda_la_animacion_aunque_el_mecanismo_no_salga(tmp_path):
     """Se perdió al reescribir el bucle: los proyectos terminaban sin GIF y
     era lo único que el usuario quería ver."""
-    mecanico = Guion([json.dumps(_spec(0.0))] + [json.dumps(_correccion(0.0))] * 5)
+    mecanico = Guion([json.dumps(_spec(-2.0))] + [json.dumps(_correccion(-2.0))] * 5)
     informe = design_mechanism(
         "un brazo", MechanismDesignerAgent(mecanico, CATALOGO, PERFIL, (235, 235, 250), 0.1),
         PartDesignerAgent(DisenadorDePiezas(), CATALOGO), tmp_path, _freecadcmd(),
@@ -387,7 +388,7 @@ def test_el_coste_se_puede_consultar_mientras_trabaja(tmp_path):
             costes.append((tmp_path / "design_cost.md").exists())
             return self._guion.complete(prompt)
 
-    cliente = Medido(Guion([json.dumps(_spec(0.0))] + [json.dumps(_correccion(0.0))] * 5))
+    cliente = Medido(Guion([json.dumps(_spec(-2.0))] + [json.dumps(_correccion(-2.0))] * 5))
     presupuesto = Presupuesto(2.0, {"deepseek-chat": {"in_usd_per_mtok": 0.28,
                                                       "out_usd_per_mtok": 0.42}})
     presupuesto.vigila(cliente, "Mechanism Designer")
@@ -426,8 +427,8 @@ def test_al_corregir_hay_que_declarar_causa_y_cambio(tmp_path):
     """Sin plan, el agente vuelve a proponer a ciegas y nadie sabe qué
     intentó. El plan es dato: se guarda y se compara."""
     mecanico = Guion([
-        json.dumps(_spec(0.0)),                                  # ronda 1: choca
-        json.dumps(_spec(0.0)),                                  # corrección SIN plan: se rechaza
+        json.dumps(_spec(-2.0)),                                  # ronda 1: choca
+        json.dumps(_spec(-2.0)),                                  # corrección SIN plan: se rechaza
         json.dumps(_spec_con_plan(0.5, "el brazo rozaba la base", "subo el brazo 0.5 mm")),
     ])
     informe = design_mechanism(
@@ -445,8 +446,8 @@ def test_al_corregir_hay_que_declarar_causa_y_cambio(tmp_path):
 def test_repetir_el_mismo_plan_ante_el_mismo_fallo_es_atasco(tmp_path):
     """Proponer tres veces la misma idea contra el mismo muro es atasco,
     aunque cambien los números."""
-    mismo = _spec_con_plan(0.0, "el brazo roza", "lo subo un poco")
-    mecanico = Guion([json.dumps(_spec(0.0))] + [json.dumps(mismo)] * 6)
+    mismo = _spec_con_plan(-2.0, "el brazo roza", "lo subo un poco")
+    mecanico = Guion([json.dumps(_spec(-2.0))] + [json.dumps(mismo)] * 6)
 
     informe = design_mechanism(
         "un brazo", MechanismDesignerAgent(mecanico, CATALOGO, PERFIL, (235, 235, 250), 0.1),
@@ -488,9 +489,9 @@ def test_tres_veces_la_misma_idea_con_otras_palabras_es_atasco(tmp_path):
         {"causa": "el brazo sigue rozando la base", "cambio": "muevo el brazo 0.7 mm arriba",
          "espera": "que deje de rozar"},
     ]
-    especs = [json.dumps(_spec(0.0))]
+    especs = [json.dumps(_spec(-2.0))]
     for p in planes:
-        s = _spec(0.0)
+        s = _spec(-2.0)
         s["fix_plan"] = p
         especs.append(json.dumps(s))
     informe = design_mechanism(

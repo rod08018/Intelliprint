@@ -191,6 +191,7 @@ def design_mechanism(
     hechas: dict[str, tuple] = {}
     rondas: list[Round] = []
     rechazo = _retomar(carpeta) if continuar else None
+    spec = None
     final = None
     spec_path = carpeta / "mechanism.json"
 
@@ -346,17 +347,17 @@ def design_mechanism(
         final = build_mechanism(layout, carpeta, freecadcmd, min_gap_mm=min_gap_mm,
                                 disenar=lambda nombre, c: None, animar=True)
 
-    if reviewer is not None and final is not None and review is None:
+    if reviewer is not None and final is not None and review is None and spec is not None:
         if presupuesto is not None:
             presupuesto.etapa("revisión final")
         log("    revisión del diseño frente a tu petición…")
         review = reviewer.review(peticion, spec, measurements(spec, layout, final))
-    if review is not None:
+    if review is not None and spec is not None:
         (carpeta / "review.md").write_text(
             "\n".join([f"# Revisión: {spec.title}", "", review.summary, ""]
                       + [f"- **{i.verdict}** — {i.requirement}: {i.comment}" for i in review.items]),
             encoding="utf-8")
-    if parada != "resuelto":
+    if parada != "resuelto" and spec is not None:
         _evidencias(carpeta, spec, rondas, parada, final, layout, peticion,
                     presupuesto.gastado_usd() if presupuesto else 0.0, freecadcmd, log)
     if presupuesto is not None:
