@@ -358,3 +358,51 @@ def test_siempre_queda_la_animacion_aunque_el_mecanismo_no_salga(tmp_path):
     assert not informe.ok                       # se atascó...
     assert informe.final.animation is not None  # ...y aun así hay animación
     assert (tmp_path / "animation.gif").exists()
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_el_coste_se_puede_consultar_mientras_trabaja(tmp_path):
+    """Antes solo se escribía al final: en un proyecto de 40 minutos no había
+    forma de saber cuánto llevabas gastado."""
+    from orchestrator.llm.cost import Presupuesto
+
+    costes = []
+
+    class Medido:
+        modelo = "deepseek-chat"
+
+        def __init__(self, guion):
+            self._guion = guion
+            self.llamadas = []
+
+        def complete(self, prompt):
+            self.llamadas.append({"modelo": self.modelo, "entrada": 1000, "salida": 500})
+            costes.append((tmp_path / "design_cost.md").exists())
+            return self._guion.complete(prompt)
+
+    cliente = Medido(Guion([json.dumps(_spec(0.0))] * 6))
+    presupuesto = Presupuesto(2.0, {"deepseek-chat": {"in_usd_per_mtok": 0.28,
+                                                      "out_usd_per_mtok": 0.42}})
+    presupuesto.vigila(cliente, "Mechanism Designer")
+
+    design_mechanism(
+        "un brazo", MechanismDesignerAgent(cliente, CATALOGO, PERFIL, (235, 235, 250), 0.1),
+        PartDesignerAgent(DisenadorDePiezas(), CATALOGO), tmp_path, _freecadcmd(),
+        min_gap_mm=0.1, animar=False, presupuesto=presupuesto,
+    )
+
+    # Ya existía antes de la última llamada: se va escribiendo por el camino.
+    assert costes[-1] is True
+
+
+def test_dos_fallos_iguales_salvo_los_numeros_cuentan_como_repeticion():
+    """«se quedó a 9.38 mm» y «se quedó a 0.32 mm» son el mismo muro. Sin
+    esto, el sistema quema rondas creyendo que avanza."""
+    from orchestrator.mechanisms.flow import huella_de_fallo
+
+    a = "- «pawl» no llega a apoyarse en «rueda» con t = 30: se queda a 9.38 mm"
+    b = "- «pawl» no llega a apoyarse en «rueda» con t = 90: se queda a 0.32 mm"
+    c = "- «pawl» y «base» se solapan (3 mm³ en común)"
+
+    assert huella_de_fallo(a) == huella_de_fallo(b)
+    assert huella_de_fallo(a) != huella_de_fallo(c)

@@ -13,6 +13,7 @@ es cuando más falta hace abrirlo.
 """
 
 import json
+import re
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -27,6 +28,12 @@ from orchestrator.mechanisms.contact import SinApoyo, block_problems, solve_cont
 from orchestrator.mechanisms.run import MechanismReport, build_mechanism
 from orchestrator.mechanisms.spec_layout import SpecLayout
 from orchestrator.schemas.review import ReviewReport
+
+def huella_de_fallo(feedback: str) -> str:
+    """El fallo sin sus números: "se queda a 9.38 mm" y "se queda a 0.32 mm"
+    son el mismo muro. Sin esto el sistema quema rondas creyendo que avanza."""
+    return re.sub(r"[-+]?\d+(?:[.,]\d+)?", "#", feedback).strip()
+
 
 MAX_RONDAS = 40
 """Red de seguridad, no el criterio: el sistema itera HASTA QUE el mecanismo
@@ -154,6 +161,9 @@ def design_mechanism(
                 break
         if presupuesto is not None:
             presupuesto.etapa(f"ronda {n} · diseño del mecanismo")
+            # El coste se escribe por el camino: en un proyecto de 40 minutos
+            # hay que poder mirar cuánto llevas gastado sin esperar al final.
+            presupuesto.escribir(carpeta)
         log(f"  ronda {n}: el Mechanism Designer propone el mecanismo…")
         try:
             spec = mechanism_agent.design(peticion, rechazo=rechazo)
@@ -262,7 +272,7 @@ def design_mechanism(
             break
 
         # ¿Se está repitiendo? Volver a proponer lo mismo no arregla nada.
-        huella = feedback.strip()
+        huella = huella_de_fallo(feedback)
         motivos_vistos[huella] = motivos_vistos.get(huella, 0) + 1
         repetido = motivos_vistos[huella]
         if repetido >= REPETICIONES_PARA_ATASCO:
