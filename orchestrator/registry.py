@@ -17,6 +17,7 @@ Dos reglas:
 import json
 import os
 import shutil
+import subprocess
 import time
 from pathlib import Path
 
@@ -41,11 +42,18 @@ def _lee_json(ruta: Path):
 
 
 def _vivo(pid: int) -> bool:
+    """Trabajando de verdad, no solo presente en la tabla de procesos.
+
+    Un proceso que terminó y que su padre no ha recogido queda **zombi**, y
+    `os.kill(pid, 0)` responde que sí existe: el Geneva drive falló a las
+    09:42 y seis horas después el registro seguía diciendo «en marcha»."""
     try:
         os.kill(pid, 0)
     except (OSError, TypeError):
         return False
-    return True
+    estado = subprocess.run(["ps", "-p", str(pid), "-o", "state="],
+                            capture_output=True, text=True).stdout.strip()
+    return not estado.startswith("Z")
 
 
 def estado_de(carpeta: Path) -> dict:

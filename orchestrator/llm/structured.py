@@ -14,6 +14,9 @@ from orchestrator.llm.providers.deepseek import (
 
 T = TypeVar("T", bound=BaseModel)
 
+CORTES_ANTES_DE_LA_RESERVA = 2
+"""Dos cortes ya demuestran que no es mala suerte: es que no cabe."""
+
 MAX_INTENTOS = 3
 
 
@@ -32,24 +35,35 @@ def structured(
     *,
     max_intentos: int = MAX_INTENTOS,
     extra_validation: Callable[[T], None] | None = None,
+    cliente_de_reserva: LlmClient | None = None,
 ) -> T:
     """Pide una salida que valide contra `schema`, reintentando con el error.
 
     `extra_validation` cubre lo que el esquema no puede saber por sí solo
     —por ejemplo, si una receta llama a un generador que existe— y entra
     en el mismo bucle: si quedara fuera, ese fallo no tendría reintento.
+
+    `cliente_de_reserva` es un modelo **sin pensamiento** al que se pasa la
+    pelota cuando el razonador se corta dos veces. A un razonador no se le
+    puede pedir que piense menos —su pensamiento cuenta dentro de
+    `max_tokens` y lo decide él—, así que insistir es quemar dinero: el
+    Geneva drive gastó 187.000 tokens en tres cortes seguidos sin sacar un
+    diseño. Uno sin pensamiento tiene todo el presupuesto para el JSON.
     """
     peticion = prompt
     ultimo_error = ""
+    cortes = 0
 
     for intento in range(1, max_intentos + 1):
         try:
-            respuesta = client.complete(peticion)
+            se_rindio = cortes >= CORTES_ANTES_DE_LA_RESERVA and cliente_de_reserva
+            respuesta = (cliente_de_reserva if se_rindio else client).complete(peticion)
         except (RespuestaCortada, TiempoAgotado, ConexionCaida) as error:
             # Se quedó sin sitio pensando: no es un JSON malo, es longitud. Se
             # reintenta pidiendo brevedad en vez de tumbar el proyecto entero
             # (fallo real: el trinquete murió aquí tras 12 minutos).
             ultimo_error = str(error)
+            cortes += 1
             peticion = (
                 f"{prompt}\n\n--- Intento {intento} cortado ({error}) ---\n"
                 "Te quedaste sin espacio antes de terminar. Razona menos y responde "

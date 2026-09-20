@@ -133,3 +133,49 @@ def test_una_respuesta_cortada_se_reintenta_pidiendo_brevedad():
     cliente = Cliente()
     assert structured(cliente, "haz una placa", Pieza).alto_mm == 6
     assert "sin espacio antes de terminar" in cliente.prompts[1]
+
+
+def test_si_el_razonador_se_corta_dos_veces_responde_el_modelo_sin_pensamiento():
+    """Fallo real: el Geneva drive quemó 187.000 tokens y 0.08 USD en tres
+    llamadas al razonador, cortadas las tres, y no salió ni un diseño.
+
+    A un razonador no se le puede pedir que piense menos: su pensamiento
+    cuenta dentro de `max_tokens` y lo decide él. Un modelo sin pensamiento
+    tiene todo el presupuesto para el JSON, así que a la tercera contesta
+    ese en vez de repetir lo que ya falló dos veces.
+    """
+    from orchestrator.llm.providers.deepseek import RespuestaCortada
+
+    class Razonador:
+        def __init__(self):
+            self.prompts = []
+
+        def complete(self, prompt):
+            self.prompts.append(prompt)
+            raise RespuestaCortada("agotó max_tokens=65536 sin terminar la respuesta")
+
+    razonador, reserva = Razonador(), ClienteGuionizado(['{"nombre": "disco", "alto_mm": 6}'])
+
+    pieza = structured(razonador, "un mecanismo de ginebra", Pieza, cliente_de_reserva=reserva)
+
+    assert pieza.nombre == "disco"
+    assert len(razonador.prompts) == 2      # no se insiste una tercera vez
+    assert len(reserva.prompts) == 1
+    assert "sin espacio" in reserva.prompts[0]
+
+
+def test_sin_reserva_el_razonador_agota_sus_intentos_como_antes():
+    from orchestrator.llm.providers.deepseek import RespuestaCortada
+
+    class Razonador:
+        def __init__(self):
+            self.prompts = []
+
+        def complete(self, prompt):
+            self.prompts.append(prompt)
+            raise RespuestaCortada("agotó max_tokens=65536")
+
+    razonador = Razonador()
+    with pytest.raises(SalidaInvalida, match="max_tokens"):
+        structured(razonador, "algo", Pieza)
+    assert len(razonador.prompts) == 3

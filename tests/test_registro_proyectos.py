@@ -160,3 +160,24 @@ def test_colgado_se_mide_por_lo_que_lleva_sin_escribir_no_por_lo_que_lleva_corri
     assert filas[trabajando.name]["parece_colgado"] is False
     assert filas[parado.name]["parece_colgado"] is True
     assert filas[parado.name]["segundos_sin_moverse"] > 12 * 60
+
+
+def test_un_proceso_zombi_no_cuenta_como_en_marcha(tmp_path):
+    """Fallo real: el Geneva drive falló a las 09:42 y seis horas después el
+    registro seguía diciendo «en marcha».
+
+    Un proceso que terminó pero que su padre no ha recogido queda como
+    zombi, y `os.kill(pid, 0)` le responde que sí existe. Existir no es
+    estar trabajando."""
+    import subprocess
+
+    hijo = subprocess.Popen(["/usr/bin/true"])   # muere enseguida
+    time.sleep(0.2)                              # y nadie lo recoge: zombi
+    carpeta = _proyecto(tmp_path, "2026-09-20-0929-ginebra")
+    (carpeta / "job.json").write_text(json.dumps({"pid": hijo.pid}), encoding="utf-8")
+    _envejecer(carpeta, horas=6)
+
+    fila = indice(tmp_path)[0]
+
+    assert fila["estado"] != "en marcha"
+    hijo.wait()

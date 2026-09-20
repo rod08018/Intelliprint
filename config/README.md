@@ -8,6 +8,7 @@ Configuración. Cambiar cualquier cosa de aquí **no debe requerir tocar código
 | `printers/*.yaml` | Perfil por impresora **y material**: holguras, agujeros, paredes, cama (§ 7). Sirve para **diseñar** |
 | `slicing/*.ini` | Perfil de **laminado** de PrusaSlicer (F1.12). Sirve para **imprimir**. Son dos archivos distintos para dos cosas distintas |
 | `agents/*.md` | Prompt de sistema de cada agente |
+| `openclaw/*.md` | Instrucciones de Crafty, el agente del canal humano, y cómo levantarlo en otra máquina. OpenClaw las lee desde `~/.openclaw/workspace/`, fuera del repositorio: aquí están versionadas para que no se pierdan con el ordenador |
 
 ## Sobre los perfiles de impresora
 

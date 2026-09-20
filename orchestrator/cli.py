@@ -180,7 +180,8 @@ def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> 
     informe = design_mechanism(
         peticion,
         MechanismDesignerAgent(mecanico, CATALOGO, perfil, cama, hueco,
-                               wall_mm=impresora["walls"]["structural_mm"]),
+                               wall_mm=impresora["walls"]["structural_mm"],
+                               reserva=cliente),
         PartDesignerAgent(cliente, CATALOGO),
         carpeta, _freecadcmd(env), min_gap_mm=hueco,
         reviewer=DesignReviewerAgent(cliente), continuar=args.continuar,

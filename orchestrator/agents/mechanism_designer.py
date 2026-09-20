@@ -23,8 +23,12 @@ class MechanismDesignerAgent:
     def __init__(self, client: LlmClient, catalog: GeneratorCatalog, profile: PrinterProfile,
                  bed_mm: tuple[float, float, float], min_gap_mm: float,
                  wall_mm: float = 1.8,
-                 prompt_path: Path = PROMPT_PATH) -> None:
+                 prompt_path: Path = PROMPT_PATH,
+                 reserva: LlmClient | None = None) -> None:
         self._client = client
+        # Si el razonador se corta dos veces, contesta este: un modelo sin
+        # pensamiento tiene todo `max_tokens` para el JSON (F3.15 (mecanismos)).
+        self._reserva = reserva
         self._min_gap_mm = min_gap_mm
         self._instrucciones = prompt_path.read_text(encoding="utf-8").format(
             min_gap=f"{min_gap_mm:g}", bed=" × ".join(f"{v:g}" for v in bed_mm),
@@ -59,4 +63,5 @@ class MechanismDesignerAgent:
             if problemas:
                 raise ValueError("; ".join(problemas))
 
-        return structured(self._client, prompt, MechanismSpec, extra_validation=comprobar)
+        return structured(self._client, prompt, MechanismSpec, extra_validation=comprobar,
+                          cliente_de_reserva=self._reserva)

@@ -287,7 +287,7 @@ Lo que falla vuelve al agente como motivo concreto, hasta 3 rondas. El ensamble 
 **Modelo.** Con `deepseek-chat`, la bisagra no se cerró en 3 rondas: los fallos eran de geometría espacial (cuerpos que solo se tocan en una arista, un enunciado que se contradice sobre el origen). Se añade el rol `reason`: `deepseek-reasoner` en dev y `qwen3.8` con thinking en prod. Con él, la bisagra salió en la primera ronda.
 
 **Medido al integrarlo** (y por eso está en el código):
-- El modelo de razonamiento piensa unos 30 000 tokens. Con `max_tokens` 32K devolvía vacío, y con el modo JSON no terminaba ni con 64K. Va sin modo JSON y con 64K; una respuesta cortada es un error propio y no gasta reintentos.
+- El modelo de razonamiento piensa unos 30 000 tokens. Con `max_tokens` 32K devolvía vacío, y con el modo JSON no terminaba ni con 64K. Va sin modo JSON y con 64K; una respuesta cortada se distingue de un JSON mal formado y se reintenta pidiendo brevedad.
 - Cada ronda del Mechanism Designer tarda unos 4 minutos.
 
 **Movimiento por contacto, no por fórmula (ampliación).** La primera versión dejaba que el agente escribiera la fórmula de cualquier pieza. Eso permitió un trinquete que "bloqueaba" porque su fórmula decía que la rueda se quedaba quieta: el ensamble no demostraba nada. Se añaden dos cosas:
@@ -296,6 +296,14 @@ Lo que falla vuelve al agente como motivo concreto, hasta 3 rondas. El ensamble 
 - `blocks`: el sistema fuerza la articulación de una pieza `delta` y comprueba que **se atravesaría** con la que la frena. Un trinquete que no bloquea se cae aquí.
 
 Lo que sigue sin verificarse, y por eso el informe lo dice explícitamente: el movimiento de las piezas motrices (la manivela que alguien gira) es una fórmula impuesta, no un efecto del mecanismo.
+
+**Enmienda (2026-09-20): cuando el razonador no cabe, contesta el que no piensa.** El mecanismo de Ginebra gastó 187 000 tokens de salida y 0.08 USD en tres llamadas al razonador, cortadas las tres por `max_tokens`, y no dejó ni un diseño: el proyecto murió en la ronda 1.
+
+Pedirle brevedad no sirve. El pensamiento de un razonador cuenta dentro de `max_tokens` y **lo decide él**, no el prompt; 64K es además el techo de DeepSeek, así que no hay margen que subir. Insistir es repetir lo que ya falló dos veces, pagándolo cada vez.
+
+Por eso, tras **dos** cortes, la tercera llamada la responde un modelo **sin pensamiento** (el rol `design`, `deepseek-chat`), que tiene todo el presupuesto para el JSON. Un diseño de un modelo más flojo es mejor que ningún diseño, y si además falla, falla por su contenido y con motivo, no por longitud.
+
+Es una decisión de **agotamiento, no de preferencia**: el razonador sigue siendo quien diseña mecanismos (esta ADR, § Modelo). La reserva solo entra cuando ya se demostró que no cabe.
 
 **Design Reviewer (ampliación).** Un agente compara la petición literal, requisito por requisito, con lo que MIDIÓ el código. Sus veredictos son `cumple`, `no_cumple` y `no_verificable`; este último es el importante, porque marca lo que hoy nadie comprueba. **No aprueba nada** (ADR-003): es un informe para la persona. Cuando el perfil tenga modelo con visión podrá mirar además los fotogramas.
 
