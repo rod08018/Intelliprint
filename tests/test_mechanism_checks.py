@@ -150,3 +150,38 @@ def test_un_estiramiento_que_depende_de_algo_esta_bien():
     ], rules=[{"a": "muelle", "b": "vastago", "kind": "contact"}])
 
     assert not any("muelle" in p for p in mechanism_problems(spec))
+
+
+def test_no_se_puede_bloquear_una_pieza_que_se_mueve_por_formula():
+    """El trinquete resuelto declaraba que el pawl impide retroceder a la
+    rueda... y a la vez le imponía el avance con una fórmula. La fórmula la
+    mueve igual: el bloqueo no demuestra nada."""
+    spec = _spec(parts=[
+        {"name": "base", "brief": "b", "bbox_min": [-50, -50, -5], "bbox_max": [50, 50, 0]},
+        {"name": "rueda", "brief": "b", "bbox_min": [-20, -20, 0], "bbox_max": [20, 20, 6],
+         "joint": {"type": "revolute", "axis": [0, 0, 1], "value": "30*clamp(t/180,0,1)"}},
+        {"name": "pawl", "origin": [30, 0, 0], "brief": "b",
+         "bbox_min": [-6, -6, 0], "bbox_max": [20, 6, 6],
+         "joint": {"type": "revolute", "axis": [0, 0, 1],
+                   "rest_on": {"target": "rueda", "start": "180", "toward": "decrease",
+                               "limit": 40}}},
+    ], blocks=[{"body": "rueda", "against": "pawl", "at": 180, "delta": -5}])
+
+    problemas = mechanism_problems(spec)
+
+    assert any("rueda" in p and "carry" in p for p in problemas)
+
+
+def test_una_pieza_bloqueada_que_se_mueve_por_contacto_esta_bien():
+    spec = _spec(parts=[
+        {"name": "base", "brief": "b", "bbox_min": [-50, -50, -5], "bbox_max": [50, 50, 0]},
+        {"name": "rueda", "brief": "b", "bbox_min": [-20, -20, 0], "bbox_max": [20, 20, 6],
+         "joint": {"type": "revolute", "axis": [0, 0, 1],
+                   "rest_on": {"target": "palanca", "start": "0", "toward": "increase",
+                               "limit": 40, "carry": True}}},
+        {"name": "palanca", "origin": [30, 0, 0], "brief": "b",
+         "bbox_min": [-6, -6, 0], "bbox_max": [20, 6, 6],
+         "joint": {"type": "revolute", "axis": [0, 0, 1], "value": "20*sin(t)"}},
+    ], blocks=[{"body": "rueda", "against": "palanca", "at": 180, "delta": -5}])
+
+    assert not any("carry" in p for p in mechanism_problems(spec))

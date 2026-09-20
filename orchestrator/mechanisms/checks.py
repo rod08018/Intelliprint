@@ -158,5 +158,18 @@ def mechanism_problems(spec: MechanismSpec, min_gap_mm: float = 0.0) -> list[str
                 "no hay nada que verificar sobre ella. Declara con qué va unida o en "
                 "contacto (`rules`), o qué la mueve."
             )
+    # Un bloqueo sobre una pieza que se mueve por fórmula no demuestra nada:
+    # la fórmula la mueve igual, la bloqueen o no. (El trinquete "resuelto"
+    # declaraba las dos cosas a la vez.)
+    for bl in spec.blocks:
+        cuerpo = next((b for b in spec.bodies if b.name == bl.body), None)
+        if cuerpo is not None and cuerpo.joint is not None and cuerpo.joint.value is not None:
+            problemas.append(
+                f"declaras que «{bl.against}» impide moverse a «{bl.body}», pero el "
+                f"movimiento de «{bl.body}» lo impones tú con la fórmula "
+                f"{cuerpo.joint.value!r}: esa fórmula la mueve igual, la bloqueen o no. "
+                "Si esa pieza se mueve porque otra la empuja, usa `rest_on` con "
+                "`carry: true` y deja que la geometría decida cuánto avanza."
+            )
     problemas += _apoyadas_a_cero(spec, min_gap_mm)
     return problemas
