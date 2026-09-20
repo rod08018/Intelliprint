@@ -202,3 +202,109 @@ def test_el_revisor_recibe_lo_medido_y_su_informe_se_guarda(tmp_path):
     assert informe.review is not None
     assert len(informe.review.por_veredicto("no_verificable")) == 1
     assert "no_verificable" in (tmp_path / "review.md").read_text()
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_se_puede_continuar_un_proyecto_fallido_sin_empezar_de_cero(tmp_path):
+    """Sin esto, reintentar tiraba a la basura lo aprendido en 5 rondas: el
+    modelo volvía a proponer desde la nada y repetía los mismos fallos."""
+    # Primer intento: una sola ronda, que falla por choque.
+    mecanico = Guion([json.dumps(_spec(0.0))])
+    design_mechanism(
+        "un brazo que gire sobre una base",
+        MechanismDesignerAgent(mecanico, CATALOGO, PERFIL, (235, 235, 250), 0.1),
+        PartDesignerAgent(DisenadorDePiezas(), CATALOGO),
+        tmp_path, _freecadcmd(), min_gap_mm=0.1, max_rounds=1, animar=False,
+    )
+
+    # Segundo intento sobre la misma carpeta: arranca con el diseño anterior
+    # y con el motivo por el que falló.
+    segundo = Guion([json.dumps(_spec(0.5))])
+    informe = design_mechanism(
+        "un brazo que gire sobre una base",
+        MechanismDesignerAgent(segundo, CATALOGO, PERFIL, (235, 235, 250), 0.1),
+        PartDesignerAgent(DisenadorDePiezas(), CATALOGO),
+        tmp_path, _freecadcmd(), min_gap_mm=0.1, max_rounds=1, animar=False,
+        continuar=True,
+    )
+
+    assert "Tu diseño anterior NO funciona" in segundo.prompts[0]
+    assert "base" in segundo.prompts[0] and "brazo" in segundo.prompts[0]
+    assert informe.ok
+
+
+def _informe_de_revision(items):
+    return json.dumps({"items": items, "summary": "s"})
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_lo_que_el_revisor_marca_como_no_cumple_vuelve_al_disenador(tmp_path):
+    """Un fallo detectado al final tiene que volver al diseñador. Si no, el
+    sistema 'termina' con requisitos incumplidos y nadie los corrige."""
+    from orchestrator.agents.design_reviewer import DesignReviewerAgent
+
+    mecanico = Guion([json.dumps(_spec(0.5)), json.dumps(_spec(0.6))])
+    revisor = Guion([
+        _informe_de_revision([{"requirement": "el brazo mide 30 mm",
+                               "verdict": "no_cumple", "comment": "mide 25"}]),
+        _informe_de_revision([{"requirement": "el brazo mide 30 mm",
+                               "verdict": "cumple", "comment": "medido"}]),
+    ])
+    informe = design_mechanism(
+        "un brazo que gire sobre una base",
+        MechanismDesignerAgent(mecanico, CATALOGO, PERFIL, (235, 235, 250), 0.1),
+        PartDesignerAgent(DisenadorDePiezas(), CATALOGO),
+        tmp_path, _freecadcmd(), min_gap_mm=0.1, animar=False,
+        reviewer=DesignReviewerAgent(revisor),
+    )
+
+    assert len(informe.rounds) == 2
+    assert "el brazo mide 30 mm" in mecanico.prompts[1]
+    assert informe.ok
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_si_se_atasca_repitiendo_el_mismo_fallo_para_y_lo_dice(tmp_path):
+    """Sin esto, un fallo que el modelo no sabe arreglar quema el presupuesto
+    entero repitiendo la misma propuesta."""
+    mecanico = Guion([json.dumps(_spec(0.0))] * 12)
+    informe = design_mechanism(
+        "un brazo", MechanismDesignerAgent(mecanico, CATALOGO, PERFIL, (235, 235, 250), 0.1),
+        PartDesignerAgent(DisenadorDePiezas(), CATALOGO),
+        tmp_path, _freecadcmd(), min_gap_mm=0.1, animar=False,
+    )
+
+    assert not informe.ok
+    assert informe.stopped_because == "atascado"
+    assert 2 < len(informe.rounds) < 8
+    assert (tmp_path / "assembly.FCStd").exists()
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_al_agotarse_el_presupuesto_se_para_y_se_pregunta(tmp_path):
+    from orchestrator.llm.cost import Presupuesto
+
+    class Caro:
+        modelo = "deepseek-chat"
+
+        def __init__(self, guion):
+            self._guion = guion
+            self.tokens = {"entrada": 0, "salida": 0}
+
+        def complete(self, prompt):
+            self.tokens["entrada"] += 1_000_000
+            return self._guion.complete(prompt)
+
+    cliente = Caro(Guion([json.dumps(_spec(0.0))] * 5))
+    presupuesto = Presupuesto(0.5, {"deepseek-chat": {"in_usd_per_mtok": 0.28,
+                                                      "out_usd_per_mtok": 0.42}})
+    presupuesto.vigila(cliente)
+
+    informe = design_mechanism(
+        "un brazo", MechanismDesignerAgent(cliente, CATALOGO, PERFIL, (235, 235, 250), 0.1),
+        PartDesignerAgent(DisenadorDePiezas(), CATALOGO),
+        tmp_path, _freecadcmd(), min_gap_mm=0.1, animar=False, presupuesto=presupuesto,
+    )
+
+    assert informe.stopped_because == "presupuesto"
+    assert len(informe.rounds) == 2

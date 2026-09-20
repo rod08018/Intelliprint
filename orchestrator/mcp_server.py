@@ -107,6 +107,24 @@ def listar_proyectos(limite: int = 10) -> list[dict]:
 
 
 @mcp.tool()
+def continuar_proyecto(proyecto: str = "") -> dict:
+    """Sigue intentando un proyecto que no quedó resuelto, partiendo de su
+    último diseño y del motivo por el que falló (no empieza de cero).
+    Sin argumento, el más reciente."""
+    store = _store()
+    if not proyecto:
+        proyectos = store.list(1)
+        if not proyectos:
+            return {"error": "no hay proyectos todavía"}
+        proyecto = proyectos[0]["id"]
+    try:
+        store.resume(proyecto)
+    except (KeyError, RuntimeError) as e:
+        return {"error": str(e)}
+    return {"proyecto": proyecto, "aviso": "Reintentando desde el último diseño."}
+
+
+@mcp.tool()
 def cancelar_proyecto(proyecto: str) -> dict:
     """Detiene un proyecto en marcha."""
     store = _store()

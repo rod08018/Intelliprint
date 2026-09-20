@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from mech_toolkit.generators import CATALOGO
 from orchestrator.build import ConstruccionFallida, design_and_build
+from orchestrator.llm.cost import PresupuestoAgotado
 from orchestrator.llm.structured import SalidaInvalida
 from orchestrator.mechanisms.checks import joint_axis_problems, stop_problems
 from orchestrator.mechanisms.contact import SinApoyo, block_problems, solve_contacts
@@ -26,9 +27,20 @@ from orchestrator.mechanisms.run import MechanismReport, build_mechanism
 from orchestrator.mechanisms.spec_layout import SpecLayout
 from orchestrator.schemas.review import ReviewReport
 
-MAX_RONDAS = 5
-"""Cada ronda cuesta unos 4 minutos de modelo. Con 3 se quedaban a medias
-diseños que iban por buen camino (el gato de tijera)."""
+MAX_RONDAS = 40
+"""Red de seguridad, no el criterio: el sistema itera HASTA QUE el mecanismo
+funciona. Lo que lo detiene es el presupuesto (F5.12 (tope)) o atascarse
+repitiendo el mismo fallo; en ambos casos se pregunta al usuario en vez de
+rendirse en silencio."""
+
+REPETICIONES_PARA_ATASCO = 3
+"""Veces que puede repetirse el MISMO fallo antes de darlo por atasco. La
+segunda vez se le avisa al agente de que se está repitiendo."""
+
+MAX_RONDAS_DE_REVISION = 2
+"""Cuántas veces se le devuelven al diseñador los incumplimientos que ve el
+revisor. Su juicio no es aritmético (ADR-003): insistir sin límite puede no
+converger nunca."""
 
 
 class Round(BaseModel):
@@ -40,6 +52,9 @@ class Round(BaseModel):
 
 class FlowReport(BaseModel):
     rounds: list[Round]
+    stopped_because: str = "resuelto"
+    """resuelto | atascado | presupuesto | rondas. Lo que detuvo el bucle."""
+    spent_usd: float = 0.0
     final: MechanismReport | None
     spec_path: str
     review: ReviewReport | None = None
@@ -48,7 +63,24 @@ class FlowReport(BaseModel):
 
     @property
     def ok(self) -> bool:
-        return self.final is not None and self.final.ok and not self.rounds[-1].feedback
+        return (self.final is not None and self.final.ok
+                and bool(self.rounds) and not self.rounds[-1].feedback)
+
+
+def _retomar(carpeta: Path) -> tuple[str, str] | None:
+    """El diseño anterior y lo último que falló, para no empezar de cero.
+
+    Reintentar sin esto tira a la basura lo aprendido: el modelo vuelve a
+    proponer desde la nada y repite los mismos fallos."""
+    spec = carpeta / "mechanism.json"
+    rondas = carpeta / "rounds.json"
+    if not spec.exists() or not rondas.exists():
+        return None
+    previas = json.loads(rondas.read_text(encoding="utf-8"))
+    motivo = next((r["feedback"] for r in reversed(previas) if r.get("feedback")), "")
+    if not motivo:
+        return None
+    return (spec.read_text(encoding="utf-8"), motivo)
 
 
 def measurements(spec, layout, final: MechanismReport) -> list[str]:
@@ -92,6 +124,8 @@ def design_mechanism(
     min_gap_mm: float,
     reviewer=None,
     max_rounds: int = MAX_RONDAS,
+    continuar: bool = False,
+    presupuesto=None,
     animar: bool = True,
     log=print,
 ) -> FlowReport:
@@ -100,11 +134,23 @@ def design_mechanism(
     (carpeta / "request.md").write_text(peticion + "\n", encoding="utf-8")
     hechas: dict[str, tuple] = {}
     rondas: list[Round] = []
-    rechazo = None
+    rechazo = _retomar(carpeta) if continuar else None
     final = None
     spec_path = carpeta / "mechanism.json"
 
+    motivos_vistos: dict[str, int] = {}
+    parada = "rondas"
+    review = None
+    revisiones = 0
+
     for n in range(1, max_rounds + 1):
+        if presupuesto is not None:
+            try:
+                presupuesto.comprobar()
+            except PresupuestoAgotado as e:
+                log(f"    ✋ {e}")
+                parada = "presupuesto"
+                break
         log(f"  ronda {n}: el Mechanism Designer propone el mecanismo…")
         spec = mechanism_agent.design(peticion, rechazo=rechazo)
         texto_spec = spec.model_dump_json(indent=2)
@@ -152,7 +198,6 @@ def design_mechanism(
             except SinApoyo as e:
                 fallos = [f"- {e}"]
 
-        ultima = n == max_rounds
         if fallos:
             feedback = "\n".join(fallos)
         else:
@@ -175,25 +220,47 @@ def design_mechanism(
                              "no está en el eje del pasador, o el pasador es demasiado largo "
                              "y se mete en otra pieza")
 
-        rondas.append(Round(number=n, title=spec.title, feedback=feedback))
-        if not feedback or ultima:
-            break
-        log(f"    ✗ vuelve al Mechanism Designer:\n{feedback}")
-        rechazo = (texto_spec, feedback)
+            # El juicio del revisor también es retroalimentación: un requisito
+            # incumplido que solo se cuenta al final no lo corrige nadie.
+            if not feedback and reviewer is not None and revisiones < MAX_RONDAS_DE_REVISION:
+                log("    revisión del diseño frente a tu petición…")
+                review = reviewer.review(peticion, spec, measurements(spec, layout, final))
+                incumplidos = review.por_veredicto("no_cumple")
+                if incumplidos:
+                    revisiones += 1
+                    feedback = "\n".join(
+                        f"- requisito del usuario sin cumplir — {i.requirement}: {i.comment}"
+                        for i in incumplidos)
 
-    if final is not None and animar and not fallos:
-        # La animación, una vez y del último diseño, que es el que se montó.
-        log("    animación…")
-        final = build_mechanism(layout, carpeta, freecadcmd, min_gap_mm=min_gap_mm,
-                                disenar=lambda nombre, c: None, animar=True)
-    review = None
-    if reviewer is not None and final is not None:
+        rondas.append(Round(number=n, title=spec.title, feedback=feedback))
+        if not feedback:
+            parada = "resuelto"
+            break
+
+        # ¿Se está repitiendo? Volver a proponer lo mismo no arregla nada.
+        huella = feedback.strip()
+        motivos_vistos[huella] = motivos_vistos.get(huella, 0) + 1
+        repetido = motivos_vistos[huella]
+        if repetido >= REPETICIONES_PARA_ATASCO:
+            log("    ✋ atascado: el mismo fallo se repite y el diseño no avanza")
+            parada = "atascado"
+            break
+        aviso = ("\n\nEste fallo YA te lo devolví antes y volviste a proponer lo mismo. "
+                 "Cambia de enfoque: mueve piezas, cambia medidas o replantea el mecanismo."
+                 if repetido > 1 else "")
+        log(f"    ✗ vuelve al Mechanism Designer:\n{feedback}")
+        rechazo = (texto_spec, feedback + aviso)
+
+    if reviewer is not None and final is not None and review is None:
         log("    revisión del diseño frente a tu petición…")
         review = reviewer.review(peticion, spec, measurements(spec, layout, final))
+    if review is not None:
         (carpeta / "review.md").write_text(
             "\n".join([f"# Revisión: {spec.title}", "", review.summary, ""]
                       + [f"- **{i.verdict}** — {i.requirement}: {i.comment}" for i in review.items]),
             encoding="utf-8")
     (carpeta / "rounds.json").write_text(
         json.dumps([r.model_dump() for r in rondas], indent=2, ensure_ascii=False), encoding="utf-8")
-    return FlowReport(rounds=rondas, final=final, spec_path=str(spec_path), review=review)
+    return FlowReport(rounds=rondas, final=final, spec_path=str(spec_path), review=review,
+                      stopped_because=parada,
+                      spent_usd=presupuesto.gastado_usd() if presupuesto else 0.0)

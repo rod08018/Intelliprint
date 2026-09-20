@@ -32,6 +32,9 @@ class DeepSeekClient:
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self._model = model
+        self.tokens = {"entrada": 0, "salida": 0}
+        """Lo gastado por este cliente. El tope de gasto del proyecto sale de
+        aquí (F5.12 (tope)), no de un número de rondas inventado."""
         # El modelo de razonamiento piensa antes de responder: minutos, no
         # segundos, y su pensamiento cuenta dentro de max_tokens.
         razona = "reasoner" in model
@@ -48,6 +51,10 @@ class DeepSeekClient:
                 "Content-Type": "application/json",
             },
         )
+
+    @property
+    def modelo(self) -> str:
+        return self._model
 
     def complete(self, prompt: str, *, temperature: float = 0.0) -> str:
         cuerpo = {
@@ -71,7 +78,11 @@ class DeepSeekClient:
         # Un 401 o un 429 no pueden colarse como "respuesta del modelo": se
         # comerían los tres reintentos fallando la validación del esquema.
         respuesta.raise_for_status()
-        eleccion = respuesta.json()["choices"][0]
+        cuerpo_respuesta = respuesta.json()
+        uso = cuerpo_respuesta.get("usage") or {}
+        self.tokens["entrada"] += uso.get("prompt_tokens", 0)
+        self.tokens["salida"] += uso.get("completion_tokens", 0)
+        eleccion = cuerpo_respuesta["choices"][0]
         if eleccion.get("finish_reason") == "length":
             # Tampoco una respuesta cortada: el reintento "corrige el JSON"
             # cuando lo que falta es sitio (fallo real con deepseek-reasoner).

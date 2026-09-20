@@ -153,6 +153,7 @@ def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> 
     from mech_toolkit.generators import CATALOGO
     from orchestrator.agents.design_reviewer import DesignReviewerAgent
     from orchestrator.agents.mechanism_designer import MechanismDesignerAgent
+    from orchestrator.llm.cost import Presupuesto
     from orchestrator.agents.part_designer import PartDesignerAgent
     from orchestrator.mechanisms.flow import design_mechanism
     from orchestrator.tasks import slug
@@ -165,6 +166,11 @@ def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> 
     hueco = perfil.fit_mm("slide") / 2
     router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
     cliente = _cliente(router, env)
+    mecanico = _cliente(router, env, "reason")
+    presupuesto = Presupuesto.from_config(
+        yaml.safe_load((raiz / "config" / "models.yaml").read_text(encoding="utf-8")))
+    presupuesto.vigila(cliente)
+    presupuesto.vigila(mecanico)
     carpeta = Path(args.carpeta) if args.carpeta else (
         _workspace(raiz, env) / "projects"
         / f"{dt.datetime.now():%Y-%m-%d-%H%M}-{slug(peticion.split(chr(10))[0])[:40]}")
@@ -173,15 +179,22 @@ def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> 
           f"Part Designer: {router.for_role('design').model}")
     informe = design_mechanism(
         peticion,
-        MechanismDesignerAgent(_cliente(router, env, "reason"), CATALOGO, perfil, cama, hueco,
+        MechanismDesignerAgent(mecanico, CATALOGO, perfil, cama, hueco,
                                wall_mm=impresora["walls"]["structural_mm"]),
         PartDesignerAgent(cliente, CATALOGO),
         carpeta, _freecadcmd(env), min_gap_mm=hueco,
-        reviewer=DesignReviewerAgent(cliente),
+        reviewer=DesignReviewerAgent(cliente), continuar=args.continuar,
+        presupuesto=presupuesto,
     )
     f = informe.final
     print()
-    print(f"[{nombre}] {informe.rounds[-1].title}: {len(informe.rounds)} ronda(s)")
+    motivo_parada = {
+        "resuelto": "", "atascado": " — se atascó repitiendo el mismo fallo",
+        "presupuesto": f" — se acabó el presupuesto ({informe.spent_usd:.2f} USD)",
+        "rondas": " — se alcanzó el límite de rondas",
+    }[informe.stopped_because]
+    print(f"[{nombre}] {informe.rounds[-1].title}: {len(informe.rounds)} ronda(s)"
+          f"{motivo_parada}. Gasto: {informe.spent_usd:.2f} USD")
     if f is not None:
         print(f"  ensamble:  {f.assembly}  (ábrelo en FreeCAD)")
         print(f"  animación: {f.animation}")
@@ -283,6 +296,8 @@ def main(argv: list[str] | None = None) -> None:
                       help="la petición es la ruta de un archivo de texto")
     meca.add_argument("--carrera", type=float, help="solo biela-manivela: carrera, mm")
     meca.add_argument("--carpeta", help="carpeta del proyecto (por defecto, una nueva en workspace)")
+    meca.add_argument("--continuar", action="store_true",
+                      help="seguir un proyecto fallido: parte de su último diseño y del motivo")
     meca.add_argument("--referencia", action="store_true",
                       help="usar las recetas fijas de la disposición en vez del modelo")
     args = parser.parse_args(argv)

@@ -90,3 +90,16 @@ def test_listar_muestra_los_proyectos_mas_recientes_primero(tmp_path):
     ids = [p["id"] for p in store.list()]
 
     assert ids[:2] == [segundo, primero]
+
+
+def test_reanudar_un_proyecto_usa_su_carpeta_y_conserva_el_registro(tmp_path):
+    store = JobStore(tmp_path, comando=["/bin/sh", "-c", "echo segunda vuelta"])
+    job = store.start("algo")
+    _esperar(store, job, "terminado")
+
+    store.resume(job)
+    _esperar(store, job, "terminado")
+
+    registro = (tmp_path / job / "run.log").read_text()
+    assert registro.count("segunda vuelta") == 2   # se añade, no se pisa
+    assert len(list(tmp_path.iterdir())) == 1      # no crea otro proyecto

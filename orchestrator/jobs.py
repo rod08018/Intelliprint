@@ -58,6 +58,25 @@ class JobStore:
             json.dumps({"pid": proceso.pid, "inicio": dt.datetime.now().isoformat()}), encoding="utf-8")
         return nombre
 
+    def resume(self, job_id: str) -> str:
+        """Reintenta un proyecto en su propia carpeta, partiendo de su último
+        diseño y del motivo por el que falló, en vez de empezar de cero."""
+        destino = self.carpeta / job_id
+        if not destino.exists():
+            raise KeyError(f"no existe el proyecto {job_id!r}")
+        en_marcha = self.current()
+        if en_marcha:
+            raise RuntimeError(f"ya hay un proyecto en marcha ({en_marcha})")
+        registro = (destino / "run.log").open("a", encoding="utf-8")
+        proceso = subprocess.Popen(
+            [*self._comando, str(destino / "request.md"), "--archivo",
+             "--carpeta", str(destino), "--continuar"],
+            stdout=registro, stderr=subprocess.STDOUT, start_new_session=True,
+        )
+        self._procesos[job_id] = proceso
+        (destino / "cancelado").unlink(missing_ok=True)
+        return job_id
+
     def cancel(self, job_id: str) -> None:
         proceso = self._procesos.get(job_id)
         if proceso and proceso.poll() is None:

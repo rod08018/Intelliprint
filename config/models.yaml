@@ -72,6 +72,13 @@ agents:
   slicing:        {model: $design}
   default:        {model: $design, escalate_to: deepseek, escalate_after_failures: 2}
 
+# Precios aproximados, solo para el tope de gasto (F5.12 (tope)). Cambian con el
+# proveedor: por eso viven aquí y no en el código. Un modelo sin precio no
+# cuenta para el tope (los locales no cuestan dinero).
+pricing:
+  deepseek-chat:     {in_usd_per_mtok: 0.28, out_usd_per_mtok: 0.42}
+  deepseek-reasoner: {in_usd_per_mtok: 0.28, out_usd_per_mtok: 0.42}
+
 escalation:
   max_usd_per_project: 2.0
   max_context_tokens_local: 16000
