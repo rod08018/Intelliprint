@@ -130,6 +130,21 @@ class Kinematics:
             seguido.append(seguido[-1] + d)
         return max(seguido) - min(seguido)
 
+    def _depende_de_apoyo(self, nombre: str) -> bool:
+        """¿El movimiento de esta pieza (o el de su padre) lo decide un
+        contacto todavía sin resolver?"""
+        while nombre:
+            b = self._por_nombre[nombre]
+            if b.joint and b.joint.rest_on and not any(
+                    n == nombre for _, n in self._apoyos):
+                return True
+            nombre = b.parent
+        return False
+
+    def checks_pendientes(self) -> list:
+        """Requisitos que no se pueden juzgar hasta resolver los apoyos."""
+        return [c for c in self.spec.checks if self._depende_de_apoyo(c.body)]
+
     def validate(self) -> None:
         """Lo que se puede comprobar sin geometría: que todas las fórmulas se
         evalúan en todo el recorrido y que se cumplen los requisitos
@@ -141,7 +156,12 @@ class Kinematics:
             except ExprError as e:
                 raise ValueError(f"con {self.spec.driver.name} = {t:g}: {e}") from None
         fallos = []
+        pendientes = {id(c) for c in self.checks_pendientes()}
         for c in self.spec.checks:
+            if id(c) in pendientes:
+                # Su movimiento lo decide la geometría, no una fórmula: se
+                # juzga después de resolver el apoyo (fallo real: la leva).
+                continue
             medido = self.measure(c, frames)
             if abs(medido - c.expected) > c.tolerance:
                 fallos.append(

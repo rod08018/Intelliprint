@@ -155,7 +155,15 @@ def design_mechanism(
         if presupuesto is not None:
             presupuesto.etapa(f"ronda {n} · diseño del mecanismo")
         log(f"  ronda {n}: el Mechanism Designer propone el mecanismo…")
-        spec = mechanism_agent.design(peticion, rechazo=rechazo)
+        try:
+            spec = mechanism_agent.design(peticion, rechazo=rechazo)
+        except SalidaInvalida as e:
+            # Tres propuestas seguidas sin salida válida: se para y se dice,
+            # en vez de tumbar el proyecto con un traceback.
+            log(f"    ✋ el diseñador no consiguió una propuesta válida: {e}")
+            rondas.append(Round(number=n, title="sin propuesta válida", feedback=str(e)))
+            parada = "atascado"
+            break
         texto_spec = spec.model_dump_json(indent=2)
         (carpeta / "rondas" / str(n)).mkdir(parents=True, exist_ok=True)
         (carpeta / "rondas" / str(n) / "mechanism.json").write_text(texto_spec, encoding="utf-8")
@@ -204,6 +212,13 @@ def design_mechanism(
                 solve_contacts(spec, layout.kin, steps, layout.pins(), freecadcmd, layout.frames())
             except SinApoyo as e:
                 fallos = [f"- {e}"]
+            else:
+                # Ahora que los apoyos están resueltos, los requisitos que
+                # dependían de ellos ya se pueden medir.
+                try:
+                    layout.kin.validate()
+                except ValueError as e:
+                    fallos = [f"- {e}"]
 
         if fallos:
             feedback = "\n".join(fallos)

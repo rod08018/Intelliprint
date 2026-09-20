@@ -98,3 +98,42 @@ def test_euler_ida_y_vuelta(rot):
 def test_el_esquema_rechaza_especificaciones_incoherentes(cambio, motivo):
     with pytest.raises(ValueError, match=motivo):
         _biela_manivela(**cambio)
+
+
+def _con_apoyo():
+    """Un seguidor que sube porque la leva lo empuja: su carrera no se puede
+    medir hasta resolver el apoyo con la geometría."""
+    return MechanismSpec(**{
+        "title": "leva", "summary": "s", "params": {"e": 10},
+        "driver": {"start": 0, "end": 360, "step": 90},
+        "parts": [
+            _pieza("base"),
+            _pieza("leva", joint={"type": "revolute", "axis": [0, 1, 0], "value": "t"}),
+            _pieza("seguidor", joint={"type": "prismatic", "axis": [0, 0, 1],
+                                      "rest_on": {"target": "leva", "start": "40",
+                                                  "toward": "decrease", "limit": 40}}),
+        ],
+        "checks": [{"body": "seguidor", "measure": "travel", "axis": "z", "expected": 20,
+                    "tolerance": 1, "description": "carrera del seguidor"}],
+    })
+
+
+def test_un_requisito_que_depende_de_un_apoyo_no_se_juzga_antes_de_resolverlo():
+    """Fallo real: la leva murió porque su carrera medía 0 antes de resolver
+    el contacto, y al agente se le pedía algo imposible."""
+    k = Kinematics(_con_apoyo())
+
+    k.validate()      # no lanza: el apoyo aún no está resuelto
+
+    pendientes = k.checks_pendientes()
+    assert [c.description for c in pendientes] == ["carrera del seguidor"]
+
+
+def test_una_vez_resuelto_el_apoyo_el_requisito_si_se_juzga():
+    spec = _con_apoyo()
+    k = Kinematics(spec)
+    # Como si el contacto hubiera dado estas alturas: recorrido de solo 5 mm.
+    k.set_solved({(t, "seguidor"): v for t, v in zip(k.frames(), [0, 5, 0, 5, 0])})
+
+    with pytest.raises(ValueError, match="carrera del seguidor"):
+        k.validate()
