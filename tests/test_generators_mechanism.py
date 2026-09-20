@@ -153,3 +153,62 @@ def test_la_caja_de_la_rueda_con_dientes_fuera_de_los_ejes(tmp_path):
                      for k in range(n))
     assert r.bbox_max[1] == pytest.approx(esperado_y, abs=0.05)
     assert r.bbox_max[1] < rt - 0.3          # y NO es el radio de punta
+
+
+@needs_freecad
+def test_una_una_de_trinquete_tiene_punta_y_cara_de_ataque(tmp_path):
+    """Los pawls de las 19 rondas eran cajas romas: el contacto era esquina
+    contra flanco y el bloqueo declarado no bloqueaba."""
+    r = _construir(tmp_path, [("generate_pawl", {
+        "pivot_to_tip_mm": 30, "width_mm": 8, "thickness_mm": 6,
+        "tip_angle_deg": 35, "hub_diameter_mm": 12, "hole_diameter_mm": 4.35})])
+
+    assert r.solids == 1
+    assert r.bbox_max[0] == pytest.approx(30, abs=0.1)      # la punta, en el eje X
+    assert r.bbox_min[0] == pytest.approx(-6, abs=0.1)      # el cubo del pivote
+    assert r.bbox_max[2] == pytest.approx(6, abs=1e-6)
+    # Es un dedo que se estrecha, no una caja: ocupa bastante menos que su caja.
+    caja = (r.bbox_max[0] - r.bbox_min[0]) * (r.bbox_max[1] - r.bbox_min[1]) * r.bbox_max[2]
+    assert r.volume_mm3 < caja * 0.6
+
+
+@needs_freecad
+def test_la_una_apoyada_por_el_solucionador_bloquea_hacia_atras_y_monta_hacia_delante(tmp_path):
+    """El oráculo no es una pose escrita a mano: se deja que el solucionador
+    de contactos apoye la uña sobre la rueda, y se comprueba que con esa
+    pose la rueda no puede retroceder y sí puede avanzar montando el diente."""
+    from orchestrator.assembly import pair_gaps
+    from orchestrator.mechanisms.contact import solve_contacts
+    from orchestrator.mechanisms.kinematics import Kinematics
+    from orchestrator.schemas.mechanism import MechanismSpec
+
+    n, rt, rr = 12, 20.0, 16.0
+    _construir(tmp_path / "rueda", [("generate_ratchet_wheel", {
+        "teeth": n, "tip_diameter_mm": 2 * rt, "root_diameter_mm": 2 * rr, "thickness_mm": 6})])
+    _construir(tmp_path / "pawl", [("generate_pawl", {
+        "pivot_to_tip_mm": 24, "width_mm": 8, "thickness_mm": 6, "tip_angle_deg": 30,
+        "hub_diameter_mm": 12, "hole_diameter_mm": 4.35})])
+    piezas = {"rueda": tmp_path / "rueda" / "p.step", "pawl": tmp_path / "pawl" / "p.step"}
+
+    spec = MechanismSpec(**{
+        "title": "trinquete", "summary": "s",
+        "driver": {"start": 0, "end": 30, "step": 30},
+        "parts": [
+            {"name": "rueda", "brief": "b", "bbox_min": [-20, -20, 0], "bbox_max": [20, 20, 6],
+             "joint": {"type": "revolute", "axis": [0, 0, 1], "value": "t"}},
+            {"name": "pawl", "origin": [36, 14, 0], "brief": "b",
+             "bbox_min": [-6, -6, 0], "bbox_max": [24, 6, 6],
+             "joint": {"type": "revolute", "axis": [0, 0, 1],
+                       "rest_on": {"target": "rueda", "start": "235", "toward": "decrease",
+                                   "limit": 45}}},
+        ],
+    })
+    kin = Kinematics(spec)
+    solve_contacts(spec, kin, piezas, {}, _freecadcmd(), [0])
+
+    def hueco(giro_rueda):
+        poses = {0: kin.poses(0, {"rueda": giro_rueda})}
+        return pair_gaps(piezas, {}, poses, [("pawl", "rueda")], _freecadcmd())[0]["gap_mm"]
+
+    assert hueco(0) >= 0                 # apoyada sobre el diente, sin atravesarlo
+    assert hueco(-4) < 0                 # la rueda no puede retroceder: la uña se lo impide

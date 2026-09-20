@@ -199,6 +199,29 @@ _forma = Part.Wire(_helice.Edges).makePipeShell([_perfil], True, True)
 """ + _SUMAR
 
 
+# Uña de trinquete: un dedo que sale del cubo del pivote y termina en punta.
+# La cara de ataque (la que empuja o retiene el diente) es la de abajo, radial
+# al pivote; la de arriba se estrecha con `tip_angle_deg` para dejar alivio.
+# Origen en el pivote; la punta, en +X.
+_UNA = """
+import math as _m
+_L, _w, _t = $pivot_to_tip_mm, $width_mm, $thickness_mm
+_hub, _ang = ($hub_diameter_mm) / 2.0, _m.radians($tip_angle_deg)
+_alivio = min(_w, _L * _m.tan(_ang))
+_pts = [
+    FreeCAD.Vector(0, -_w / 2.0, 0),
+    FreeCAD.Vector(_L, -0.2, 0),                 # punta: 0.4 mm de ancho
+    FreeCAD.Vector(_L, 0.2, 0),
+    FreeCAD.Vector(_L - _alivio, _w / 2.0, 0),   # alivio hacia el lomo
+    FreeCAD.Vector(0, _w / 2.0, 0),
+]
+_forma = Part.Face(Part.makePolygon(_pts + [_pts[0]])).extrude(FreeCAD.Vector(0, 0, _t))
+_forma = _forma.fuse(Part.makeCylinder(_hub, _t)).removeSplitter()
+_forma = _forma.cut(Part.makeCylinder(($hole_diameter_mm) / 2.0, _t + 2,
+                                      FreeCAD.Vector(0, 0, -1)))
+""" + _SUMAR
+
+
 CATALOGO = GeneratorCatalog(
     [
         GeneratorSpec(
@@ -269,6 +292,17 @@ CATALOGO = GeneratorCatalog(
             description='Rueda de trinquete centrada en el origen, de z = 0 a espesor. Cada diente sube en línea recta del fondo (ángulo k·360/N) a la punta (ángulo (k+1)·360/N) y cae en radial: avanza girando en sentido antihorario. Se suma a lo anterior; el agujero del eje va aparte. Caja: NO es ±tip/2 salvo que una punta caiga sobre el eje; es el máximo de r·cos y r·sin sobre los vértices del perfil.',
             required_params={"teeth", "tip_diameter_mm", "root_diameter_mm", "thickness_mm"},
             template=_RUEDA_TRINQUETE,
+        ),
+        GeneratorSpec(
+            name="generate_pawl",
+            description=("Uña de trinquete: dedo con punta que sale de un cubo de pivote. "
+                         "Origen en el pivote, punta en +X a `pivot_to_tip_mm`, de z = 0 a "
+                         "espesor. La cara de ataque es la de -Y (radial al pivote) y la de "
+                         "+Y se estrecha con `tip_angle_deg` para dejar alivio. Caja: x de "
+                         "-hub/2 a pivot_to_tip, y ±max(ancho, hub)/2, z de 0 a espesor."),
+            required_params={"pivot_to_tip_mm", "width_mm", "thickness_mm", "tip_angle_deg",
+                             "hub_diameter_mm", "hole_diameter_mm"},
+            template=_UNA,
         ),
         GeneratorSpec(
             name="generate_spring",
