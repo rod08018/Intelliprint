@@ -265,6 +265,28 @@ def _diseñar_mecanismo(peticion: str, raiz: Path, env: dict, nombre: str, log):
     return {"texto": "\n".join(lineas), "archivos": archivos}
 
 
+def _animar(args, raiz: Path, env: dict, nombre: str) -> None:
+    """Rehace ensamble y animación desde el mecanismo y las piezas ya
+    construidas: no vuelve a diseñar ni a gastar modelo."""
+    import yaml
+
+    from mech_toolkit.profile import PrinterProfile
+    from orchestrator.mechanisms.run import build_mechanism
+    from orchestrator.mechanisms.spec_layout import SpecLayout
+    from orchestrator.schemas.mechanism import MechanismSpec
+
+    carpeta = Path(args.carpeta)
+    spec = MechanismSpec.model_validate_json((carpeta / "mechanism.json").read_text(encoding="utf-8"))
+    perfil = PrinterProfile(**yaml.safe_load(
+        (raiz / "config/printers/ankermake_m5_petg.yaml").read_text(encoding="utf-8")))
+    informe = build_mechanism(
+        SpecLayout(spec), carpeta, _freecadcmd(env),
+        min_gap_mm=perfil.fit_mm("slide") / 2, disenar=lambda n, c: None, animar=True)
+    print(f"[{nombre}] {spec.title}")
+    print(f"  ensamble:  {informe.assembly}")
+    print(f"  animación: {informe.animation}")
+
+
 def _proyectos(args, raiz: Path, env: dict, nombre: str) -> None:
     from orchestrator.registry import archivar, escribir_indice, indice
 
@@ -308,6 +330,8 @@ def main(argv: list[str] | None = None) -> None:
     reanudar = sub.add_parser("resume", help="reanudar un proyecto interrumpido")
     reanudar.add_argument("proyecto")
     sub.add_parser("bot", help="atender peticiones por Telegram (F5.6 (telegram))")
+    anim = sub.add_parser("animar", help="rehacer el ensamble y la animación de un proyecto ya diseñado")
+    anim.add_argument("carpeta")
     proy = sub.add_parser("proyectos", help="listar proyectos y ordenar el workspace")
     proy.add_argument("--archivar", action="store_true",
                       help="mover lo no aprobado a workspace/archivo (no borra nada)")
@@ -333,6 +357,9 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.comando == "bot":
         _bot(raiz, env, nombre)
+        return
+    if args.comando == "animar":
+        _animar(args, raiz, env, nombre)
         return
     if args.comando == "proyectos":
         _proyectos(args, raiz, env, nombre)
