@@ -24,6 +24,12 @@ render = [
 dev = [
     "pytest>=8.0",
 ]
+# La interfaz web (F5.5 (web)): lista de proyectos, descarga en zip y abrir
+# las piezas en el PrusaSlicer del escritorio.
+web = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

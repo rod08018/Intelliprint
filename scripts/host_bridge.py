@@ -20,6 +20,7 @@ Se arranca en el host (ver scripts/start-host-mcps.ps1):
 """
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -76,6 +77,37 @@ def resolver_perfil(nombre: str, catalogo: Path) -> Path:
     return perfil
 
 
+def ejecutable_con_ventana(consola: str) -> str:
+    """El PrusaSlicer que abre ventana, a partir del de consola.
+
+    PRUSASLICER apunta a `prusa-slicer-console.exe` porque es el que sirve
+    para laminar sin ventana y devolver la salida. Para ENSEÑAR algo hace
+    falta su hermano, que está en la misma carpeta. En Linux es un solo
+    programa y se deja como está.
+    """
+    # Por texto y no con Path: en Linux (donde corre la suite) `\` no separa
+    # carpetas, y Path(r"C:\...\x.exe").name devuelve la cadena entera.
+    consola_exe = "prusa-slicer-console.exe"
+    if consola.lower().endswith(consola_exe):
+        return consola[: -len(consola_exe)] + "prusa-slicer.exe"
+    return consola
+
+
+def orden_para_abrir(programa: str, stls: list[str], perfil: str,
+                     workspace: Path, catalogo: Path) -> list[str]:
+    """La línea de órdenes que abre PrusaSlicer con las piezas y el perfil.
+
+    SIN ninguna acción (`--export-gcode`, `--slice`…): con una acción,
+    PrusaSlicer lamina y se cierra sin enseñar nada. Abrir es justo no
+    pedirle nada más que cargar.
+    """
+    if not stls:
+        raise ValueError("no hay ninguna pieza que abrir")
+    ini = resolver_perfil(perfil, catalogo)
+    piezas = [str(comprobar_dentro(s, workspace)) for s in stls]
+    return [programa, "--load", str(ini), *piezas]
+
+
 def _raiz() -> Path:
     for carpeta in [Path.cwd(), *Path.cwd().parents]:
         if (carpeta / "config" / "models.yaml").exists():
@@ -117,6 +149,39 @@ def laminar(stl: str, salida: str, perfil: str = "ankermake_m5_petg.ini") -> dic
     except LaminadoFallido as e:
         return {"ok": False, "error": str(e)}
     return {"ok": True, "gcode": str(destino), **informe.model_dump()}
+
+
+@mcp.tool()
+def abrir_en_prusaslicer(stls: list[str], perfil: str = "ankermake_m5_petg.ini") -> dict:
+    """Abre el PrusaSlicer del escritorio con las piezas y el perfil ya
+    cargados, para que la persona vea qué va a imprimir y cómo.
+
+    No espera a que se cierre: la ventana es de la persona, no del sistema.
+    """
+    workspace = _workspace()
+    programa = ejecutable_con_ventana(os.environ.get("PRUSASLICER", ""))
+    if not programa or not Path(programa).exists():
+        return {"ok": False, "error": f"no encuentro PrusaSlicer: {programa or '(sin definir)'}"}
+    try:
+        orden = orden_para_abrir(
+            programa, stls, perfil, workspace, _raiz() / "config" / "slicing")
+    except (ValueError, FueraDelWorkspace, FueraDelCatalogo) as e:
+        return {"ok": False, "error": str(e)}
+    faltan = [s for s in orden[3:] if not Path(s).is_file()]
+    if faltan:
+        return {"ok": False, "error": f"no encuentro: {faltan}"}
+
+    # Desenganchado: si el puente se reinicia, la ventana de la persona no
+    # se cierra con él.
+    subprocess.Popen(orden, **_desenganchado())
+    return {"ok": True, "abiertas": len(orden) - 3, "perfil": perfil}
+
+
+def _desenganchado() -> dict:
+    if sys.platform == "win32":
+        return {"creationflags": subprocess.DETACHED_PROCESS
+                | subprocess.CREATE_NEW_PROCESS_GROUP, "close_fds": True}
+    return {"start_new_session": True, "close_fds": True}
 
 
 @mcp.tool()

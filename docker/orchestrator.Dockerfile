@@ -53,7 +53,7 @@ WORKDIR /app
 COPY pyproject.toml /app/
 COPY orchestrator /app/orchestrator
 COPY mcp /app/mcp
-RUN pip install --no-cache-dir --break-system-packages -e ".[dev,render]"
+RUN pip install --no-cache-dir --break-system-packages -e ".[dev,render,web]"
 
 COPY config /app/config
 COPY library /app/library

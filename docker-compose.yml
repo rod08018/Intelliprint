@@ -62,6 +62,20 @@ services:
       - ./mcp:/app/mcp:ro
       - ./scripts:/app/scripts:ro
 
+  # La interfaz web (F5.5 (web)): lista de proyectos, descarga en zip y el
+  # botón que abre las piezas en el PrusaSlicer del escritorio.
+  #
+  #   http://localhost:8080
+  web:
+    extends:
+      service: orchestrator
+    entrypoint: ["python3", "-m", "orchestrator.web.app"]
+    # 127.0.0.1 y NO 0.0.0.0. Esta página baja cualquier proyecto y abre
+    # programas en el escritorio del PC; publicada en todas las interfaces,
+    # la vería cualquiera de la red local. Se abre solo desde este PC.
+    ports: ["127.0.0.1:8080:8080"]
+    restart: unless-stopped
+
   # Modelos locales en la RTX 5090.
   #
   # Está listo pero NO en uso: el perfil activo sigue siendo `dev`

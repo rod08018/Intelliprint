@@ -29,7 +29,7 @@ if (-not (Test-Path $python)) {
     $python = Join-Path $repo ".venv/bin/python"
 }
 if (-not (Test-Path $python)) {
-    throw "no encuentro el entorno de Python en $repo\.venv — crealo con: python -m venv .venv"
+    throw "no encuentro el entorno de Python en $repo\.venv - crealo con: python -m venv .venv"
 }
 
 # El puente ejecuta PrusaSlicer, asi que necesita saber donde esta. Sale del
