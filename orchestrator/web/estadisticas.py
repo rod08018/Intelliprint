@@ -41,21 +41,44 @@ def _rondas(carpeta: Path, en_marcha: bool) -> list[dict]:
 
 
 def _requisitos(historia: list[dict]) -> dict | None:
-    """Los de la ÚLTIMA ronda que midió algo, diciendo cuál es: la ronda en
-    curso todavía no ha medido nada, y enseñar ceros sería mentir."""
-    for r in reversed(historia):
-        filas = r.get("requisitos") or []
-        if filas:
-            return {
-                "de_la_ronda": r["ronda"],
-                "total": len(filas),
-                "cumplen": sum(1 for f in filas if f.get("cumple") is True),
-                # Sin medir no es cumplido: un requisito que depende de un
-                # apoyo sin resolver no se puede dar por bueno.
-                "sin_medir": sum(1 for f in filas if f.get("medido") is None),
-                "filas": filas,
-            }
-    return None
+    """Los de la ÚLTIMA ronda que llegó a barrer el recorrido completo.
+
+    Si ninguna llegó, los de la última que midió algo, marcados como
+    PROVISIONALES: una ronda que se cae buscando apoyos mide la rueda en una
+    posición que nadie ha comprobado. Fallo real (quinto trinquete del
+    2026-09-21): la columna decía 2/2 en rondas que ni habían resuelto los
+    apoyos, y parecía que estaba terminado."""
+    midieron = [r for r in historia if r.get("requisitos")]
+    if not midieron:
+        return None
+    completas = [r for r in midieron if r.get("barrido") is not None]
+    r = (completas or midieron)[-1]
+    filas = r["requisitos"]
+    return {
+        "de_la_ronda": r["ronda"],
+        "provisional": not completas,
+        "total": len(filas),
+        "cumplen": sum(1 for f in filas if f.get("cumple") is True),
+        # Sin medir no es cumplido: un requisito que depende de un apoyo sin
+        # resolver no se puede dar por bueno.
+        "sin_medir": sum(1 for f in filas if f.get("medido") is None),
+        "filas": filas,
+    }
+
+
+def _fallo(historia: list[dict]) -> tuple[str | None, int]:
+    """Qué falló en la última ronda terminada: la primera línea, y cuántas.
+
+    Los requisitos son solo una de las cosas que tienen que cumplirse (piezas,
+    ejes, apoyos, choques, contactos, topes, bloqueos, revisor). Sin esto, un
+    «2/2» en la fila parecía «terminado» con el proyecto en la ronda 9."""
+    terminadas = [r for r in historia if not r.get("en_curso") and not r.get("sin_datos")]
+    if not terminadas:
+        return None, 0
+    lineas = [l.strip() for l in (terminadas[-1].get("feedback") or "").splitlines() if l.strip()]
+    if not lineas:
+        return None, 0
+    return lineas[0].removeprefix("- ").strip(), sum(1 for l in lineas if l.startswith("- ")) or 1
 
 
 def _coste(carpeta: Path) -> tuple[dict | None, str | None]:
@@ -91,12 +114,15 @@ def estadisticas(carpeta: Path, en_marcha: bool = False) -> dict:
     carpeta = Path(carpeta)
     historia = _rondas(carpeta, en_marcha)
     coste, ultima_etapa = _coste(carpeta)
+    fallo, fallos = _fallo(historia)
     return {
         "ronda": historia[-1]["ronda"] if historia else 0,
         "rondas": historia,
         "ultima_etapa": ultima_etapa,
         "coste": coste,
         "requisitos": _requisitos(historia),
+        "fallo": fallo,
+        "fallos": fallos,
         "revisor": _revisor(carpeta),
         "animacion": (carpeta / "animation.gif").is_file(),
     }

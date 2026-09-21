@@ -188,10 +188,17 @@ ICONOS = {"aprobado": "✅", "antiguo": "📦", "fallido": "❌",
 def _requisitos_celda(r: dict | None) -> str:
     if not r:
         return '<span class="suave">—</span>'
-    clase = "ok" if r["cumplen"] == r["total"] else ("mal" if r["cumplen"] == 0 else "ambar")
     titulo = f"medidos en la ronda {r['de_la_ronda']}"
     if r.get("sin_medir"):
         titulo += f"; {r['sin_medir']} sin poder medir"
+    if r.get("provisional"):
+        # Ninguna ronda llegó a barrer el recorrido: lo medido no está
+        # comprobado. En verde parecería terminado, y no lo está.
+        titulo += ("; PROVISIONAL: ninguna ronda ha llegado todavía a barrer el recorrido "
+                   "completo, así que no está comprobado")
+        return (f'<span class="chip suave" title="{html.escape(titulo)}">'
+                f'{r["cumplen"]}/{r["total"]}?</span>')
+    clase = "ok" if r["cumplen"] == r["total"] else ("mal" if r["cumplen"] == 0 else "ambar")
     return (f'<span class="chip {clase}" title="{html.escape(titulo)}">'
             f'{r["cumplen"]}/{r["total"]}</span>')
 
@@ -230,6 +237,13 @@ def _fila(f: dict, hay_puente: bool) -> str:
         que = e(f.get("ultima_etapa") or "arrancando")
         colgado = " · lleva un rato sin moverse" if f.get("parece_colgado") else ""
         vivo = f'<div class="vivo">● {que}{colgado}</div>'
+    # Qué impide terminar, en una línea. Los requisitos son solo una de las
+    # cosas que tienen que cumplirse: sin esto, «2/2» parecía «terminado».
+    falla = ""
+    if f.get("fallo") and f["estado"] in ("en marcha", "fallido"):
+        otros = f" (y {f['fallos'] - 1} más)" if f.get("fallos", 1) > 1 else ""
+        falla = (f'<div class="falla" title="{e(f["fallo"])}">✗ ronda {ronda}: '
+                 f'{e(f["fallo"][:140])}{"…" if len(f["fallo"]) > 140 else ""}{otros}</div>')
     miniatura = (f'<img class="mini" src="/proyectos/{id_}/animation.gif" alt="" loading="lazy">'
                  if f.get("animacion") else '<div class="mini vacia"></div>')
     return f"""
@@ -237,7 +251,7 @@ def _fila(f: dict, hay_puente: bool) -> str:
         <td class="estado" title="{e(f['estado'])}">{ICONOS.get(f['estado'], '·')}</td>
         <td class="col-mini">{miniatura}</td>
         <td><div class="id">{id_}</div><div class="det">{detalle}</div>
-            <div class="det">{linea}</div>{vivo}</td>
+            <div class="det">{linea}</div>{falla}{vivo}</td>
         <td class="num">{_requisitos_celda(f.get("requisitos"))}</td>
         <td class="num rev">{_revisor_celda(f.get("revisor"))}</td>
         <td class="coste">{_coste_celda(f.get("coste"))}</td>
@@ -296,6 +310,7 @@ _ESTILO = """
   .id { font-weight:600; word-break:break-all; }
   .det { font-size:13px; color:var(--suave); margin-top:2px; }
   .vivo { font-size:13px; color:var(--acento); margin-top:4px; }
+  .falla { font-size:13px; color:var(--mal); margin-top:4px; }
   .chip { font-weight:600; }
   .rev span { margin-left:4px; }
   .coste { min-width:110px; }
@@ -368,7 +383,10 @@ _GUION = """
       }).join("");
       req = `<table><thead><tr><th>Requisito</th><th class="num">Pedido</th><th class="num">Medido</th>
         <th class="num">Desviación</th><th></th></tr></thead><tbody>${filas}</tbody></table>
-        <div class="det">Medidos por el código en la ronda ${d.requisitos.de_la_ronda}.</div>`;
+        <div class="det">Medidos por el código en la ronda ${d.requisitos.de_la_ronda}.${d.requisitos.provisional
+          ? " <b class='ambar'>Provisional:</b> ninguna ronda ha llegado a barrer el recorrido completo, así que no está comprobado." : ""}</div>
+        <div class="det">Los requisitos son solo una parte: para terminar, además, las piezas tienen que poder dibujarse,
+          apoyarse, no chocar en todo el recorrido, seguir en contacto donde se declaró, y topes y bloqueos tienen que funcionar.</div>`;
     }
     const ultima = [...d.rondas].reverse().find(r => r.verificado) || {};
     let verif = "";

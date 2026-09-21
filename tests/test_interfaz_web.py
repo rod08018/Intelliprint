@@ -237,3 +237,13 @@ def test_la_portada_ensena_la_ronda_y_el_gif(ws_con_rondas, puente):
     html = TestClient(crear_app(ws_con_rondas, puente=puente, host_workspace=HOST)).get("/").text
     assert "/proyectos/2026-09-20-trinquete/animation.gif" in html
     assert "ronda 1" in html.lower()
+
+
+def test_la_fila_dice_que_impide_terminar(ws_con_rondas, puente):
+    """Fallo real: «2/2» en la fila con el proyecto en la ronda 9. Los
+    requisitos son solo una parte; la fila tiene que decir qué falla."""
+    p = ws_con_rondas / "projects" / "2026-09-20-trinquete"
+    (p / "rounds.json").write_text('[{"number": 1, "title": "t", "feedback": "- choca"}]',
+                                   encoding="utf-8")
+    html = TestClient(crear_app(ws_con_rondas, puente=puente, host_workspace=HOST)).get("/").text
+    assert "✗ ronda 1: choca" in html

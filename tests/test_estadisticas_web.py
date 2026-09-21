@@ -110,3 +110,50 @@ def test_solo_la_ultima_ronda_puede_estar_en_curso(tmp_path):
     assert [r["en_curso"] for r in vivas] == [False, False, True]
     assert vivas[0]["sin_datos"] is True
     assert [r["en_curso"] for r in estadisticas(p, en_marcha=False)["rondas"]] == [False] * 3
+
+
+# --- Que «2/2» no parezca «terminado» -----------------------------------------
+#
+# Fallo real, el quinto trinquete del 2026-09-21: la columna decía 2/2 y el
+# proyecto seguía en la ronda 9. Los requisitos son solo una de las cosas
+# que tienen que cumplirse (piezas, ejes, apoyos, choques, contactos, topes,
+# bloqueos, revisor), y la fila no decía qué faltaba. Peor: en las rondas 2
+# y 3 el 2/2 se midió sin haber resuelto los apoyos, en una posición que
+# nadie comprobó.
+
+
+def _ronda(p, n, requisitos, barrido, feedback):
+    _json(p / "rondas" / str(n) / "resultado.json", {
+        "ronda": n, "titulo": "t", "resuelta": not feedback, "feedback": feedback,
+        "barrido": barrido, "requisitos": requisitos})
+
+
+def test_la_fila_dice_que_fallo_en_la_ultima_ronda(tmp_path):
+    p = tmp_path / "p"
+    _ronda(p, 1, [_req("a", True)], {"choques": 1},
+           "- palanca / rueda: se separan 1.10 mm; tienen que seguir en contacto\n- otra cosa")
+    e = estadisticas(p)
+    assert e["fallo"].startswith("palanca / rueda: se separan 1.10 mm")
+    assert e["fallos"] == 2
+
+
+def test_una_ronda_resuelta_no_tiene_fallo(tmp_path):
+    p = tmp_path / "p"
+    _ronda(p, 1, [_req("a", True)], {"choques": 0}, "")
+    assert estadisticas(p)["fallo"] is None
+
+
+def test_los_requisitos_de_una_ronda_que_no_llego_al_barrido_son_provisionales(tmp_path):
+    p = tmp_path / "p"
+    _ronda(p, 1, [_req("a", True), _req("b", True)], None, "- la uña empieza dentro de la rueda")
+    req = estadisticas(p)["requisitos"]
+    assert req["provisional"] is True
+
+
+def test_se_prefieren_los_requisitos_de_la_ultima_ronda_que_llego_al_final(tmp_path):
+    p = tmp_path / "p"
+    _ronda(p, 1, [_req("a", True), _req("b", False, 0.0)], {"choques": 2}, "- choca")
+    _ronda(p, 2, [_req("a", True), _req("b", True)], None, "- la uña no llega")
+    req = estadisticas(p)["requisitos"]
+    assert req["de_la_ronda"] == 1 and req["provisional"] is False
+    assert (req["cumplen"], req["total"]) == (1, 2)
