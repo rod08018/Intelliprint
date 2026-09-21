@@ -245,13 +245,28 @@ def design_mechanism(
         try:
             spec = mechanism_agent.design(peticion, rechazo=rechazo)
         except SalidaInvalida as e:
-            # Tres propuestas seguidas sin salida válida: se para y se dice,
-            # en vez de tumbar el proyecto con un traceback.
-            log(f"    ✋ el diseñador no consiguió una propuesta válida: {e}")
+            # Una ronda sin especificación válida es una ronda FALLIDA, no el
+            # final del proyecto. Antes se paraba aquí con «se atascó
+            # repitiendo el mismo fallo», y en el trinquete del 2026-09-20 era
+            # mentira: sus tres intentos bajaron de cuatro fallos a uno. Estaba
+            # convergiendo y se cortó a un paso. Vuelve al diseñador con lo
+            # último que propuso, y el atasco lo decide lo de siempre: el MISMO
+            # fallo repetido.
+            log(f"    ✗ el diseñador no consiguió una propuesta válida esta ronda: {e}")
             _guardar_rechazados(carpeta / "rondas" / str(n) / "rechazados", e.intentos)
-            rondas.append(Round(number=n, title="sin propuesta válida", feedback=str(e)))
-            parada = "atascado"
-            break
+            ultimo = next((i for i in reversed(e.intentos) if i["respuesta"] is not None), None)
+            motivo = e.intentos[-1]["error"] if e.intentos else str(e)
+            rondas.append(Round(number=n, title="sin propuesta válida", feedback=motivo))
+            huella = "invalida||" + huella_de_fallo(motivo)
+            motivos_vistos[huella] = motivos_vistos.get(huella, 0) + 1
+            if motivos_vistos[huella] >= REPETICIONES_PARA_ATASCO:
+                log("    ✋ atascado: la propuesta vuelve a fallar igual y no avanza")
+                parada = "atascado"
+                break
+            if ultimo is not None:
+                rechazo = (ultimo["respuesta"],
+                           "Tu especificación no pasa la validación:\n" + motivo)
+            continue
         texto_spec = spec.model_dump_json(indent=2)
         (carpeta / "rondas" / str(n)).mkdir(parents=True, exist_ok=True)
         (carpeta / "rondas" / str(n) / "mechanism.json").write_text(texto_spec, encoding="utf-8")

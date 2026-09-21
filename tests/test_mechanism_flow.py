@@ -335,7 +335,9 @@ def test_el_coste_desglosado_se_guarda_en_la_carpeta_del_proyecto(tmp_path):
             self.llamadas.append({"modelo": self.modelo, "entrada": 1000, "salida": 500})
             return self._guion.complete(prompt)
 
-    mecanico = Medido(Guion([json.dumps(_spec(-2.0))] * 6))
+    # Ronda 1 válida y con choque; después la misma spec sin `fix_plan`, que se
+    # rechaza igual en cada ronda hasta que eso cuenta como atasco: 1 + 3×3.
+    mecanico = Medido(Guion([json.dumps(_spec(-2.0))] * 10))
     presupuesto = Presupuesto(2.0, {"deepseek-chat": {"in_usd_per_mtok": 0.28,
                                                       "out_usd_per_mtok": 0.42}})
     presupuesto.vigila(mecanico, "Mechanism Designer")
@@ -510,8 +512,9 @@ def test_las_propuestas_rechazadas_se_guardan_para_poder_verlas(tmp_path):
     request.md y el coste. Sin las respuestas no se puede saber si falla el
     modelo o la regla que lo rechaza."""
     malas = ['{"title": "primera"}', '{"title": "segunda"}', "ni siquiera json"]
+    # Tres rondas con el mismo último fallo: es atasco de verdad.
     informe = design_mechanism(
-        "un trinquete", MechanismDesignerAgent(Guion(malas), CATALOGO, PERFIL, (235, 235, 250), 0.1),
+        "un trinquete", MechanismDesignerAgent(Guion(malas * 3), CATALOGO, PERFIL, (235, 235, 250), 0.1),
         PartDesignerAgent(DisenadorDePiezas(), CATALOGO),
         tmp_path, "freecadcmd-que-no-se-llega-a-usar", min_gap_mm=0.1, animar=False,
     )
@@ -523,3 +526,70 @@ def test_las_propuestas_rechazadas_se_guardan_para_poder_verlas(tmp_path):
     assert "ni siquiera json" in textos
     # Y el motivo de cada rechazo, junto a lo rechazado.
     assert (tmp_path / "rondas" / "1" / "rechazados" / "motivos.md").exists()
+
+
+
+# --- Una ronda sin propuesta válida es una ronda fallida, no el final ------
+#
+# Fallo real, el segundo trinquete del 2026-09-20. Los tres intentos del
+# diseñador, guardados por fin, contaban otra historia que la del mensaje
+# «se atascó repitiendo el mismo fallo»:
+#
+#   intento 1: eje sin unir + 3 piezas apoyadas sin holgura
+#   intento 2: 3 piezas sin holgura
+#   intento 3: 1 pieza sin holgura
+#
+# Estaba CONVERGIENDO, y el flujo mató el proyecto a un fallo del final.
+# Ahora esa ronda vuelve al diseñador como cualquier otra, y lo que decide
+# si hay atasco es lo de siempre: el mismo fallo repetido.
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_una_ronda_sin_propuesta_valida_no_mata_el_proyecto(tmp_path):
+    mecanico = Guion(['{"title": "a medias"}'] * 3 + [json.dumps(_correccion(0.5))])
+    informe = design_mechanism(
+        "un brazo que gire 90° sobre una base",
+        MechanismDesignerAgent(mecanico, CATALOGO, PERFIL, (235, 235, 250), 0.1),
+        PartDesignerAgent(DisenadorDePiezas(), CATALOGO),
+        tmp_path, _freecadcmd(), min_gap_mm=0.1, animar=False,
+    )
+    assert informe.ok
+    assert len(informe.rounds) == 2
+    assert informe.rounds[0].title == "sin propuesta válida"
+    # La ronda 2 sabe qué propuso y por qué se rechazó.
+    assert "a medias" in mecanico.prompts[3]
+
+
+def test_el_mismo_rechazo_tres_rondas_seguidas_si_es_atasco(tmp_path):
+    informe = design_mechanism(
+        "un brazo", MechanismDesignerAgent(Guion(['{"title": "x"}'] * 9), CATALOGO, PERFIL,
+                                           (235, 235, 250), 0.1),
+        PartDesignerAgent(DisenadorDePiezas(), CATALOGO),
+        tmp_path, "freecadcmd-que-no-se-llega-a-usar", min_gap_mm=0.1, animar=False,
+    )
+    assert informe.stopped_because == "atascado"
+    assert len(informe.rounds) == 3
+
+
+def test_rechazos_distintos_siguen_intentandolo(tmp_path):
+    """Lo que avanza no se corta: con fallos distintos en cada ronda, el
+    bucle sigue hasta agotar lo que se le dé (aquí, las respuestas)."""
+    # El último error de cada ronda es el que cuenta para el atasco, y cada
+    # ronda termina con un texto roto DISTINTO (en letras: la huella del
+    # fallo ignora los números).
+    distintas = []
+    for palabra in ("uno", "dos", "tres", "cuatro"):
+        distintas += [json.dumps({"title": "t", "summary": "s"})] * 2 + [f"roto {palabra}"]
+    mecanico = Guion(distintas)
+    try:
+        design_mechanism(
+            "un brazo", MechanismDesignerAgent(mecanico, CATALOGO, PERFIL, (235, 235, 250), 0.1),
+            PartDesignerAgent(DisenadorDePiezas(), CATALOGO),
+            tmp_path, "freecadcmd-que-no-se-llega-a-usar", min_gap_mm=0.1, animar=False,
+        )
+    except IndexError:
+        pass  # se acabó el guion: el flujo seguía pidiendo, que es lo que se prueba
+    # 12 respuestas = 4 rondas completas, y una petición más (la 13.ª, que
+    # Guion anota antes de quedarse sin respuesta): tras cuatro fallos
+    # distintos, el flujo seguía intentándolo.
+    assert len(mecanico.prompts) == 13
