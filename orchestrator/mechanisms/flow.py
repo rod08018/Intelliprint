@@ -25,6 +25,7 @@ from orchestrator.llm.structured import SalidaInvalida
 from orchestrator.mechanisms.checks import (
     joint_axis_problems, mechanism_problems, stop_problems)
 from orchestrator.mechanisms.contact import SinApoyo, block_problems, solve_contacts
+from orchestrator.mechanisms.resumen import guardar_ronda, resumen_de_ronda
 from orchestrator.mechanisms.run import MechanismReport, build_mechanism
 from orchestrator.mechanisms.spec_layout import SpecLayout
 from orchestrator.schemas.review import ReviewReport
@@ -257,6 +258,10 @@ def design_mechanism(
             ultimo = next((i for i in reversed(e.intentos) if i["respuesta"] is not None), None)
             motivo = e.intentos[-1]["error"] if e.intentos else str(e)
             rondas.append(Round(number=n, title="sin propuesta válida", feedback=motivo))
+            guardar_ronda(carpeta, {"ronda": n, "titulo": "sin propuesta válida",
+                                    "feedback": motivo, "resuelta": False,
+                                    "rechazados": len(e.intentos), "plan": None,
+                                    "barrido": None, "requisitos": []})
             huella = "invalida||" + huella_de_fallo(motivo)
             motivos_vistos[huella] = motivos_vistos.get(huella, 0) + 1
             if motivos_vistos[huella] >= REPETICIONES_PARA_ATASCO:
@@ -324,11 +329,12 @@ def design_mechanism(
                 except ValueError as e:
                     fallos = [f"- {e}"]
 
+        montado = None  # el montaje de ESTA ronda, no el de una anterior
         if fallos:
             feedback = "\n".join(fallos)
         else:
             log("    ensamble y barrido del recorrido completo…")
-            final = build_mechanism(
+            final = montado = build_mechanism(
                 layout, carpeta, freecadcmd, min_gap_mm=min_gap_mm,
                 disenar=lambda nombre, c: None,  # ya dibujadas arriba
                 animar=False,
@@ -362,6 +368,9 @@ def design_mechanism(
 
         plan = spec.fix_plan.model_dump() if spec.fix_plan else None
         rondas.append(Round(number=n, title=spec.title, feedback=feedback, plan=plan))
+        # En el momento, no al final: la interfaz enseña la ronda mientras el
+        # proyecto sigue trabajando (F5.5 (web)).
+        guardar_ronda(carpeta, resumen_de_ronda(n, spec, layout, montado, feedback))
         if not feedback:
             parada = "resuelto"
             break
@@ -397,6 +406,9 @@ def design_mechanism(
         log("    revisión del diseño frente a tu petición…")
         review = reviewer.review(peticion, spec, measurements(spec, layout, final))
     if review is not None and spec is not None:
+        # Además del texto, como dato: la interfaz cuenta cumple / no cumple /
+        # no verificable. Sigue siendo un informe, no una aprobación (ADR-003).
+        (carpeta / "review.json").write_text(review.model_dump_json(indent=2), encoding="utf-8")
         (carpeta / "review.md").write_text(
             "\n".join([f"# Revisión: {spec.title}", "", review.summary, ""]
                       + [f"- **{i.verdict}** — {i.requirement}: {i.comment}" for i in review.items]),

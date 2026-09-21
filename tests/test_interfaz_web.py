@@ -7,6 +7,7 @@ la URL: es texto que escribe cualquiera, así que se trata como tal.
 """
 
 import io
+import json
 import zipfile
 from pathlib import Path
 
@@ -175,3 +176,64 @@ def test_sin_puente_configurado_abrir_explica_que_falta(ws):
         "/proyectos/2026-09-20-trinquete/abrir")
     assert r.status_code == 503
     assert "start-host-mcps" in r.json()["detail"]
+
+
+# --- Estadísticas, historia de rondas y animación ----------------------------
+
+GIF = b"GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xff\xff\xff!\xf9\x04\x00\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"
+
+
+@pytest.fixture
+def ws_con_rondas(ws):
+    p = ws / "projects" / "2026-09-20-trinquete"
+    (p / "rondas" / "1").mkdir(parents=True)
+    (p / "rondas" / "1" / "resultado.json").write_text(json.dumps({
+        "ronda": 1, "titulo": "Trinquete", "resuelta": False, "feedback": "- choca",
+        "plan": None, "barrido": {"choques": 1},
+        "requisitos": [{"descripcion": "avanza un diente", "esperado": 30, "tolerancia": 2,
+                        "medido": 29.1, "desviacion": -0.9, "cumple": True}]}), encoding="utf-8")
+    (p / "animation.gif").write_bytes(GIF)
+    return ws
+
+
+def test_la_lista_lleva_ronda_coste_y_si_hay_animacion(ws_con_rondas, puente):
+    web = TestClient(crear_app(ws_con_rondas, puente=puente, host_workspace=HOST))
+    (fila,) = [p for p in web.get("/api/proyectos").json() if p["id"] == "2026-09-20-trinquete"]
+    assert fila["ronda"] == 1
+    assert fila["animacion"] is True
+    assert fila["requisitos"]["cumplen"] == 1
+    # La lista no lleva la historia entera: eso es del detalle. (`rondas`
+    # existe, pero es el número que ya daba el registro, no la historia.)
+    assert not isinstance(fila.get("rondas"), list)
+    assert "filas" not in fila["requisitos"]
+
+
+def test_el_detalle_lleva_la_historia_de_rondas(ws_con_rondas, puente):
+    web = TestClient(crear_app(ws_con_rondas, puente=puente, host_workspace=HOST))
+    detalle = web.get("/api/proyectos/2026-09-20-trinquete").json()
+    assert detalle["rondas"][0]["feedback"] == "- choca"
+    assert detalle["requisitos"]["filas"][0]["medido"] == 29.1
+
+
+def test_la_animacion_se_sirve_como_gif(ws_con_rondas, puente):
+    web = TestClient(crear_app(ws_con_rondas, puente=puente, host_workspace=HOST))
+    r = web.get("/proyectos/2026-09-20-trinquete/animation.gif")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "image/gif"
+    assert r.content == GIF
+
+
+def test_sin_animacion_es_404(web):
+    assert web.get("/proyectos/2026-09-01-leva/animation.gif").status_code == 404
+
+
+def test_el_detalle_y_el_gif_no_aceptan_rutas_por_id(web):
+    for malo in ("..", "..%2F..", "no-existe"):
+        assert web.get(f"/api/proyectos/{malo}").status_code == 404
+        assert web.get(f"/proyectos/{malo}/animation.gif").status_code == 404
+
+
+def test_la_portada_ensena_la_ronda_y_el_gif(ws_con_rondas, puente):
+    html = TestClient(crear_app(ws_con_rondas, puente=puente, host_workspace=HOST)).get("/").text
+    assert "/proyectos/2026-09-20-trinquete/animation.gif" in html
+    assert "ronda 1" in html.lower()
