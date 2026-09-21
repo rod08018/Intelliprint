@@ -171,5 +171,26 @@ def mechanism_problems(spec: MechanismSpec, min_gap_mm: float = 0.0) -> list[str
                 "Si esa pieza se mueve porque otra la empuja, usa `rest_on` con "
                 "`carry: true` y deja que la geometría decida cuánto avanza."
             )
+    # Solo la pieza que mueve la PERSONA lleva fórmula (decisión del usuario,
+    # ADR-013). El trinquete del 2026-09-21 salió «resuelto» con la rueda
+    # girando por `30 * min(t, 90) / 90` y las uñas siguiéndola: esquivó la
+    # regla de arriba simplemente no declarando bloqueos. Se veía bien y no
+    # demostraba nada. Un resorte que se estira no cuenta: se deforma según lo
+    # que hacen otras, no mueve a nadie.
+    # Con valor constante no se mueve (tiene su propio aviso arriba): no
+    # cuenta como una segunda motriz.
+    por_formula = [b.name for b in spec.bodies
+                   if b.joint is not None and b.joint.value is not None
+                   and _nombres(_parse(b.joint.value), b.joint.value) & ciclo]
+    if len(por_formula) > 1:
+        problemas.append(
+            "solo UNA pieza puede moverse por fórmula: la motriz, la que mueve la "
+            f"persona. Ahora hay {len(por_formula)}: "
+            + ", ".join(f"«{n}»" for n in por_formula)
+            + ". Elige cuál es la motriz; las demás tienen que moverse porque otra "
+            "las empuja (`rest_on`, con `carry: true` si se quedan donde las dejan) "
+            "o ir unidas a una pieza que se mueve (`parent`). Si su movimiento lo "
+            "dice una fórmula, nadie comprueba que lo cause el mecanismo."
+        )
     problemas += _apoyadas_a_cero(spec, min_gap_mm)
     return problemas

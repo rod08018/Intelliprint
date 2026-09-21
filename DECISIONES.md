@@ -332,6 +332,10 @@ Es una decisión de **agotamiento, no de preferencia**: el razonador sigue siend
 
 Y una consecuencia en el coste: los precios configurados eran 0.28 / 0.42 USD por millón, y la salida de Flash cuesta 1.20 en hora punta (0.60 fuera). Los informes de coste salían entre 1.4 y 2.9 veces cortos; los 0.08 USD del Ginebra fueron en realidad entre 0.11 y 0.23.
 
+**Enmienda (2026-09-21): solo la pieza motriz se mueve por fórmula.** El trinquete salió «resuelto» en la ronda 12 (0.93 USD, sin choques, 18 requisitos cumplidos según el revisor) con la rueda girando por `30 * min(t, 90) / 90` y las uñas siguiéndola por contacto. La regla de la ampliación anterior —no declarar que algo bloquea a una pieza movida por fórmula— la esquivó sin declarar ningún bloqueo. El prompt ya le decía que `rest_on` con `carry` era «la única forma honesta de declarar el avance de una rueda de trinquete»; lo leyó y no lo hizo. Un consejo no basta: tiene que ser una regla.
+
+Por decisión del usuario, **una especificación con más de una pieza movida por fórmula se rechaza** antes de dibujar nada. La motriz es la que mueve la persona; el resto se mueve porque otra la empuja (`rest_on`), va unido a algo que se mueve (`parent`) o está fijo. Los resortes no cuentan: su `stretch` es deformación. El coste conocido: los mecanismos de lazo cerrado (el gato de tijera) quizá no puedan expresarse con apoyos y cuesten más rondas, o no salgan.
+
 **Design Reviewer (ampliación).** Un agente compara la petición literal, requisito por requisito, con lo que MIDIÓ el código. Sus veredictos son `cumple`, `no_cumple` y `no_verificable`; este último es el importante, porque marca lo que hoy nadie comprueba. **No aprueba nada** (ADR-003): es un informe para la persona. Cuando el perfil tenga modelo con visión podrá mirar además los fotogramas.
 
 **Límite conocido.** Que un diseño pase todas las comprobaciones no significa que sea lo que el usuario imaginaba. La primera bisagra aprobada era en realidad un pivote en plano. Juzgar eso necesita un revisor con visión (capa 3 del QA, § 7.1), que el perfil dev no tiene. Hasta entonces, el GIF lo revisa el usuario.

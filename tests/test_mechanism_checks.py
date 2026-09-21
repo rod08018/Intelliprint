@@ -21,8 +21,13 @@ def _spec(**cambios):
         "driver": {"start": 0, "end": 360, "step": 30},
         "parts": [
             {"name": "base", "brief": "b", "bbox_min": [-50, -50, -5], "bbox_max": [50, 50, 0]},
+            # Conducida por contacto: solo la palanca, la motriz, lleva fórmula.
+            # Antes este «mecanismo sano» movía también la rueda por fórmula,
+            # que es justo la trampa del trinquete del 2026-09-21.
             {"name": "rueda", "brief": "b", "bbox_min": [-20, -20, 0], "bbox_max": [20, 20, 6],
-             "joint": {"type": "revolute", "axis": [0, 0, 1], "value": "t"}},
+             "joint": {"type": "revolute", "axis": [0, 0, 1],
+                       "rest_on": {"target": "palanca", "start": "0", "toward": "increase",
+                                   "limit": 40, "carry": True}}},
             {"name": "palanca", "origin": [0, 0, 8], "brief": "b",
              "bbox_min": [-5, -5, 0], "bbox_max": [40, 5, 5],
              "joint": {"type": "revolute", "axis": [0, 0, 1], "value": "amp*sin(t)"}},
@@ -76,7 +81,9 @@ def test_las_formulas_que_dependen_del_ciclo_se_aceptan(formula):
     spec = _con("brazo", origin=[0, 0, 20],
                 joint={"type": "revolute", "axis": [0, 0, 1], "value": formula})
 
-    assert not any("brazo" in p for p in mechanism_problems(spec))
+    # Lo que se prueba es que no la tome por CONSTANTE. Que haya dos motrices
+    # (la palanca y este brazo) es otra regla, con su propio test abajo.
+    assert not any("brazo" in p and "constante" in p for p in mechanism_problems(spec))
 
 
 def test_una_pieza_apoyada_a_cero_milimetros_se_avisa_con_el_numero_exacto():
@@ -117,7 +124,10 @@ def test_varias_piezas_apoyadas_igual_se_agrupan_en_un_renglon():
                        "bbox_min": [-5, -5, 0], "bbox_max": [5, 5, 4],
                        "joint": {"type": "revolute", "axis": [0, 0, 1], "value": "t"}})
 
-    problemas = mechanism_problems(_spec(parts=piezas), min_gap_mm=0.1)
+    # Tres piezas por fórmula dan también el aviso de «una sola motriz», y
+    # con razón; lo que se prueba aquí es que las apoyadas se agrupen.
+    problemas = [p for p in mechanism_problems(_spec(parts=piezas), min_gap_mm=0.1)
+                 if "sin holgura" in p]
 
     assert len(problemas) == 1
     assert all(n in problemas[0] for n in ("rueda", "palanca", "pawl"))
@@ -185,3 +195,55 @@ def test_una_pieza_bloqueada_que_se_mueve_por_contacto_esta_bien():
     ], blocks=[{"body": "rueda", "against": "palanca", "at": 180, "delta": -5}])
 
     assert not any("carry" in p for p in mechanism_problems(spec))
+
+
+# --- Solo la pieza motriz se mueve por fórmula (ADR-013, enmienda) ---------
+#
+# El trinquete del 2026-09-21 salió «resuelto» en la ronda 12 con la rueda
+# girando por fórmula —30 * min(t, 90) / 90— y las uñas siguiéndola. La regla
+# de arriba (no bloquear lo que mueves por fórmula) la esquivó sin declarar
+# ningún bloqueo. El GIF se veía bien; el mecanismo no demostraba nada.
+#
+# Solo la pieza que mueve la PERSONA puede llevar fórmula. Todo lo demás se
+# mueve porque otra pieza lo empuja (`rest_on`, con `carry` si se queda donde
+# lo dejan) o va unido a algo que se mueve. Decisión del usuario.
+
+
+def _trinquete(rueda_joint):
+    return _spec(parts=[
+        {"name": "base", "brief": "b", "bbox_min": [-50, -50, -5], "bbox_max": [50, 50, 0]},
+        {"name": "palanca", "origin": [30, 0, 0], "brief": "b",
+         "bbox_min": [-6, -6, 0], "bbox_max": [20, 6, 6],
+         "joint": {"type": "revolute", "axis": [0, 0, 1], "value": "20*sin(t)"}},
+        {"name": "rueda", "brief": "b", "bbox_min": [-20, -20, 0], "bbox_max": [20, 20, 6],
+         "joint": rueda_joint},
+    ])
+
+
+def test_dos_piezas_movidas_por_formula_no_se_aceptan():
+    problemas = mechanism_problems(_trinquete(
+        {"type": "revolute", "axis": [0, 0, 1], "value": "30 * min(t, 90) / 90"}))
+    (p,) = [p for p in problemas if "fórmula" in p and "motriz" in p]
+    # El motivo nombra a las dos y dice qué hacer en vez de eso.
+    assert "«palanca»" in p and "«rueda»" in p
+    assert "rest_on" in p and "carry" in p
+
+
+def test_la_motriz_por_formula_y_la_conducida_por_contacto_esta_bien():
+    problemas = mechanism_problems(_trinquete(
+        {"type": "revolute", "axis": [0, 0, 1],
+         "rest_on": {"target": "palanca", "start": "0", "toward": "increase",
+                     "limit": 40, "carry": True}}))
+    assert not [p for p in problemas if "motriz" in p]
+
+
+def test_un_resorte_que_se_estira_no_cuenta_como_otra_motriz():
+    """El estiramiento de un resorte es una fórmula, pero no mueve nada: se
+    deforma según lo que hacen otras piezas."""
+    spec = _trinquete({"type": "revolute", "axis": [0, 0, 1],
+                       "rest_on": {"target": "palanca", "start": "0", "toward": "increase",
+                                   "limit": 40, "carry": True}})
+    partes = [p.model_dump() for p in spec.parts] + [
+        {"name": "muelle", "brief": "b", "bbox_min": [-3, -3, 0], "bbox_max": [3, 3, 10],
+         "stretch": "1 + 0.2*sin(t)"}]
+    assert not [p for p in mechanism_problems(_spec(parts=partes)) if "motriz" in p]
