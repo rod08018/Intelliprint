@@ -131,9 +131,8 @@ fórmula. **Esa regla sigue sin ejercitarse en una ejecución real.**
 2. **Relanzar el mecanismo de Ginebra**: murió porque el razonador agotó
    `max_tokens` tres veces. La reserva existe (tras dos cortes contesta el modelo
    sin pensamiento), pero **nadie la ha visto entrar en una ejecución real**.
-3. **Decidir el tope de gasto.** Los 2 USD de `max_usd_per_project` los puse yo
-   por defecto en el primer commit; el usuario preguntó quién decidió ese valor y
-   no se eligió otro.
+3. ~~Decidir el tope de gasto.~~ **Decidido por el usuario: 5 USD por proyecto**
+   (2026-09-21). Los 2 USD anteriores los había puesto el asistente por defecto.
 4. **Los demás retos** (leva, gato de tijera, prensa) no se han relanzado con el
    conjunto completo de mejoras.
 5. **F0.11 (migrar) es la deuda mayor que queda.** La 5090 está aquí, Ollama

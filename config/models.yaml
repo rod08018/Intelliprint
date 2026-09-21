@@ -99,7 +99,12 @@ pricing:
   deepseek-v4-pro:   {in_usd_per_mtok: 1.32, out_usd_per_mtok: 3.96}
 
 escalation:
-  max_usd_per_project: 2.0
+  # Decidido por el usuario el 2026-09-21. Los 2.0 de antes los puso el
+  # asistente por defecto en el primer commit y nadie los había elegido; con
+  # los precios corregidos (la salida de Flash cuesta 1.20, no 0.42) el
+  # trinquete honesto agotó 2 USD en la ronda 21 cuando ya empujaba la rueda.
+  # Es por PROYECTO: dos proyectos en paralelo pueden gastar hasta el doble.
+  max_usd_per_project: 5.0
   max_context_tokens_local: 16000
   # La escotilla de Python libre (§ 6.3) usa SIEMPRE deepseek, no el modelo local.
   hatch_provider: deepseek
