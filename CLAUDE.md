@@ -106,8 +106,20 @@ fórmula. **Esa regla sigue sin ejercitarse en una ejecución real.**
    `config/models.yaml` usa `deepseek-chat` y `deepseek-reasoner`. Si están
    retirados, el perfil `dev` entero está muerto y no hay agente que funcione.
    Se resuelve con una llamada en cuanto haya clave.
-1. **Relanzar el trinquete** (`tests/e2e/retos/2_trinquete.md`) y comprobar que la
-   rueda avanza por contacto. Es lo último del diagnóstico sin probar de verdad.
+1. **El trinquete ya sale, pero la rueda NO avanza por contacto** (relanzado el
+   2026-09-21, `workspace/projects/2026-09-21-0318-trinquete_y_rueda`, 12 rondas,
+   0.93 USD). La rueda gira por fórmula (`30 * min(t, 90) / 90`), las uñas la
+   siguen por contacto y **no declaró ningún bloqueo**: esquivó la regla de «no
+   bloquear lo que mueves por fórmula» simplemente no declarando bloqueos. Y se
+   puso su propia tolerancia, 30 ± 15. El revisor lo cazó entero (5 requisitos
+   `no_verificable`, citando la fórmula). Falta decidir cómo obligar a que la
+   pieza conducida se mueva por el mecanismo y no por una fórmula.
+
+   Para llegar aquí hicieron falta dos arreglos del flujo que salieron al
+   relanzarlo: las propuestas rechazadas se tiraban (ahora se guardan en
+   `rondas/N/rechazados/`), y una ronda sin propuesta válida mataba el proyecto
+   aunque el modelo estuviera convergiendo (la ronda 10 de este trinquete lo
+   habría matado).
 2. **Relanzar el mecanismo de Ginebra**: murió porque el razonador agotó
    `max_tokens` tres veces. La reserva existe (tras dos cortes contesta el modelo
    sin pensamiento), pero **nadie la ha visto entrar en una ejecución real**.

@@ -72,10 +72,12 @@ services:
     extends:
       service: orchestrator
     entrypoint: ["python3", "-m", "orchestrator.web.app"]
-    # 127.0.0.1 y NO 0.0.0.0. Esta página baja cualquier proyecto y abre
-    # programas en el escritorio del PC; publicada en todas las interfaces,
-    # la vería cualquiera de la red local. Se abre solo desde este PC.
-    ports: ["127.0.0.1:8080:8080"]
+    # Por defecto 127.0.0.1: solo desde este PC. La página no tiene
+    # contraseña, baja cualquier proyecto y abre programas en el escritorio,
+    # así que abrirla a la red es una decisión, no un valor por defecto.
+    # Para entrar desde el móvil en la misma wifi: WEB_BIND=0.0.0.0 en .env,
+    # y entonces la ve CUALQUIERA conectado a esa red.
+    ports: ["${WEB_BIND:-127.0.0.1}:8080:8080"]
     restart: unless-stopped
 
   # --- Crafty: el canal humano por Telegram -----------------------------------
