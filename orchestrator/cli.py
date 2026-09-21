@@ -307,18 +307,25 @@ def _proyectos(args, raiz: Path, env: dict, nombre: str) -> None:
 
 
 def _bot(raiz: Path, env: dict, nombre: str) -> None:
-    from orchestrator.human.adapters.telegram import TelegramBot, TelegramClient
+    from orchestrator.human.adapters.telegram import (
+        ListaBlancaInvalida, TelegramBot, TelegramClient, leer_lista_blanca)
 
     token = env.get("TELEGRAM_BOT_TOKEN")
     if not token:
         sys.exit("falta TELEGRAM_BOT_TOKEN en .env (plantilla en .env.example)")
+    # Antes que nada: sin lista blanca no hay canal (F5.10 (lista)).
+    try:
+        permitidos = leer_lista_blanca(env.get("TELEGRAM_ALLOWED_USERS"))
+    except ListaBlancaInvalida as e:
+        sys.exit(str(e))
     print(f"[{nombre}] Escuchando en Telegram. Ctrl+C para parar.")
-    print("  ⚠️ El canal está ABIERTO (ADR-012): cualquiera que escriba al bot puede "
-          "lanzar un proyecto y gastar modelo. Cerrarlo con lista blanca es F5.10 (cerrar).")
+    print(f"  Solo atiendo a {len(permitidos)} usuario(s) de TELEGRAM_ALLOWED_USERS; "
+          "al resto, ni le contesto.")
     bot = TelegramBot(
         TelegramClient(token),
         lambda peticion, avisar: _diseñar_mecanismo(peticion, raiz, env, nombre, log=avisar),
         nombre=nombre,
+        permitidos=permitidos,
     )
     bot.run()
 

@@ -172,8 +172,35 @@ def cancelar_proyecto(proyecto: str) -> dict:
     return store.status(proyecto)
 
 
+def opciones_de_arranque(env) -> tuple[str, dict]:
+    """Cómo servir: por stdio (lo lanza OpenClaw como subproceso, uso
+    nativo) o por HTTP a la red del compose (F0.2 (docker)).
+
+    En contenedores Crafty no puede lanzarlo: el binario, FreeCAD y el
+    modelo están en la imagen del orquestador, no en la de OpenClaw.
+    """
+    if env.get("INTELLIPRINT_MCP_TRANSPORT") != "streamable-http":
+        return "stdio", {}
+    from mcp.server.transport_security import TransportSecuritySettings
+
+    puerto = int(env.get("INTELLIPRINT_MCP_PORT") or 8200)
+    return "streamable-http", {
+        "host": "0.0.0.0",
+        "port": puerto,
+        # El servidor valida la cabecera Host contra el rebinding de DNS.
+        # Crafty llega como `intelliprint-mcp:<puerto>`; sin nombrarlo aquí,
+        # cada llamada daría 421 y el error no diría por qué.
+        "transport_security": TransportSecuritySettings(
+            allowed_hosts=[f"intelliprint-mcp:{puerto}", f"localhost:{puerto}",
+                           f"127.0.0.1:{puerto}"],
+            allowed_origins=["*"],
+        ),
+    }
+
+
 def main() -> None:
-    mcp.run()
+    transporte, opciones = opciones_de_arranque(os.environ)
+    mcp.run(transporte, **opciones)
 
 
 if __name__ == "__main__":

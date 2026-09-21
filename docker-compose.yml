@@ -76,6 +76,81 @@ services:
     ports: ["127.0.0.1:8080:8080"]
     restart: unless-stopped
 
+  # --- Crafty: el canal humano por Telegram -----------------------------------
+  #
+  # Tres piezas. Intelliprint sirve su MCP por HTTP en la red interna
+  # (en el Mac Crafty lo lanzaba por stdio, pero aquí el binario, FreeCAD y
+  # el modelo viven en OTRA imagen). Un paso previo genera la configuración
+  # de Crafty desde el .env. Y Crafty arranca con ella.
+  #
+  #   docker compose up -d crafty
+  #
+  # UN BOT, UN ORDENADOR: Telegram entrega cada mensaje una sola vez. Antes
+  # de levantarlo aquí, para el Crafty del Mac (config/openclaw/README.md).
+
+  intelliprint-mcp:
+    extends:
+      service: orchestrator
+    entrypoint: ["intelliprint-mcp"]
+    environment:
+      INTELLIPRINT_MCP_TRANSPORT: streamable-http
+      INTELLIPRINT_MCP_PORT: "8200"
+      # El buzón de Crafty, en la MISMA ruta que dentro de su contenedor: el
+      # MCP devuelve rutas y Crafty las abre tal cual.
+      INTELLIPRINT_BUZON: /home/node/.openclaw/workspace/intelliprint
+    volumes:
+      - ./workspace:/workspace
+      - ./config:/app/config:ro
+      - ./library:/app/library:ro
+      - crafty_buzon:/home/node/.openclaw/workspace/intelliprint
+    # Sin puertos publicados: solo lo llama Crafty, por la red interna. Este
+    # servidor lanza proyectos que gastan dinero; no tiene por qué verlo
+    # nadie más.
+    restart: unless-stopped
+
+  crafty-config:
+    extends:
+      service: orchestrator
+    # Sin TELEGRAM_ALLOWED_USERS esto falla, el lote no se escribe y Crafty
+    # no arranca (F5.10 (lista)).
+    entrypoint: ["sh", "-c", "python3 -m orchestrator.crafty > /bootstrap/lote.json"]
+    volumes:
+      - crafty_bootstrap:/bootstrap
+    restart: "no"
+
+  crafty:
+    # Versión fijada: una actualización de OpenClaw cambia su configuración
+    # y su comportamiento, y eso se decide, no se descubre un lunes.
+    image: ghcr.io/openclaw/openclaw:2026.9.5
+    env_file: [.env]
+    environment:
+      HOME: /home/node
+      OPENCLAW_HOME: /home/node
+      OPENCLAW_STATE_DIR: /home/node/.openclaw
+      OPENCLAW_CONFIG_PATH: /home/node/.openclaw/openclaw.json
+      OPENCLAW_CONFIG_DIR: /home/node/.openclaw
+      OPENCLAW_WORKSPACE_DIR: /home/node/.openclaw/workspace
+      TZ: America/Guatemala
+    entrypoint: ["sh", "/intelliprint/crafty-entrypoint.sh"]
+    volumes:
+      - crafty_estado:/home/node/.openclaw
+      - crafty_buzon:/home/node/.openclaw/workspace/intelliprint:ro
+      - crafty_bootstrap:/bootstrap:ro
+      - ./config/openclaw:/intelliprint/openclaw:ro
+      - ./docker/crafty-entrypoint.sh:/intelliprint/crafty-entrypoint.sh:ro
+    # Endurecimiento que trae el compose oficial de OpenClaw.
+    cap_drop: [NET_RAW, NET_ADMIN]
+    security_opt: ["no-new-privileges:true"]
+    init: true
+    # Sin puertos: Telegram va por sondeo SALIENTE y el gateway escucha en
+    # loopback. No hay nada que abrir.
+    depends_on:
+      crafty-config:
+        condition: service_completed_successfully
+      intelliprint-mcp:
+        condition: service_started
+    restart: unless-stopped
+
   # Modelos locales en la RTX 5090.
   #
   # Está listo pero NO en uso: el perfil activo sigue siendo `dev`
@@ -102,3 +177,6 @@ services:
 
 volumes:
   ollama:
+  crafty_estado:
+  crafty_buzon:
+  crafty_bootstrap:

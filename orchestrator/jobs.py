@@ -47,7 +47,10 @@ def entregar(proyecto: Path, buzon: Path | None = None) -> dict[str, str]:
     """Copia los archivos del proyecto al buzón del canal y devuelve dónde
     quedaron. No toca los originales."""
     proyecto = Path(proyecto)
-    destino = Path(buzon or BUZON_POR_DEFECTO) / proyecto.name
+    # INTELLIPRINT_BUZON: en Docker, el MCP y Crafty montan el mismo volumen
+    # en la MISMA ruta, así que las rutas que se devuelven valen a los dos
+    # lados sin traducir nada.
+    destino = Path(buzon or os.environ.get("INTELLIPRINT_BUZON") or BUZON_POR_DEFECTO) / proyecto.name
     destino.mkdir(parents=True, exist_ok=True)
     entregados = {}
     for nombre, archivo in ARCHIVOS.items():

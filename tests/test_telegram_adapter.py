@@ -3,8 +3,9 @@
 Se prueba contra `httpx.MockTransport`: se ejercita el código real del
 cliente, sin red y sin tocar el bot de verdad.
 
-⚠️ El canal nace ABIERTO (ADR-012): cualquiera que escriba al bot puede
-lanzar un proyecto. Cerrarlo con lista blanca es F5.10 (cerrar).
+La lista blanca, F5.10 (lista), tiene sus propios tests en
+test_lista_blanca.py. Aquí todos los mensajes vienen de alguien de la
+lista (el usuario 7), para probar lo demás.
 """
 
 import json
@@ -26,7 +27,8 @@ def _api(respuestas, registro):
 
 
 def _mensaje(texto, chat=7, update_id=1):
-    return {"update_id": update_id, "message": {"chat": {"id": chat}, "text": texto}}
+    return {"update_id": update_id,
+            "message": {"chat": {"id": chat}, "from": {"id": chat}, "text": texto}}
 
 
 def test_un_mensaje_lanza_el_trabajo_y_se_contesta_a_quien_escribio(tmp_path):
@@ -41,7 +43,7 @@ def test_un_mensaje_lanza_el_trabajo_y_se_contesta_a_quien_escribio(tmp_path):
         return {"texto": "listo: sin choques", "archivos": [gif]}
 
     cliente = TelegramClient("t", transport=_api([[_mensaje("una bisagra")], []], registro))
-    bot = TelegramBot(cliente, trabajo, nombre="Crafty")
+    bot = TelegramBot(cliente, trabajo, nombre="Crafty", permitidos=frozenset({7}))
 
     assert bot.poll_once() == 1
 
@@ -60,7 +62,7 @@ def test_mientras_trabaja_no_acepta_otro_proyecto(tmp_path):
         return {"texto": "ok", "archivos": []}
 
     cliente = TelegramClient("t", transport=_api([[_mensaje("uno"), _mensaje("dos", update_id=2)]], registro))
-    bot = TelegramBot(cliente, trabajo, nombre="Crafty")
+    bot = TelegramBot(cliente, trabajo, nombre="Crafty", permitidos=frozenset({7}))
     bot._ocupado = True  # como si ya hubiera un proyecto en marcha
 
     bot.poll_once()
@@ -76,7 +78,7 @@ def test_un_fallo_del_trabajo_se_cuenta_en_vez_de_matar_al_bot():
         raise RuntimeError("freecadcmd no encontrado")
 
     cliente = TelegramClient("t", transport=_api([[_mensaje("algo")]], registro))
-    bot = TelegramBot(cliente, trabajo, nombre="Crafty")
+    bot = TelegramBot(cliente, trabajo, nombre="Crafty", permitidos=frozenset({7}))
 
     bot.poll_once()  # no lanza
 
@@ -87,7 +89,7 @@ def test_un_fallo_del_trabajo_se_cuenta_en_vez_de_matar_al_bot():
 def test_el_offset_avanza_para_no_repetir_mensajes():
     registro = []
     cliente = TelegramClient("t", transport=_api([[_mensaje("hola", update_id=41)], []], registro))
-    bot = TelegramBot(cliente, lambda p, a: {"texto": "ok", "archivos": []}, nombre="Crafty")
+    bot = TelegramBot(cliente, lambda p, a: {"texto": "ok", "archivos": []}, nombre="Crafty", permitidos=frozenset({7}))
 
     bot.poll_once()
     bot.poll_once()
@@ -104,7 +106,7 @@ def test_lo_que_no_es_un_mensaje_de_texto_se_ignora(update):
     registro = []
     cliente = TelegramClient("t", transport=_api([[update]], registro))
     hechos = []
-    bot = TelegramBot(cliente, lambda p, a: hechos.append(p), nombre="Crafty")
+    bot = TelegramBot(cliente, lambda p, a: hechos.append(p), nombre="Crafty", permitidos=frozenset({7}))
 
     bot.poll_once()
 
