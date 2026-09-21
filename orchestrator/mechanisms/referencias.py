@@ -150,5 +150,23 @@ def desde_el_entorno(entradas: list[str], workspace: Path, env) -> Referencias:
     qué carpetas valen, para que la línea de órdenes y el MCP no discrepen."""
     extra = [Path(p) for p in (env.get("INTELLIPRINT_RAICES_REFERENCIAS") or "").split(os.pathsep) if p]
     workspace = Path(workspace)
-    return cargar_referencias(entradas, raices=[workspace, *extra],
+    return cargar_referencias([_traducir(e, env) for e in entradas], raices=[workspace, *extra],
                               proyectos=[workspace / "projects", workspace / "archivo"])
+
+
+def _traducir(entrada: str, env) -> str:
+    """`INTELLIPRINT_ALIAS_REFERENCIAS=/ruta/de/crafty=/ruta/aqui`: Crafty
+    pasa las rutas como las ve él, y aquí su estado está montado en otro
+    sitio. Montarlo en la misma ruta y en solo lectura impedía montar el
+    buzón dentro, y el contenedor no arrancaba (fallo real, 2026-09-21).
+
+    Solo cambia el prefijo: lo que resulte se comprueba igual contra las
+    raíces permitidas, así que un «..» no abre nada nuevo."""
+    alias = env.get("INTELLIPRINT_ALIAS_REFERENCIAS") or ""
+    if "=" not in alias:
+        return entrada
+    de, a = alias.split("=", 1)
+    de = de.rstrip("/")
+    if entrada == de or entrada.startswith(de + "/"):
+        return a.rstrip("/") + entrada[len(de):]
+    return entrada

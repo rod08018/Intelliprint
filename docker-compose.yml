@@ -103,17 +103,20 @@ services:
       # MCP devuelve rutas y Crafty las abre tal cual.
       INTELLIPRINT_BUZON: /home/node/.openclaw/workspace/intelliprint
       # Las fotos y ejemplos que te llegan por Telegram los guarda OpenClaw en
-      # su estado. Se montan aquí EN LA MISMA RUTA, así que la ruta que Crafty
-      # le pasa a `disenar_mecanismo` vale tal cual (F5.2 (adjuntos)). Solo
-      # esa carpeta y el workspace: la ruta la escribe un modelo a partir de lo
-      # que llegó por Telegram, y /proc/self/environ lleva la clave.
-      INTELLIPRINT_RAICES_REFERENCIAS: /home/node/.openclaw
+      # su estado, montado aquí en /crafty-estado. Crafty pasa las rutas como
+      # las ve él (/home/node/.openclaw/...) y el alias las traduce
+      # (F5.2 (adjuntos)). NO se monta en la misma ruta: en solo lectura
+      # impedía montar el buzón dentro y el contenedor no arrancaba. Solo esa
+      # carpeta y el workspace: la ruta la escribe un modelo a partir de lo que
+      # llegó por Telegram, y /proc/self/environ lleva la clave.
+      INTELLIPRINT_RAICES_REFERENCIAS: /crafty-estado
+      INTELLIPRINT_ALIAS_REFERENCIAS: /home/node/.openclaw=/crafty-estado
     volumes:
       - ./workspace:/workspace
       - ./config:/app/config:ro
       - ./library:/app/library:ro
       # Solo lectura: Intelliprint mira las fotos de Crafty, no toca su estado.
-      - crafty_estado:/home/node/.openclaw:ro
+      - crafty_estado:/crafty-estado:ro
       - crafty_buzon:/home/node/.openclaw/workspace/intelliprint
     # Sin puertos publicados: solo lo llama Crafty, por la red interna. Este
     # servidor lanza proyectos que gastan dinero; no tiene por qué verlo
@@ -123,8 +126,8 @@ services:
   crafty-config:
     extends:
       service: orchestrator
-    # Sin TELEGRAM_ALLOWED_USERS esto falla, el lote no se escribe y Crafty
-    # no arranca (F5.10 (lista)).
+    # TELEGRAM_ALLOWED_USERS es opcional: vacía, el canal va abierto por
+    # decisión del usuario (F5.10 (lista), ADR-012).
     entrypoint: ["sh", "-c", "python3 -m orchestrator.crafty > /bootstrap/lote.json"]
     volumes:
       - crafty_bootstrap:/bootstrap

@@ -280,3 +280,35 @@ def test_el_flujo_guarda_las_referencias_en_el_proyecto(raiz, tmp_path):
                      PartDesignerAgent(DisenadorDePiezas(), CATALOGO), carpeta, _freecadcmd(),
                      min_gap_mm=0.1, animar=False, referencias=refs)
     assert any(p.suffix == ".png" for p in (carpeta / "referencias").iterdir())
+
+
+def test_una_ruta_de_crafty_se_traduce_a_donde_la_ve_intelliprint(tmp_path):
+    """Crafty pasa la ruta tal como la ve él (/home/node/.openclaw/...). En el
+    contenedor de Intelliprint ese estado está montado en otro sitio: montarlo
+    en la misma ruta y en solo lectura impedía montar el buzón dentro, y el
+    contenedor no arrancaba (fallo real al levantar Crafty, 2026-09-21)."""
+    from orchestrator.mechanisms.referencias import desde_el_entorno
+
+    estado = tmp_path / "crafty-estado"
+    (estado / "media" / "inbound").mkdir(parents=True)
+    _png(estado / "media" / "inbound" / "foto.png")
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    env = {"INTELLIPRINT_RAICES_REFERENCIAS": str(estado),
+           "INTELLIPRINT_ALIAS_REFERENCIAS": f"/home/node/.openclaw={estado}"}
+
+    refs = desde_el_entorno(["/home/node/.openclaw/media/inbound/foto.png"], workspace, env)
+    assert len(refs.imagenes) == 1
+
+
+def test_el_alias_no_abre_nada_fuera_de_las_raices(tmp_path):
+    from orchestrator.mechanisms.referencias import desde_el_entorno
+
+    estado = tmp_path / "crafty-estado"
+    estado.mkdir()
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    env = {"INTELLIPRINT_RAICES_REFERENCIAS": str(estado),
+           "INTELLIPRINT_ALIAS_REFERENCIAS": f"/home/node/.openclaw={estado}"}
+    with pytest.raises(ReferenciaInvalida):
+        desde_el_entorno(["/home/node/.openclaw/../../../proc/self/environ"], workspace, env)

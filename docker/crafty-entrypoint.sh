@@ -46,7 +46,7 @@ cp /intelliprint/openclaw/IDENTITY.md /intelliprint/openclaw/INTELLIPRINT.md "$O
 # Si la lista blanca falta, el lote no existe y Crafty NO arranca: un canal
 # sin lista atenderia a cualquiera (ADR-012, F5.10 (lista)).
 lote=/bootstrap/lote.json
-[ -s "$lote" ] || { echo "[crafty] sin configuracion generada: revisa TELEGRAM_ALLOWED_USERS"; exit 1; }
+[ -s "$lote" ] || { echo "[crafty] sin configuracion generada: mira el registro de crafty-config"; exit 1; }
 oc config set --batch-json "$(cat "$lote")"
 
 echo "[crafty] en marcha"

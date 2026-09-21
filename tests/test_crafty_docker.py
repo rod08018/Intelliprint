@@ -15,7 +15,6 @@ TELEGRAM_ALLOWED_USERS como ÚNICA fuente de quién puede escribir
 import pytest
 
 from orchestrator.crafty import lote_de_configuracion
-from orchestrator.human.adapters.telegram import ListaBlancaInvalida
 from orchestrator.mcp_server import opciones_de_arranque
 
 ENV = {"TELEGRAM_ALLOWED_USERS": "111,222"}
@@ -87,10 +86,13 @@ def test_los_de_la_lista_son_los_duenos_de_los_comandos():
         "telegram:111", "telegram:222"]
 
 
-def test_sin_lista_no_hay_configuracion():
-    """Igual que el bot propio: vacía no significa «todos»."""
-    with pytest.raises(ListaBlancaInvalida):
-        lote_de_configuracion({})
+def test_sin_lista_crafty_atiende_a_cualquiera():
+    """Decisión del usuario: canal abierto. En OpenClaw, «open» exige
+    `allowFrom: ["*"]` de forma explícita."""
+    lote = lote_de_configuracion({})
+    assert _valor(lote, "channels.telegram.dmPolicy") == "open"
+    assert _valor(lote, "channels.telegram.allowFrom") == ["*"]
+    assert not [c for c in lote if c["path"] == "commands.ownerAllowFrom"]
 
 
 def test_crafty_llama_a_intelliprint_por_la_red_del_compose():

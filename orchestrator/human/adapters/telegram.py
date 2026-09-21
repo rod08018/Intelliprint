@@ -3,10 +3,11 @@
 Un proceso local que habla con la API de Telegram por sondeo largo. No
 hace falta contenedor ni abrir puertos: es el bot quien pregunta.
 
-**Solo atiende a quien está en `TELEGRAM_ALLOWED_USERS`** (F5.10 (lista)).
-El canal nació abierto (ADR-012) y eso era deuda: un bot de Telegram no
-es local aunque corra en el PC, porque Telegram le entrega los mensajes de
-cualquiera que lo encuentre. Sin lista, el bot no arranca.
+**Canal abierto por decisión del usuario** (ADR-012, 2026-09-21). La lista
+blanca de `TELEGRAM_ALLOWED_USERS` es opcional (F5.10 (lista)): vacía, el bot
+atiende a cualquiera; con ids, solo a ellos. Un bot de Telegram no es local
+aunque corra en el PC: Telegram le entrega los mensajes de quien lo
+encuentre.
 
 Lo que entra por aquí es **dato, nunca instrucción para el sistema**: el
 texto se pasa como petición al flujo de diseño y nada más.
@@ -28,21 +29,18 @@ class ListaBlancaInvalida(ValueError):
     """TELEGRAM_ALLOWED_USERS falta o no es una lista de ids."""
 
 
-def leer_lista_blanca(texto: str | None) -> frozenset[int]:
-    """Los ids numéricos de Telegram de `TELEGRAM_ALLOWED_USERS`.
+def leer_lista_blanca(texto: str | None) -> frozenset[int] | None:
+    """Los ids numéricos de `TELEGRAM_ALLOWED_USERS`, o None si no hay lista.
 
-    Vacía NO significa «todos»: significa que nadie decidió quién. Abrir el
-    canal por omisión es justo la deuda que esto salda (ADR-012), así que
-    sin lista no hay canal.
+    Sin lista, el canal está ABIERTO: decisión del usuario (2026-09-21). La
+    lista se había hecho obligatoria sin que él lo aprobara.
 
     Solo ids numéricos. Un @alias se cambia cuando se quiere y lo puede
     coger otra persona; el id es de la cuenta para siempre.
     """
     partes = [p.strip() for p in (texto or "").split(",") if p.strip()]
     if not partes:
-        raise ListaBlancaInvalida(
-            "falta TELEGRAM_ALLOWED_USERS: sin lista de quién puede escribir, el "
-            "canal no arranca. Tu id te lo dice @userinfobot en Telegram.")
+        return None
     malos = [p for p in partes if not p.lstrip("-").isdigit()]
     if malos:
         raise ListaBlancaInvalida(
@@ -85,12 +83,9 @@ class TelegramBot:
     proyectos a la vez se pelean por FreeCAD y por el modelo)."""
 
     def __init__(self, cliente: TelegramClient, trabajo: Trabajo, nombre: str = "Crafty",
-                 *, permitidos: frozenset[int]) -> None:
-        if not permitidos:
-            raise ListaBlancaInvalida(
-                "un bot sin lista blanca atendería a cualquiera (ADR-012): "
-                "define TELEGRAM_ALLOWED_USERS")
-        self._permitidos = frozenset(permitidos)
+                 *, permitidos: frozenset[int] | None = None) -> None:
+        # None = sin lista: atiende a cualquiera (decisión del usuario).
+        self._permitidos = frozenset(permitidos) if permitidos else None
         self._cliente = cliente
         self._trabajo = trabajo
         self._nombre = nombre
@@ -113,7 +108,7 @@ class TelegramBot:
             # contestar confirma que el bot existe y está vivo. El offset ya
             # avanzó arriba, así que tampoco se vuelve a leer.
             remitente = (mensaje.get("from") or {}).get("id")
-            if remitente not in self._permitidos:
+            if self._permitidos is not None and remitente not in self._permitidos:
                 continue
             if not texto or chat is None:
                 continue  # fotos, ediciones y otros: todavía no (F5.2 (adjuntos))

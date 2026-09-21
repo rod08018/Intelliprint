@@ -676,7 +676,7 @@ Esto es lo que unifica el gate por consola y el gate por navegador, que en el pl
 
 Este canal es **entrada no confiable a un sistema que puede ejecutar código** (§ 6.3). No es paranoia: es la consecuencia directa de tener una escotilla de Python.
 
-1. **Lista blanca estricta.** Solo los chat IDs de `TELEGRAM_ALLOWED_USERS`. Sin lista blanca, el canal no arranca.
+1. **Lista blanca estricta.** Solo los chat IDs de `TELEGRAM_ALLOWED_USERS`. Sin lista blanca, el canal no arranca. *(Enmendada: por decisión del usuario la lista es opcional y el canal va abierto; ver ADR-012.)*
    > ⚠️ **Incumplida a propósito durante el desarrollo** (ADR-012): el bot nace abierto. Mientras dure, quien encuentre el bot puede crear proyectos, gastar saldo y **contestar las tres barreras**, incluida la que guarda la escotilla. La salda **F5.10**, y no requiere autenticación de ninguna clase: es una lista de IDs, no un login.
 2. **El texto entrante es dato, nunca instrucción.** Un mensaje jamás se concatena a un prompt de sistema. Se procesa como contenido a clasificar, no como orden a obedecer.
 3. **Una petición de cambio nunca abre la escotilla de Python por sí sola.** Requiere gate explícito.

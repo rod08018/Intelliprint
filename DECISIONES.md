@@ -225,7 +225,16 @@ La corrección mantiene el principio de la ADR. **La cinemática de un mecanismo
 
 ## ADR-012 · El canal de Telegram nace abierto — deuda con fecha
 
-**Estado:** **SALDADA el 2026-09-20** (era aceptada, temporal) · **Afecta a:** § 8.5; F5.6, F5.9, `.env`
+**Estado:** **ABIERTO POR DECISIÓN DEL USUARIO (2026-09-21)** · **Afecta a:** § 8.5; F5.6, F5.9, `.env`
+
+> **Enmienda (2026-09-21).** El 2026-09-20 se implementó F5.10 y la lista se hizo
+> obligatoria, entendiendo el «haz todo» del usuario como que incluía esta tarea.
+> **Él no lo había aprobado** y pidió quitarla: el canal vuelve a ir abierto. La
+> lista queda como **opción** (vacía = abierto; con ids = solo ellos) y la regla 1
+> de § 8.5 deja de aplicarse por decisión suya. Lo de abajo sigue siendo cierto y
+> por eso se conserva: un bot de Telegram lo puede encontrar cualquiera, y sin
+> lista cualquiera puede lanzar diseños con el saldo de DeepSeek.
+
 
 > **Saldada por F5.10 (lista).** `TELEGRAM_ALLOWED_USERS` es obligatoria y es la
 > **única** fuente de quién puede escribir: cierra el bot propio de Intelliprint

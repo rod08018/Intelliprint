@@ -7,8 +7,8 @@ de memoria. Aquí la configuración es una función del entorno, con tests,
 y el contenedor la aplica cada vez que arranca.
 
 TELEGRAM_ALLOWED_USERS es la ÚNICA fuente de quién puede escribir
-(F5.10 (lista)): la misma lista cierra el bot propio de Intelliprint y a
-Crafty. Dos listas acabarían diciendo cosas distintas.
+(F5.10 (lista)), para el bot propio y para Crafty. Es opcional: vacía, el
+canal está abierto (decisión del usuario, 2026-09-21).
 
     python -m orchestrator.crafty > lote.json
     openclaw config set --batch-json "$(cat lote.json)"
@@ -37,18 +37,27 @@ def lote_de_configuracion(env) -> list[dict]:
     entorno. openclaw.json vive en un volumen, y un volumen se copia, se
     inspecciona y acaba subido a donde no debe.
     """
-    permitidos = sorted(str(i) for i in leer_lista_blanca(env.get("TELEGRAM_ALLOWED_USERS")))
+    lista = leer_lista_blanca(env.get("TELEGRAM_ALLOWED_USERS"))
+    if lista:
+        permitidos = sorted(str(i) for i in lista)
+        acceso = [
+            {"path": "channels.telegram.dmPolicy", "value": "allowlist"},
+            {"path": "channels.telegram.allowFrom", "value": permitidos},
+            {"path": "commands.ownerAllowFrom", "value": [f"telegram:{i}" for i in permitidos]},
+        ]
+    else:
+        # Canal abierto por decisión del usuario (ADR-012). OpenClaw exige
+        # decirlo explícitamente: `open` solo vale con `allowFrom: ["*"]`.
+        acceso = [
+            {"path": "channels.telegram.dmPolicy", "value": "open"},
+            {"path": "channels.telegram.allowFrom", "value": ["*"]},
+        ]
     return [
         {"path": "gateway.mode", "value": "local"},
-        # Solo la lista, y por id numérico (los @alias se cambian y se
-        # heredan). `pairing` —el valor por defecto— deja que cualquiera
-        # pida acceso; aquí no se pide, se tiene o no.
-        {"path": "channels.telegram.dmPolicy", "value": "allowlist"},
-        {"path": "channels.telegram.allowFrom", "value": permitidos},
+        *acceso,
         # Un bot de un dueño: meterlo en un grupo no debe abrirlo a los
         # demás miembros.
         {"path": "channels.telegram.groupPolicy", "value": "disabled"},
-        {"path": "commands.ownerAllowFrom", "value": [f"telegram:{i}" for i in permitidos]},
         {"path": "mcp.servers.intelliprint", "value": {
             "url": URL_INTELLIPRINT,
             # Sin esto OpenClaw habla SSE, y MCPServer sirve streamable-http.

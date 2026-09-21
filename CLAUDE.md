@@ -88,8 +88,9 @@ test lo comprueba: si la cita no cuadra con el plan, la suite se pone roja.
   puente MCP en el host (`scripts/host_bridge.py`).
 - **La interfaz web** (F5.5 (web), parcial): lista de proyectos, descarga en zip
   y un botón que abre PrusaSlicer con las piezas y el perfil cargados.
-- **El canal ya no nace abierto**: ADR-012 saldada con F5.10 (lista).
-  `TELEGRAM_ALLOWED_USERS` cierra el bot propio y a Crafty con la misma lista.
+- **El canal de Telegram va ABIERTO, por decisión del usuario** (ADR-012). La
+  lista blanca de F5.10 (lista) existe pero es opcional: se había hecho
+  obligatoria sin que él lo aprobara, y la quitó.
 - **Crafty vive en su contenedor**, con la configuración generada desde el `.env`
   y ningún secreto en `openclaw.json`.
 

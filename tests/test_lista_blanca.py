@@ -1,5 +1,9 @@
-"""El canal de Telegram solo atiende a quien está en la lista
-(F5.10 (lista)). Salda la deuda de ADR-012.
+"""La lista blanca del canal de Telegram (F5.10 (lista)): OPCIONAL.
+
+Decisión del usuario (2026-09-21): el canal va ABIERTO. La lista se había
+hecho obligatoria sin que él lo aprobara, al leer su «haz todo» como que
+incluía esta tarea de la tabla de deuda. Queda como opción: vacía, el bot
+atiende a cualquiera; con ids, solo a ellos.
 
 Un bot de Telegram NO es local aunque corra en el PC: hace sondeo contra
 los servidores de Telegram, que le entregan los mensajes de cualquiera que
@@ -51,12 +55,10 @@ def test_la_lista_se_lee_separada_por_comas():
     assert leer_lista_blanca("111, 222,333") == frozenset({111, 222, 333})
 
 
-def test_sin_lista_el_canal_no_arranca():
-    """Vacía no significa «todos»: significa que nadie decidió quién. Abrir
-    el canal por omisión es exactamente la deuda que esto viene a saldar."""
+def test_sin_lista_el_canal_esta_abierto():
+    """Vacía significa «sin lista»: el canal atiende a cualquiera."""
     for vacia in ("", "   ", None, " , "):
-        with pytest.raises(ListaBlancaInvalida, match="TELEGRAM_ALLOWED_USERS"):
-            leer_lista_blanca(vacia)
+        assert leer_lista_blanca(vacia) is None
 
 
 def test_un_nombre_de_usuario_no_vale_como_id():
@@ -65,9 +67,12 @@ def test_un_nombre_de_usuario_no_vale_como_id():
         leer_lista_blanca("111,@jdr")
 
 
-def test_el_bot_no_se_construye_sin_lista():
-    with pytest.raises(ListaBlancaInvalida):
-        TelegramBot(TelegramClient("t"), lambda p, a: {}, permitidos=frozenset())
+def test_sin_lista_el_bot_atiende_a_cualquiera():
+    registro, hechos = [], []
+    cliente = TelegramClient("t", transport=_api([[_de(AJENO, "una bisagra")], []], registro))
+    TelegramBot(cliente, lambda p, avisar: hechos.append(p) or {"texto": "ok"},
+                permitidos=None).poll_once()
+    assert hechos == ["una bisagra"]
 
 
 # --- Qué hace con cada mensaje -------------------------------------------------

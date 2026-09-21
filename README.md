@@ -20,8 +20,8 @@ Y en el PC, para que el contenedor pueda usar tu PrusaSlicer:
 powershell -ExecutionPolicy Bypass -File scripts\start-host-mcps.ps1
 ```
 
-Antes de nada: `cp .env.example .env` y rellenarlo. Sin `TELEGRAM_ALLOWED_USERS`
-el canal no arranca, a propósito (F5.10 (lista)).
+Antes de nada: `cp .env.example .env` y rellenarlo. El canal de Telegram va
+abierto; `TELEGRAM_ALLOWED_USERS` es opcional (F5.10 (lista)).
 
 - [Arquitectura del sistema multiagente](SISTEMA_MULTIAGENTE.md) — qué es el sistema y cómo funciona
 - [Plan del proyecto](PLAN_PROYECTO.md) — fases, tareas y criterios de aceptación

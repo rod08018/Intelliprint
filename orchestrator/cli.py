@@ -318,14 +318,17 @@ def _bot(raiz: Path, env: dict, nombre: str) -> None:
     token = env.get("TELEGRAM_BOT_TOKEN")
     if not token:
         sys.exit("falta TELEGRAM_BOT_TOKEN en .env (plantilla en .env.example)")
-    # Antes que nada: sin lista blanca no hay canal (F5.10 (lista)).
+    # La lista es opcional (F5.10 (lista)): sin ella el canal está abierto,
+    # por decisión del usuario.
     try:
         permitidos = leer_lista_blanca(env.get("TELEGRAM_ALLOWED_USERS"))
     except ListaBlancaInvalida as e:
         sys.exit(str(e))
     print(f"[{nombre}] Escuchando en Telegram. Ctrl+C para parar.")
-    print(f"  Solo atiendo a {len(permitidos)} usuario(s) de TELEGRAM_ALLOWED_USERS; "
-          "al resto, ni le contesto.")
+    if permitidos:
+        print(f"  Solo atiendo a {len(permitidos)} usuario(s) de TELEGRAM_ALLOWED_USERS.")
+    else:
+        print("  Canal abierto: atiendo a cualquiera que escriba al bot.")
     bot = TelegramBot(
         TelegramClient(token),
         lambda peticion, avisar: _diseñar_mecanismo(peticion, raiz, env, nombre, log=avisar),

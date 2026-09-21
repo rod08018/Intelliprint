@@ -37,7 +37,7 @@ Lo que hace falta en `.env`:
 |---|---|
 | `DEEPSEEK_API_KEY` | El modelo con el que **conversa** Crafty (Intelliprint usa el suyo) |
 | `TELEGRAM_BOT_TOKEN` | El bot de @BotFather |
-| `TELEGRAM_ALLOWED_USERS` | **Quién puede escribirle.** Sin esto Crafty no arranca (F5.10 (lista)) |
+| `TELEGRAM_ALLOWED_USERS` | Opcional. Vacía: canal **abierto**, atiende a cualquiera (decisión del usuario). Con ids, solo a ellos (F5.10 (lista)) |
 | `OPENCLAW_GATEWAY_TOKEN` | Protege el gateway de OpenClaw; cualquier cadena larga y aleatoria |
 
 Ningún secreto se guarda en `openclaw.json`: la clave y los tokens quedan como
@@ -69,8 +69,9 @@ reiniciar el contenedor.
 
 ### Quién puede hablarle
 
-`TELEGRAM_ALLOWED_USERS` es la **única** fuente: la misma lista cierra el bot
-propio de Intelliprint y a Crafty. De ahí sale `dmPolicy: allowlist` con tus ids,
+El canal va **abierto** por decisión del usuario: sin lista, `dmPolicy: open`
+con `allowFrom: ["*"]`. Si se ponen ids en `TELEGRAM_ALLOWED_USERS`, esa misma
+lista cierra el bot propio y a Crafty: sale `dmPolicy: allowlist` con los ids,
 `groupPolicy: disabled` —meterlo en un grupo no lo abre a los demás miembros— y
 `commands.ownerAllowFrom`. Tu id numérico te lo dice @userinfobot.
 

@@ -25,7 +25,7 @@ No los rompas sin cambiar el ADR-006 primero:
 
 Este puerto es entrada **no confiable** a un sistema que puede ejecutar código (§ 6.3):
 
-- Lista blanca estricta. Sin ella, el adaptador no arranca.
+- Lista blanca OPCIONAL (`TELEGRAM_ALLOWED_USERS`). Sin ella el canal está abierto, por decisión del usuario (ADR-012).
 - El texto entrante es **dato, nunca instrucción**. No se concatena a un prompt de sistema.
 - Una petición de cambio **nunca abre la escotilla de Python** por sí sola: requiere gate.
 - Filtro de salida compartido con DeepSeek: solo texto y renders. Nunca rutas del host ni credenciales.
