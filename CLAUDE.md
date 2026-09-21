@@ -106,28 +106,17 @@ fórmula. **Esa regla sigue sin ejercitarse en una ejecución real.**
    `config/models.yaml` usa `deepseek-chat` y `deepseek-reasoner`. Si están
    retirados, el perfil `dev` entero está muerto y no hay agente que funcione.
    Se resuelve con una llamada en cuanto haya clave.
-1. **El trinquete ya sale, pero la rueda NO avanza por contacto** (relanzado el
-   2026-09-21, `workspace/projects/2026-09-21-0318-trinquete_y_rueda`, 12 rondas,
-   0.93 USD). La rueda gira por fórmula (`30 * min(t, 90) / 90`), las uñas la
-   siguen por contacto y **no declaró ningún bloqueo**: esquivó la regla de «no
-   bloquear lo que mueves por fórmula» simplemente no declarando bloqueos. Y se
-   puso su propia tolerancia, 30 ± 15. El revisor lo cazó entero (5 requisitos
-   `no_verificable`, citando la fórmula).
+1. ✅ **El trinquete sale de verdad** (2026-09-21,
+   `workspace/projects/2026-09-21-1611-trinquete_y_rueda`, ronda 10, 1.17 USD).
+   Solo la palanca va por fórmula; la rueda se mueve **empujada por la palanca**
+   (`rest_on` con `carry`), el trinquete se apoya en la rueda, y el **bloqueo** se
+   comprueba forzando la rueda hacia atrás. Hicieron falta cinco ejecuciones y
+   cinco arreglos del sistema (propuestas rechazadas guardadas, rondas inválidas
+   que no matan el proyecto, una sola motriz por fórmula, búsqueda de apoyo
+   alargada por el código, y memoria del mejor diseño: volvió cinco veces a la
+   ronda 4). Límites: el barrido fue de 7 posiciones (cada 5°) y el resorte está
+   modelado fijo; su fuerza no se simula.
 
-   **Decidido y probado (2026-09-21): solo la pieza motriz va por fórmula.**
-   Cuarto trinquete (`2026-09-21-0423-trinquete_y_rueda`): se paró en la ronda
-   21 por el tope (2.02 USD), pero **en las rondas 11-16 la rueda avanzó 37-39°
-   empujada de verdad por la uña** (se pedían 45). Lo que lo mató: la uña de
-   retención «no llegaba» por 0.06-0.18 mm y lo más cerca caía siempre en el
-   FINAL del recorrido de búsqueda. Seguía acercándose; el modelo alargaba la
-   búsqueda 5° por ronda. Ahora el solucionador la alarga solo (hasta 4 veces)
-   y lo anota en la ronda. **Sin relanzar todavía con este arreglo.**
-
-   Para llegar aquí hicieron falta dos arreglos del flujo que salieron al
-   relanzarlo: las propuestas rechazadas se tiraban (ahora se guardan en
-   `rondas/N/rechazados/`), y una ronda sin propuesta válida mataba el proyecto
-   aunque el modelo estuviera convergiendo (la ronda 10 de este trinquete lo
-   habría matado).
 2. **Relanzar el mecanismo de Ginebra**: murió porque el razonador agotó
    `max_tokens` tres veces. La reserva existe (tras dos cortes contesta el modelo
    sin pensamiento), pero **nadie la ha visto entrar en una ejecución real**.
