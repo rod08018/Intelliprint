@@ -37,7 +37,7 @@ def requisitos_medidos(spec, layout) -> list[dict]:
 
 
 def resumen_de_ronda(numero: int, spec, layout, final, feedback: str,
-                     rechazados: int = 0) -> dict:
+                     rechazados: int = 0, ajustes: list[str] | None = None) -> dict:
     """`final` es el montaje de ESTA ronda, o None si no llegó a montarse
     (una pieza que no se pudo dibujar, un apoyo sin resolver). Nunca el de
     una ronda anterior: enseñarlo como suyo sería mentir."""
@@ -49,6 +49,9 @@ def resumen_de_ronda(numero: int, spec, layout, final, feedback: str,
         "feedback": feedback,
         "resuelta": not feedback,
         "rechazados": rechazados,
+        # Lo que el solucionador decidió por su cuenta (alargar una búsqueda
+        # de apoyo): no cambia el diseño, pero tiene que quedar dicho.
+        "ajustes": ajustes or [],
         "piezas": len(spec.parts),
         "pasadores": len(spec.pins),
         "barrido": _barrido(final),

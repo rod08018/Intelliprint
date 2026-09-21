@@ -392,6 +392,7 @@ _GUION = """
         ${r.plan.espera ? `<div class="etiqueta">Qué espera que pase</div><div>${esc(r.plan.espera)}</div>` : ""}</details>`;
       if (r.barrido) cuerpo += `<div class="det">Barrido: ${r.barrido.posiciones} posiciones, ${r.barrido.choques} choques${
         r.barrido.peor_hueco_mm !== null && r.barrido.peor_hueco_mm !== undefined ? ` (peor hueco ${num(r.barrido.peor_hueco_mm)} mm)` : ""}.</div>`;
+      (r.ajustes || []).forEach(a => cuerpo += `<div class="det">⚙ ${esc(a)}</div>`);
       if (r.rechazados) cuerpo += `<div class="det">${r.rechazados} propuestas rechazadas por el validador antes de esta.</div>`;
       if (r.sin_datos) cuerpo += `<div class="det">Sin datos de esta ronda: se hizo antes de que se guardaran.</div>`;
       else if (!r.en_curso) cuerpo += r.resuelta

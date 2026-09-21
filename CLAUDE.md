@@ -112,8 +112,16 @@ fórmula. **Esa regla sigue sin ejercitarse en una ejecución real.**
    siguen por contacto y **no declaró ningún bloqueo**: esquivó la regla de «no
    bloquear lo que mueves por fórmula» simplemente no declarando bloqueos. Y se
    puso su propia tolerancia, 30 ± 15. El revisor lo cazó entero (5 requisitos
-   `no_verificable`, citando la fórmula). Falta decidir cómo obligar a que la
-   pieza conducida se mueva por el mecanismo y no por una fórmula.
+   `no_verificable`, citando la fórmula).
+
+   **Decidido y probado (2026-09-21): solo la pieza motriz va por fórmula.**
+   Cuarto trinquete (`2026-09-21-0423-trinquete_y_rueda`): se paró en la ronda
+   21 por el tope (2.02 USD), pero **en las rondas 11-16 la rueda avanzó 37-39°
+   empujada de verdad por la uña** (se pedían 45). Lo que lo mató: la uña de
+   retención «no llegaba» por 0.06-0.18 mm y lo más cerca caía siempre en el
+   FINAL del recorrido de búsqueda. Seguía acercándose; el modelo alargaba la
+   búsqueda 5° por ronda. Ahora el solucionador la alarga solo (hasta 4 veces)
+   y lo anota en la ronda. **Sin relanzar todavía con este arreglo.**
 
    Para llegar aquí hicieron falta dos arreglos del flujo que salieron al
    relanzarlo: las propuestas rechazadas se tiraban (ahora se guardan en

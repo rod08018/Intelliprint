@@ -118,14 +118,22 @@ def test_si_el_punto_de_partida_ya_penetra_se_dice_eso_y_no_otra_cosa(piezas):
 
 def test_cuando_no_toca_se_informa_el_hueco_MINIMO_y_donde(piezas):
     """Informaba el hueco del ÚLTIMO punto del barrido, no el más cercano:
-    al agente se le daba un número que no era su mejor aproximación."""
-    spec = _spec(start="240", limite=8.0)
+    al agente se le daba un número que no era su mejor aproximación.
+
+    Antes el escenario era buscar desde 240 con 8° de recorrido; desde que
+    el solucionador alarga la búsqueda cuando la pieza sigue acercándose,
+    ese caso SÍ toca. Aquí el pivote está a 70 mm: la punta de la barra
+    (30 entre centros + 5 del extremo redondeado = 35 del pivote, como dice
+    su caja) nunca pasa de 70 - 35 - 20 = 15 mm del disco, y lo más cerca
+    queda en 180°, a mitad del recorrido."""
+    spec = _spec(start="240", limite=120.0, distancia=70.0)
     with pytest.raises(SinApoyo) as e:
         solve_contacts(spec, Kinematics(spec), piezas, {}, _freecadcmd(), [0])
 
-    assert "más cerca" in str(e.value)
+    assert "más cerca" in str(e.value) and "faltan" in str(e.value)
     numeros = [float(x) for x in re.findall(r"\d+\.\d+", str(e.value))]
-    minimo = min(_hueco(piezas, Kinematics(spec), v) for v in (240, 236, 232))
+    minimo = _hueco(piezas, Kinematics(spec), 180)
+    assert minimo == pytest.approx(15.0, abs=0.1)         # el cálculo a mano
     assert any(abs(n - minimo) < 0.5 for n in numeros), str(e.value)
 
 

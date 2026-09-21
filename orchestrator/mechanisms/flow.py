@@ -281,6 +281,7 @@ def design_mechanism(
 
         # Antes de gastar FreeCAD: lo que el agente no puede dejar sin
         # verificar se ve en su propia declaración.
+        ajustes: list[str] = []  # lo que el solucionador decidió por su cuenta
         fallos = [f"- {x}" for x in mechanism_problems(spec, min_gap_mm)]
         for p in [] if fallos else spec.parts:
             clave = (p.brief, tuple(p.bbox_min), tuple(p.bbox_max))
@@ -318,7 +319,10 @@ def design_mechanism(
             # ANTES de barrer: su movimiento no lo decide una fórmula.
             log("    resolviendo apoyos por contacto…")
             try:
-                solve_contacts(spec, layout.kin, steps, layout.pins(), freecadcmd, layout.frames())
+                solve_contacts(spec, layout.kin, steps, layout.pins(), freecadcmd, layout.frames(),
+                               notas=ajustes)
+                for nota in ajustes:
+                    log(f"    ajuste del solucionador: {nota}")
             except SinApoyo as e:
                 fallos = [f"- {e}"]
             else:
@@ -370,7 +374,8 @@ def design_mechanism(
         rondas.append(Round(number=n, title=spec.title, feedback=feedback, plan=plan))
         # En el momento, no al final: la interfaz enseña la ronda mientras el
         # proyecto sigue trabajando (F5.5 (web)).
-        guardar_ronda(carpeta, resumen_de_ronda(n, spec, layout, montado, feedback))
+        guardar_ronda(carpeta, resumen_de_ronda(n, spec, layout, montado, feedback,
+                                                ajustes=ajustes))
         if not feedback:
             parada = "resuelto"
             break

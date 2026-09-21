@@ -31,6 +31,11 @@ BISECCIONES = 10
 BANDA_POR_DEFECTO = 0.05
 """Hueco máximo que se acepta como contacto, si el par no declara otro."""
 
+EXTENSIONES = 3
+"""Cuántas veces puede el solucionador alargar por su cuenta una búsqueda
+que se acabó con la pieza todavía acercándose: hasta 4 veces el recorrido
+declarado. Más allá, la pieza no se acerca: se está yendo a otra parte."""
+
 
 class SinApoyo(RuntimeError):
     """La pieza recorrió todo su margen sin apoyarse como se declaró."""
@@ -65,9 +70,39 @@ def _medir(kin, nombre, valores_por_frame, steps, pins, objetivo, freecadcmd) ->
     return medido
 
 
+def _sigue_acercandose(serie) -> bool:
+    """El hueco más pequeño está en el ÚLTIMO punto del recorrido y todavía
+    bajaba: la búsqueda se acabó antes que el acercamiento."""
+    huecos = [d for _, d in serie]
+    return len(huecos) >= 2 and huecos[-1] == min(huecos) and huecos[-1] < huecos[-2]
+
+
+def _motivo_sin_apoyo(spec, b, t, serie, recorrido) -> str:
+    r = b.joint.rest_on
+    mejor_i, (mejor_v, mejor_d) = min(enumerate(serie), key=lambda x: x[1][1])
+    base = (f"«{b.name}» no llega a apoyarse en «{r.target}» con {spec.driver.name} = {t:g}: "
+            f"recorre {recorrido:g} desde {serie[0][0]:.2f} y lo más cerca que pasa es "
+            f"{mejor_d:.2f} mm (con el valor {mejor_v:.2f}).")
+    if mejor_i == 0:
+        # Lo más cerca es el punto de partida: se aleja desde el principio.
+        return base + (" Desde el punto de partida solo se ALEJA: probablemente busca en "
+                       "el sentido equivocado; prueba `toward` al revés.")
+    if mejor_i == len(serie) - 1:
+        return base + (" Seguía acercándose al acabar, incluso después de alargar la "
+                       "búsqueda: revisa la posición de partida.")
+    # Pasa cerca a mitad de camino y luego se aleja: le falta pieza.
+    return base + (f" Pasa cerca y se aleja sin tocar: a la pieza le faltan esos "
+                   f"{mejor_d:.2f} mm. Acerca las piezas o alarga la que tiene que tocar.")
+
+
 def solve_contacts(spec, kin, steps: dict[str, Path], pins: dict, freecadcmd: str,
-                   frames: list[float]) -> dict[tuple[float, str], float]:
-    """Valor de cada articulación `rest_on` en cada posición del ciclo."""
+                   frames: list[float], notas: list[str] | None = None
+                   ) -> dict[tuple[float, str], float]:
+    """Valor de cada articulación `rest_on` en cada posición del ciclo.
+
+    `notas` recoge lo que el solucionador decidió por su cuenta (alargar una
+    búsqueda), para que quede dicho: el diseño no cambió, la búsqueda sí."""
+    notas = notas if notas is not None else []
     apoyadas = [b for b in spec.bodies if b.joint and b.joint.rest_on]
     if not apoyadas:
         return {}
@@ -100,15 +135,29 @@ def solve_contacts(spec, kin, steps: dict[str, Path], pins: dict, freecadcmd: st
                     "`toward`."
                 )
             tocado = next((i for i, (_, d) in enumerate(serie) if d <= banda), None)
+            # Fallo real (trinquete del 2026-09-21, rondas 13-15): lo más
+            # cerca caía siempre en el FINAL del recorrido, a 0.15, 0.06 y
+            # 0.18 mm. La pieza seguía acercándose y el modelo pasó tres rondas
+            # alargando la búsqueda 5° cada vez. Alargarla no es diseño: es un
+            # parámetro de este solucionador, así que lo hace él.
+            extra = 0
+            while tocado is None and extra < EXTENSIONES and _sigue_acercandose(serie):
+                extra += 1
+                mas = _medir(kin, b.name,
+                             {t: _muestras(serie[-1][0], r.limit, sentido, MUESTRAS_GRUESAS)[1:]},
+                             steps, pins, r.target, freecadcmd)[t]
+                serie = sorted(serie + mas, key=lambda x: sentido * x[0])
+                tocado = next((i for i, (_, d) in enumerate(serie) if d <= banda), None)
+            # La bisección lee los huecos de aquí: tiene que ver también las
+            # muestras de la búsqueda alargada.
+            gruesa[t] = serie
             if tocado is None:
-                mejor_v, mejor_d = min(serie, key=lambda x: x[1])
-                raise SinApoyo(
-                    f"«{b.name}» no llega a apoyarse en «{r.target}» con "
-                    f"{spec.driver.name} = {t:g}: recorre {r.limit:g} desde "
-                    f"{serie[0][0]:.2f} y lo más cerca que pasa es {mejor_d:.2f} mm "
-                    f"(con el valor {mejor_v:.2f}). Acerca las piezas esos {mejor_d:.2f} mm, "
-                    "alarga el recorrido de búsqueda o corrige la posición de partida."
-                )
+                raise SinApoyo(_motivo_sin_apoyo(spec, b, t, serie, r.limit * (extra + 1)))
+            if extra:
+                notas.append(
+                    f"el código alargó la búsqueda de apoyo de «{b.name}» sobre «{r.target}» "
+                    f"con {spec.driver.name} = {t:g}: de {r.limit:g} a {r.limit * (extra + 1):g}, "
+                    "porque al acabarse seguía acercándose")
             # Entre la última separada y la primera que toca está el apoyo.
             horquillas[t] = (serie[max(tocado - 1, 0)][0], serie[tocado][0])
 
