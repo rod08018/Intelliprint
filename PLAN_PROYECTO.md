@@ -425,6 +425,7 @@ Los hitos H1, H3 y H4 son de **clases distintas a propósito**: cada uno valida 
 - Biblioteca de diseños aprobados reutilizables como punto de partida.
 - **Sandbox real para la escotilla**: ejecutar `freecadcmd` en un contenedor desechable sin red, con solo la carpeta de la pieza montada. Sustituiría a `validate_macro`, que es una red de seguridad y no un límite (§ 8.3 de la arquitectura).
 - Más canales del `HumanPort` (WhatsApp, Signal): son adaptadores adicionales, no cambios de arquitectura.
+- **Costo de Crafty: bajar su nivel de pensamiento.** Crafty conversa con `deepseek-flash` (decisión del usuario, 2026-09-21), pero con el pensamiento en **alto**, el valor por defecto de OpenClaw. Para charlar y pasar encargos probablemente sobra, y el pensamiento se paga como salida en cada mensaje. Se dejó así a propósito; es la siguiente palanca de costo si hace falta. Iría en `orchestrator/crafty.py`, como el modelo (averiguar antes qué ruta de `openclaw.json` lo controla).
 
 ---
 
