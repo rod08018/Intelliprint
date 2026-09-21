@@ -271,10 +271,15 @@ def design_mechanism(
     presupuesto=None,
     animar: bool = True,
     log=print,
+    referencias=None,
 ) -> FlowReport:
     carpeta = Path(carpeta)
     (carpeta / "request.md").parent.mkdir(parents=True, exist_ok=True)
     (carpeta / "request.md").write_text(peticion + "\n", encoding="utf-8")
+    if referencias:
+        referencias.guardar(carpeta)
+        log(f"  referencias: {len(referencias.imagenes)} imagen(es) y "
+            f"{len(referencias.textos)} texto(s) o diseño(s)")
     hechas: dict[str, tuple] = {}
     rondas: list[Round] = []
     rechazo = _retomar(carpeta) if continuar else None
@@ -305,7 +310,7 @@ def design_mechanism(
             presupuesto.escribir(carpeta)
         log(f"  ronda {n}: el Mechanism Designer propone el mecanismo…")
         try:
-            spec = mechanism_agent.design(peticion, rechazo=rechazo)
+            spec = mechanism_agent.design(peticion, rechazo=rechazo, referencias=referencias)
         except SalidaInvalida as e:
             # Una ronda sin especificación válida es una ronda FALLIDA, no el
             # final del proyecto. Antes se paraba aquí con «se atascó

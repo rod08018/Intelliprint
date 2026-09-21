@@ -53,7 +53,7 @@ def _store() -> JobStore:
 
 
 @mcp.tool()
-def disenar_mecanismo(peticion: str) -> dict:
+def disenar_mecanismo(peticion: str, referencias: list[str] | None = None) -> dict:
     """Diseña un mecanismo a partir de una petición en texto y lo verifica.
 
     Tarda varios minutos: devuelve al momento el identificador del proyecto
@@ -63,16 +63,31 @@ def disenar_mecanismo(peticion: str) -> dict:
     La petición debe describir el mecanismo con todo lo que el usuario haya
     dicho: qué tiene que hacer, medidas, límites de movimiento y qué piezas
     exige. Cuanto más completa, menos rondas de corrección.
+
+    `referencias` (opcional): lo que el usuario mandó como ejemplo de algo
+    que YA funciona. Rutas de imágenes (jpg, png, webp) o textos (md, txt,
+    json) que te llegaron por Telegram, o el id de un proyecto que ya salió.
+    Pásalas siempre que el usuario mande fotos o diga «como el de antes».
     """
+    from orchestrator.mechanisms.referencias import ReferenciaInvalida, desde_el_entorno
+
+    referencias = [r for r in referencias or [] if r and r.strip()]
+    # Antes de lanzar: si una referencia no vale, hay que saberlo ya, no diez
+    # minutos después en el registro de un trabajo que murió al arrancar.
+    try:
+        desde_el_entorno(referencias, _proyectos().parent, os.environ)
+    except ReferenciaInvalida as e:
+        return {"error": f"referencia no válida: {e}"}
     store = _store()
     try:
-        job = store.start(peticion)
+        job = store.start(peticion, referencias=referencias)
     except RuntimeError as e:
         return {"error": str(e), "en_marcha": store.current()}
     return {
         "proyecto": job,
-        "aviso": "Diseñando. Cada ronda tarda unos 4 minutos y hay hasta 5 rondas. "
-                 "Pregunta el estado de vez en cuando; no te quedes esperando.",
+        "aviso": "Diseñando. Cada ronda tarda unos 4 minutos y sigue hasta que funciona, "
+                 "se atasca o llega al tope de gasto. Pregunta el estado de vez en cuando; "
+                 "no te quedes esperando.",
     }
 
 

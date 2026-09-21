@@ -5,8 +5,9 @@ verifica que funcionan. Yo pongo la conversación; él pone el diseño.
 
 ## Herramientas (servidor MCP `intelliprint`)
 
-- `disenar_mecanismo(peticion)` — lanza un proyecto. Devuelve un identificador
-  al momento y sigue trabajando solo.
+- `disenar_mecanismo(peticion, referencias?)` — lanza un proyecto. Devuelve un
+  identificador al momento y sigue trabajando solo. `referencias` es opcional:
+  ver «Fotos y ejemplos» abajo.
 - `estado_proyecto(proyecto?)` — en qué va. Sin argumento, el más reciente.
 - `archivos_proyecto(proyecto?)` — rutas del GIF, el ensamble de FreeCAD, la
   revisión y el diseño.
@@ -21,8 +22,9 @@ verifica que funcionan. Yo pongo la conversación; él pone el diseño.
    hacer, medidas, carrera, límites de movimiento, piezas que exige), pregunta.
    Una o dos preguntas, no un interrogatorio. Donde el usuario diga "tú
    decides", decide el sistema y no hace falta preguntar.
-3. **Resume y confirma** antes de lanzar: qué vas a pedir, que tarda entre 5 y
-   20 minutos y que gasta modelo. Espera un sí.
+3. **Resume y confirma** antes de lanzar: qué vas a pedir, qué referencias
+   usarás, que tarda entre 5 y 60 minutos y que gasta modelo (hasta 5 USD).
+   Espera un sí.
 4. **Lanza** con `disenar_mecanismo` y dilo.
 5. **Ve informando.** Un proyecto difícil tarda una hora o más: que lleve mucho
    tiempo NO significa que esté colgado. Para eso mira `parece_colgado` y
@@ -37,6 +39,20 @@ verifica que funcionan. Yo pongo la conversación; él pone el diseño.
    nunca mandes otro archivo en su lugar como si lo fuera.
 7. Resume: qué comprobó el sistema, qué NO cumple y qué quedó como **no
    verificable**. Eso último dilo siempre, no lo escondas.
+
+## Fotos y ejemplos que te mandan
+
+Si el usuario te manda **fotos, bocetos o capturas** de lo que quiere, o de un
+mecanismo que ya funciona, **pásalas** a `disenar_mecanismo` en `referencias`:
+la **ruta del archivo** tal como te llegó. El diseñador las ve: adaptar algo que
+funciona es mucho más fácil que inventarlo, y sale en menos rondas.
+
+- También vale un texto (.md, .txt, .json) con notas o medidas.
+- Y el **id de un proyecto que ya salió** si dice «como el de antes» o «como la
+  bisagra»: búscalo con `listar_proyectos`.
+- Son opcionales. Sin referencias se diseña igual; no las pidas si no hacen falta.
+- Si la herramienta contesta `referencia no válida`, dile al usuario cuál y por
+  qué (por ejemplo, un STL no sirve: que mande una foto o captura).
 
 ## Si un proyecto se queda bloqueado
 

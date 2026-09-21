@@ -76,7 +76,9 @@ class JobStore:
 
     # --- lanzar y parar -------------------------------------------------------
 
-    def start(self, peticion: str) -> str:
+    def start(self, peticion: str, referencias: list[str] | None = None) -> str:
+        """`referencias`: imágenes, textos o ids de proyectos que ya salieron,
+        para el diseñador (F5.2 (adjuntos)). Opcionales."""
         en_marcha = self.current()
         if en_marcha:
             raise RuntimeError(
@@ -90,7 +92,8 @@ class JobStore:
         # `start_new_session`: el trabajo tiene su propio grupo de procesos, así
         # se puede cancelar con todo lo que lanza (freecadcmd incluido).
         proceso = subprocess.Popen(
-            [*self._comando, str(destino / "request.md"), "--archivo", "--carpeta", str(destino)],
+            [*self._comando, str(destino / "request.md"), "--archivo", "--carpeta", str(destino),
+             *(x for r in referencias or [] for x in ("--adjunto", r))],
             stdout=registro, stderr=subprocess.STDOUT, start_new_session=True,
             env=ENTORNO,
         )

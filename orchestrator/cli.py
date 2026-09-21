@@ -174,6 +174,11 @@ def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> 
     carpeta = Path(args.carpeta) if args.carpeta else (
         _workspace(raiz, env) / "projects"
         / f"{dt.datetime.now():%Y-%m-%d-%H%M}-{slug(peticion.split(chr(10))[0])[:40]}")
+    from orchestrator.mechanisms.referencias import ReferenciaInvalida, desde_el_entorno
+    try:
+        referencias = desde_el_entorno(args.adjunto, _workspace(raiz, env), env)
+    except ReferenciaInvalida as e:
+        sys.exit(f"referencia no válida: {e}")
     print(f"[{nombre}] Mecanismo desde tu texto → {carpeta}")
     print(f"  Mechanism Designer: {router.for_role('reason').model} · "
           f"Part Designer: {router.for_role('design').model}")
@@ -185,7 +190,7 @@ def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> 
         PartDesignerAgent(cliente, CATALOGO),
         carpeta, _freecadcmd(env), min_gap_mm=hueco,
         reviewer=DesignReviewerAgent(cliente), continuar=args.continuar,
-        presupuesto=presupuesto,
+        presupuesto=presupuesto, referencias=referencias,
     )
     f = informe.final
     print()
@@ -330,7 +335,7 @@ def _bot(raiz: Path, env: dict, nombre: str) -> None:
     bot.run()
 
 
-def main(argv: list[str] | None = None) -> None:
+def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="intelliprint")
     sub = parser.add_subparsers(dest="comando", required=True)
     nuevo = sub.add_parser("new", help="empezar un proyecto")
@@ -354,6 +359,16 @@ def main(argv: list[str] | None = None) -> None:
                       help="seguir un proyecto fallido: parte de su último diseño y del motivo")
     meca.add_argument("--referencia", action="store_true",
                       help="usar las recetas fijas de la disposición en vez del modelo")
+    # F5.2 (adjuntos). No se llama --referencia porque ese nombre ya era de la
+    # disposición fija de la biela-manivela.
+    meca.add_argument("--adjunto", action="append", default=[], metavar="IMAGEN|TEXTO|PROYECTO",
+                      help="una referencia para el diseñador: una imagen, un texto o el id de "
+                           "un proyecto que ya salió. Se puede repetir.")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = _parser()
     args = parser.parse_args(argv)
 
     raiz = _raiz()

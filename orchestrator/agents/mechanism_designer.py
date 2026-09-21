@@ -40,9 +40,23 @@ class MechanismDesignerAgent:
             catalog=catalog.describe(),
         )
 
-    def design(self, peticion: str, rechazo: tuple[str, str] | None = None) -> MechanismSpec:
-        """`rechazo` = (especificación anterior, qué falló al construirla)."""
+    def design(self, peticion: str, rechazo: tuple[str, str] | None = None,
+               referencias=None) -> MechanismSpec:
+        """`rechazo` = (especificación anterior, qué falló al construirla).
+        `referencias` = imágenes y diseños que el usuario mandó como ejemplo
+        de algo que ya funciona (F5.2 (adjuntos)); opcionales."""
         prompt = f"{self._instrucciones}\n## Petición del usuario\n\n{peticion}\n"
+        if referencias:
+            prompt += (
+                "\n## Referencias que manda el usuario\n\n"
+                "Son ejemplos de algo que YA FUNCIONA, o fotos y bocetos de lo que "
+                "quiere. Apóyate en ellas: adaptar lo que funciona es mejor que "
+                "inventar. Si contradicen la petición, manda la petición.\n")
+            if referencias.imagenes:
+                prompt += (f"\nTe adjunto {len(referencias.imagenes)} imagen(es). Mira cómo "
+                           "son las piezas, cómo se apoyan unas en otras y dónde giran.\n")
+            for titulo, contenido in referencias.textos:
+                prompt += f"\n### {titulo}\n\n{contenido}\n"
         if rechazo is not None:
             anterior, motivo = rechazo
             prompt += (
@@ -69,4 +83,5 @@ class MechanismDesignerAgent:
                 raise ValueError("; ".join(problemas))
 
         return structured(self._client, prompt, MechanismSpec, extra_validation=comprobar,
-                          cliente_de_reserva=self._reserva)
+                          cliente_de_reserva=self._reserva,
+                          imagenes=referencias.imagenes if referencias else None)

@@ -46,6 +46,7 @@ def structured(
     max_intentos: int = MAX_INTENTOS,
     extra_validation: Callable[[T], None] | None = None,
     cliente_de_reserva: LlmClient | None = None,
+    imagenes: list[str] | None = None,
 ) -> T:
     """Pide una salida que valide contra `schema`, reintentando con el error.
 
@@ -68,7 +69,11 @@ def structured(
     for intento in range(1, max_intentos + 1):
         try:
             se_rindio = cortes >= CORTES_ANTES_DE_LA_RESERVA and cliente_de_reserva
-            respuesta = (cliente_de_reserva if se_rindio else client).complete(peticion)
+            quien = cliente_de_reserva if se_rindio else client
+            # Solo se pasa si hay: los clientes que no saben de imágenes siguen
+            # funcionando igual cuando no hay referencias.
+            respuesta = (quien.complete(peticion, imagenes=imagenes) if imagenes
+                         else quien.complete(peticion))
         except (RespuestaCortada, TiempoAgotado, ConexionCaida) as error:
             # Se quedó sin sitio pensando: no es un JSON malo, es longitud. Se
             # reintenta pidiendo brevedad en vez de tumbar el proyecto entero

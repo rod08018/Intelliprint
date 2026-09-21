@@ -129,10 +129,18 @@ class DeepSeekClient:
     def modelo(self) -> str:
         return self._model
 
-    def complete(self, prompt: str, *, temperature: float = 0.0) -> str:
+    def complete(self, prompt: str, *, temperature: float = 0.0,
+                 imagenes: list[str] | None = None) -> str:
+        # Con imágenes (referencias que mandó el usuario), el mensaje lleva
+        # partes; sin ellas sigue siendo texto plano, como siempre. Flash las
+        # ve: comprobado el 2026-09-21 (una imagen roja → «Rojo»).
+        contenido = prompt if not imagenes else [
+            {"type": "text", "text": prompt},
+            *({"type": "image_url", "image_url": {"url": url}} for url in imagenes),
+        ]
         cuerpo = {
             "model": self._model,
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": [{"role": "user", "content": contenido}],
             "temperature": temperature,
             # Una especificación de mecanismo con sus enunciados pasa de los
             # 4K tokens por defecto; cortada, no sería JSON válido.

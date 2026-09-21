@@ -102,10 +102,18 @@ services:
       # El buzón de Crafty, en la MISMA ruta que dentro de su contenedor: el
       # MCP devuelve rutas y Crafty las abre tal cual.
       INTELLIPRINT_BUZON: /home/node/.openclaw/workspace/intelliprint
+      # Las fotos y ejemplos que te llegan por Telegram los guarda OpenClaw en
+      # su estado. Se montan aquí EN LA MISMA RUTA, así que la ruta que Crafty
+      # le pasa a `disenar_mecanismo` vale tal cual (F5.2 (adjuntos)). Solo
+      # esa carpeta y el workspace: la ruta la escribe un modelo a partir de lo
+      # que llegó por Telegram, y /proc/self/environ lleva la clave.
+      INTELLIPRINT_RAICES_REFERENCIAS: /home/node/.openclaw
     volumes:
       - ./workspace:/workspace
       - ./config:/app/config:ro
       - ./library:/app/library:ro
+      # Solo lectura: Intelliprint mira las fotos de Crafty, no toca su estado.
+      - crafty_estado:/home/node/.openclaw:ro
       - crafty_buzon:/home/node/.openclaw/workspace/intelliprint
     # Sin puertos publicados: solo lo llama Crafty, por la red interna. Este
     # servidor lanza proyectos que gastan dinero; no tiene por qué verlo
