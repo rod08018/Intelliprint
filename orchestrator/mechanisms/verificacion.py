@@ -18,6 +18,7 @@ Faltaban dos cosas, y las dos son de código:
 mecanismo; los números que se pueden medir los ajusta el código.
 """
 
+import re
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -53,14 +54,42 @@ class Verificacion:
         return self.etapa == self.BARRIDO and not self.fallos
 
 
+# Las cifras que dicen CUÁNTO falla algo, y solo esas. En un motivo hay más
+# números —«recorre 90», «con el valor 118.12», «t = 15»— que son del ciclo o
+# de la búsqueda, no del fallo.
+_MAGNITUDES = [
+    re.compile(r"solapa(?:rse|n)\s+([\d.]+)\s*mm³"),
+    re.compile(r"([\d.]+)\s*mm³ en común"),
+    re.compile(r"más cerca que pasa es\s+([\d.]+)\s*mm"),
+    re.compile(r"se separan\s+([\d.]+)\s*mm"),
+    re.compile(r"quedan\s+([\d.]+)\s*mm de hueco"),
+]
+
+
+def magnitud_del_fallo(lineas: list[str]) -> float:
+    """Cuánto fallan, sumado: mm³ de solape y mm de hueco que sobran.
+
+    Fallo real (Ginebra del 2026-09-21): «el pasador atraviesa la rueda» con
+    29.9, 1.2, 29.9, 29.9 y 1.1 mm³. Las de 1 mm³ estaban casi resueltas y
+    para el sistema eran «el mismo fallo» que las de 30: la memoria no supo
+    anclarse en la buena y el detector de atasco paró el proyecto."""
+    total = 0.0
+    for linea in lineas:
+        for patron in _MAGNITUDES:
+            total += sum(float(m) for m in patron.findall(linea))
+    return total
+
+
 def puntuacion(v: Verificacion) -> tuple:
     """Menor es mejor. Primero HASTA DÓNDE llegó, luego cuántos fallos tuvo,
-    luego cuánto se desvía de lo pedido.
+    luego CUÁNTO fallan, y al final cuánto se desvía de lo pedido.
 
     El orden importa: una ronda que se cae al buscar apoyos da UN fallo, y
     una que llega al barrido y encuentra dos choques da dos. Contando solo
-    fallos, ganaría la que avanzó menos."""
-    return (-v.etapa, len(v.fallos), round(v.desvio, 6))
+    fallos, ganaría la que avanzó menos. Y entre dos rondas con el mismo
+    fallo, la de 1 mm³ de solape está mucho más cerca que la de 30."""
+    return (-v.etapa, len(v.fallos), round(magnitud_del_fallo(v.fallos), 4),
+            round(v.desvio, 6))
 
 
 def _desvio(spec, layout) -> float:

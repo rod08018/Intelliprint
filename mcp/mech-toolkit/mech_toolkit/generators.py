@@ -222,6 +222,67 @@ _forma = _forma.cut(Part.makeCylinder(($hole_diameter_mm) / 2.0, _t + 2,
 """ + _SUMAR
 
 
+# Mecanismo de Ginebra externo. Rueda y disco de bloqueo salen de las MISMAS
+# cuatro cifras —ranuras N, distancia entre centros C, diámetro del pasador y
+# holgura— con las fórmulas estándar, así que encajan por construcción:
+#
+#   a = C·sen(180°/N)      radio de manivela (centro del pasador al eje conductor)
+#   b = C·cos(180°/N)      radio al que el pasador entra en la ranura
+#   w = pasador + 2·holgura                          ancho de ranura
+#   R = √(b² + (w/2)²)                               radio de la rueda
+#   r = a − w/2 − holgura − 1                        radio del disco de bloqueo
+#
+# Dos límites para `r`, y el segundo es el que manda: por dentro del círculo
+# que recorre el pasador (o el bloqueo chocaría con él), y el arco que deja en
+# la rueda (radio r + holgura) a 1 mm de la esquina de la boca de cada
+# ranura. Con r = a − pasador/2 − holgura el arco se comía esas esquinas y el
+# pasador entraba tarde, de golpe (lo cazó el test de la caja). Fallo real (Ginebra del 2026-09-21): el diseñador
+# componía la rueda con cilindros y cajas —salía en 5 trozos— y probaba
+# radios de bloqueo a ojo (41.4, 17.57, 34.5), y se perdieron 5 de 10 rondas.
+_GINEBRA_COMUN = """
+import math as _m
+_n, _C, _d = int($slots), float($center_distance_mm), float($pin_diameter_mm)
+_t, _cl = float($thickness_mm), float($clearance_mm)
+_a, _b = _C * _m.sin(_m.pi / _n), _C * _m.cos(_m.pi / _n)
+_w = _d + 2 * _cl
+_R = _m.hypot(_b, _w / 2.0)
+_rl = _a - _w / 2.0 - _cl - 1.0
+if _rl <= 0:
+    raise RuntimeError(
+        "INTELLIPRINT_FALLO: con %d ranuras, entre centros %s y pasador %s, el disco de "
+        "bloqueo no cabe (radio %.2f): agranda la distancia entre centros o reduce el pasador."
+        % (_n, _C, _d, _rl))
+"""
+
+# Rueda: centrada en el origen, de z = 0 a espesor. Ranura k a lo largo del
+# ángulo k·360/N (la 0 en +X); arco cóncavo de bloqueo k a (k+½)·360/N,
+# centrado a C del centro, de radio r + holgura. La ranura llega hasta donde
+# baja el pasador (C − a) más su radio y la holgura.
+_RUEDA_GINEBRA = _GINEBRA_COMUN + """
+_forma = Part.makeCylinder(_R, _t)
+_fondo = _C - _a - _d / 2.0 - _cl
+for _k in range(_n):
+    _ang = _k * 360.0 / _n
+    _ranura = Part.makeBox(_R + 2 - _fondo, _w, _t + 2, FreeCAD.Vector(_fondo, -_w / 2.0, -1))
+    _ranura.rotate(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(0, 0, 1), _ang)
+    _forma = _forma.cut(_ranura)
+    _medio = _m.radians(_ang + 180.0 / _n)
+    _forma = _forma.cut(Part.makeCylinder(
+        _rl + _cl, _t + 2, FreeCAD.Vector(_C * _m.cos(_medio), _C * _m.sin(_medio), -1)))
+_forma = _forma.removeSplitter()
+""" + _SUMAR
+
+# Disco de bloqueo: centrado en el eje conductor (origen), de z = 0 a espesor,
+# radio r, con el alivio hacia +X —la dirección del pasador— para que la rueda
+# pueda girar mientras el pasador está en la ranura. El pasador va aparte, en
+# (a, 0), con generate_cylinder.
+_BLOQUEO_GINEBRA = _GINEBRA_COMUN + """
+_forma = Part.makeCylinder(_rl, _t)
+_forma = _forma.cut(Part.makeCylinder(_R + _cl, _t + 2, FreeCAD.Vector(_C, 0, -1)))
+_forma = _forma.removeSplitter()
+""" + _SUMAR
+
+
 CATALOGO = GeneratorCatalog(
     [
         GeneratorSpec(
@@ -303,6 +364,31 @@ CATALOGO = GeneratorCatalog(
             required_params={"pivot_to_tip_mm", "width_mm", "thickness_mm", "tip_angle_deg",
                              "hub_diameter_mm", "hole_diameter_mm"},
             template=_UNA,
+        ),
+        GeneratorSpec(
+            name="generate_geneva_wheel",
+            description=("Rueda de Ginebra externa, centrada en el origen, de z = 0 a espesor. "
+                         "Todo sale de N, C (entre centros), pasador y holgura: radio de manivela "
+                         "a = C·sen(180°/N), b = C·cos(180°/N), ranuras de ancho pasador + 2·holgura "
+                         "a lo largo de k·360/N (la 0 en +X), y arcos cóncavos de bloqueo a "
+                         "(k+½)·360/N que casan con generate_geneva_lock de las mismas cifras. "
+                         "USA ESTO en vez de componer la rueda con cajas y cilindros. El agujero "
+                         "del eje va aparte. Caja con N múltiplo de 4: ±b en X e Y."),
+            required_params={"slots", "center_distance_mm", "pin_diameter_mm", "thickness_mm",
+                             "clearance_mm"},
+            template=_RUEDA_GINEBRA,
+        ),
+        GeneratorSpec(
+            name="generate_geneva_lock",
+            description=("Disco de bloqueo de la Ginebra, centrado en el eje conductor (origen), "
+                         "de z = 0 a espesor, de radio r = a − w/2 − holgura − 1 (w = pasador + 2·holgura), con el alivio "
+                         "hacia +X: el pasador tiene que ir en +X, en (a, 0), con generate_cylinder. "
+                         "Mismas cifras que generate_geneva_wheel y encajan solos. Caja: y ±r; x de "
+                         "−r hasta donde se cruzan disco y alivio, (C² + r² − (R+holgura)²)/(2C), "
+                         "con R = √(b² + (w/2)²)."),
+            required_params={"slots", "center_distance_mm", "pin_diameter_mm", "thickness_mm",
+                             "clearance_mm"},
+            template=_BLOQUEO_GINEBRA,
         ),
         GeneratorSpec(
             name="generate_spring",

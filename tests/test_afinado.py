@@ -8,6 +8,8 @@ cosas: saber cuál era la MEJOR ronda para volver a ella, y que los números
 modelo probando a ciegas a 0.08 USD por intento.
 """
 
+import pytest
+
 from orchestrator.mechanisms.verificacion import Verificacion, afinar, puntuacion
 from orchestrator.schemas.mechanism import MechanismSpec
 from tests.test_mechanism_flow import _spec
@@ -105,3 +107,83 @@ def test_el_afinado_no_cambia_la_especificacion_original():
     original = _con_param(37.0)
     afinar(original, evaluar(original), evaluar)
     assert original.params["amp"] == 37.0
+
+
+# --- El TAMAÑO del fallo -------------------------------------------------------
+#
+# Fallo real, el Ginebra del 2026-09-21: «el pasador atraviesa la rueda» con
+# 29.9, 1.2, 29.9, 29.9 y 1.1 mm³. Las rondas de 1 mm³ estaban casi
+# resueltas; para el sistema eran «el mismo fallo» que las de 30. La memoria
+# no supo anclarse en la buena y el detector de atasco paró el proyecto.
+
+from orchestrator.mechanisms.verificacion import magnitud_del_fallo  # noqa: E402
+
+MUCHO = "- «rueda_ginebra» está siendo atravesada por «pasador» con t = 15 y no puede apartarse: recorre 90 y lo mejor que consigue es solaparse 29.9 mm³ (con el valor 118.12)."
+POCO = "- «rueda_ginebra» está siendo atravesada por «pasador» con t = 5 y no puede apartarse: recorre 90 y lo mejor que consigue es solaparse 1.2 mm³ (con el valor -375.87)."
+
+
+@pytest.mark.parametrize("linea, esperado", [
+    (MUCHO, 29.9),
+    ("- «uña» no llega a apoyarse en «rueda» con t = 13: recorre 40 desde 20.00 y lo más cerca que pasa es 0.15 mm (con el valor -20.00).", 0.15),
+    ("- palanca / rueda: con t = -15 (1 posiciones). Peor: con t = -15, palanca y rueda se separan 1.10 mm; tienen que seguir en contacto", 1.10),
+    ("- el tope entre «a» y «b» en t = 25 no llega a tocar: quedan 0.40 mm de hueco", 0.40),
+    ("- el tope entre «a» y «b» en t = 25 ya se atraviesa (3.5 mm³ en común)", 3.5),
+    ("- el punto de partida de «trinquete» ya está dentro de «rueda» con t = -20: con el valor 0.00 se solapan 326.9 mm³.", 326.9),
+])
+def test_el_tamano_se_lee_del_motivo(linea, esperado):
+    """Solo las cifras que miden el fallo: ni «recorre 90», ni «con el valor
+    118.12», ni «t = 15», que son del ciclo y no de cuánto falla."""
+    assert magnitud_del_fallo([linea]) == pytest.approx(esperado)
+
+
+def test_un_motivo_sin_cifra_de_fallo_cuenta_como_cero():
+    assert magnitud_del_fallo(["- la pieza «rueda» no se pudo dibujar"]) == 0.0
+
+
+def test_con_el_mismo_fallo_gana_el_mas_pequeno():
+    lejos = _v(Verificacion.APOYOS, [MUCHO])
+    cerca = _v(Verificacion.APOYOS, [POCO])
+    assert puntuacion(cerca) < puntuacion(lejos)
+
+
+def test_el_tamano_pesa_menos_que_la_etapa_y_el_numero_de_fallos():
+    """Un solape enorme en el barrido sigue siendo mejor que caerse antes."""
+    barrido_grande = _v(Verificacion.BARRIDO, [MUCHO])
+    apoyos_pequeno = _v(Verificacion.APOYOS, [POCO])
+    assert puntuacion(barrido_grande) < puntuacion(apoyos_pequeno)
+
+
+# --- Atasco: el mismo fallo, ¿igual de grande? --------------------------------
+
+
+def test_el_mismo_fallo_que_se_achica_no_cuenta_como_repeticion():
+    from orchestrator.mechanisms.flow import contar_repeticion
+
+    vistos = {}
+    assert contar_repeticion(vistos, "pasador||rueda", 29.9) == 1
+    assert contar_repeticion(vistos, "pasador||rueda", 1.2) == 1     # mucho más pequeño: progreso
+
+
+def test_el_mismo_fallo_igual_de_grande_si_cuenta():
+    from orchestrator.mechanisms.flow import contar_repeticion
+
+    vistos = {}
+    for esperado in (1, 2, 3):
+        assert contar_repeticion(vistos, "pasador||rueda", 29.9) == esperado
+
+
+def test_volver_a_un_fallo_mas_grande_que_el_mejor_visto_cuenta():
+    """La secuencia real del Ginebra: 29.9, 1.2, 29.9, 29.9. Tras bajar a
+    1.2, volver a 29.9 no es progreso: es oscilar, y eso sí se repite."""
+    from orchestrator.mechanisms.flow import contar_repeticion
+
+    vistos = {}
+    cuentas = [contar_repeticion(vistos, "h", m) for m in (29.9, 1.2, 29.9, 29.9)]
+    assert cuentas == [1, 1, 2, 3]
+
+
+def test_sin_tamano_se_cuenta_como_antes():
+    from orchestrator.mechanisms.flow import contar_repeticion
+
+    vistos = {}
+    assert [contar_repeticion(vistos, "h", 0.0) for _ in range(3)] == [1, 2, 3]

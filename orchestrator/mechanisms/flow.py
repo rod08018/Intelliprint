@@ -28,7 +28,7 @@ from orchestrator.mechanisms.resumen import guardar_ronda, resumen_de_ronda
 from orchestrator.mechanisms.run import MechanismReport, build_mechanism
 from orchestrator.mechanisms.spec_layout import SpecLayout
 from orchestrator.mechanisms.verificacion import (
-    Verificacion, afinar, montar, puntuacion, verificar)
+    Verificacion, afinar, magnitud_del_fallo, montar, puntuacion, verificar)
 from orchestrator.schemas.review import ReviewReport
 
 def _guardar_rechazados(destino: Path, intentos: list[dict]) -> None:
@@ -80,6 +80,31 @@ def huella_de_plan(plan: dict | None, nombres=()) -> str:
     if tocadas:
         return " ".join(sorted(tocadas))
     return " ".join(sorted({w for w in re.findall(r"[a-z_]{4,}", texto)}))
+
+
+MEJORA_QUE_CUENTA = 0.7
+"""Un fallo repetido que baja a menos del 70 % del mejor tamaño visto no es
+una repetición: es progreso, y reinicia la cuenta del atasco."""
+
+
+def contar_repeticion(vistos: dict, huella: str, magnitud: float) -> int:
+    """Cuántas veces seguidas se ha visto este fallo SIN acercarse.
+
+    La huella quita los números para que «se queda a 9.38 mm» y «a 0.32 mm»
+    sean el mismo muro. Pero eso cegaba al detector ante el tamaño: el
+    Ginebra del 2026-09-21 se paró por «atasco» con el pasador atravesando la
+    rueda 29.9, 1.2, 29.9, 29.9 y 1.1 mm³. Ahora, si el fallo se achica de
+    verdad, la cuenta vuelve a 1; si solo oscila —baja y vuelve a subir—,
+    sigue contando."""
+    cuenta, mejor = vistos.get(huella, (0, None))
+    if mejor is None:
+        vistos[huella] = (1, magnitud)
+        return 1
+    if mejor > 0 and magnitud < MEJORA_QUE_CUENTA * mejor:
+        vistos[huella] = (1, magnitud)
+        return 1
+    vistos[huella] = (cuenta + 1, min(mejor, magnitud))
+    return cuenta + 1
 
 
 MAX_RONDAS = 40
@@ -329,8 +354,7 @@ def design_mechanism(
                                     "rechazados": len(e.intentos), "plan": None,
                                     "barrido": None, "requisitos": []})
             huella = "invalida||" + huella_de_fallo(motivo)
-            motivos_vistos[huella] = motivos_vistos.get(huella, 0) + 1
-            if motivos_vistos[huella] >= REPETICIONES_PARA_ATASCO:
+            if contar_repeticion(motivos_vistos, huella, 0.0) >= REPETICIONES_PARA_ATASCO:
                 log("    ✋ atascado: la propuesta vuelve a fallar igual y no avanza")
                 parada = "atascado"
                 break
@@ -426,8 +450,8 @@ def design_mechanism(
         # idea contra el mismo muro es atasco, aunque cambien los números.
         huella = huella_de_fallo(feedback) + "||" + huella_de_plan(
             plan, [b.name for b in spec.bodies])
-        motivos_vistos[huella] = motivos_vistos.get(huella, 0) + 1
-        repetido = motivos_vistos[huella]
+        repetido = contar_repeticion(motivos_vistos, huella,
+                                     magnitud_del_fallo(feedback.splitlines()))
         if repetido >= REPETICIONES_PARA_ATASCO:
             log("    ✋ atascado: el mismo fallo se repite y el diseño no avanza")
             parada = "atascado"
