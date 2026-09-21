@@ -593,3 +593,52 @@ def test_rechazos_distintos_siguen_intentandolo(tmp_path):
     # Guion anota antes de quedarse sin respuesta): tras cuatro fallos
     # distintos, el flujo seguía intentándolo.
     assert len(mecanico.prompts) == 13
+
+
+# --- Memoria del mejor diseño ----------------------------------------------
+#
+# Fallo real, el cuarto trinquete del 2026-09-21: en las rondas 11-16 la
+# rueda avanzaba 37-39° empujada por la uña; en la 17 el diseñador lo tiró
+# todo, y como cada ronda partía de la anterior, siguió empeorando hasta
+# agotar el dinero. Y lo que se entregó fue la ronda 21, la peor.
+
+
+def _peor(z):
+    """Una corrección que pasa la validación del agente pero ni se llega a
+    dibujar: declara el brazo con una caja de 80 mm y la pieza que se dibuja
+    mide 40. Está más lejos que un diseño que llega a barrer y choca."""
+    s = _correccion(z, cambio="rehago el brazo entero")
+    s["parts"][1]["bbox_max"] = [80, 5, 5]
+    return s
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_si_una_ronda_empeora_la_siguiente_parte_de_la_mejor(tmp_path):
+    mecanico = Guion([json.dumps(_spec(-2.0)),          # 1: llega a barrer, choca
+                      json.dumps(_peor(-2.0)),          # 2: peor, no llega a dibujarse
+                      json.dumps(_correccion(0.5))])    # 3: bien
+    informe = design_mechanism(
+        "un brazo", MechanismDesignerAgent(mecanico, CATALOGO, PERFIL, (235, 235, 250), 0.1),
+        PartDesignerAgent(DisenadorDePiezas(), CATALOGO),
+        tmp_path, _freecadcmd(), min_gap_mm=0.1, animar=False,
+    )
+    assert informe.ok and len(informe.rounds) == 3
+    ronda_3 = mecanico.prompts[2]
+    assert "diseño de la ronda 1" in ronda_3 and "PEOR" in ronda_3
+    assert "rehago el brazo entero" in ronda_3        # qué probó y no sirvió
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_si_no_sale_se_entrega_la_mejor_ronda_y_no_la_ultima(tmp_path):
+    mecanico = Guion([json.dumps(_spec(-2.0)), json.dumps(_peor(-2.0))])
+    informe = design_mechanism(
+        "un brazo", MechanismDesignerAgent(mecanico, CATALOGO, PERFIL, (235, 235, 250), 0.1),
+        PartDesignerAgent(DisenadorDePiezas(), CATALOGO),
+        tmp_path, _freecadcmd(), min_gap_mm=0.1, max_rounds=2, animar=False,
+    )
+    assert not informe.ok
+    entregado = json.loads((tmp_path / "mechanism.json").read_text(encoding="utf-8"))
+    brazo = next(p for p in entregado["parts"] if p["name"] == "brazo")
+    assert brazo["bbox_max"] == [35, 5, 5]           # el de la ronda 1, no el de 80 de la 2
+    assert (tmp_path / "assembly.FCStd").exists()
+    assert informe.final is not None

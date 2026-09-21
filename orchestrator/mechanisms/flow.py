@@ -14,6 +14,7 @@ es cuando más falta hace abrirlo.
 
 import json
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -22,12 +23,12 @@ from mech_toolkit.generators import CATALOGO
 from orchestrator.build import ConstruccionFallida, design_and_build
 from orchestrator.llm.cost import PresupuestoAgotado
 from orchestrator.llm.structured import SalidaInvalida
-from orchestrator.mechanisms.checks import (
-    joint_axis_problems, mechanism_problems, stop_problems)
-from orchestrator.mechanisms.contact import SinApoyo, block_problems, solve_contacts
+from orchestrator.mechanisms.checks import mechanism_problems
 from orchestrator.mechanisms.resumen import guardar_ronda, resumen_de_ronda
 from orchestrator.mechanisms.run import MechanismReport, build_mechanism
 from orchestrator.mechanisms.spec_layout import SpecLayout
+from orchestrator.mechanisms.verificacion import (
+    Verificacion, afinar, montar, puntuacion, verificar)
 from orchestrator.schemas.review import ReviewReport
 
 def _guardar_rechazados(destino: Path, intentos: list[dict]) -> None:
@@ -95,6 +96,63 @@ MAX_RONDAS_DE_REVISION = 2
 """Cuántas veces se le devuelven al diseñador los incumplimientos que ve el
 revisor. Su juicio no es aritmético (ADR-003): insistir sin límite puede no
 converger nunca."""
+
+
+MAX_FALLOS_PARA_AFINAR = 3
+"""Con más fallos que esto el problema no son los números: es el diseño, y
+lo decide el modelo. Afinar cuesta un barrido en FreeCAD por variante."""
+
+
+@dataclass
+class _Mejor:
+    ronda: int
+    nota: tuple
+    spec: object
+    texto: str
+    feedback: str
+
+
+def _guardar_spec(carpeta: Path, n: int, spec, spec_path: Path) -> str:
+    texto = spec.model_dump_json(indent=2)
+    (carpeta / "rondas" / str(n)).mkdir(parents=True, exist_ok=True)
+    (carpeta / "rondas" / str(n) / "mechanism.json").write_text(texto, encoding="utf-8")
+    spec_path.write_text(texto, encoding="utf-8")
+    return texto
+
+
+def _dibujar(spec, carpeta: Path, part_agent, hechas: dict, freecadcmd: str, presupuesto,
+             n: int, log) -> list[str]:
+    """El Part Designer dibuja las piezas que cambiaron; las que no, se
+    reutilizan. Devuelve los fallos de dibujo (renglones con «- »)."""
+    layout = SpecLayout(spec)
+    fallos = []
+    for p in spec.parts:
+        clave = (p.brief, tuple(p.bbox_min), tuple(p.bbox_max))
+        destino = carpeta / "parts" / p.name
+        if hechas.get(p.name) == clave and (destino / f"{p.name}.step").exists():
+            continue
+        if presupuesto is not None:
+            presupuesto.etapa(f"ronda {n} · pieza «{p.name}»")
+        log(f"    el Part Designer dibuja «{p.name}»…")
+        try:
+            receta, _ = design_and_build(
+                part_agent, p.brief, CATALOGO, destino, freecadcmd=freecadcmd,
+                # Sin trazabilidad (F1.16 (trazabilidad)): el enunciado trae cotas
+                # DERIVADAS ("la punta queda a 45 mm" de un enlace de 39) y la
+                # guardia obligaba a meterlas como parámetro (fallo real en el
+                # trinquete). Aquí manda la caja envolvente, que es más fuerte.
+                part=p.name,
+                check=lambda r, nombre=p.name: layout.check_bounds(nombre, r),
+                check_es_de_la_caja=True,
+            )
+            (destino / "recipe.json").write_text(receta.model_dump_json(indent=2), encoding="utf-8")
+            (destino / "brief.md").write_text(p.brief + "\n", encoding="utf-8")
+            hechas[p.name] = clave
+        except (ConstruccionFallida, SalidaInvalida) as e:
+            hechas.pop(p.name, None)
+            motivo = getattr(e, "motivo", str(e))
+            fallos.append(f"- la pieza «{p.name}» no se pudo dibujar como la describes: {motivo}")
+    return fallos
 
 
 class Round(BaseModel):
@@ -225,6 +283,9 @@ def design_mechanism(
     spec_path = carpeta / "mechanism.json"
 
     motivos_vistos: dict[str, int] = {}
+    mejor: _Mejor | None = None
+    ultima_con_spec = None
+    layout = None
     parada = "rondas"
     review = None
     revisiones = 0
@@ -272,103 +333,70 @@ def design_mechanism(
                 rechazo = (ultimo["respuesta"],
                            "Tu especificación no pasa la validación:\n" + motivo)
             continue
-        texto_spec = spec.model_dump_json(indent=2)
-        (carpeta / "rondas" / str(n)).mkdir(parents=True, exist_ok=True)
-        (carpeta / "rondas" / str(n) / "mechanism.json").write_text(texto_spec, encoding="utf-8")
-        spec_path.write_text(texto_spec, encoding="utf-8")
-        layout = SpecLayout(spec)
+        texto_spec = _guardar_spec(carpeta, n, spec, spec_path)
+        ultima_con_spec = n
         log(f"    «{spec.title}»: {len(spec.parts)} piezas, {len(spec.pins)} pasadores/ejes")
+
+        # Lo que el código decidió por su cuenta esta ronda: arreglos exactos
+        # del agente (piezas subidas a su holgura), del solucionador (búsquedas
+        # alargadas) y del afinado (números medidos). No cambian el diseño
+        # que eligió el modelo, pero tienen que quedar dichos.
+        ajustes: list[str] = list(getattr(mechanism_agent, "ajustes", []))
+        for nota in ajustes:
+            log(f"    arreglo automático: {nota}")
 
         # Antes de gastar FreeCAD: lo que el agente no puede dejar sin
         # verificar se ve en su propia declaración.
-        ajustes: list[str] = []  # lo que el solucionador decidió por su cuenta
         fallos = [f"- {x}" for x in mechanism_problems(spec, min_gap_mm)]
-        for p in [] if fallos else spec.parts:
-            clave = (p.brief, tuple(p.bbox_min), tuple(p.bbox_max))
-            destino = carpeta / "parts" / p.name
-            if hechas.get(p.name) == clave and (destino / f"{p.name}.step").exists():
-                continue
-            if presupuesto is not None:
-                presupuesto.etapa(f"ronda {n} · pieza «{p.name}»")
-            log(f"    el Part Designer dibuja «{p.name}»…")
-            try:
-                receta, _ = design_and_build(
-                    part_agent, p.brief, CATALOGO, destino, freecadcmd=freecadcmd,
-                    # Sin trazabilidad (F1.16 (trazabilidad)): el enunciado trae cotas
-                    # DERIVADAS ("la punta queda a 45 mm" de un enlace de 39) y la
-                    # guardia obligaba a meterlas como parámetro (fallo real en el
-                    # trinquete). Aquí manda la caja envolvente, que es más fuerte.
-                    part=p.name,
-                    check=lambda r, nombre=p.name: layout.check_bounds(nombre, r),
-                    check_es_de_la_caja=True,
-                )
-                (destino / "recipe.json").write_text(receta.model_dump_json(indent=2), encoding="utf-8")
-                (destino / "brief.md").write_text(p.brief + "\n", encoding="utf-8")
-                hechas[p.name] = clave
-            except (ConstruccionFallida, SalidaInvalida) as e:
-                hechas.pop(p.name, None)
-                motivo = getattr(e, "motivo", str(e))
-                fallos.append(f"- la pieza «{p.name}» no se pudo dibujar como la describes: {motivo}")
-
         if not fallos:
-            steps = {p.name: carpeta / "parts" / p.name / f"{p.name}.step" for p in spec.parts}
-            fallos = [f"- {x}" for x in joint_axis_problems(spec, steps, freecadcmd)]
+            fallos = _dibujar(spec, carpeta, part_agent, hechas, freecadcmd, presupuesto, n, log)
+        steps = {p.name: carpeta / "parts" / p.name / f"{p.name}.step" for p in spec.parts}
 
-        if not fallos and any(b.joint and b.joint.rest_on for b in spec.bodies):
-            # Las piezas que se apoyan encuentran su sitio en la geometría real
-            # ANTES de barrer: su movimiento no lo decide una fórmula.
-            log("    resolviendo apoyos por contacto…")
-            try:
-                solve_contacts(spec, layout.kin, steps, layout.pins(), freecadcmd, layout.frames(),
-                               notas=ajustes)
-                for nota in ajustes:
-                    log(f"    ajuste del solucionador: {nota}")
-            except SinApoyo as e:
-                fallos = [f"- {e}"]
-            else:
-                # Ahora que los apoyos están resueltos, los requisitos que
-                # dependían de ellos ya se pueden medir.
-                try:
-                    layout.kin.validate()
-                except ValueError as e:
-                    fallos = [f"- {e}"]
+        if fallos:
+            ver = Verificacion(Verificacion.PIEZAS, fallos, 0.0, SpecLayout(spec))
+        else:
+            log("    verificación: apoyos, barrido del recorrido completo, topes y bloqueos…")
+            ver = verificar(spec, steps, freecadcmd, min_gap_mm)
+            for nota in ver.ajustes:
+                log(f"    ajuste del solucionador: {nota}")
+            ajustes += ver.ajustes
+            # Si ya está cerca y lo que falla depende de números, los afina el
+            # código midiendo: los `params` solo entran en fórmulas, así que no
+            # hay que redibujar nada, solo volver a barrer.
+            if (ver.fallos and spec.params and ver.etapa >= Verificacion.APOYOS
+                    and len(ver.fallos) <= MAX_FALLOS_PARA_AFINAR):
+                if presupuesto is not None:
+                    presupuesto.etapa(f"ronda {n} · afinado")
+                log("    afinando los números sin el modelo…")
+                afinado = afinar(spec, ver, lambda s: verificar(
+                    s, steps, freecadcmd, min_gap_mm, comprobar_ejes=False))
+                if afinado is not None:
+                    spec, ver, notas = afinado
+                    for nota in notas:
+                        log(f"    {nota}")
+                    ajustes += notas + ver.ajustes
+                    texto_spec = _guardar_spec(carpeta, n, spec, spec_path)
+        layout = ver.layout
 
         montado = None  # el montaje de ESTA ronda, no el de una anterior
-        if fallos:
-            feedback = "\n".join(fallos)
-        else:
-            log("    ensamble y barrido del recorrido completo…")
-            final = montado = build_mechanism(
-                layout, carpeta, freecadcmd, min_gap_mm=min_gap_mm,
-                disenar=lambda nombre, c: None,  # ya dibujadas arriba
-                animar=False,
-            )
-            feedback = "\n".join(f"- {linea}" for linea in (
-                final.collision_summary()
-                + stop_problems(spec, layout, steps, freecadcmd)
-                + block_problems(spec, layout.kin, steps, layout.pins(), freecadcmd)))
-            ejes = {x.name for x in spec.pins}
-            atravesados = sorted({(c.a if c.b in ejes else c.b, c.b if c.b in ejes else c.a)
-                                  for c in final.collisions
-                                  if c.gap_mm < 0 and ({c.a, c.b} & ejes)})
-            for pieza, eje in atravesados:
-                feedback += (f"\n- «{eje}» atraviesa material de «{pieza}»: falta el agujero, "
-                             "no está en el eje del pasador, o el pasador es demasiado largo "
-                             "y se mete en otra pieza")
+        if ver.etapa == Verificacion.BARRIDO:
+            log("    ensamble…")
+            final = montado = montar(ver, steps, carpeta, freecadcmd, min_gap_mm)
+        feedback = "\n".join(ver.fallos)
 
-            # El juicio del revisor también es retroalimentación: un requisito
-            # incumplido que solo se cuenta al final no lo corrige nadie.
-            if not feedback and reviewer is not None and revisiones < MAX_RONDAS_DE_REVISION:
-                if presupuesto is not None:
-                    presupuesto.etapa(f"ronda {n} · revisión")
-                log("    revisión del diseño frente a tu petición…")
-                review = reviewer.review(peticion, spec, measurements(spec, layout, final))
-                incumplidos = review.por_veredicto("no_cumple")
-                if incumplidos:
-                    revisiones += 1
-                    feedback = "\n".join(
-                        f"- requisito del usuario sin cumplir — {i.requirement}: {i.comment}"
-                        for i in incumplidos)
+        # El juicio del revisor también es retroalimentación: un requisito
+        # incumplido que solo se cuenta al final no lo corrige nadie.
+        if not feedback and reviewer is not None and revisiones < MAX_RONDAS_DE_REVISION:
+            if presupuesto is not None:
+                presupuesto.etapa(f"ronda {n} · revisión")
+            log("    revisión del diseño frente a tu petición…")
+            review = reviewer.review(peticion, spec, measurements(spec, layout, final))
+            incumplidos = review.por_veredicto("no_cumple")
+            if incumplidos:
+                revisiones += 1
+                feedback = "\n".join(
+                    f"- requisito del usuario sin cumplir — {i.requirement}: {i.comment}"
+                    for i in incumplidos)
 
         plan = spec.fix_plan.model_dump() if spec.fix_plan else None
         rondas.append(Round(number=n, title=spec.title, feedback=feedback, plan=plan))
@@ -376,6 +404,14 @@ def design_mechanism(
         # proyecto sigue trabajando (F5.5 (web)).
         guardar_ronda(carpeta, resumen_de_ronda(n, spec, layout, montado, feedback,
                                                 ajustes=ajustes))
+
+        # La mejor ronda hasta ahora. Lo que dice el revisor cuenta como un
+        # fallo más: si lo hay, la ronda no está resuelta.
+        nota = puntuacion(Verificacion(ver.etapa, feedback.splitlines() if feedback else [],
+                                       ver.desvio))
+        if mejor is None or nota < mejor.nota:
+            mejor = _Mejor(n, nota, spec, texto_spec, feedback)
+
         if not feedback:
             parada = "resuelto"
             break
@@ -395,7 +431,36 @@ def design_mechanism(
                  "Cambia de enfoque: mueve piezas, cambia medidas o replantea el mecanismo."
                  if repetido > 1 else "")
         log(f"    ✗ vuelve al Mechanism Designer:\n{feedback}")
-        rechazo = (texto_spec, feedback + aviso)
+        if mejor.ronda != n:
+            # Fallo real (cuarto trinquete del 2026-09-21): en las rondas 11-16
+            # la rueda ya avanzaba 37-39° empujada por la uña; en la 17 el
+            # diseñador lo tiró todo y cada ronda siguiente partió de la
+            # anterior, peor. Ahora se parte SIEMPRE de la mejor, y se le dice
+            # qué probó y que no sirvió.
+            probado = f"«{plan['cambio']}»" if plan else "un diseño nuevo"
+            log(f"    ↩ quedó peor que la ronda {mejor.ronda}: la siguiente parte de ella")
+            rechazo = (mejor.texto, (
+                f"{mejor.feedback}\n\nOJO: este es el diseño de la ronda {mejor.ronda}, el más "
+                f"cercano hasta ahora. En la ronda {n} probaste {probado} y quedó PEOR:\n"
+                f"{feedback}\nNo repitas ese cambio: parte de este diseño y prueba otra cosa."
+                + aviso))
+        else:
+            rechazo = (texto_spec, feedback + aviso)
+
+    # Si no salió, se entrega la ronda MÁS CERCANA, no la última: tras
+    # empeorar, la última puede ser mucho peor que lo que se llegó a tener.
+    if parada != "resuelto" and mejor is not None and mejor.ronda != ultima_con_spec:
+        log(f"  ↩ no quedó resuelto: se monta la ronda {mejor.ronda}, la más cercana")
+        spec = mejor.spec
+        spec_path.write_text(mejor.texto, encoding="utf-8")
+        fallos = _dibujar(spec, carpeta, part_agent, hechas, freecadcmd, presupuesto,
+                          mejor.ronda, log)
+        if not fallos:
+            steps = {p.name: carpeta / "parts" / p.name / f"{p.name}.step" for p in spec.parts}
+            ver = verificar(spec, steps, freecadcmd, min_gap_mm)
+            layout = ver.layout
+            if ver.etapa == Verificacion.BARRIDO:
+                final = montar(ver, steps, carpeta, freecadcmd, min_gap_mm)
 
     if final is not None and animar and final.animation is None:
         # La animación, una vez y del último diseño montado. Al reescribir el

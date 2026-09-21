@@ -76,6 +76,42 @@ def _apoyadas_a_cero(spec: MechanismSpec, min_gap_mm: float) -> list[str]:
     ]
 
 
+
+def levantar_apoyadas(spec: MechanismSpec, min_gap_mm: float) -> list[str]:
+    """Aplica el arreglo que `_apoyadas_a_cero` solo describía: sube cada
+    pieza apoyada sin holgura justo lo que le falta. Modifica `spec` y
+    devuelve una nota por pieza.
+
+    Es exacto y no decide nada de diseño —la pieza queda donde estaba, una
+    décima más arriba—, así que no hace falta gastar una ronda del modelo en
+    sumar 0.10 a una coordenada (pasó en tres rondas de los trinquetes del
+    2026-09-20/21). Una pieza cuyo padre también sube no se sube dos veces.
+    """
+    if min_gap_mm <= 0:
+        return []
+    cajas = {p.name: (p.bbox_min, p.bbox_max) for p in spec.parts}
+    subir: dict[str, float] = {}
+    for p in spec.parts:
+        if p.joint is None and p.parent is None:
+            continue
+        base_z = p.origin[2] + cajas[p.name][0][2]
+        for otra in spec.parts:
+            if otra is p or otra.parent is not None:
+                continue
+            techo = otra.origin[2] + cajas[otra.name][1][2]
+            if 0 <= base_z - techo < min_gap_mm:
+                # Una milésima de más: justo en el límite, el redondeo del
+                # barrido podría volver a verlas pegadas.
+                subir[p.name] = techo + min_gap_mm - base_z + 0.001
+                break
+    notas = []
+    for p in spec.parts:
+        if p.name in subir and p.parent not in subir:
+            p.origin[2] += subir[p.name]
+            notas.append(f"el código subió «{p.name}» {subir[p.name]:.2f} mm: estaba apoyada "
+                         f"sin la holgura de {min_gap_mm:g} mm")
+    return notas
+
 def stop_problems(spec: MechanismSpec, layout, steps: dict[str, Path], freecadcmd: str,
                   max_gap_mm: float = 0.05) -> list[str]:
     """Cada tope declarado tiene que tocar en `at` y bloquear más allá."""

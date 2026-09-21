@@ -11,7 +11,7 @@ from pathlib import Path
 
 from mech_toolkit.profile import PrinterProfile
 from orchestrator.llm.structured import LlmClient, structured
-from orchestrator.mechanisms.checks import mechanism_problems
+from orchestrator.mechanisms.checks import levantar_apoyadas, mechanism_problems
 from orchestrator.mechanisms.kinematics import Kinematics
 from orchestrator.schemas.mechanism import MechanismSpec
 from orchestrator.schemas.recipe import GeneratorCatalog
@@ -30,6 +30,8 @@ class MechanismDesignerAgent:
         # pensamiento tiene todo `max_tokens` para el JSON (F3.15 (mecanismos)).
         self._reserva = reserva
         self._min_gap_mm = min_gap_mm
+        self.ajustes: list[str] = []
+        """Lo que el código arregló por su cuenta en la última propuesta."""
         self._instrucciones = prompt_path.read_text(encoding="utf-8").format(
             min_gap=f"{min_gap_mm:g}", bed=" × ".join(f"{v:g}" for v in bed_mm),
             profile_id=profile.id, clearance=f"{profile.fit_mm('clearance'):g}",
@@ -59,6 +61,9 @@ class MechanismDesignerAgent:
                     "qué cambias (con números) y qué esperas conseguir"
                 )
             Kinematics(spec).validate()
+            # Lo exacto lo arregla el código ANTES de juzgar: si no, cada
+            # «súbelas 0.10 mm» costaba un intento entero del modelo.
+            self.ajustes = levantar_apoyadas(spec, self._min_gap_mm)
             problemas = mechanism_problems(spec, self._min_gap_mm)
             if problemas:
                 raise ValueError("; ".join(problemas))
