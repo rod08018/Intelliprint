@@ -114,3 +114,16 @@ def test_ningun_secreto_acaba_en_la_configuracion():
     volumen y se copia, se inspecciona y se sube a donde no debe."""
     env = {**ENV, "TELEGRAM_BOT_TOKEN": "123:SECRETO", "DEEPSEEK_API_KEY": "sk-SECRETO"}
     assert "SECRETO" not in repr(lote_de_configuracion(env))
+
+
+def test_crafty_conversa_con_flash_por_defecto():
+    """OpenClaw pone deepseek-v4-pro con pensamiento alto: no ve imágenes
+    (comprobado: a una imagen roja contestó «Desconocido») y cuesta ~3.3
+    veces más en salida, solo para conversar. Decisión del usuario: Flash."""
+    lote = lote_de_configuracion(ENV)
+    assert _valor(lote, "agents.defaults.model.primary") == "deepseek/deepseek-flash"
+
+
+def test_el_modelo_de_crafty_se_cambia_desde_el_entorno():
+    lote = lote_de_configuracion({**ENV, "CRAFTY_MODEL": "deepseek/deepseek-v4-pro"})
+    assert _valor(lote, "agents.defaults.model.primary") == "deepseek/deepseek-v4-pro"

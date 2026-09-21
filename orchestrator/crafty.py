@@ -24,6 +24,8 @@ URL_INTELLIPRINT = "http://intelliprint-mcp:8200/mcp"
 """El servicio del compose. Dentro de la red de Docker se llama por su
 nombre; no se publica al host."""
 
+MODELO_POR_DEFECTO = "deepseek/deepseek-flash"
+
 ESPERA_MS = 180_000
 """Lo que puede tardar una llamada. config/openclaw/README.md ya pedía dos
 minutos: el servidor arranca FreeCAD y el primer modelo que contesta es el
@@ -52,8 +54,18 @@ def lote_de_configuracion(env) -> list[dict]:
             {"path": "channels.telegram.dmPolicy", "value": "open"},
             {"path": "channels.telegram.allowFrom", "value": ["*"]},
         ]
+    # El modelo con el que CONVERSA Crafty (Intelliprint usa el suyo). OpenClaw
+    # pone por defecto deepseek-v4-pro con pensamiento alto, que no ve
+    # imágenes —a una imagen roja contestó «Desconocido»— y cuesta ~3.3 veces
+    # más en salida. Para conversar y pasar encargos basta Flash, que sí las
+    # ve. Decisión del usuario (2026-09-21).
+    modelo = env.get("CRAFTY_MODEL") or MODELO_POR_DEFECTO
     return [
         {"path": "gateway.mode", "value": "local"},
+        # Lo mismo que hace `openclaw models set`: el modelo en el catálogo
+        # permitido y como principal (comprobado comparando su openclaw.json).
+        {"path": f"agents.defaults.models.{modelo}", "value": {}},
+        {"path": "agents.defaults.model.primary", "value": modelo},
         *acceso,
         # Un bot de un dueño: meterlo en un grupo no debe abrirlo a los
         # demás miembros.
