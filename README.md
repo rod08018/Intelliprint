@@ -4,11 +4,24 @@ Sistema multiagente local para diseñar piezas y mecanismos imprimibles en 3D us
 
 En el canal humano el sistema se llama **Crafty**: es la cara visible del orquestador, que por dentro coordina once agentes.
 
+Todo corre en contenedores menos PrusaSlicer, que se queda en tu PC porque es
+donde miras **qué vas a imprimir** antes de mandarlo a la máquina (ADR-014).
+
 ```bash
-.venv/bin/python scripts/demo.py "un soporte para NEMA17, placa de 60x60x6 con taladro central de 22"
+docker compose up -d web            # la interfaz:  http://localhost:8080
+docker compose up -d crafty         # Crafty en Telegram
+docker compose run --rm suite       # la suite, donde dice la verdad
+docker compose run --rm orchestrator mecanismo peticion.md --archivo
 ```
 
-Esa demo recorre lo que ya funciona: admisión con confirmación, diseño por receta y construcción real en FreeCAD. Todavía no lamina, no pasa QA y no habla por Telegram — ver el plan.
+Y en el PC, para que el contenedor pueda usar tu PrusaSlicer:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start-host-mcps.ps1
+```
+
+Antes de nada: `cp .env.example .env` y rellenarlo. Sin `TELEGRAM_ALLOWED_USERS`
+el canal no arranca, a propósito (F5.10 (lista)).
 
 - [Arquitectura del sistema multiagente](SISTEMA_MULTIAGENTE.md) — qué es el sistema y cómo funciona
 - [Plan del proyecto](PLAN_PROYECTO.md) — fases, tareas y criterios de aceptación

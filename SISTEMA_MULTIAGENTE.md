@@ -471,6 +471,33 @@ Lo que **no** hace: medir. Un modelo de visión no distingue una pared de 0.9 mm
 
 ## 8. Despliegue en Docker
 
+> ⚠️ **Esta sección describe el diseño ORIGINAL; el montaje real es otro
+> (ADR-014, 2026-09-20).** Lo que cambió, y por qué:
+>
+> - **FreeCAD va DENTRO del contenedor**, no en el host. No hay una sola llamada
+>   a `FreeCADGui` en producción: `build.py`, `assembly.py` y `animation.py`
+>   lanzan `freecadcmd`, que es headless. Meterlo dentro es lo que hace el
+>   sistema reproducible. La «instancia GUI» de § 8.3 y § 9.3 sigue existiendo,
+>   pero es el FreeCAD del escritorio de la persona, no algo que el sistema
+>   lance.
+> - **PrusaSlicer se queda fuera, en el PC**, porque es donde la persona mira
+>   qué va a imprimir. El contenedor se lo pide por `scripts/host_bridge.py`
+>   (puerto 8102, el que § 8.2 reservaba), que arranca
+>   `scripts/start-host-mcps.ps1`.
+> - **No hay `mcp-proxy` ni MCP de FreeCAD.** Un MCP entre el orquestador y
+>   `freecadcmd`, que están en el mismo contenedor, no tendría consumidor.
+> - **No hay `qdrant`**: el RAG (F2.19) no existe todavía, y un servicio que no
+>   usa nadie es ruido.
+> - **`mech-toolkit` y `sim` no son servicios aparte** (F2.1 sin hacer): se
+>   instalan junto al orquestador, como dice `pyproject.toml`.
+> - Se suman tres servicios que esta sección no preveía: la **interfaz web**
+>   (F5.5 (web)), **`intelliprint-mcp`** sirviendo por HTTP a Crafty, y
+>   **`crafty-config`**, que genera la configuración de Crafty desde el `.env`.
+>
+> El `docker-compose.yml` de verdad está en la raíz del repositorio. Lo de abajo
+> se conserva porque explica el reparto que se pensó y contra el que se decidió.
+
+
 ### 8.1 Topología
 
 ```

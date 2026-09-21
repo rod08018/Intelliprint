@@ -30,7 +30,9 @@ services:
       # buscar un .exe de Windows que nunca va a estar.
       PRUSASLICER: ""
       INTELLIPRINT_WORKSPACE: /workspace
-      OLLAMA_URL: http://ollama:11434
+      # El contenedor `ollama` que ya corre en esta máquina, visto desde
+      # aquí. Con el servicio `ollama` de abajo sería http://ollama:11434.
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
     volumes:
       # El trabajo de la persona. Montado, nunca copiado: lo que el sistema
       # diseña tiene que poder abrirse con el FreeCAD del escritorio, y sus
@@ -153,12 +155,23 @@ services:
 
   # Modelos locales en la RTX 5090.
   #
-  # Está listo pero NO en uso: el perfil activo sigue siendo `dev`
-  # (DeepSeek). Cambiarlo es F0.11 (migrar), que además necesita el cliente
-  # de Ollama, y hoy `cli.py` sale con un error claro si el perfil no es
-  # DeepSeek. Dejarlo definido aquí es lo que hace que F0.11 sea un cambio
-  # de una variable y no una tarde de montaje.
+  # ESTE SERVICIO NO SE LEVANTA POR DEFECTO, y no es un olvido: esta máquina
+  # YA tiene un contenedor `ollama` propio, con la GPU y con qwen3.8
+  # descargado. Arrancar otro sería una segunda copia de 17 GB peleando por
+  # la misma tarjeta, y además el puerto 11434 ya está cogido.
+  #
+  # Por eso OLLAMA_URL apunta al que ya existe, a través del host. Este de
+  # aquí queda para una máquina donde no haya ninguno:
+  #
+  #   docker compose --profile ollama up -d ollama
+  #
+  # Ninguno de los dos está EN USO todavía: el perfil activo sigue siendo
+  # `dev` (DeepSeek). Cambiarlo es F0.11 (migrar), que además necesita el
+  # cliente de Ollama; hoy cli.py sale con un error claro si el perfil no
+  # es DeepSeek. Esto es lo que hace que F0.11 sea un cambio de variable y
+  # no una tarde de montaje.
   ollama:
+    profiles: ["ollama"]
     image: ollama/ollama:latest
     environment:
       # El modelo de diseño y el del QA residentes a la vez (§ 6.1): si se

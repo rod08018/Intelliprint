@@ -13,48 +13,66 @@ esa máquina se pierde o se cambia de ordenador, se pierden con ella.
 | `INTELLIPRINT.md` | Cómo atiende Crafty: cuándo preguntar, cuándo lanzar, qué mandar, qué hacer si un proyecto se bloquea | `~/.openclaw/workspace/INTELLIPRINT.md` |
 | `IDENTITY.md` | Quién es Crafty y en qué tono habla | `~/.openclaw/workspace/IDENTITY.md` |
 
-Al cambiarlos aquí hay que copiarlos allí (y al revés, si se editan en caliente):
+En Docker se copian solos en cada arranque del contenedor: se editan **aquí**,
+que es donde los versiona git, y el cambio llega con `docker compose restart
+crafty`. Copiarlos a mano solo hace falta en una instalación nativa:
 
 ```bash
 cp config/openclaw/*.md ~/.openclaw/workspace/
 ```
 
-## Levantarlo en otro ordenador
+## Levantarlo: `docker compose up -d crafty`
 
-**Nada de esto viaja por git.** Ni los secretos, ni `~/.openclaw/`, ni
-`workspace/` (proyectos generados), ni el entorno de Python. Lo que sigue es lo
-mínimo para que el canal vuelva a funcionar.
+Crafty corre en su propio contenedor, con la imagen oficial de OpenClaw fijada a
+una versión. **Ya no hay nada que configurar a mano**: su configuración sale del
+`.env` (`orchestrator/crafty.py`, con tests) y se aplica en cada arranque.
 
-1. **Intelliprint**: clonar el repositorio, crear el entorno e instalarlo, y
-   tener FreeCAD con `freecadcmd` en el PATH.
-2. **Secretos**: copiar `.env.example` a `.env` y pegar a mano la clave de
-   DeepSeek. Se llevan **por un canal seguro, nunca por el repositorio**: están
-   en `.gitignore` por eso mismo.
-3. **OpenClaw**: instalarlo, dar de alta al agente Crafty y copiarle los dos
-   `.md` de esta carpeta a su workspace.
-4. **Registrar el MCP** en `~/.openclaw/openclaw.json`. Las rutas son absolutas,
-   así que hay que **adaptarlas** al sitio donde quedó el repositorio:
-
-```json
-{
-  "mcp": {
-    "servers": {
-      "intelliprint": {
-        "command": "<repo>/.venv/bin/intelliprint-mcp",
-        "cwd": "<repo>",
-        "connectionTimeoutMs": 120000,
-        "requestTimeoutMs": 120000
-      }
-    }
-  }
-}
+```bash
+docker compose up -d crafty
 ```
 
-Los dos minutos de espera no sobran: el servidor arranca FreeCAD y el primer
-modelo que responde es el razonador, que piensa varios minutos antes de hablar.
+Lo que hace falta en `.env`:
 
-5. **Telegram**: el token del bot va en `channels.telegram.botToken`, y el dueño
-   del canal en `commands.ownerAllowFrom`.
+| Variable | Para qué |
+|---|---|
+| `DEEPSEEK_API_KEY` | El modelo con el que **conversa** Crafty (Intelliprint usa el suyo) |
+| `TELEGRAM_BOT_TOKEN` | El bot de @BotFather |
+| `TELEGRAM_ALLOWED_USERS` | **Quién puede escribirle.** Sin esto Crafty no arranca (F5.10 (lista)) |
+| `OPENCLAW_GATEWAY_TOKEN` | Protege el gateway de OpenClaw; cualquier cadena larga y aleatoria |
+
+Ningún secreto se guarda en `openclaw.json`: la clave y los tokens quedan como
+**referencias** a variables de entorno. Ese archivo vive en un volumen, y un
+volumen se copia, se inspecciona y acaba subido a donde no debe.
+
+### Las tres piezas
+
+```
+  crafty-config   genera la configuración desde el .env  (un solo paso, y termina)
+        │
+  crafty          OpenClaw + Telegram  ──MCP por HTTP──►  intelliprint-mcp
+                                                          (FreeCAD, los agentes)
+```
+
+En el Mac, Crafty lanzaba `intelliprint-mcp` como subproceso por stdio. En
+contenedores no puede: el binario, FreeCAD y el modelo viven en **otra imagen**.
+Así que Intelliprint sirve su MCP por HTTP en la red interna del compose y Crafty
+lo llama por URL. No se publica ningún puerto al host: ese servidor lanza
+proyectos que gastan dinero.
+
+Los archivos que Crafty te manda (el GIF, el ensamble) pasan por un **buzón**: un
+volumen montado en los dos contenedores **en la misma ruta**, así que las rutas
+que devuelve el MCP valen tal cual al otro lado.
+
+Los dos `.md` de esta carpeta se copian al workspace de Crafty en **cada
+arranque**: se editan aquí, que es donde los versiona git, y un cambio llega con
+reiniciar el contenedor.
+
+### Quién puede hablarle
+
+`TELEGRAM_ALLOWED_USERS` es la **única** fuente: la misma lista cierra el bot
+propio de Intelliprint y a Crafty. De ahí sale `dmPolicy: allowlist` con tus ids,
+`groupPolicy: disabled` —meterlo en un grupo no lo abre a los demás miembros— y
+`commands.ownerAllowFrom`. Tu id numérico te lo dice @userinfobot.
 
 ### Un bot, un ordenador
 
@@ -62,12 +80,14 @@ Telegram entrega cada mensaje **una sola vez**. Dos OpenClaw con el mismo token
 se pelean por los mensajes y el canal se vuelve errático: unos llegan a uno y
 otros al otro.
 
-Antes de levantarlo en la máquina nueva, **para el de la vieja**. En macOS es un
+Antes de levantarlo aquí, **para el de la máquina vieja**. En macOS era un
 LaunchAgent (`ai.openclaw.gateway`):
 
 ```bash
 launchctl bootout gui/$(id -u)/ai.openclaw.gateway
 ```
+
+Y el de aquí se para con `docker compose stop crafty`.
 
 Si se quiere tener las dos máquinas a la vez, hace falta **un bot distinto** en
 cada una (otro token de @BotFather).

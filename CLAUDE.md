@@ -33,16 +33,37 @@ en FreeCAD y **verifica que funcionan** antes de que nadie imprima nada.
 
 ## Órdenes
 
+El sistema vive en contenedores (ADR-014). La suite se corre **ahí**: nativa en
+Windows caen 9 tests que no son del código, sino de que `/bin/sh` y los procesos
+zombi no existen igual.
+
 ```bash
-.venv/bin/python -m pytest -q                      # suite rápida (la que corre siempre)
-.venv/bin/python -m pytest -m "gui or llm" -q      # abre FreeCAD de verdad / gasta modelo
-.venv/bin/python -m orchestrator.cli mecanismo <peticion.md> --archivo
-.venv/bin/python -m orchestrator.cli animar <carpeta-del-proyecto>
+docker compose run --rm suite                       # la suite rápida
+docker compose run --rm orchestrator mecanismo peticion.md --archivo
+docker compose run --rm orchestrator animar <carpeta-del-proyecto>
+docker compose up -d web                            # http://localhost:8080
+docker compose up -d crafty                         # Telegram
 ```
 
-Los tests `gui` abren ventanas de FreeCAD y los `llm` cuestan dinero: fuera de
-la suite rápida, pero hay que pasarlos antes de cerrar una tarea que toque
-FreeCAD, el laminado o un agente.
+En el PC, para que el contenedor pueda laminar en tu PrusaSlicer:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start-host-mcps.ps1
+```
+
+Los tests `gui` abren ventanas de FreeCAD y **solo pueden correr en el host**,
+igual que los que laminan de verdad; los `llm` cuestan dinero. Hay que pasarlos
+antes de cerrar una tarea que toque FreeCAD, el laminado o un agente:
+
+```powershell
+$env:FREECADCMD = "C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe"
+$env:PRUSASLICER = "C:\Program Files\Prusa3D\PrusaSlicer\prusa-slicer-console.exe"
+$env:PYTHONUTF8 = "1"
+.venv\Scripts\python.exe -m pytest -m "gui or llm" -q
+```
+
+**En Windows hace falta `PYTHONUTF8=1`.** Sin él, Python lee los archivos como
+cp1252 y cualquier acento del repo revienta: son 10 tests de diferencia.
 
 ## Dónde está escrito qué
 
@@ -59,30 +80,46 @@ test lo comprueba: si la cita no cuadra con el plan, la suite se pone roja.
 
 ## Por dónde iba esto
 
-Lo último fue endurecer el diseño de mecanismos para que el ensamble **demuestre**
-que funciona en vez de declararlo:
+**2026-09-20: el sistema se mudó a la PC de la RTX 5090 y entró en contenedores.**
 
-- Las piezas empujadas se mueven por contacto (`rest_on`), y con `carry` recuerdan
-  dónde quedaron. El valor lo busca la geometría real en FreeCAD.
-- Los bloqueos (`blocks`) se comprueban forzando la articulación: si no se
-  atravesarían, el bloqueo es mentira.
-- **No se puede declarar que algo impide moverse a una pieza cuyo movimiento
-  impones tú con una fórmula.** Esta regla es nueva y **todavía no se ha
-  ejercitado en una ejecución real**: el trinquete hay que relanzarlo para que
-  el agente se vea obligado a mover la rueda por contacto.
+- **FreeCAD dentro, PrusaSlicer fuera** (ADR-014). FreeCAD es una herramienta
+  interna —construye y calla—; PrusaSlicer es donde la persona mira qué va a
+  imprimir, así que sigue siendo el suyo y el contenedor se lo pide por un
+  puente MCP en el host (`scripts/host_bridge.py`).
+- **La interfaz web** (F5.5 (web), parcial): lista de proyectos, descarga en zip
+  y un botón que abre PrusaSlicer con las piezas y el perfil cargados.
+- **El canal ya no nace abierto**: ADR-012 saldada con F5.10 (lista).
+  `TELEGRAM_ALLOWED_USERS` cierra el bot propio y a Crafty con la misma lista.
+- **Crafty vive en su contenedor**, con la configuración generada desde el `.env`
+  y ningún secreto en `openclaw.json`.
+
+Antes de eso, lo último había sido endurecer el diseño de mecanismos para que el
+ensamble **demuestre** que funciona en vez de declararlo: apoyos por contacto
+(`rest_on`), bloqueos comprobados forzando la articulación, y la regla de que no
+se puede declarar que algo frena a una pieza cuyo movimiento impones con una
+fórmula. **Esa regla sigue sin ejercitarse en una ejecución real.**
 
 ### Lo que quedó pendiente
 
+0. **Comprobar los modelos de DeepSeek antes que nada.** La documentación de
+   DeepSeek ya solo lista `deepseek-flash` y `deepseek-v4-pro`, y
+   `config/models.yaml` usa `deepseek-chat` y `deepseek-reasoner`. Si están
+   retirados, el perfil `dev` entero está muerto y no hay agente que funcione.
+   Se resuelve con una llamada en cuanto haya clave.
 1. **Relanzar el trinquete** (`tests/e2e/retos/2_trinquete.md`) y comprobar que la
    rueda avanza por contacto. Es lo último del diagnóstico sin probar de verdad.
-2. **Relanzar el mecanismo de Ginebra**: murió porque deepseek-reasoner agotó
-   `max_tokens` tres veces. Ahora existe la reserva (tras dos cortes contesta el
-   modelo sin pensamiento), pero **nadie la ha visto entrar en una ejecución real**.
+2. **Relanzar el mecanismo de Ginebra**: murió porque el razonador agotó
+   `max_tokens` tres veces. La reserva existe (tras dos cortes contesta el modelo
+   sin pensamiento), pero **nadie la ha visto entrar en una ejecución real**.
 3. **Decidir el tope de gasto.** Los 2 USD de `max_usd_per_project` los puse yo
    por defecto en el primer commit; el usuario preguntó quién decidió ese valor y
    no se eligió otro.
 4. **Los demás retos** (leva, gato de tijera, prensa) no se han relanzado con el
    conjunto completo de mejoras.
+5. **F0.11 (migrar) es la deuda mayor que queda.** La 5090 está aquí y Ollama
+   corre con ella, pero falta el cliente de Ollama y revalidar la suite con
+   modelos locales.
+6. **Los botones de gate** de la interfaz web, que es lo que cierra F5.5 (web).
 
 Cada proyecto deja su coste desglosado en `design_cost.md`, y si se detiene sin
 resolver, un parte en `blocked.md` con la imagen de la pose donde falla.

@@ -225,7 +225,16 @@ La corrección mantiene el principio de la ADR. **La cinemática de un mecanismo
 
 ## ADR-012 · El canal de Telegram nace abierto — deuda con fecha
 
-**Estado:** aceptada, **temporal** · **Afecta a:** § 8.5; F5.6, F5.9, `.env`
+**Estado:** **SALDADA el 2026-09-20** (era aceptada, temporal) · **Afecta a:** § 8.5; F5.6, F5.9, `.env`
+
+> **Saldada por F5.10 (lista).** `TELEGRAM_ALLOWED_USERS` es obligatoria y es la
+> **única** fuente de quién puede escribir: cierra el bot propio de Intelliprint
+> y a Crafty, con la misma lista. Vacía no significa «todos», significa que nadie
+> decidió: sin lista, ninguno de los dos arranca. Solo ids numéricos, porque un
+> @alias se cambia y lo puede coger otra persona. Al ajeno no se le contesta nada,
+> ni «no tienes permiso»: contestar confirma que el bot existe y está vivo. Y en un
+> grupo cuenta quién escribe, no el grupo. Lo de abajo se conserva porque explica
+> **por qué** había que cerrarlo.
 
 **Decisión.** Durante el desarrollo, el bot acepta mensajes de cualquiera: sin lista blanca. **Antes de usarlo de verdad hay que cerrarlo** a `TELEGRAM_ALLOWED_USERS`.
 
@@ -318,3 +327,36 @@ Es una decisión de **agotamiento, no de preferencia**: el razonador sigue siend
 **Design Reviewer (ampliación).** Un agente compara la petición literal, requisito por requisito, con lo que MIDIÓ el código. Sus veredictos son `cumple`, `no_cumple` y `no_verificable`; este último es el importante, porque marca lo que hoy nadie comprueba. **No aprueba nada** (ADR-003): es un informe para la persona. Cuando el perfil tenga modelo con visión podrá mirar además los fotogramas.
 
 **Límite conocido.** Que un diseño pase todas las comprobaciones no significa que sea lo que el usuario imaginaba. La primera bisagra aprobada era en realidad un pivote en plano. Juzgar eso necesita un revisor con visión (capa 3 del QA, § 7.1), que el perfil dev no tiene. Hasta entonces, el GIF lo revisa el usuario.
+
+
+---
+
+## ADR-014 · FreeCAD dentro del contenedor, PrusaSlicer fuera
+
+**Estado:** aceptada · **Afecta a:** § 8.1, § 8.2, § 8.4; F0.2, F0.4, F0.5, F0.7, ADR-004 (enmienda)
+
+**Problema.** El sistema solo existía como instalación hecha a mano en un ordenador: rutas absolutas en el registro del MCP, un LaunchAgent que solo existe en macOS, secretos copiados a mano, y ningún test que lo cubriera. Era la deuda que más se parecía a volverse permanente, porque no duele hasta el día que cambias de máquina. Ese día llegó: el proyecto se movió a la PC de la RTX 5090, con Windows.
+
+**Lo que la arquitectura decía (§ 8.2).** FreeCAD y PrusaSlicer se quedan en el host y se exponen por HTTP con `mcp-proxy`; el orquestador, dentro del contenedor, «solo ve URLs». Nunca se construyó. Al mirar el código se ve por qué nadie lo echó de menos: **no hay una sola llamada a `FreeCADGui` en producción**. `build.py`, `assembly.py` y `animation.py` lanzan `freecadcmd`, que es headless.
+
+**Decisión.** Los dos programas no juegan el mismo papel, así que no reciben el mismo trato:
+
+| | Papel | Dónde vive | Por qué |
+|---|---|---|---|
+| **FreeCAD** | Herramienta **interna**: construye y calla | **Dentro** del contenedor | Nadie la mira trabajar. Meterla dentro es lo que hace el sistema reproducible |
+| **PrusaSlicer** | Donde la persona **mira qué va a imprimir** antes de mandarlo | **Fuera**, en el PC | Tiene que ser el suyo, con su versión y sus ajustes, no una copia escondida en una imagen |
+
+Va FreeCAD **1.1.3**, la misma versión que el escritorio. Debian empaqueta la 1.0 y el código se escribió contra la 1.1: bajar de versión separaría lo que construye el sistema de lo que abre la persona, justo lo que el contenedor viene a evitar.
+
+**El puente.** El contenedor le pide el laminado al host por un MCP propio (`scripts/host_bridge.py`, puerto 8102, el que F0.4 reservaba para PrusaSlicer), que arranca `scripts/start-host-mcps.ps1` —el script que `scripts/README.md` prometía desde el primer día—. El orquestador traduce las rutas con `HOST_WORKSPACE` (F0.7) antes de llamar. El puente **vuelve a comprobarlas**, aunque el otro lado ya lo haya hecho: el que ejecuta no puede delegar la comprobación en el que pide. Y el perfil de laminado se pide **por nombre**, resuelto en `config/slicing/`; si el contenedor pudiera mandar la ruta, estaría eligiendo qué archivo del host se lee.
+
+**Lo que no se construyó, y por qué no.** No hay puente para FreeCAD (F0.5 hablaba de «ambos MCP»). Un MCP entre el orquestador y `freecadcmd`, que están en el **mismo** contenedor, sería una capa sin consumidor.
+
+**Enmienda a ADR-004.** «Construcción headless, inspección con GUI» sigue en pie, pero la instancia con interfaz ya no es del sistema: es el FreeCAD del escritorio, con el que la persona abre los `.FCStd` que el contenedor deja en `workspace/`, montado desde el host. Ningún código lanza una GUI.
+
+**Medido al montarlo:**
+- Suite nativa en Windows: **19 fallos**, ninguno del sistema. Tres cosas del sistema operativo: `open()` sin `encoding` se lee como cp1252 y no como UTF-8 (con `PYTHONUTF8=1` bajan a 9), algún test llama a `/bin/sh`, y un proceso zombi no se comporta igual. En el contenedor: **verde**. El contenedor es donde la suite dice la verdad sobre el código.
+- `core.autocrlf=true` entregó el corpus de referencia con CRLF y su SHA256 dejó de cuadrar. El archivo estaba intacto; lo había tocado git. Lo arregla `.gitattributes`.
+- Windows PowerShell 5.1 lee un `.ps1` sin BOM como cp1252: un guion largo acabó en `0x94`, que allí es una comilla doble, y el script no llegó a analizarse. Un test exige que todo `.ps1` sea ASCII puro.
+
+**Lo que sigue sin resolverse.** El PrusaSlicer del PC es **2.9.6** y el laminado lo hace él; no hay una segunda versión en juego. Pero si alguien levanta esto en una máquina sin PrusaSlicer, no hay laminado: el puente es obligatorio, no opcional. Se ve en la suite, donde tres tests se saltan dentro del contenedor y solo pasan en el host.
