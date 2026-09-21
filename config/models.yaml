@@ -72,12 +72,31 @@ agents:
   slicing:        {model: $design}
   default:        {model: $design, escalate_to: deepseek, escalate_after_failures: 2}
 
-# Precios aproximados, solo para el tope de gasto (F5.12 (tope)). Cambian con el
+# Precios por millón de tokens, para el tope de gasto (F5.12 (tope)). Cambian con el
 # proveedor: por eso viven aquí y no en el código. Un modelo sin precio no
 # cuenta para el tope (los locales no cuestan dinero).
+#
+# Comprobado contra api-docs.deepseek.com el 2026-09-20. Dos cosas que no se
+# veían desde aquí:
+#
+# 1. `deepseek-chat` y `deepseek-reasoner` YA NO SON MODELOS: son alias que
+#    DeepSeek mantiene desde que los retiró el 2026-07-24. A los dos los sirve
+#    `deepseek-flash` (V4.1 Flash); `chat` con el pensamiento apagado y
+#    `reasoner` con él encendido. Comprobado llamándolos: la respuesta dice
+#    `"model": "deepseek-flash"`. Así que se cobran como Flash.
+#
+# 2. Estos precios eran 0.28 / 0.42 y la salida real cuesta 1.20 en hora punta
+#    y 0.60 fuera de ella. En este sistema casi todo el gasto es SALIDA —el
+#    razonador piensa decenas de miles de tokens—, así que el coste salía entre
+#    1.4 y 2.9 veces corto, y el tope de «2 USD» dejaba gastar hasta unos 5.
+#
+# Se usa el precio de HORA PUNTA (01-04 y 06-10 UTC, laborables): para un tope
+# de gasto, equivocarse hacia arriba es lo seguro. Fuera de punta, la mitad.
 pricing:
-  deepseek-chat:     {in_usd_per_mtok: 0.28, out_usd_per_mtok: 0.42}
-  deepseek-reasoner: {in_usd_per_mtok: 0.28, out_usd_per_mtok: 0.42}
+  deepseek-chat:     {in_usd_per_mtok: 0.30, out_usd_per_mtok: 1.20}
+  deepseek-reasoner: {in_usd_per_mtok: 0.30, out_usd_per_mtok: 1.20}
+  deepseek-flash:    {in_usd_per_mtok: 0.30, out_usd_per_mtok: 1.20}
+  deepseek-v4-pro:   {in_usd_per_mtok: 1.32, out_usd_per_mtok: 3.96}
 
 escalation:
   max_usd_per_project: 2.0
