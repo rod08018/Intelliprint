@@ -116,9 +116,20 @@ fórmula. **Esa regla sigue sin ejercitarse en una ejecución real.**
    no se eligió otro.
 4. **Los demás retos** (leva, gato de tijera, prensa) no se han relanzado con el
    conjunto completo de mejoras.
-5. **F0.11 (migrar) es la deuda mayor que queda.** La 5090 está aquí y Ollama
-   corre con ella, pero falta el cliente de Ollama y revalidar la suite con
-   modelos locales.
+5. **F0.11 (migrar) es la deuda mayor que queda.** La 5090 está aquí, Ollama
+   corre con ella y los dos modelos del perfil `prod` están descargados
+   (`qwen3.8` y `gemma3:12b`, comprobado al 100% en GPU). Falta el cliente de
+   Ollama y revalidar la suite con modelos locales.
+
+   **Y algo que hay que decidir antes:** el contenedor `ollama` de esta máquina
+   no es del compose de Intelliprint —es uno anterior, de otro proyecto— y trae
+   `OLLAMA_MAX_LOADED_MODELS=1`. Con ese valor los dos modelos NO conviven:
+   cargar el del QA descarga el de diseño, y cada turno que alterne paga una
+   recarga de 17 GB. § 6.1 pide dos residentes. Caben (17 + 8.9 GB en 32), pero
+   subirlo a 2 obliga a recrear ese contenedor, que es de otro proyecto. Las dos
+   salidas: cambiarlo allí, o levantar el servicio `ollama` del compose
+   (`docker compose --profile ollama up -d ollama`), que ya lo trae en 2 a costa
+   de una segunda copia de los modelos.
 6. **Los botones de gate** de la interfaz web, que es lo que cierra F5.5 (web).
 
 Cada proyecto deja su coste desglosado en `design_cost.md`, y si se detiene sin
