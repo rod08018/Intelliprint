@@ -179,3 +179,36 @@ def test_sin_reserva_el_razonador_agota_sus_intentos_como_antes():
     with pytest.raises(SalidaInvalida, match="max_tokens"):
         structured(razonador, "algo", Pieza)
     assert len(razonador.prompts) == 3
+
+
+# --- Lo que se rechazó no se tira ------------------------------------------
+#
+# Fallo real al relanzar el trinquete (2026-09-20): el Mechanism Designer no
+# sacó una especificación válida en 3 intentos y el proyecto se paró. Las
+# tres respuestas se habían tirado: no había forma de saber si fallaba el
+# modelo o la regla que lo rechazaba. Archivar no es borrar.
+
+
+def test_agotar_los_intentos_conserva_cada_respuesta_y_su_motivo():
+    respuestas = ['{"nombre": "a"}', "esto no es json", '{"nombre": "c"}']
+    with pytest.raises(SalidaInvalida) as fallo:
+        structured(ClienteGuionizado(respuestas), "diseña un dedo", Pieza)
+
+    intentos = fallo.value.intentos
+    assert [i["respuesta"] for i in intentos] == respuestas
+    assert all("alto_mm" in i["error"] or "JSON" in i["error"] or "json" in i["error"]
+               for i in intentos)
+    assert [i["intento"] for i in intentos] == [1, 2, 3]
+
+
+def test_un_intento_cortado_queda_registrado_sin_respuesta():
+    from orchestrator.llm.providers.deepseek import RespuestaCortada
+
+    class Cortado:
+        def complete(self, prompt):
+            raise RespuestaCortada("deepseek-reasoner agotó max_tokens=393216")
+
+    with pytest.raises(SalidaInvalida) as fallo:
+        structured(Cortado(), "x", Pieza)
+    assert fallo.value.intentos[0]["respuesta"] is None
+    assert "max_tokens" in fallo.value.intentos[0]["error"]

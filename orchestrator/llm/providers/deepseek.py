@@ -21,6 +21,9 @@ def _sin_bloque_de_codigo(texto: str) -> str:
     return texto.strip()
 
 
+MAX_TOKENS_RAZONADOR = 393_216
+"""El límite de la API de DeepSeek para max_tokens (ver el constructor)."""
+
 class RespuestaCortada(RuntimeError):
     pass
 
@@ -58,14 +61,26 @@ class DeepSeekClient:
         # El modelo de razonamiento piensa antes de responder: minutos, no
         # segundos, y su pensamiento cuenta dentro de max_tokens.
         razona = "reasoner" in model
-        # Plazo total de una llamada, de principio a fin. El de razonamiento
-        # piensa varios minutos; más allá de esto, algo va mal.
-        self._deadline_s = deadline_s if deadline_s is not None else (1200.0 if razona else 300.0)
+        # Plazo total de una llamada, de principio a fin. Tiene que dejar
+        # tiempo para generar TODO el techo de salida, o el techo es de adorno
+        # y el corte lo da este reloj en vez de DeepSeek. Medido el
+        # 2026-09-20: 318 tokens/s; los 393 216 tardan ~21 min, y en hora
+        # punta más. Con 1200 s el techo real se quedaba en ~381 000. 45 min
+        # es el doble de lo medido.
+        self._deadline_s = deadline_s if deadline_s is not None else (2700.0 if razona else 300.0)
         self._intentos_de_red = intentos_de_red
         self._espera_reintento_s = espera_reintento_s
-        # Medido en la bisagra: ~30 000 tokens de pensamiento. Con 32 768 se
-        # quedaba sin sitio y devolvía la respuesta vacía (finish_reason=length).
-        self._max_tokens = 65536 if razona else 8192
+        # El máximo que admite la API: «the valid range of max_tokens is
+        # [1, 393216]», comprobado el 2026-09-20. Su pensamiento cuenta DENTRO
+        # de max_tokens y lo decide él, no el prompt.
+        #
+        # Historia, porque explica el número: con 32 768 la bisagra devolvía
+        # la respuesta vacía; con 65 536 el Ginebra se cortó tres veces
+        # seguidas y el proyecto murió sin diseño. ADR-013 dio 64K por el
+        # techo de DeepSeek, y no lo era. Por decisión del usuario, se pide
+        # el máximo; el tope de gasto por proyecto sigue acotando el coste
+        # (una llamada llena son ~0.47 USD en hora punta).
+        self._max_tokens = MAX_TOKENS_RAZONADOR if razona else 8192
         self._razona = razona
         self._cliente = httpx.Client(
             base_url=base_url,

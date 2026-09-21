@@ -21,7 +21,17 @@ MAX_INTENTOS = 3
 
 
 class SalidaInvalida(ValueError):
-    """El modelo no produjo un esquema válido tras agotar los intentos."""
+    """El modelo no produjo un esquema válido tras agotar los intentos.
+
+    Lleva cada intento —la respuesta tal cual y por qué se rechazó— para que
+    quien la capture pueda guardarlo. Fallo real: el trinquete se paró con
+    tres especificaciones rechazadas y las tres se habían tirado; no había
+    forma de saber si fallaba el modelo o la regla que lo rechazaba.
+    """
+
+    def __init__(self, mensaje: str, intentos: list[dict] | None = None) -> None:
+        super().__init__(mensaje)
+        self.intentos: list[dict] = intentos or []
 
 
 class LlmClient(Protocol):
@@ -53,6 +63,7 @@ def structured(
     peticion = prompt
     ultimo_error = ""
     cortes = 0
+    intentos: list[dict] = []
 
     for intento in range(1, max_intentos + 1):
         try:
@@ -63,6 +74,8 @@ def structured(
             # reintenta pidiendo brevedad en vez de tumbar el proyecto entero
             # (fallo real: el trinquete murió aquí tras 12 minutos).
             ultimo_error = str(error)
+            intentos.append({"intento": intento, "respuesta": None, "error": ultimo_error,
+                             "reserva": bool(se_rindio)})
             cortes += 1
             peticion = (
                 f"{prompt}\n\n--- Intento {intento} cortado ({error}) ---\n"
@@ -78,11 +91,14 @@ def structured(
             return resultado
         except (ValidationError, ValueError) as error:
             ultimo_error = str(error)
+            intentos.append({"intento": intento, "respuesta": respuesta, "error": ultimo_error,
+                             "reserva": bool(se_rindio)})
             peticion = _reintento(prompt, respuesta, ultimo_error, intento)
 
     raise SalidaInvalida(
         f"{schema.__name__}: {max_intentos} intentos sin salida válida. "
-        f"Último error:\n{ultimo_error}"
+        f"Último error:\n{ultimo_error}",
+        intentos,
     )
 
 

@@ -61,7 +61,7 @@ def test_una_respuesta_cortada_por_max_tokens_es_un_error_y_no_un_json_invalido(
         transport=httpx.MockTransport(lambda r: httpx.Response(200, json={
             "choices": [{"finish_reason": "length", "message": {"content": ""}}]})),
     )
-    with pytest.raises(RespuestaCortada, match="max_tokens=65536"):
+    with pytest.raises(RespuestaCortada, match="max_tokens=393216"):
         cliente.complete("hola")
 
 
@@ -146,3 +146,54 @@ def test_si_la_red_no_se_recupera_se_dice_claro():
 
     with pytest.raises(ConexionCaida, match="3 veces"):
         cliente.complete("hola")
+
+
+# --- El techo de salida del razonador ------------------------------------
+#
+# ADR-013 decía que 64K «es el techo de DeepSeek, así que no hay margen que
+# subir», y con eso se aceptó que el Ginebra muriera cortado tres veces. No
+# era cierto: la propia API contesta a un max_tokens mayor con
+# «the valid range of max_tokens is [1, 393216]» (comprobado el 2026-09-20).
+# Por decisión del usuario, el razonador pide el máximo.
+
+MAXIMO_DE_LA_API = 393_216
+VELOCIDAD_MEDIDA = 318
+"""tokens/s de deepseek-reasoner (Flash con pensamiento), medidos el
+2026-09-20: 20 326 tokens en 64 s."""
+
+
+def _peticion_del_razonador():
+    enviado = {}
+
+    def responder(request):
+        enviado.update(json.loads(request.content))
+        return httpx.Response(200, json={"choices": [{"message": {"content": "{}"}}]})
+
+    DeepSeekClient(api_key="k", model="deepseek-reasoner",
+                   transport=httpx.MockTransport(responder)).complete("hola")
+    return enviado
+
+
+def test_el_razonador_pide_el_maximo_que_admite_la_api():
+    assert _peticion_del_razonador()["max_tokens"] == MAXIMO_DE_LA_API
+
+
+def test_el_plazo_deja_tiempo_para_generar_todo_el_techo():
+    """Subir max_tokens sin subir el plazo es un techo de adorno: el corte lo
+    daría nuestro reloj, no DeepSeek. Con el plazo antiguo (1200 s) y la
+    velocidad medida, el techo real se quedaba en ~381 000. Margen de 2x
+    porque en hora punta DeepSeek va más lento."""
+    cliente = DeepSeekClient(api_key="k", model="deepseek-reasoner")
+    assert cliente._deadline_s * VELOCIDAD_MEDIDA >= 2 * MAXIMO_DE_LA_API
+
+
+def test_el_modelo_que_no_piensa_no_cambia():
+    enviado = {}
+
+    def responder(request):
+        enviado.update(json.loads(request.content))
+        return httpx.Response(200, json={"choices": [{"message": {"content": "{}"}}]})
+
+    DeepSeekClient(api_key="k", model="deepseek-chat",
+                   transport=httpx.MockTransport(responder)).complete("hola")
+    assert enviado["max_tokens"] == 8192

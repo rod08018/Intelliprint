@@ -502,3 +502,24 @@ def test_tres_veces_la_misma_idea_con_otras_palabras_es_atasco(tmp_path):
 
     assert informe.stopped_because == "atascado"
     assert len(informe.rounds) <= 4
+
+
+def test_las_propuestas_rechazadas_se_guardan_para_poder_verlas(tmp_path):
+    """Fallo real, el trinquete del 2026-09-20: tres especificaciones
+    rechazadas por el validador, el proyecto parado, y en la carpeta solo
+    request.md y el coste. Sin las respuestas no se puede saber si falla el
+    modelo o la regla que lo rechaza."""
+    malas = ['{"title": "primera"}', '{"title": "segunda"}', "ni siquiera json"]
+    informe = design_mechanism(
+        "un trinquete", MechanismDesignerAgent(Guion(malas), CATALOGO, PERFIL, (235, 235, 250), 0.1),
+        PartDesignerAgent(DisenadorDePiezas(), CATALOGO),
+        tmp_path, "freecadcmd-que-no-se-llega-a-usar", min_gap_mm=0.1, animar=False,
+    )
+
+    assert informe.stopped_because == "atascado"
+    rechazados = sorted((tmp_path / "rondas" / "1" / "rechazados").iterdir())
+    assert [p.read_text(encoding="utf-8") for p in rechazados if p.suffix == ".json"] == malas[:2]
+    textos = "\n".join(p.read_text(encoding="utf-8") for p in rechazados)
+    assert "ni siquiera json" in textos
+    # Y el motivo de cada rechazo, junto a lo rechazado.
+    assert (tmp_path / "rondas" / "1" / "rechazados" / "motivos.md").exists()

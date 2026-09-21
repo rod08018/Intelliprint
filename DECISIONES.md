@@ -324,6 +324,14 @@ Por eso, tras **dos** cortes, la tercera llamada la responde un modelo **sin pen
 
 Es una decisión de **agotamiento, no de preferencia**: el razonador sigue siendo quien diseña mecanismos (esta ADR, § Modelo). La reserva solo entra cuando ya se demostró que no cabe.
 
+**Enmienda (2026-09-20, noche): dos cosas de esta ADR no eran ciertas.** Se vieron al mudar el sistema a otra máquina y llamar a la API con la clave.
+
+1. **`deepseek-chat` y `deepseek-reasoner` no son dos modelos.** DeepSeek los retiró el 2026-07-24 y los mantiene como alias: a los dos los sirve `deepseek-flash` (V4.1 Flash), el primero con el pensamiento apagado y el segundo encendido. La respuesta de la API lo dice: `"model": "deepseek-flash"`. Todo este repositorio se escribió después, así que *«con `deepseek-chat` la bisagra no cerró, con el razonador salió a la primera»* compara **el mismo modelo con y sin pensamiento**. La conclusión práctica aguanta —pensar ayuda en geometría espacial—; la explicación, no. La reserva de la enmienda anterior sigue teniendo sentido: tras dos cortes contesta el mismo modelo sin pensar.
+
+2. **64K no era el techo.** La API contesta a un valor mayor con *«the valid range of max_tokens is [1, 393216]»*. El Ginebra no murió contra un límite de DeepSeek, sino contra uno puesto aquí. Por decisión del usuario, el razonador pide ahora el máximo, 393 216, y el plazo de la llamada sube de 20 a 45 minutos: a la velocidad medida (318 tokens/s) generar el techo entero lleva ~21, y con el plazo antiguo el techo real se quedaba en ~381 000. Subir uno sin el otro habría sido un techo de adorno. El coste lo sigue acotando el tope por proyecto: una llamada llena son ~0.47 USD en hora punta.
+
+Y una consecuencia en el coste: los precios configurados eran 0.28 / 0.42 USD por millón, y la salida de Flash cuesta 1.20 en hora punta (0.60 fuera). Los informes de coste salían entre 1.4 y 2.9 veces cortos; los 0.08 USD del Ginebra fueron en realidad entre 0.11 y 0.23.
+
 **Design Reviewer (ampliación).** Un agente compara la petición literal, requisito por requisito, con lo que MIDIÓ el código. Sus veredictos son `cumple`, `no_cumple` y `no_verificable`; este último es el importante, porque marca lo que hoy nadie comprueba. **No aprueba nada** (ADR-003): es un informe para la persona. Cuando el perfil tenga modelo con visión podrá mirar además los fotogramas.
 
 **Límite conocido.** Que un diseño pase todas las comprobaciones no significa que sea lo que el usuario imaginaba. La primera bisagra aprobada era en realidad un pivote en plano. Juzgar eso necesita un revisor con visión (capa 3 del QA, § 7.1), que el perfil dev no tiene. Hasta entonces, el GIF lo revisa el usuario.
