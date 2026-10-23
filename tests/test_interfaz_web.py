@@ -247,3 +247,124 @@ def test_la_fila_dice_que_impide_terminar(ws_con_rondas, puente):
                                    encoding="utf-8")
     html = TestClient(crear_app(ws_con_rondas, puente=puente, host_workspace=HOST)).get("/").text
     assert "✗ ronda 1: choca" in html
+
+
+# --- Pedir un diseño desde la web -------------------------------------------
+#
+# Antes solo se podía pedir por Telegram o con una orden en la terminal, y
+# la orden del README ni siquiera encontraba el archivo dentro del
+# contenedor. La web lanza el MISMO trabajo que Crafty (JobStore).
+
+
+def _ws_con_trabajos(ws):
+    """Una web cuyo «diseñador» solo imprime sus argumentos: lo que se
+    comprueba es qué se le pide, no el diseño."""
+    import sys
+
+    from orchestrator.jobs import JobStore
+
+    trabajos = JobStore(ws / "projects", comando=[
+        sys.executable, "-c", "import sys; print(sys.argv)"])
+    return TestClient(crear_app(ws, host_workspace=HOST, trabajos=trabajos))
+
+
+def _esperar_registro(carpeta, segundos=20):
+    import time
+
+    limite = time.time() + segundos
+    while time.time() < limite:
+        texto = (carpeta / "run.log").read_text(encoding="utf-8")
+        if "--archivo" in texto:
+            return texto
+        time.sleep(0.1)
+    raise AssertionError("el trabajo no llegó a arrancar")
+
+
+def test_pedir_un_diseno_crea_el_proyecto_con_la_peticion_literal(ws):
+    web = _ws_con_trabajos(ws)
+    peticion = "Una bisagra de 40 mm\ncon pasador de 3 mm que gire 180°"
+
+    r = web.post("/api/disenar", json={"peticion": peticion})
+
+    assert r.status_code == 200, r.text
+    carpeta = ws / "projects" / r.json()["id"]
+    assert (carpeta / "request.md").read_text(encoding="utf-8") == peticion + "\n"
+    registro = _esperar_registro(carpeta)
+    assert f"'{(carpeta / 'request.md')}'" in registro
+
+
+def test_partir_de_un_proyecto_lo_pasa_como_referencia(ws):
+    web = _ws_con_trabajos(ws)
+
+    r = web.post("/api/disenar", json={"peticion": "como el trinquete, pero con 12 dientes",
+                                       "basado_en": "2026-09-20-trinquete"})
+
+    assert r.status_code == 200, r.text
+    registro = _esperar_registro(ws / "projects" / r.json()["id"])
+    assert "'--adjunto', '2026-09-20-trinquete'" in registro
+
+
+@pytest.mark.parametrize("vacia", ["", "   \n\t "])
+def test_una_peticion_vacia_no_lanza_nada(ws, vacia):
+    web = _ws_con_trabajos(ws)
+    antes = sorted(p.name for p in (ws / "projects").iterdir())
+
+    r = web.post("/api/disenar", json={"peticion": vacia})
+
+    assert r.status_code == 422
+    assert sorted(p.name for p in (ws / "projects").iterdir()) == antes
+
+
+@pytest.mark.parametrize("malo", ["..", "../projects", "no-existe", "/etc"])
+def test_partir_de_algo_que_no_es_un_proyecto_no_lanza_nada(ws, malo):
+    web = _ws_con_trabajos(ws)
+    antes = sorted(p.name for p in (ws / "projects").iterdir())
+
+    r = web.post("/api/disenar", json={"peticion": "una leva", "basado_en": malo})
+
+    assert r.status_code == 404
+    assert sorted(p.name for p in (ws / "projects").iterdir()) == antes
+
+
+def test_con_otro_proyecto_en_marcha_no_se_lanza_un_segundo(ws):
+    """Uno cada vez: dos se pelean por FreeCAD, por el modelo y por el saldo.
+    Y el otro puede haberlo lanzado Crafty, desde OTRO contenedor: el
+    JobStore de la web no lo conoce, así que se mira el workspace."""
+    import os
+
+    otro = ws / "projects" / "2026-10-23-de-crafty"
+    otro.mkdir()
+    (otro / "request.md").write_text("un gato de tijera\n", encoding="utf-8")
+    (otro / "job.json").write_text(json.dumps({"pid": os.getpid()}), encoding="utf-8")
+    web = _ws_con_trabajos(ws)
+
+    r = web.post("/api/disenar", json={"peticion": "una leva"})
+
+    assert r.status_code == 409
+    assert "2026-10-23-de-crafty" in r.json()["detail"]
+    assert sorted(p.name for p in (ws / "projects").iterdir()) == [
+        "2026-09-20-trinquete", "2026-10-23-de-crafty"]
+
+
+def test_sin_lanzador_configurado_pedir_explica_que_falta(web):
+    r = web.post("/api/disenar", json={"peticion": "una leva"})
+    assert r.status_code == 503
+
+
+def test_la_portada_tiene_donde_escribir_la_peticion(ws):
+    html = _ws_con_trabajos(ws).get("/").text
+    assert '<textarea id="peticion"' in html
+    # Se puede partir de los proyectos que hay, archivados incluidos.
+    assert '<option value="2026-09-20-trinquete">' in html
+    assert '<option value="2026-09-01-leva">' in html
+
+
+def test_lo_que_se_refresca_solo_no_borra_lo_que_estas_escribiendo(ws):
+    """La portada se pone al día sola cada 15 s mientras algo trabaja, y
+    reemplazaba todo <main>: el texto a medio escribir se perdía. El
+    formulario tiene que quedar FUERA de lo que se reemplaza."""
+    html = _ws_con_trabajos(ws).get("/").text
+    vivo = html.index('<div id="vivo">')
+    assert html.index('<textarea id="peticion"') < vivo
+    assert 'querySelector("#vivo")' in html
+    assert 'querySelector("main")' not in html

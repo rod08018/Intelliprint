@@ -64,8 +64,10 @@ services:
       - ./mcp:/app/mcp:ro
       - ./scripts:/app/scripts:ro
 
-  # La interfaz web (F5.5 (web)): lista de proyectos, descarga en zip y el
-  # botón que abre las piezas en el PrusaSlicer del escritorio.
+  # La interfaz web (F5.5 (web)): pedir un diseño, lista de proyectos,
+  # descarga en zip y el botón que abre las piezas en el PrusaSlicer del
+  # escritorio. El diseño corre DENTRO de este contenedor: recrearlo a mitad
+  # de un proyecto lo mata (se retoma con «continuar»).
   #
   #   http://localhost:8080
   web:
@@ -73,8 +75,9 @@ services:
       service: orchestrator
     entrypoint: ["python3", "-m", "orchestrator.web.app"]
     # Por defecto 127.0.0.1: solo desde este PC. La página no tiene
-    # contraseña, baja cualquier proyecto y abre programas en el escritorio,
-    # así que abrirla a la red es una decisión, no un valor por defecto.
+    # contraseña, baja cualquier proyecto, abre programas en el escritorio y
+    # lanza diseños que gastan saldo de DeepSeek, así que abrirla a la red es
+    # una decisión, no un valor por defecto.
     # Para entrar desde el móvil en la misma wifi: WEB_BIND=0.0.0.0 en .env,
     # y entonces la ve CUALQUIERA conectado a esa red.
     ports: ["${WEB_BIND:-127.0.0.1}:8080:8080"]

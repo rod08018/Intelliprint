@@ -1,5 +1,5 @@
-"""Interfaz web: ver los proyectos, bajarlos en zip y abrirlos en
-PrusaSlicer (F5.5 (web)).
+"""Interfaz web: pedir un diseño, ver los proyectos, bajarlos en zip y
+abrirlos en PrusaSlicer (F5.5 (web)).
 
 Corre dentro del contenedor y se abre desde el navegador del PC. Es el
 subconjunto de F5.5 (web) que hacía falta ya —encontrar un proyecto, llevárselo,
@@ -19,8 +19,10 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, Response
+from pydantic import BaseModel, Field, field_validator
 
 from orchestrator.hostpaths import RutaFueraDelWorkspace, a_ruta_del_host
+from orchestrator.jobs import JobStore
 from orchestrator.registry import estado_de, indice
 from orchestrator.web.estadisticas import estadisticas
 
@@ -100,9 +102,38 @@ def _listar(workspace: Path) -> list[dict]:
     return filas
 
 
-def crear_app(workspace: Path, puente=None, host_workspace: str = "") -> FastAPI:
+class Pedido(BaseModel):
+    peticion: str = Field(max_length=20_000)
+    basado_en: str | None = None
+
+    @field_validator("peticion")
+    @classmethod
+    def _con_texto(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("escribe qué quieres que diseñe")
+        return v.strip()
+
+
+def _en_marcha(workspace: Path) -> str | None:
+    """Un proyecto que sigue trabajando, lo lanzara quien lo lanzara.
+
+    No basta con preguntar al JobStore de la web: Crafty lanza los suyos
+    desde el contenedor del MCP, y este no los conoce. Lo que ven los dos
+    es el workspace."""
+    carpeta = Path(workspace) / "projects"
+    if not carpeta.is_dir():
+        return None
+    for fila in indice(carpeta):
+        if fila["estado"] == "en marcha":
+            return fila["id"]
+    return None
+
+
+def crear_app(workspace: Path, puente=None, host_workspace: str = "",
+              trabajos: JobStore | None = None) -> FastAPI:
     """La aplicación. `puente` es la URL del MCP del host, o en los tests el
-    propio servidor; None si no hay puente configurado."""
+    propio servidor; None si no hay puente configurado. `trabajos` lanza los
+    diseños que se piden desde la página; None si esta web no puede."""
     app = FastAPI(title="Intelliprint", docs_url=None, redoc_url=None)
     workspace = Path(workspace)
 
@@ -111,6 +142,20 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "") -> FastAPI
             return resolver_proyecto(id, workspace)
         except ProyectoDesconocido:
             raise HTTPException(404, f"no hay ningún proyecto llamado {id!r}")
+
+    @app.post("/api/disenar")
+    def disenar(pedido: Pedido) -> dict:
+        if trabajos is None:
+            raise HTTPException(503, "esta web no tiene con qué lanzar diseños")
+        referencias = [_proyecto(pedido.basado_en).name] if pedido.basado_en else []
+        otro = trabajos.current() or _en_marcha(workspace)
+        if otro:
+            raise HTTPException(
+                409, f"ya hay un proyecto en marcha ({otro}); espera a que termine")
+        try:
+            return {"id": trabajos.start(pedido.peticion, referencias=referencias)}
+        except RuntimeError as e:
+            raise HTTPException(409, str(e))
 
     @app.get("/api/proyectos")
     def proyectos() -> list[dict]:
@@ -169,7 +214,8 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "") -> FastAPI
 
     @app.get("/", response_class=HTMLResponse)
     def portada() -> str:
-        return _pagina(_listar(workspace), hay_puente=puente is not None)
+        return _pagina(_listar(workspace), hay_puente=puente is not None,
+                       puede_pedir=trabajos is not None)
 
     return app
 
@@ -345,6 +391,14 @@ _ESTILO = """
   .plan > div { margin-left:14px; }
   .etiqueta { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--suave); margin-top:6px; }
   .vacio { color:var(--suave); }
+  .pedir textarea { width:100%; font:inherit; font-size:14px; padding:10px 12px; resize:vertical;
+                    background:var(--tarjeta); color:var(--fg); border:1px solid var(--linea); border-radius:10px; }
+  .pedir textarea:focus { outline:2px solid var(--acento); outline-offset:-1px; }
+  .pedir .pie { display:flex; gap:12px; align-items:center; justify-content:space-between;
+                flex-wrap:wrap; margin-top:8px; font-size:13px; color:var(--suave); }
+  .pedir select { font:inherit; max-width:min(70vw,420px); margin-left:4px; padding:4px 6px;
+                  background:var(--tarjeta); color:var(--fg); border:1px solid var(--linea); border-radius:7px; }
+  .pedir .btn { margin-left:0; padding:8px 18px; font-size:14px; }
   #aviso { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); max-width:min(92vw,640px);
            background:var(--fg); color:var(--bg); padding:10px 16px; border-radius:8px;
            font-size:14px; display:none; }
@@ -461,22 +515,81 @@ _GUION = """
   }
 
   // Mientras algo trabaja, la página se pone al día sola. Se reemplaza el
-  // contenido, no se recarga: así no se pierde lo que tienes abierto.
-  async function refrescar() {
-    if (!document.querySelector('tr.fila[data-estado="en marcha"]')) return;
+  // contenido, no se recarga: así no se pierde lo que tienes abierto. Solo
+  // #vivo: el formulario queda fuera para no borrar lo que estás escribiendo.
+  const trabajando = () => !!document.querySelector('tr.fila[data-estado="en marcha"]');
+  async function refrescar(forzar = false) {
+    if (!forzar && !trabajando()) return;
     try {
       const html = await (await fetch("/")).text();
-      const nuevo = new DOMParser().parseFromString(html, "text/html").querySelector("main");
-      document.querySelector("main").replaceWith(nuevo);
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      document.querySelector("#vivo").replaceWith(doc.querySelector("#vivo"));
+      // El botón y la nota sí se ponen al día: dicen si se puede pedir ya.
+      document.querySelector("#disenar").disabled = doc.querySelector("#disenar").disabled;
+      document.querySelector("#nota-pedir").textContent = doc.querySelector("#nota-pedir").textContent;
       enganchar();
     } catch (e) { /* sin red un momento: se reintenta en la siguiente vuelta */ }
   }
+
+  document.querySelector("#disenar").addEventListener("click", async () => {
+    const caja = document.querySelector("#peticion");
+    const b = document.querySelector("#disenar");
+    if (!caja.value.trim()) { avisar("Escribe primero qué quieres que diseñe."); caja.focus(); return; }
+    b.disabled = true; const antes = b.textContent; b.textContent = "Lanzando...";
+    try {
+      const r = await fetch("/api/disenar", {method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({peticion: caja.value, basado_en: document.querySelector("#basado_en").value || null})});
+      const d = await r.json();
+      if (r.ok) {
+        caja.value = "";
+        avisar("En marcha: " + d.id + ". Tarda unos minutos; la lista se actualiza sola.");
+        await refrescar(true);
+        abiertos.add(d.id); guardarAbiertos(); abrirPanel(d.id);
+      } else {
+        // Un 422 trae la lista de errores de validación, no una frase.
+        avisar(Array.isArray(d.detail) ? d.detail.map(x => x.msg).join("; ") : d.detail);
+        b.disabled = false;
+      }
+    } catch (e) { avisar("No se pudo contactar con el servidor: " + e); b.disabled = false; }
+    b.textContent = antes;
+  });
   enganchar();
   setInterval(refrescar, 15000);
 """
 
 
-def _pagina(filas: list[dict], hay_puente: bool) -> str:
+_EJEMPLO = (
+    "Qué quieres que haga, con todo lo que sepas. Por ejemplo:\n\n"
+    "Un trinquete con rueda de 12 dientes y 40 mm de diámetro que solo gire "
+    "en un sentido. La palanca avanza la rueda un diente por pulsación.\n\n"
+    "PIEZAS: cada una con sus medidas.\n"
+    "MOVIMIENTO: qué se mueve, cuánto y con qué holgura.\n"
+    "FABRICACIÓN: sin soportes, voladizos de 45° como mucho.\n"
+    "PRIORIDAD: qué sacrificar si algo no se puede."
+)
+
+
+def _formulario(filas: list[dict], puede_pedir: bool, ocupado: bool) -> str:
+    e = html.escape
+    opciones = "".join(f'<option value="{e(f["id"])}">{e(f["id"])}</option>' for f in filas)
+    desactivado = "" if puede_pedir and not ocupado else "disabled"
+    nota = ("Esta web no tiene con qué lanzar diseños." if not puede_pedir else
+            "Hay un proyecto trabajando: espera a que termine." if ocupado else
+            "Tarda varios minutos y cuesta dinero (tope de 5 USD por proyecto). "
+            "Lo verás aparecer abajo, en Proyectos.")
+    return f"""
+  <section class="pedir">
+    <h2>Nuevo diseño</h2>
+    <textarea id="peticion" rows="10" placeholder="{e(_EJEMPLO)}"></textarea>
+    <div class="pie">
+      <label>Partir de <select id="basado_en"><option value="">nada, empezar de cero</option>{opciones}</select></label>
+      <button class="btn pri" id="disenar" {desactivado}>Diseñar</button>
+    </div>
+    <div class="det" id="nota-pedir">{e(nota)}</div>
+  </section>"""
+
+
+def _pagina(filas: list[dict], hay_puente: bool, puede_pedir: bool = False) -> str:
     activos = [f for f in filas if f["seccion"] == "projects"]
     archivados = [f for f in filas if f["seccion"] == "archivo"]
     en_marcha = sum(1 for f in activos if f["estado"] == "en marcha")
@@ -490,10 +603,14 @@ def _pagina(filas: list[dict], hay_puente: bool) -> str:
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         f"<title>Intelliprint</title>\n<style>{_ESTILO}</style></head>\n"
         "<body><main>\n  <h1>Intelliprint</h1>\n"
+        f"{_formulario(filas, puede_pedir, ocupado=en_marcha > 0)}\n"
+        # Lo que se refresca solo va aparte: si el formulario estuviera
+        # dentro, cada vuelta borraría lo que estás escribiendo.
+        '  <div id="vivo">\n'
         f'  <div class="cabecera">{puente}{marcha}</div>\n'
         f"  <h2>Proyectos</h2>\n  {_tabla(activos, hay_puente, 'Todavía no hay proyectos.')}\n"
         f"  <h2>Archivo</h2>\n  {_tabla(archivados, hay_puente, 'Nada archivado.')}\n"
-        f'</main>\n<div id="aviso"></div>\n<script>{_GUION}</script>\n</body></html>'
+        f'  </div>\n</main>\n<div id="aviso"></div>\n<script>{_GUION}</script>\n</body></html>'
     )
 
 
@@ -506,6 +623,8 @@ def main() -> None:
         workspace,
         puente=os.environ.get("PRUSASLICER_BRIDGE") or None,
         host_workspace=os.environ.get("HOST_WORKSPACE", ""),
+        # La misma orden que lanza Crafty (mcp_server._store).
+        trabajos=JobStore(workspace / "projects", ["intelliprint", "mecanismo"]),
     )
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("WEB_PORT", "8080")))
 
