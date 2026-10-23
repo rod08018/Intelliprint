@@ -67,6 +67,31 @@ def test_no_se_lanzan_dos_trabajos_a_la_vez(tmp_path):
         store.start("dos")
 
 
+def test_dos_lanzamientos_en_el_mismo_segundo_no_comparten_carpeta(tmp_path, monkeypatch):
+    """Una modificación desde la web conserva la primera línea de la
+    petición, así que da el mismo nombre que la versión de la que parte: con
+    dos en el mismo segundo, el segundo reventaba al crear la carpeta (lo
+    vio la suite, F5.5 (web))."""
+    import datetime as dt
+
+    import orchestrator.jobs as jobs
+
+    class Congelado(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 10, 23, 12, 0, 0)
+
+    monkeypatch.setattr(jobs.dt, "datetime", Congelado)
+    store = JobStore(tmp_path, comando=["/bin/sh", "-c", "true"])
+    primero = store.start("un trinquete")
+    _esperar(store, primero, "terminado")
+
+    segundo = store.start("un trinquete\n\nMODIFICACIÓN: 12 dientes")
+
+    assert segundo != primero
+    assert (tmp_path / primero / "request.md").read_text() == "un trinquete\n"
+
+
 def test_los_archivos_del_proyecto_se_encuentran_por_su_nombre(tmp_path):
     store = JobStore(tmp_path, comando=["/bin/sh", "-c", "true"])
     job = store.start("algo")

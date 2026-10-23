@@ -76,18 +76,32 @@ class JobStore:
 
     # --- lanzar y parar -------------------------------------------------------
 
-    def start(self, peticion: str, referencias: list[str] | None = None) -> str:
+    def start(self, peticion: str, referencias: list[str] | None = None,
+              proyecto: dict | None = None) -> str:
         """`referencias`: imágenes, textos o ids de proyectos que ya salieron,
-        para el diseñador (F5.2 (adjuntos)). Opcionales."""
+        para el diseñador (F5.2 (adjuntos)). Opcionales.
+
+        `proyecto`: si esto es una versión nueva de un proyecto que ya
+        existe, de cuál (`web.versiones`). Se escribe ANTES de arrancar:
+        mientras trabaja, la web ya tiene que pintarla dentro de su proyecto."""
         en_marcha = self.current()
         if en_marcha:
             raise RuntimeError(
                 f"ya hay un proyecto en marcha ({en_marcha}); espera a que termine o cancélalo"
             )
         nombre = f"{dt.datetime.now():%Y-%m-%d-%H%M%S}-{slug(peticion.splitlines()[0])[:40]}"
+        # Una modificación conserva la primera línea de la petición, y con
+        # ella el nombre: dos en el mismo segundo chocaban al crear la carpeta.
+        base, n = nombre, 1
+        while (self.carpeta / nombre).exists():
+            n += 1
+            nombre = f"{base}-{n}"
         destino = self.carpeta / nombre
         destino.mkdir(parents=True)
         (destino / "request.md").write_text(peticion + "\n", encoding="utf-8")
+        if proyecto:
+            (destino / "proyecto.json").write_text(
+                json.dumps(proyecto, ensure_ascii=False), encoding="utf-8")
         registro = (destino / "run.log").open("w", encoding="utf-8")
         # `start_new_session`: el trabajo tiene su propio grupo de procesos, así
         # se puede cancelar con todo lo que lanza (freecadcmd incluido).

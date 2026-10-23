@@ -46,14 +46,19 @@ def _vivo(pid: int) -> bool:
 
     Un proceso que terminó y que su padre no ha recogido queda **zombi**, y
     `os.kill(pid, 0)` responde que sí existe: el Geneva drive falló a las
-    09:42 y seis horas después el registro seguía diciendo «en marcha»."""
+    09:42 y seis horas después el registro seguía diciendo «en marcha».
+
+    Y `os.kill` también acepta el id de un HILO, que `ps -p` no encuentra:
+    los job.json guardan pids de otro contenedor, y en el de la web eran
+    hilos del propio servidor (2026-10-23, tres proyectos «trabajando» y la
+    página sin dejar pedir nada). Sin respuesta de `ps` no hay proceso."""
     try:
         os.kill(pid, 0)
     except (OSError, TypeError):
         return False
     estado = subprocess.run(["ps", "-p", str(pid), "-o", "state="],
                             capture_output=True, text=True).stdout.strip()
-    return not estado.startswith("Z")
+    return bool(estado) and not estado.startswith("Z")
 
 
 def estado_de(carpeta: Path) -> dict:

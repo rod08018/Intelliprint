@@ -368,3 +368,249 @@ def test_lo_que_se_refresca_solo_no_borra_lo_que_estas_escribiendo(ws):
     assert html.index('<textarea id="peticion"') < vivo
     assert 'querySelector("#vivo")' in html
     assert 'querySelector("main")' not in html
+
+
+# --- Un proyecto es una solicitud; cada ejecución, una versión ---------------
+#
+# La portada pintaba una fila por carpeta, y una carpeta es una EJECUCIÓN: el
+# trinquete del 2026-09-21 salió a la quinta y la lista enseñaba cinco
+# «proyectos» con la misma petición, byte a byte. Lo esperado en estos tests
+# sale de cómo se construyen los workspaces, no de lo que diga la web.
+
+
+def _version(ws, nombre, peticion, feedback=None, seccion="projects", requisitos=None):
+    """Una ejecución terminada: aprobada si `feedback` es "", fallida si trae
+    texto, sin rounds.json (incompleta) si es None."""
+    import os
+
+    carpeta = ws / seccion / nombre
+    carpeta.mkdir(parents=True)
+    (carpeta / "request.md").write_text(peticion + "\n", encoding="utf-8")
+    if feedback is not None:
+        (carpeta / "rounds.json").write_text(
+            json.dumps([{"number": 1, "title": "t", "feedback": feedback}]), encoding="utf-8")
+    if requisitos is not None:
+        cumplen, total = requisitos
+        (carpeta / "rondas" / "1").mkdir(parents=True)
+        (carpeta / "rondas" / "1" / "resultado.json").write_text(json.dumps({
+            "ronda": 1, "titulo": "t", "resuelta": not feedback, "feedback": feedback or "",
+            "plan": None, "barrido": {"choques": 0},
+            "requisitos": [{"descripcion": f"r{i}", "esperado": 1, "tolerancia": 0.1,
+                            "medido": 1, "desviacion": 0, "cumple": i < cumplen}
+                           for i in range(total)]}), encoding="utf-8")
+    # Terminada hace rato: una carpeta recién tocada y sin rounds.json se
+    # tomaría por un proyecto en marcha.
+    viejo = 1_700_000_000
+    for f in [carpeta, *carpeta.rglob("*")]:
+        os.utime(f, (viejo, viejo))
+    return carpeta
+
+
+def _grupos(ws):
+    return TestClient(crear_app(ws, host_workspace=HOST)).get("/api/proyectos").json()
+
+
+def test_las_ejecuciones_de_la_misma_peticion_son_versiones_de_un_proyecto(ws):
+    for hora in ("0252", "0304", "1611"):
+        _version(ws, f"2026-09-21-{hora}-gato", "Un gato de tijera\nque suba 10 cm", "- choca")
+
+    (gato,) = [g for g in _grupos(ws) if g["id"].endswith("-gato")]
+
+    # El proyecto se llama como su primera ejecución, y las tres van dentro.
+    assert gato["id"] == "2026-09-21-0252-gato"
+    assert [v["id"] for v in gato["versiones"]] == [
+        "2026-09-21-0252-gato", "2026-09-21-0304-gato", "2026-09-21-1611-gato"]
+    assert [v["version"] for v in gato["versiones"]] == [1, 2, 3]
+
+
+def test_peticiones_distintas_son_proyectos_distintos(ws):
+    """Las dos mitades del pastillero se lanzaron en el mismo segundo y son
+    dos solicitudes: juntarlas por fecha sería mezclar dos diseños."""
+    _version(ws, "2026-09-21-233302-pastillero_3", "Pastillero, mitad de 3 días", "")
+    _version(ws, "2026-09-21-233302-pastillero_4", "Pastillero, mitad de 4 días", "")
+
+    ids = {g["id"] for g in _grupos(ws)}
+
+    assert {"2026-09-21-233302-pastillero_3", "2026-09-21-233302-pastillero_4"} <= ids
+
+
+def test_la_mejor_version_es_la_aprobada_aunque_haya_otras_mas_nuevas(ws):
+    _version(ws, "2026-09-21-01-gato", "Un gato", "- choca")
+    _version(ws, "2026-09-21-02-gato", "Un gato", "")
+    _version(ws, "2026-09-21-03-gato", "Un gato", "- no llega a 10 cm")
+
+    (gato,) = [g for g in _grupos(ws) if g["id"] == "2026-09-21-01-gato"]
+
+    assert gato["mejor"] == "2026-09-21-02-gato"
+    # Lo que enseña la fila es lo de la mejor, no lo de la última.
+    assert gato["estado"] == "aprobado"
+
+
+def test_entre_aprobadas_gana_la_mas_reciente(ws):
+    """Una modificación aprobada es lo que se pidió después: es la que vale."""
+    _version(ws, "2026-09-21-01-gato", "Un gato", "")
+    _version(ws, "2026-09-21-02-gato", "Un gato", "")
+
+    (gato,) = [g for g in _grupos(ws) if g["id"] == "2026-09-21-01-gato"]
+
+    assert gato["mejor"] == "2026-09-21-02-gato"
+
+
+def test_entre_fallidas_gana_la_que_cumple_mas_requisitos(ws):
+    _version(ws, "2026-09-21-01-gato", "Un gato", "- choca", requisitos=(2, 3))
+    _version(ws, "2026-09-21-02-gato", "Un gato", "- choca", requisitos=(0, 3))
+
+    (gato,) = [g for g in _grupos(ws) if g["id"] == "2026-09-21-01-gato"]
+
+    assert gato["mejor"] == "2026-09-21-01-gato"
+
+
+def test_un_rediseno_que_cita_otro_proyecto_es_version_de_el(ws):
+    """Fallo real: «Rediseño de un mecanismo de Ginebra… Parte del proyecto
+    2026-09-21-185919-…» salía como proyecto aparte. La referencia que guardó
+    el flujo dice de cuál parte."""
+    _version(ws, "2026-09-21-185919-ginebra", "Mecanismo de Ginebra de 4 ranuras", "- atraviesa")
+    otro = _version(ws, "2026-09-21-205330-rediseno", "Rediseño del Ginebra", "- choca")
+    (otro / "referencias").mkdir()
+    (otro / "referencias" / "texto_1.md").write_text(
+        "# proyecto 2026-09-21-185919-ginebra (NO llegó a salir entero: úsalo como idea)\n\n"
+        "Petición:\n...", encoding="utf-8")
+
+    (ginebra,) = [g for g in _grupos(ws) if "ginebra" in g["id"]]
+
+    assert [v["id"] for v in ginebra["versiones"]] == [
+        "2026-09-21-185919-ginebra", "2026-09-21-205330-rediseno"]
+
+
+def test_las_versiones_pueden_estar_unas_en_archivo_y_otras_no(ws):
+    """Archivar no es borrar: un intento fallido archivado sigue siendo una
+    versión del proyecto."""
+    _version(ws, "2026-09-21-01-gato", "Un gato", "- choca", seccion="archivo")
+    _version(ws, "2026-09-21-02-gato", "Un gato", "")
+
+    (gato,) = [g for g in _grupos(ws) if g["id"] == "2026-09-21-01-gato"]
+
+    assert len(gato["versiones"]) == 2
+    assert gato["seccion"] == "projects"
+
+
+def test_la_portada_pinta_un_proyecto_por_solicitud_con_selector_de_versiones(ws):
+    for n in (1, 2, 3):
+        _version(ws, f"2026-09-21-0{n}-gato", "Un gato de tijera", "" if n == 2 else "- choca")
+
+    html = TestClient(crear_app(ws, host_workspace=HOST)).get("/").text
+
+    assert html.count('data-id="2026-09-21-01-gato"') == 1
+    assert 'data-id="2026-09-21-02-gato"' not in html
+    for n in (1, 2, 3):
+        assert f'<option value="2026-09-21-0{n}-gato"' in html
+    # Abre con la mejor elegida, y los botones bajan/abren esa.
+    assert '<option value="2026-09-21-02-gato" selected' in html
+    assert 'href="/proyectos/2026-09-21-02-gato.zip"' in html
+
+
+# --- Pedir una modificación dentro del proyecto -----------------------------
+
+
+def test_pedir_una_modificacion_crea_una_version_del_mismo_proyecto(ws):
+    base = ws / "projects" / "2026-09-20-trinquete"
+    (base / "mechanism.json").write_text('{"title": "Trinquete"}', encoding="utf-8")
+    web = _ws_con_trabajos(ws)
+
+    r = web.post("/api/proyectos/2026-09-20-trinquete/modificar",
+                 json={"peticion": "que la rueda tenga 12 dientes"})
+
+    assert r.status_code == 200, r.text
+    nueva = ws / "projects" / r.json()["id"]
+    # El diseñador recibe lo que se pidió al principio y el cambio, literal.
+    peticion = (nueva / "request.md").read_text(encoding="utf-8")
+    assert peticion.startswith("un trinquete\n")
+    assert peticion.rstrip().endswith("que la rueda tenga 12 dientes")
+    assert "2026-09-20-trinquete" in peticion
+    # Y el diseño del que parte, como referencia.
+    assert "'--adjunto', '2026-09-20-trinquete'" in _esperar_registro(nueva)
+    (trinquete,) = [g for g in web.get("/api/proyectos").json()
+                    if g["id"] == "2026-09-20-trinquete"]
+    assert [v["id"] for v in trinquete["versiones"]] == ["2026-09-20-trinquete", nueva.name]
+    assert trinquete["versiones"][1]["modificacion"] == "que la rueda tenga 12 dientes"
+
+
+def test_modificar_una_modificacion_sigue_en_el_proyecto_original(ws):
+    web = _ws_con_trabajos(ws)
+    primera = web.post("/api/proyectos/2026-09-20-trinquete/modificar",
+                       json={"peticion": "12 dientes"}).json()["id"]
+    _esperar_registro(ws / "projects" / primera)
+    # El «diseñador» de prueba no deja rondas: sin rounds.json, una carpeta
+    # recién tocada cuenta como en marcha y no dejaría lanzar la segunda.
+    web.app.state.trabajos._procesos[primera].wait(timeout=20)
+    (ws / "projects" / primera / "rounds.json").write_text(
+        '[{"number": 1, "title": "t", "feedback": ""}]', encoding="utf-8")
+
+    r = web.post(f"/api/proyectos/{primera}/modificar", json={"peticion": "y más grueso"})
+
+    assert r.status_code == 200, r.text
+    peticion = (ws / "projects" / r.json()["id"] / "request.md").read_text(encoding="utf-8")
+    # Las modificaciones se acumulan: la segunda parte de la primera.
+    assert "12 dientes" in peticion and "y más grueso" in peticion
+    (trinquete,) = [g for g in web.get("/api/proyectos").json()
+                    if g["id"] == "2026-09-20-trinquete"]
+    assert len(trinquete["versiones"]) == 3
+
+
+def test_modificar_una_version_sin_diseno_no_la_pasa_como_referencia(ws):
+    """El cargador de referencias rechaza un proyecto sin mechanism.json y el
+    trabajo moriría al arrancar: la petición ya lleva lo que se pidió."""
+    web = _ws_con_trabajos(ws)
+
+    r = web.post("/api/proyectos/2026-09-01-leva/modificar", json={"peticion": "más alta"})
+
+    assert r.status_code == 200, r.text
+    assert "--adjunto" not in _esperar_registro(ws / "projects" / r.json()["id"])
+
+
+@pytest.mark.parametrize("vacia", ["", "  \n "])
+def test_una_modificacion_vacia_no_lanza_nada(ws, vacia):
+    web = _ws_con_trabajos(ws)
+    antes = sorted(p.name for p in (ws / "projects").iterdir())
+
+    r = web.post("/api/proyectos/2026-09-20-trinquete/modificar", json={"peticion": vacia})
+
+    assert r.status_code == 422
+    assert sorted(p.name for p in (ws / "projects").iterdir()) == antes
+
+
+@pytest.mark.parametrize("malo", ["..", "..%2F..", "no-existe"])
+def test_modificar_algo_que_no_es_un_proyecto_es_404(ws, malo):
+    web = _ws_con_trabajos(ws)
+    assert web.post(f"/api/proyectos/{malo}/modificar",
+                    json={"peticion": "algo"}).status_code == 404
+
+
+def test_con_otro_proyecto_en_marcha_no_se_lanza_una_modificacion(ws):
+    import os
+
+    otro = ws / "projects" / "2026-10-23-de-crafty"
+    otro.mkdir()
+    (otro / "request.md").write_text("un gato de tijera\n", encoding="utf-8")
+    (otro / "job.json").write_text(json.dumps({"pid": os.getpid()}), encoding="utf-8")
+    web = _ws_con_trabajos(ws)
+
+    r = web.post("/api/proyectos/2026-09-20-trinquete/modificar", json={"peticion": "algo"})
+
+    assert r.status_code == 409
+
+
+def test_el_detalle_de_una_version_dice_que_modificacion_se_pidio(ws):
+    web = _ws_con_trabajos(ws)
+    nueva = web.post("/api/proyectos/2026-09-20-trinquete/modificar",
+                     json={"peticion": "12 dientes"}).json()["id"]
+
+    detalle = web.get(f"/api/proyectos/{nueva}").json()
+
+    assert detalle["modificacion"] == "12 dientes"
+    assert detalle["peticion"].startswith("un trinquete")
+
+
+def test_cada_proyecto_tiene_donde_pedir_una_modificacion(ws):
+    html = _ws_con_trabajos(ws).get("/").text
+    assert 'data-modificar="2026-09-20-trinquete"' in html

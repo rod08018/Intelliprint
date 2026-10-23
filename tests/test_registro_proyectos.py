@@ -181,3 +181,27 @@ def test_un_proceso_zombi_no_cuenta_como_en_marcha(tmp_path):
 
     assert fila["estado"] != "en marcha"
     hijo.wait()
+
+
+def test_un_hilo_de_quien_pregunta_no_cuenta_como_en_marcha(tmp_path):
+    """Fallo real (2026-10-23): la web pintaba tres proyectos «trabajando» y
+    no dejaba pedir nada. Sus job.json guardan el pid que tenían en OTRO
+    contenedor (8 y 9), y en el de la web esos números eran hilos del propio
+    servidor: `os.kill` acepta el id de un hilo, y `ps -p` no lo encuentra y
+    no dice nada, que no es «zombi»."""
+    import threading
+
+    soltar = threading.Event()
+    hilo = threading.Thread(target=soltar.wait)
+    hilo.start()
+    try:
+        carpeta = _proyecto(tmp_path, "2026-09-21-2333-pastillero")
+        (carpeta / "job.json").write_text(json.dumps({"pid": hilo.native_id}), encoding="utf-8")
+        _envejecer(carpeta, horas=6)
+
+        fila = indice(tmp_path)[0]
+    finally:
+        soltar.set()
+        hilo.join()
+
+    assert fila["estado"] != "en marcha"

@@ -1,5 +1,5 @@
-"""Interfaz web: pedir un diseño, ver los proyectos, bajarlos en zip y
-abrirlos en PrusaSlicer (F5.5 (web)).
+"""Interfaz web: pedir un diseño, ver los proyectos con sus versiones,
+pedir modificaciones, bajarlos en zip y abrirlos en PrusaSlicer (F5.5 (web)).
 
 Corre dentro del contenedor y se abre desde el navegador del PC. Es el
 subconjunto de F5.5 (web) que hacía falta ya —encontrar un proyecto, llevárselo,
@@ -25,10 +25,11 @@ from orchestrator.hostpaths import RutaFueraDelWorkspace, a_ruta_del_host
 from orchestrator.jobs import JobStore
 from orchestrator.registry import estado_de, indice
 from orchestrator.web.estadisticas import estadisticas
+from orchestrator.web.versiones import (
+    SECCIONES, agrupar, componer_modificacion, marca_de, raices)
 
-SECCIONES = ("projects", "archivo")
-"""Dónde buscar. `archivo/` también: archivar no es borrar, y un intento
-fallido es la única prueba de por qué algo no funcionó."""
+# SECCIONES: dónde buscar. `archivo/` también: archivar no es borrar, y un
+# intento fallido es la única prueba de por qué algo no funcionó.
 
 PERFIL = "ankermake_m5_petg.ini"
 
@@ -81,6 +82,7 @@ def piezas_de(carpeta: Path) -> list[Path]:
 
 
 def _listar(workspace: Path) -> list[dict]:
+    """Una fila por EJECUCIÓN. Lo que se enseña son proyectos: `agrupar`."""
     filas = []
     for seccion in SECCIONES:
         carpeta = Path(workspace) / seccion
@@ -102,16 +104,19 @@ def _listar(workspace: Path) -> list[dict]:
     return filas
 
 
-class Pedido(BaseModel):
+class Modificacion(BaseModel):
     peticion: str = Field(max_length=20_000)
-    basado_en: str | None = None
 
     @field_validator("peticion")
     @classmethod
     def _con_texto(cls, v: str) -> str:
         if not v.strip():
-            raise ValueError("escribe qué quieres que diseñe")
+            raise ValueError("escribe qué quieres que diseñe o que cambie")
         return v.strip()
+
+
+class Pedido(Modificacion):
+    basado_en: str | None = None
 
 
 def _en_marcha(workspace: Path) -> str | None:
@@ -135,6 +140,7 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
     propio servidor; None si no hay puente configurado. `trabajos` lanza los
     diseños que se piden desde la página; None si esta web no puede."""
     app = FastAPI(title="Intelliprint", docs_url=None, redoc_url=None)
+    app.state.trabajos = trabajos
     workspace = Path(workspace)
 
     def _proyecto(id: str) -> Path:
@@ -157,15 +163,49 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
         except RuntimeError as e:
             raise HTTPException(409, str(e))
 
+    @app.post("/api/proyectos/{id}/modificar")
+    def modificar(id: str, pedido: Modificacion) -> dict:
+        """Una versión nueva del proyecto de `id`, partiendo de `id`.
+
+        Antes, cambiar algo era pedir un diseño nuevo «partiendo de» otro, y
+        cada intento salía como un proyecto más en la lista."""
+        if trabajos is None:
+            raise HTTPException(503, "esta web no tiene con qué lanzar diseños")
+        base = _proyecto(id)
+        otro = trabajos.current() or _en_marcha(workspace)
+        if otro:
+            raise HTTPException(
+                409, f"ya hay un proyecto en marcha ({otro}); espera a que termine")
+        raiz = raices(workspace).get(base.name, base.name)
+        original = ((base / "request.md").read_text(encoding="utf-8", errors="ignore")
+                    if (base / "request.md").is_file() else "")
+        # Sin mechanism.json el cargador de referencias rechaza el id y el
+        # trabajo moriría al arrancar; la petición ya lleva lo que se pidió.
+        referencias = [base.name] if (base / "mechanism.json").is_file() else []
+        try:
+            nueva = trabajos.start(
+                componer_modificacion(original, base.name, pedido.peticion),
+                referencias=referencias,
+                proyecto={"proyecto": raiz, "basado_en": base.name,
+                          "modificacion": pedido.peticion})
+        except RuntimeError as e:
+            raise HTTPException(409, str(e))
+        return {"id": nueva, "proyecto": raiz}
+
     @app.get("/api/proyectos")
     def proyectos() -> list[dict]:
-        return _listar(workspace)
+        return agrupar(_listar(workspace), workspace)
 
     @app.get("/api/proyectos/{id}")
     def detalle(id: str) -> dict:
+        """Una VERSIÓN: el id es el de su carpeta."""
         carpeta = _proyecto(id)
         en_marcha = estado_de(carpeta)["estado"] == "en marcha"
-        return {"id": carpeta.name, **estadisticas(carpeta, en_marcha=en_marcha)}
+        peticion = ((carpeta / "request.md").read_text(encoding="utf-8", errors="ignore").strip()
+                    if (carpeta / "request.md").is_file() else "")
+        return {"id": carpeta.name, "peticion": peticion,
+                "modificacion": marca_de(carpeta).get("modificacion"),
+                **estadisticas(carpeta, en_marcha=en_marcha)}
 
     @app.get("/proyectos/{id}/animation.gif")
     def animacion(id: str) -> FileResponse:
@@ -214,7 +254,7 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
 
     @app.get("/", response_class=HTMLResponse)
     def portada() -> str:
-        return _pagina(_listar(workspace), hay_puente=puente is not None,
+        return _pagina(agrupar(_listar(workspace), workspace), hay_puente=puente is not None,
                        puede_pedir=trabajos is not None)
 
     return app
@@ -267,10 +307,35 @@ def _coste_celda(c: dict | None) -> str:
             f'<i class="{clase}" style="width:{fraccion * 100:.0f}%"></i></div>')
 
 
-def _fila(f: dict, hay_puente: bool) -> str:
+def _corto(texto: str, n: int) -> str:
+    texto = " ".join((texto or "").split())
+    return texto if len(texto) <= n else texto[:n] + "…"
+
+
+def _opcion(v: dict, mejor: str) -> str:
+    partes = [f"v{v['version']}", f"{ICONOS.get(v['estado'], '·')} {v['estado']}"]
+    if v.get("ronda"):
+        partes.append(f"ronda {v['ronda']}")
+    if v.get("coste"):
+        partes.append(f"{v['coste']['usd']:.2f} USD")
+    if v.get("modificacion"):
+        partes.append("cambio: " + _corto(v["modificacion"], 50))
+    if v["id"] == mejor:
+        partes.append("★ la mejor")
+    elegida = " selected" if v["id"] == mejor else ""
+    return (f'<option value="{html.escape(v["id"])}"{elegida} data-piezas="{v["piezas"]}">'
+            f'{html.escape(" · ".join(partes))}</option>')
+
+
+def _fila(g: dict, hay_puente: bool, puede_modificar: bool = False) -> str:
+    """Un PROYECTO: lo de su mejor versión en la fila; en el panel, el
+    selector de versiones y dónde pedir una modificación."""
     e = html.escape
-    id_ = e(f["id"])
-    detalle = e(f.get("motivo") or f.get("peticion") or f.get("titulo") or "")
+    id_ = e(g["id"])
+    versiones = g["versiones"]
+    f = next(v for v in versiones if v["id"] == g["mejor"])
+    mejor = e(f["id"])
+    detalle = e(f.get("motivo") or (f["titulo"] if f["titulo"] != g["titulo"] else ""))
     sin_piezas = f["piezas"] == 0
     abrir_titulo = ("Sin piezas construidas" if sin_piezas else
                     "Arranca el puente en el PC primero" if not hay_puente else
@@ -278,11 +343,22 @@ def _fila(f: dict, hay_puente: bool) -> str:
     desactivado = "disabled" if sin_piezas or not hay_puente else ""
     ronda = f.get("ronda") or 0
     linea = f"ronda {ronda} · {f['piezas']} piezas" if ronda else f"{f['piezas']} piezas"
+    if len(versiones) > 1:
+        linea = f"v{f['version']} de {len(versiones)}, la mejor · {linea}"
+    ultima = versiones[-1]
+    otra = ""
+    if ultima["id"] != f["id"] and ultima["estado"] != "en marcha":
+        # La fila enseña la mejor, no la última: sin esto, una modificación
+        # que falló parecería no haberse hecho nunca.
+        otra = (f'<div class="det">La más reciente, v{ultima["version"]}, quedó '
+                f'{e(ultima["estado"])}: está en el selector de versiones.</div>')
     vivo = ""
-    if f["estado"] == "en marcha":
-        que = e(f.get("ultima_etapa") or "arrancando")
-        colgado = " · lleva un rato sin moverse" if f.get("parece_colgado") else ""
-        vivo = f'<div class="vivo">● {que}{colgado}</div>'
+    if g.get("en_marcha"):
+        v = next(v for v in versiones if v["id"] == g["en_marcha"])
+        que = e(v.get("ultima_etapa") or "arrancando")
+        colgado = " · lleva un rato sin moverse" if v.get("parece_colgado") else ""
+        cual = f"v{v['version']}: " if len(versiones) > 1 else ""
+        vivo = f'<div class="vivo">● {cual}{que}{colgado}</div>'
     # Qué impide terminar, en una línea. Los requisitos son solo una de las
     # cosas que tienen que cumplirse: sin esto, «2/2» parecía «terminado».
     falla = ""
@@ -290,29 +366,45 @@ def _fila(f: dict, hay_puente: bool) -> str:
         otros = f" (y {f['fallos'] - 1} más)" if f.get("fallos", 1) > 1 else ""
         falla = (f'<div class="falla" title="{e(f["fallo"])}">✗ ronda {ronda}: '
                  f'{e(f["fallo"][:140])}{"…" if len(f["fallo"]) > 140 else ""}{otros}</div>')
-    miniatura = (f'<img class="mini" src="/proyectos/{id_}/animation.gif" alt="" loading="lazy">'
+    miniatura = (f'<img class="mini" src="/proyectos/{mejor}/animation.gif" alt="" loading="lazy">'
                  if f.get("animacion") else '<div class="mini vacia"></div>')
+    estado = "en marcha" if g.get("en_marcha") else f["estado"]
+    opciones = "".join(_opcion(v, f["id"]) for v in reversed(versiones))
+    total = (f" · {g['usd_total']:.2f} USD entre todas" if len(versiones) > 1 and g.get("usd_total")
+             else "")
+    mod_desactivado = "" if puede_modificar else "disabled"
     return f"""
-      <tr class="fila" data-id="{id_}" data-estado="{e(f['estado'])}">
+      <tr class="fila" data-id="{id_}" data-estado="{e(estado)}">
         <td class="estado" title="{e(f['estado'])}">{ICONOS.get(f['estado'], '·')}</td>
         <td class="col-mini">{miniatura}</td>
-        <td><div class="id">{id_}</div><div class="det">{detalle}</div>
-            <div class="det">{linea}</div>{falla}{vivo}</td>
+        <td><div class="id">{e(g["titulo"])}</div><div class="det">{detalle}</div>
+            <div class="det">{linea}</div>{otra}{falla}{vivo}</td>
         <td class="num">{_requisitos_celda(f.get("requisitos"))}</td>
         <td class="num rev">{_revisor_celda(f.get("revisor"))}</td>
         <td class="coste">{_coste_celda(f.get("coste"))}</td>
         <td class="acc">
-          <a class="btn" href="/proyectos/{id_}.zip" download>Descargar .zip</a>
-          <button class="btn pri" data-abrir="{id_}" title="{e(abrir_titulo)}" {desactivado}>Slice in PrusaSlicer</button>
+          <a class="btn" data-zip href="/proyectos/{mejor}.zip" download>Descargar .zip</a>
+          <button class="btn pri" data-abrir="{mejor}" title="{e(abrir_titulo)}" {desactivado}>Slice in PrusaSlicer</button>
         </td>
       </tr>
-      <tr class="panel" data-panel="{id_}" hidden><td colspan="7"><div class="contenido"></div></td></tr>"""
+      <tr class="panel" data-panel="{id_}" hidden><td colspan="7">
+        <div class="versiones">
+          <label>Versión <select data-versiones="{id_}">{opciones}</select></label>
+          <span class="suave">{len(versiones)} {"versión" if len(versiones) == 1 else "versiones"}{total} · proyecto <code>{id_}</code></span>
+        </div>
+        <div class="modificar">
+          <textarea data-modificar="{id_}" rows="3" placeholder="Qué quieres cambiar de la versión elegida. Por ejemplo: que la rueda tenga 16 dientes y la base 5 mm más gruesa."></textarea>
+          <div class="pie"><span>Crea la v{len(versiones) + 1} de este proyecto a partir de la versión elegida: su diseño y su petición, más el cambio.</span>
+            <button class="btn pri" data-lanzar="{id_}" {mod_desactivado}>Pedir modificación</button></div>
+        </div>
+        <div class="contenido"></div>
+      </td></tr>"""
 
 
-def _tabla(filas: list[dict], hay_puente: bool, vacio: str) -> str:
+def _tabla(filas: list[dict], hay_puente: bool, vacio: str, puede_modificar: bool = False) -> str:
     if not filas:
         return f'<p class="vacio">{vacio}</p>'
-    cuerpo = "".join(_fila(f, hay_puente) for f in filas)
+    cuerpo = "".join(_fila(f, hay_puente, puede_modificar) for f in filas)
     return f"""
     <div class="marco"><table>
       <thead><tr><th></th><th></th><th>Proyecto</th>
@@ -353,7 +445,7 @@ _ESTILO = """
   .col-mini { width:64px; padding-right:0; }
   .mini { width:56px; height:42px; object-fit:cover; border-radius:6px; border:1px solid var(--linea); display:block; }
   .mini.vacia { background:var(--fondo2); }
-  .id { font-weight:600; word-break:break-all; }
+  .id { font-weight:600; overflow-wrap:anywhere; }
   .det { font-size:13px; color:var(--suave); margin-top:2px; }
   .vivo { font-size:13px; color:var(--acento); margin-top:4px; }
   .falla { font-size:13px; color:var(--mal); margin-top:4px; }
@@ -391,14 +483,20 @@ _ESTILO = """
   .plan > div { margin-left:14px; }
   .etiqueta { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--suave); margin-top:6px; }
   .vacio { color:var(--suave); }
-  .pedir textarea { width:100%; font:inherit; font-size:14px; padding:10px 12px; resize:vertical;
+  .pedir textarea, .modificar textarea { width:100%; font:inherit; font-size:14px; padding:10px 12px; resize:vertical;
                     background:var(--tarjeta); color:var(--fg); border:1px solid var(--linea); border-radius:10px; }
-  .pedir textarea:focus { outline:2px solid var(--acento); outline-offset:-1px; }
-  .pedir .pie { display:flex; gap:12px; align-items:center; justify-content:space-between;
+  .pedir textarea:focus, .modificar textarea:focus { outline:2px solid var(--acento); outline-offset:-1px; }
+  .pedir .pie, .modificar .pie { display:flex; gap:12px; align-items:center; justify-content:space-between;
                 flex-wrap:wrap; margin-top:8px; font-size:13px; color:var(--suave); }
-  .pedir select { font:inherit; max-width:min(70vw,420px); margin-left:4px; padding:4px 6px;
+  .pedir select, .versiones select { font:inherit; max-width:min(70vw,520px); margin-left:4px; padding:4px 6px;
                   background:var(--tarjeta); color:var(--fg); border:1px solid var(--linea); border-radius:7px; }
-  .pedir .btn { margin-left:0; padding:8px 18px; font-size:14px; }
+  .pedir .btn, .modificar .btn { margin-left:0; padding:8px 18px; font-size:14px; }
+  .versiones { display:flex; gap:12px; align-items:center; flex-wrap:wrap; font-size:13px; margin-bottom:12px; }
+  .versiones label { font-weight:600; }
+  .modificar { margin-bottom:18px; }
+  .modificar textarea { font-size:13px; }
+  .pedido { background:var(--tarjeta); border:1px solid var(--linea); border-left:3px solid var(--acento);
+            border-radius:8px; padding:8px 12px; font-size:13px; margin-bottom:10px; white-space:pre-wrap; }
   #aviso { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); max-width:min(92vw,640px);
            background:var(--fg); color:var(--bg); padding:10px 16px; border-radius:8px;
            font-size:14px; display:none; }
@@ -411,7 +509,7 @@ _ESTILO = """
 
 # Sin plantillas de cadena: el JavaScript lleva llaves y comillas, y meterlo
 # en un f-string obliga a doblarlas todas.
-_GUION = """
+_GUION = r"""
   const aviso = document.getElementById("aviso");
   function avisar(texto) {
     aviso.textContent = texto; aviso.style.display = "block";
@@ -473,22 +571,54 @@ _GUION = """
             <span class="resumen mal">${esc(corto(r.feedback))}</span></summary><pre>${esc(r.feedback)}</pre></details>`;
       return `<li><b>Ronda ${r.ronda}</b> <span class="suave">${esc(r.titulo)}</span>${cuerpo}</li>`;
     }).join("") || "<li class='vacio'>Este proyecto no guarda historia de rondas (es anterior a que existiera).</li>";
-    return `<div class="detalle"><div>${gif}${verif}</div><div>
+    const pedido = (d.modificacion ? `<div class="pedido"><div class="etiqueta">Cambio pedido en esta versión</div>${esc(d.modificacion)}</div>` : "")
+      + (d.peticion ? `<details class="plan"><summary><span class="etiqueta">Petición completa que recibió el diseñador</span></summary><pre>${esc(d.peticion)}</pre></details>` : "");
+    return `<div class="detalle"><div>${gif}${verif}</div><div>${pedido}
       <h3>Precisión: lo pedido frente a lo medido</h3>${req}
       <h3>Rondas</h3><ul class="rondas">${rondas}</ul></div></div>`;
   }
 
-  const abiertos = new Set(JSON.parse(sessionStorage.getItem("abiertos") || "[]"));
-  const guardarAbiertos = () => sessionStorage.setItem("abiertos", JSON.stringify([...abiertos]));
+  // sessionStorage puede no estar (ventana privada estricta): sin él se
+  // pierde qué tenías abierto al recargar, nada más.
+  const leer = (k, d) => { try { return JSON.parse(sessionStorage.getItem(k)) ?? d; } catch (e) { return d; } };
+  const guardar = (k, v) => { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+  const abiertos = new Set(leer("abiertos", []));
+  const guardarAbiertos = () => guardar("abiertos", [...abiertos]);
+  // La versión que elegiste en cada proyecto. Sin elegir, la mejor: la que
+  // la página trae marcada.
+  const elegidas = new Map(Object.entries(leer("elegidas", {})));
+  const guardarElegidas = () => guardar("elegidas", Object.fromEntries(elegidas));
+  const hayPuente = !!document.body.dataset.puente;
+  const borradores = new Map();
+
+  const filaDe = id => document.querySelector(`tr.fila[data-id="${CSS.escape(id)}"]`);
+  const panelDe = id => document.querySelector(`tr[data-panel="${CSS.escape(id)}"]`);
+
+  // Los botones de la fila bajan y abren la versión que estás viendo.
+  function aplicarVersion(id) {
+    const panel = panelDe(id), fila = filaDe(id);
+    const sel = panel.querySelector("select[data-versiones]");
+    if (elegidas.has(id) && [...sel.options].some(o => o.value === elegidas.get(id))) sel.value = elegidas.get(id);
+    const opcion = sel.selectedOptions[0];
+    const piezas = Number(opcion.dataset.piezas);
+    fila.querySelector("a[data-zip]").href = "/proyectos/" + encodeURIComponent(sel.value) + ".zip";
+    const b = fila.querySelector("button[data-abrir]");
+    b.dataset.abrir = sel.value;
+    b.disabled = !piezas || !hayPuente;
+    b.title = !piezas ? "Sin piezas construidas" : !hayPuente ? "Arranca el puente en el PC primero"
+      : `Abre las ${piezas} piezas de esta versión en tu PrusaSlicer con el perfil de la M5`;
+    return sel.value;
+  }
 
   async function abrirPanel(id) {
-    const panel = document.querySelector(`tr[data-panel="${CSS.escape(id)}"]`);
+    const panel = panelDe(id);
     if (!panel) return;
     panel.hidden = false;
+    const version = aplicarVersion(id);
     const caja = panel.querySelector(".contenido");
     if (!caja.innerHTML) caja.innerHTML = "<span class='suave'>Cargando…</span>";
     try {
-      const r = await fetch("/api/proyectos/" + encodeURIComponent(id));
+      const r = await fetch("/api/proyectos/" + encodeURIComponent(version));
       caja.innerHTML = r.ok ? pintarDetalle(await r.json()) : "<span class='mal'>No se pudo cargar.</span>";
     } catch (e) { caja.innerHTML = "<span class='mal'>No se pudo cargar: " + esc(e) + "</span>"; }
   }
@@ -497,11 +627,45 @@ _GUION = """
     document.querySelectorAll("tr.fila").forEach(fila => fila.addEventListener("click", ev => {
       if (ev.target.closest("a, button")) return;
       const id = fila.dataset.id;
-      const panel = document.querySelector(`tr[data-panel="${CSS.escape(id)}"]`);
+      const panel = panelDe(id);
       if (panel.hidden) { abiertos.add(id); abrirPanel(id); }
       else { abiertos.delete(id); panel.hidden = true; }
       guardarAbiertos();
     }));
+    document.querySelectorAll("select[data-versiones]").forEach(sel => sel.addEventListener("change", () => {
+      elegidas.set(sel.dataset.versiones, sel.value); guardarElegidas();
+      abrirPanel(sel.dataset.versiones);
+    }));
+    document.querySelectorAll("button[data-lanzar]").forEach(b => b.addEventListener("click", async () => {
+      const id = b.dataset.lanzar;
+      const caja = document.querySelector(`textarea[data-modificar="${CSS.escape(id)}"]`);
+      const base = panelDe(id).querySelector("select[data-versiones]").value;
+      if (!caja.value.trim()) { avisar("Escribe primero qué quieres cambiar."); caja.focus(); return; }
+      b.disabled = true; const antes = b.textContent; b.textContent = "Lanzando...";
+      try {
+        const r = await fetch("/api/proyectos/" + encodeURIComponent(base) + "/modificar", {method: "POST",
+          headers: {"Content-Type": "application/json"}, body: JSON.stringify({peticion: caja.value})});
+        const d = await r.json();
+        if (r.ok) {
+          caja.value = ""; borradores.delete(id);
+          // Se queda mirando la versión nueva, que es la que está trabajando.
+          elegidas.set(id, d.id); guardarElegidas();
+          avisar("En marcha la versión nueva de este proyecto. Tarda unos minutos; se actualiza sola.");
+          abiertos.add(id); guardarAbiertos();
+          await refrescar(true);
+        } else {
+          avisar(Array.isArray(d.detail) ? d.detail.map(x => x.msg).join("; ") : d.detail);
+          b.disabled = false;
+        }
+      } catch (e) { avisar("No se pudo contactar con el servidor: " + e); b.disabled = false; }
+      b.textContent = antes;
+    }));
+    // Lo que tenías a medio escribir en un cuadro de modificación vuelve
+    // tras cada refresco: el cuadro está dentro de lo que se reemplaza.
+    document.querySelectorAll("textarea[data-modificar]").forEach(t => {
+      if (borradores.has(t.dataset.modificar)) t.value = borradores.get(t.dataset.modificar);
+      t.addEventListener("input", () => borradores.set(t.dataset.modificar, t.value));
+    });
     document.querySelectorAll("button[data-abrir]").forEach(b => b.addEventListener("click", async () => {
       b.disabled = true; const antes = b.textContent; b.textContent = "Abriendo...";
       try {
@@ -523,11 +687,13 @@ _GUION = """
     try {
       const html = await (await fetch("/")).text();
       const doc = new DOMParser().parseFromString(html, "text/html");
+      const foco = document.activeElement?.dataset?.modificar;
       document.querySelector("#vivo").replaceWith(doc.querySelector("#vivo"));
       // El botón y la nota sí se ponen al día: dicen si se puede pedir ya.
       document.querySelector("#disenar").disabled = doc.querySelector("#disenar").disabled;
       document.querySelector("#nota-pedir").textContent = doc.querySelector("#nota-pedir").textContent;
       enganchar();
+      if (foco) document.querySelector(`textarea[data-modificar="${CSS.escape(foco)}"]`)?.focus();
     } catch (e) { /* sin red un momento: se reintenta en la siguiente vuelta */ }
   }
 
@@ -571,7 +737,10 @@ _EJEMPLO = (
 
 def _formulario(filas: list[dict], puede_pedir: bool, ocupado: bool) -> str:
     e = html.escape
-    opciones = "".join(f'<option value="{e(f["id"])}">{e(f["id"])}</option>' for f in filas)
+    # Un diseño NUEVO que se inspira en otro proyecto, desde su mejor versión.
+    # Cambiar ese mismo proyecto es una modificación, y se pide desde su panel.
+    opciones = "".join(f'<option value="{e(f["mejor"])}">{e(_corto(f["titulo"], 70))}</option>'
+                       for f in filas)
     desactivado = "" if puede_pedir and not ocupado else "disabled"
     nota = ("Esta web no tiene con qué lanzar diseños." if not puede_pedir else
             "Hay un proyecto trabajando: espera a que termine." if ocupado else
@@ -592,7 +761,8 @@ def _formulario(filas: list[dict], puede_pedir: bool, ocupado: bool) -> str:
 def _pagina(filas: list[dict], hay_puente: bool, puede_pedir: bool = False) -> str:
     activos = [f for f in filas if f["seccion"] == "projects"]
     archivados = [f for f in filas if f["seccion"] == "archivo"]
-    en_marcha = sum(1 for f in activos if f["estado"] == "en marcha")
+    en_marcha = sum(1 for f in activos if f.get("en_marcha"))
+    puede_modificar = puede_pedir and not en_marcha
     puente = ('<span class="ok">● puente con PrusaSlicer configurado</span>' if hay_puente
               else '<span class="mal">● sin puente con PrusaSlicer — arráncalo en el PC: '
                    '<code>powershell scripts\\start-host-mcps.ps1</code></span>')
@@ -602,14 +772,15 @@ def _pagina(filas: list[dict], hay_puente: bool, puede_pedir: bool = False) -> s
         '<!doctype html>\n<html lang="es"><head><meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         f"<title>Intelliprint</title>\n<style>{_ESTILO}</style></head>\n"
-        "<body><main>\n  <h1>Intelliprint</h1>\n"
+        f'<body data-puente="{"1" if hay_puente else ""}"><main>\n  <h1>Intelliprint</h1>\n'
         f"{_formulario(filas, puede_pedir, ocupado=en_marcha > 0)}\n"
         # Lo que se refresca solo va aparte: si el formulario estuviera
-        # dentro, cada vuelta borraría lo que estás escribiendo.
+        # dentro, cada vuelta borraría lo que estás escribiendo. Los cuadros
+        # de modificación sí van dentro, y el guion guarda lo escrito.
         '  <div id="vivo">\n'
         f'  <div class="cabecera">{puente}{marcha}</div>\n'
-        f"  <h2>Proyectos</h2>\n  {_tabla(activos, hay_puente, 'Todavía no hay proyectos.')}\n"
-        f"  <h2>Archivo</h2>\n  {_tabla(archivados, hay_puente, 'Nada archivado.')}\n"
+        f"  <h2>Proyectos</h2>\n  {_tabla(activos, hay_puente, 'Todavía no hay proyectos.', puede_modificar)}\n"
+        f"  <h2>Archivo</h2>\n  {_tabla(archivados, hay_puente, 'Nada archivado.', puede_modificar)}\n"
         f'  </div>\n</main>\n<div id="aviso"></div>\n<script>{_GUION}</script>\n</body></html>'
     )
 
