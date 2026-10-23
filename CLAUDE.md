@@ -102,11 +102,10 @@ fórmula. **Esa regla sigue sin ejercitarse en una ejecución real.**
 
 ### Lo que quedó pendiente
 
-0. **Comprobar los modelos de DeepSeek antes que nada.** La documentación de
-   DeepSeek ya solo lista `deepseek-flash` y `deepseek-v4-pro`, y
-   `config/models.yaml` usa `deepseek-chat` y `deepseek-reasoner`. Si están
-   retirados, el perfil `dev` entero está muerto y no hay agente que funcione.
-   Se resuelve con una llamada en cuanto haya clave.
+0. ✅ **Los modelos de DeepSeek funcionan** (comprobado llamándolos el
+   2026-10-23). `deepseek-chat` y `deepseek-reasoner` son alias que DeepSeek
+   sirve con `deepseek-flash` (sin y con pensamiento), y ya se cobran como
+   Flash: está explicado en `config/models.yaml`, junto a los precios.
 1. ✅ **El trinquete sale de verdad** (2026-09-21,
    `workspace/projects/2026-09-21-1611-trinquete_y_rueda`, ronda 10, 1.17 USD).
    Solo la palanca va por fórmula; la rueda se mueve **empujada por la palanca**
