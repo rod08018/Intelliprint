@@ -110,6 +110,27 @@ def test_la_conexion_con_la_impresora_no_viaja_en_el_perfil(paquete):
         assert clave not in plano
 
 
+@pytest.mark.parametrize("en_eufymake, ironing, ironing_type", [
+    ("top", "1", "top"),
+    ("topmost", "1", "topmost"),
+    ("no ironing", "0", "top"),
+])
+def test_el_planchado_se_traduce_al_interruptor_de_prusaslicer(tmp_path, en_eufymake,
+                                                               ironing, ironing_type):
+    """En eufyMake el planchado se enciende con `ironing_type` («no ironing»
+    lo apaga) y `ironing` se queda en 0. PrusaSlicer usa `ironing` como
+    interruptor: copiado tal cual, el «Precision» del usuario, que planchaba
+    la cara de arriba, dejaba de hacerlo sin que nadie lo dijera."""
+    ruta = tmp_path / "bundle.ini"
+    ruta.write_text(PAQUETE.replace(
+        "[print:Precision]\n",
+        f"[print:Precision]\nironing = 0\nironing_type = {en_eufymake}\n"), encoding="utf-8")
+
+    plano, _ = aplanar(leer_paquete(ruta), **TRIO)
+
+    assert (plano["ironing"], plano["ironing_type"]) == (ironing, ironing_type)
+
+
 def test_inherits_no_pasa_al_perfil_plano(paquete):
     """En un perfil plano no hay de quién heredar: con `inherits`,
     PrusaSlicer buscaría un preset del sistema que este PC no tiene."""

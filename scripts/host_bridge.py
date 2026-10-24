@@ -28,7 +28,7 @@ from mcp.server import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 
 from orchestrator.impresion import perfil_activo
-from orchestrator.slicing import LaminadoFallido, slice_stl
+from orchestrator.slicing import LaminadoFallido, UsoDesconocido, ajustes_de_uso, slice_stl
 
 PUERTO = int(os.environ.get("PRUSASLICER_BRIDGE_PORT", "8102"))
 
@@ -104,8 +104,12 @@ def orden_para_abrir(programa: str, stls: list[str], perfil: str,
     """
     if not stls:
         raise ValueError("no hay ninguna pieza que abrir")
-    ini = resolver_perfil(perfil, catalogo)
     piezas = [str(comprobar_dentro(s, workspace)) for s in stls]
+    if len(piezas) == 1 and piezas[0].lower().endswith(".3mf"):
+        # Un proyecto ya lleva su configuración y los ajustes de cada pieza
+        # (F3.16 (usos)): un --load encima los pisaría.
+        return [programa, piezas[0]]
+    ini = resolver_perfil(perfil, catalogo)
     return [programa, "--load", str(ini), *piezas]
 
 
@@ -131,13 +135,16 @@ mcp = MCPServer(
 
 
 @mcp.tool()
-def laminar(stl: str, salida: str, perfil: str = "") -> dict:
+def laminar(stl: str, salida: str, perfil: str = "", uso: str = "general") -> dict:
     """Lamina un STL con el PrusaSlicer del escritorio y devuelve gramos,
     tiempo y si necesita soportes.
 
     `stl` y `salida` son rutas del HOST dentro del workspace compartido.
     `perfil` es el NOMBRE de un .ini de config/slicing/; vacío, el activo
-    (config/impresion.yaml).
+    (config/impresion.yaml). `uso` es el NOMBRE de un uso de
+    config/slicing/usos.yaml (F3.16 (usos)): sus ajustes los lee el host en
+    su tabla. No hay forma de mandar ajustes sueltos: serían opciones
+    arbitrarias en la orden de PrusaSlicer de este PC.
     """
     workspace = _workspace()
     entrada = comprobar_dentro(stl, workspace)
@@ -147,7 +154,11 @@ def laminar(stl: str, salida: str, perfil: str = "") -> dict:
     if not entrada.is_file():
         return {"ok": False, "error": f"no encuentro el STL: {entrada}"}
     try:
-        informe = slice_stl(entrada, ini, destino)
+        ajustes = ajustes_de_uso(uso, _raiz() / "config" / "slicing")
+    except UsoDesconocido as e:
+        return {"ok": False, "error": str(e)}
+    try:
+        informe = slice_stl(entrada, ini, destino, ajustes=ajustes)
     except LaminadoFallido as e:
         return {"ok": False, "error": str(e)}
     return {"ok": True, "gcode": str(destino), **informe.model_dump()}
@@ -170,14 +181,15 @@ def abrir_en_prusaslicer(stls: list[str], perfil: str = "") -> dict:
             programa, stls, perfil, workspace, _raiz() / "config" / "slicing")
     except (ValueError, FueraDelWorkspace, FueraDelCatalogo) as e:
         return {"ok": False, "error": str(e)}
-    faltan = [s for s in orden[3:] if not Path(s).is_file()]
+    archivos = orden[-len(stls):]   # las piezas, o el proyecto .3mf
+    faltan = [s for s in archivos if not Path(s).is_file()]
     if faltan:
         return {"ok": False, "error": f"no encuentro: {faltan}"}
 
     # Desenganchado: si el puente se reinicia, la ventana de la persona no
     # se cierra con él.
     subprocess.Popen(orden, **_desenganchado())
-    return {"ok": True, "abiertas": len(orden) - 3, "perfil": perfil}
+    return {"ok": True, "abiertas": len(archivos), "perfil": perfil}
 
 
 def _desenganchado() -> dict:

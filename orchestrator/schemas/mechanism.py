@@ -11,6 +11,7 @@ from typing import Literal
 from pydantic import BaseModel, model_validator
 
 from orchestrator.mechanisms.expr import ExprError, check_expr
+from orchestrator.schemas.uso import Uso
 
 MAX_FRAMES = 73
 
@@ -79,6 +80,9 @@ class PartDef(Body):
     """Caja envolvente esperada en el marco local. Con ella se comprueba
     que la pieza dibujada es la que el mecanismo necesita."""
     color: str | None = None
+    uso: Uso = "general"
+    """Para qué es, y con eso cómo se lamina (F3.16 (usos)): el agente elige
+    el uso y los números salen de config/slicing/usos.yaml, no de él."""
 
 
 class PinDef(Body):

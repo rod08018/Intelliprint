@@ -12,6 +12,7 @@ quien quiera. Se trata como texto ajeno: un nombre, nunca una ruta.
 """
 
 import html
+import json
 import io
 import os
 import zipfile
@@ -22,6 +23,8 @@ from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import BaseModel, Field, field_validator
 
 from orchestrator.impresion import perfil_activo
+from orchestrator.proyecto_3mf import Pieza, escribir_3mf
+from orchestrator.slicing import UsoDesconocido, ajustes_de_uso
 from orchestrator.hostpaths import RutaFueraDelWorkspace, a_ruta_del_host
 from orchestrator.jobs import JobStore
 from orchestrator.registry import estado_de, indice
@@ -79,6 +82,22 @@ def piezas_de(carpeta: Path) -> list[Path]:
     """Las STL que construyó el sistema. Las dos rutas del diseño —pieza
     única y mecanismo— las dejan en parts/<nombre>/<nombre>.stl."""
     return sorted(Path(carpeta).glob("parts/*/*.stl"))
+
+
+def usos_de(carpeta: Path) -> dict[str, str]:
+    """El uso que el diseñador declaró para cada pieza (F3.16 (usos)). Se lee
+    el JSON a pelo: un mechanism.json anterior a los usos no lo trae, y no
+    por eso deja de valer. Sin uso, «general»."""
+    try:
+        spec = json.loads((Path(carpeta) / "mechanism.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {p["name"]: p.get("uso") or "general" for p in spec.get("parts", []) if "name" in p}
+
+
+def piezas_con_uso(carpeta: Path) -> list[dict]:
+    usos = usos_de(carpeta)
+    return [{"nombre": stl.stem, "uso": usos.get(stl.stem, "general")} for stl in piezas_de(carpeta)]
 
 
 def _listar(workspace: Path) -> list[dict]:
@@ -207,6 +226,7 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
                     if (carpeta / "request.md").is_file() else "")
         return {"id": carpeta.name, "peticion": peticion,
                 "modificacion": marca_de(carpeta).get("modificacion"),
+                "piezas": piezas_con_uso(carpeta),
                 **estadisticas(carpeta, en_marcha=en_marcha)}
 
     @app.get("/proyectos/{id}/animation.gif")
@@ -236,9 +256,20 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
                 "host con: powershell scripts\\start-host-mcps.ps1")
 
         from orchestrator.mcp.client import ClienteMCP, LlamadaFallida, PuenteInalcanzable
+        # Un proyecto .3mf con cada pieza y los ajustes de su uso: con las
+        # STL sueltas, el gatillo que aguanta un resorte se laminaría como
+        # la tapa (F3.16 (usos)).
+        catalogo = Path(raiz) / "config" / "slicing"
+        usos = usos_de(carpeta)
         try:
-            stls = [a_ruta_del_host(p.as_posix(), workspace.as_posix(), host_workspace)
-                    for p in piezas]
+            proyecto = escribir_3mf(
+                [Pieza(p.stem, p, ajustes_de_uso(usos.get(p.stem, "general"), catalogo))
+                 for p in piezas],
+                catalogo / perfil, carpeta / "imprimir" / f"{carpeta.name}.3mf")
+        except (UsoDesconocido, ValueError) as e:
+            raise HTTPException(409, f"no se pudo preparar el proyecto para PrusaSlicer: {e}")
+        try:
+            stls = [a_ruta_del_host(proyecto.as_posix(), workspace.as_posix(), host_workspace)]
         except RutaFueraDelWorkspace as e:
             raise HTTPException(500, str(e))
         try:
@@ -252,7 +283,7 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
             raise HTTPException(502, str(e))
         if not respuesta.get("ok"):
             raise HTTPException(502, respuesta.get("error") or "PrusaSlicer no se abrió")
-        return respuesta
+        return {**respuesta, "abiertas": len(piezas)}
 
     @app.get("/", response_class=HTMLResponse)
     def portada() -> str:
@@ -575,7 +606,10 @@ _GUION = r"""
     }).join("") || "<li class='vacio'>Este proyecto no guarda historia de rondas (es anterior a que existiera).</li>";
     const pedido = (d.modificacion ? `<div class="pedido"><div class="etiqueta">Cambio pedido en esta versión</div>${esc(d.modificacion)}</div>` : "")
       + (d.peticion ? `<details class="plan"><summary><span class="etiqueta">Petición completa que recibió el diseñador</span></summary><pre>${esc(d.peticion)}</pre></details>` : "");
-    return `<div class="detalle"><div>${gif}${verif}</div><div>${pedido}
+    // Cómo se lamina cada pieza: lo que no es «general» lleva más (o menos) material.
+    const piezas = (d.piezas || []).length ? `<div class="det">Piezas: ${d.piezas.map(p =>
+      esc(p.nombre) + (p.uso !== "general" ? ` <b>(${esc(p.uso)})</b>` : "")).join(", ")}</div>` : "";
+    return `<div class="detalle"><div>${gif}${verif}${piezas}</div><div>${pedido}
       <h3>Precisión: lo pedido frente a lo medido</h3>${req}
       <h3>Rondas</h3><ul class="rondas">${rondas}</ul></div></div>`;
   }

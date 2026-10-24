@@ -1,0 +1,31 @@
+# Laminado por pieza según su uso (F3.16 (usos)): cambios sobre el perfil
+# base (config/impresion.yaml → laminado). El diseñador elige el uso de cada
+# pieza en la lista cerrada de `PartDef.uso`; los NÚMEROS solo salen de aquí.
+#
+# PROPUESTOS el 2026-10-24 y aprobados por el usuario como punto de partida:
+# no se han probado imprimiendo. Ajústalos cuando una pieza real diga otra
+# cosa. Las claves son de PrusaSlicer (un test comprueba que las entiende:
+# una errata la ignoraría sin avisar).
+
+# El perfil base tal cual (Precision: 0.12 mm, 3 perímetros, gyroid al 20 %,
+# planchado arriba).
+general: {}
+
+# Aguanta fuerza: un gatillo, un enganche, un brazo que carga un resorte.
+estructural:
+  perimeters: 5
+  fill_density: 40%
+  fill_pattern: gyroid
+  top_solid_layers: 6
+  bottom_solid_layers: 6
+
+# Se ve: la costura atrás, donde no se mira.
+estetica:
+  seam_position: rear
+
+# Para probar una idea rápido: capa gruesa, poco material, sin planchado.
+prototipo:
+  layer_height: 0.2
+  perimeters: 2
+  fill_density: 10%
+  ironing: 0

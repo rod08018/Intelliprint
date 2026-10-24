@@ -41,6 +41,12 @@ Aplícalas tú en los enunciados: el Part Designer usa las cotas tal cual.
 - **Resortes.** `stretch` puede depender de `q_<pieza>`, el valor de la articulación de otra pieza (por ejemplo `"(l0 - q_vastago) / l0"`). Un `stretch` constante se rechaza: una pieza elástica que no se deforma no devuelve nada.
 - **Bloqueos.** Cuando el mecanismo impide un movimiento (un trinquete que no deja retroceder la rueda), decláralo en `blocks`: `{{"body": pieza que no puede moverse, "against": pieza que se lo impide, "at": valor del parámetro, "delta": cuánto intentaría moverse su articulación}}`. El sistema mueve esa articulación `delta` y comprueba que las piezas se atravesarían, es decir, que el bloqueo es geométrico y no una fórmula.
 - Roscas: se representan como cilindros lisos; indícalo en `assumptions`. El avance lo das con la fórmula (paso × vueltas).
+- **Uso de cada pieza** (`uso`): decide cómo se lamina. Uno de estos:
+  - `general`: la mayoría; es el valor si no pones nada.
+  - `estructural`: aguanta fuerza o desgaste (un gatillo, un enganche, un eje impreso, lo que carga un resorte).
+  - `estetica`: se ve y no carga nada (una tapa, una carcasa exterior).
+  - `prototipo`: solo para probar una idea rápido.
+  Solo eliges el uso: los perímetros, el relleno y la capa los pone el sistema, no tú.
 
 ## Generadores que puede usar el Part Designer
 
@@ -65,7 +71,7 @@ Devuelve **solo** el JSON, sin texto alrededor. Ejemplo de la forma (un péndulo
     {{"name": "soporte", "brief": "Pieza «soporte»: ... origen en ...", "bbox_min": [-20, -5, 0], "bbox_max": [20, 5, 60], "color": "#9aa5b1"}},
     {{"name": "brazo", "origin": [0, 8, 50], "rotation": [-90, 0, 0],
      "joint": {{"type": "revolute", "axis": [0, 0, 1], "value": "amp*sin(t)"}},
-     "brief": "Pieza «brazo»: ...", "bbox_min": [-5, -5, 0], "bbox_max": [45, 5, 5], "color": "#e8833a"}}
+     "brief": "Pieza «brazo»: ...", "bbox_min": [-5, -5, 0], "bbox_max": [45, 5, 5], "color": "#e8833a", "uso": "estructural"}}
   ],
   "pins": [{{"name": "eje", "origin": [0, -10, 50], "rotation": [-90, 0, 0], "diameter_mm": 4, "length_mm": 30}}],
   "rules": [],

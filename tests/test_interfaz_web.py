@@ -152,14 +152,60 @@ def test_bajar_un_id_malo_es_404_y_no_un_zip(web):
         assert web.get(f"/proyectos/{malo}.zip").status_code == 404
 
 
-def test_abrir_en_prusaslicer_manda_las_piezas_con_rutas_del_host(web, puente):
-    """El PrusaSlicer del PC no sabe qué es /workspace: le llegan sus rutas."""
+def _piezas_de_verdad(ws):
+    """El .3mf lleva la malla de cada pieza: las STL vacías del fixture no
+    sirven para eso."""
+    from tests.test_slicing import _cubo_stl
+
+    carpeta = ws / "projects" / "2026-09-20-trinquete"
+    _cubo_stl(carpeta / "parts" / "rueda" / "rueda.stl", 30)
+    _cubo_stl(carpeta / "parts" / "pawl" / "pawl.stl", 20)
+    return carpeta
+
+
+def test_abrir_en_prusaslicer_manda_un_proyecto_3mf_con_ruta_del_host(ws, puente):
+    """El PrusaSlicer del PC no sabe qué es /workspace: le llega su ruta. Y
+    le llega UN proyecto con las piezas dentro, cada una con sus ajustes
+    (F3.16 (usos)), no las STL sueltas con un solo perfil para todas."""
+    _piezas_de_verdad(ws)
+    web = TestClient(crear_app(ws, puente=puente, host_workspace=HOST))
+
     r = web.post("/proyectos/2026-09-20-trinquete/abrir")
+
     assert r.status_code == 200, r.text
-    assert sorted(puente.recibido[0]["stls"]) == [
-        HOST + r"\projects\2026-09-20-trinquete\parts\pawl\pawl.stl",
-        HOST + r"\projects\2026-09-20-trinquete\parts\rueda\rueda.stl",
-    ]
+    assert puente.recibido[0]["stls"] == [
+        HOST + r"\projects\2026-09-20-trinquete\imprimir\2026-09-20-trinquete.3mf"]
+    assert r.json()["abiertas"] == 2
+
+
+def test_cada_pieza_del_proyecto_lleva_los_ajustes_de_su_uso(ws, puente):
+    """El uso lo declaró el diseñador en mechanism.json; los ajustes salen
+    de la tabla. Un mechanism.json anterior a los usos no lo trae: general."""
+    carpeta = _piezas_de_verdad(ws)
+    (carpeta / "mechanism.json").write_text(json.dumps({"parts": [
+        {"name": "rueda", "uso": "estructural"}, {"name": "pawl"}]}), encoding="utf-8")
+    web = TestClient(crear_app(ws, puente=puente, host_workspace=HOST))
+
+    assert web.post("/proyectos/2026-09-20-trinquete/abrir").status_code == 200
+
+    piezas = zipfile.ZipFile(carpeta / "imprimir" / "2026-09-20-trinquete.3mf").read(
+        "Metadata/Slic3r_PE_model.config").decode()
+    rueda = next(o for o in piezas.split("<object ")[1:] if 'value="rueda"' in o)
+    pawl = next(o for o in piezas.split("<object ")[1:] if 'value="pawl"' in o)
+    assert 'key="perimeters" value="5"' in rueda
+    assert 'key="perimeters"' not in pawl
+
+
+def test_el_detalle_dice_el_uso_de_cada_pieza(ws, puente):
+    carpeta = ws / "projects" / "2026-09-20-trinquete"
+    (carpeta / "mechanism.json").write_text(json.dumps({"parts": [
+        {"name": "rueda", "uso": "estructural"}, {"name": "pawl"}]}), encoding="utf-8")
+    web = TestClient(crear_app(ws, puente=puente, host_workspace=HOST))
+
+    detalle = web.get("/api/proyectos/2026-09-20-trinquete").json()
+
+    assert detalle["piezas"] == [{"nombre": "pawl", "uso": "general"},
+                                 {"nombre": "rueda", "uso": "estructural"}]
 
 
 def test_abrir_un_proyecto_sin_piezas_lo_dice(web, puente):

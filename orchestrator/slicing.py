@@ -10,16 +10,35 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Callable
 
+import yaml
+
 from orchestrator.schemas.slicing_report import SlicingReport
+from orchestrator.schemas.uso import USOS, Uso  # noqa: F401  (se reexportan)
 
 _MACOS = "/Applications/PrusaSlicer.app/Contents/MacOS/PrusaSlicer"
 
 
 class LaminadoFallido(RuntimeError):
     """PrusaSlicer no produjo un G-code utilizable."""
+
+
+class UsoDesconocido(KeyError):
+    """Un uso que no está en la tabla."""
+
+
+def ajustes_de_uso(uso: str, catalogo: Path) -> dict[str, str]:
+    """Los cambios sobre el perfil base que pide `uso`, como texto de .ini.
+
+    `catalogo` es la carpeta config/slicing/ de quien lamina: el puente lo
+    resuelve en la SUYA, igual que el perfil."""
+    tabla = yaml.safe_load((Path(catalogo) / "usos.yaml").read_text(encoding="utf-8"))
+    if uso not in tabla:
+        raise UsoDesconocido(f"el uso {uso!r} no existe. Hay: {sorted(tabla)}")
+    return {k: str(v) for k, v in (tabla[uso] or {}).items()}
 
 
 def prusaslicer() -> str | None:
@@ -42,18 +61,28 @@ def _dato(gcode: str, patron: str) -> str | None:
     return m.group(1).strip() if m else None
 
 
-def slice_stl(stl: Path, perfil: Path, salida: Path) -> SlicingReport:
+def slice_stl(stl: Path, perfil: Path, salida: Path,
+              ajustes: dict[str, str] | None = None) -> SlicingReport:
     ejecutable = prusaslicer()
     if ejecutable is None:
         raise LaminadoFallido("PrusaSlicer no encontrado (define PRUSASLICER)")
     if not Path(perfil).exists():
         raise LaminadoFallido(f"perfil de laminado inexistente: {perfil}")
 
-    proceso = subprocess.run(
-        [ejecutable, "--load", str(perfil), "--export-gcode",
-         "--output", str(salida), str(stl)],
-        capture_output=True, text=True, timeout=600,
-    )
+    # Los ajustes van en un segundo perfil que se carga DESPUÉS y pisa al
+    # primero: como opciones sueltas habría que traducir cada clave, y los
+    # interruptores (`ironing`) no se escriben igual en la línea de órdenes.
+    with tempfile.TemporaryDirectory() as tmp:
+        cargar = ["--load", str(perfil)]
+        if ajustes:
+            extra = Path(tmp) / "ajustes.ini"
+            extra.write_text("".join(f"{k} = {v}\n" for k, v in ajustes.items()),
+                             encoding="utf-8")
+            cargar += ["--load", str(extra)]
+        proceso = subprocess.run(
+            [ejecutable, *cargar, "--export-gcode", "--output", str(salida), str(stl)],
+            capture_output=True, text=True, timeout=600,
+        )
     if proceso.returncode != 0 or not Path(salida).exists():
         raise LaminadoFallido(
             f"PrusaSlicer falló (código {proceso.returncode}):\n{proceso.stderr[-800:]}"
@@ -99,7 +128,9 @@ def elegir_laminador(raiz: Path, env) -> "Callable[[Path, Path], SlicingReport]"
     perfil = perfil_activo(raiz).laminado
     destino = env.get("PRUSASLICER_BRIDGE")
     if not destino:
-        return lambda stl, salida: slice_stl(stl, Path(raiz) / "config" / "slicing" / perfil, salida)
+        catalogo = Path(raiz) / "config" / "slicing"
+        return lambda stl, salida, uso="general": slice_stl(
+            stl, catalogo / perfil, salida, ajustes=ajustes_de_uso(uso, catalogo))
 
     from orchestrator.hostpaths import a_ruta_del_host
     from orchestrator.mcp.client import ClienteMCP
@@ -109,9 +140,14 @@ def elegir_laminador(raiz: Path, env) -> "Callable[[Path, Path], SlicingReport]"
     herramienta = env.get("PRUSASLICER_BRIDGE_TOOL") or "laminar"
     cliente = ClienteMCP(destino)
 
-    def laminar(stl: Path, salida: Path) -> SlicingReport:
+    def laminar(stl: Path, salida: Path, uso: str = "general") -> SlicingReport:
+        # El NOMBRE del uso, nunca sus ajustes: el host lo resuelve en su
+        # tabla. Y solo si no es «general», para que un puente sin
+        # reiniciar siga laminando lo de siempre.
+        extra = {"uso": uso} if uso != "general" else {}
         respuesta = cliente.llamar(
             herramienta,
+            **extra,
             # as_posix() y no str(): la ruta del contenedor es POSIX
             # SIEMPRE, y str() de un Path en Windows daría barras
             # invertidas que el traductor no reconoce como suyas.

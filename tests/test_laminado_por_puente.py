@@ -101,7 +101,7 @@ def test_sin_puente_se_usa_el_binario_de_siempre(monkeypatch, tmp_path):
     llamadas = []
     monkeypatch.setattr(
         "orchestrator.slicing.slice_stl",
-        lambda stl, perfil, salida: llamadas.append((stl, perfil, salida)),
+        lambda stl, perfil, salida, ajustes=None: llamadas.append((stl, perfil, salida)),
     )
     laminar = elegir_laminador(Path("."), {})
     laminar(Path("a.stl"), Path("a.gcode"))

@@ -77,9 +77,25 @@ def aplanar(paquete, impresion: str, filamento: str, impresora: str,
     for tipo, nombre in (("printer", impresora), ("print", impresion), ("filament", filamento)):
         junto.update(_seccion(paquete, tipo, nombre))
     plano = {k: v for k, v in junto.items() if k in conocidas and k not in FUERA}
+    _traducir_planchado(plano)
     descartadas = {k: v for k, v in junto.items()
                    if k not in conocidas and v not in ("nil", "")}
     return plano, descartadas
+
+
+def _traducir_planchado(plano: dict[str, str]) -> None:
+    """eufyMake enciende el planchado con `ironing_type` («no ironing» lo
+    apaga) y deja `ironing = 0`; PrusaSlicer lo enciende con `ironing`.
+    Copiado tal cual, el «Precision» del usuario, que planchaba la cara de
+    arriba, dejaba de hacerlo en silencio (2026-10-24)."""
+    tipo = plano.get("ironing_type")
+    if tipo is None:
+        return
+    if tipo == "no ironing":
+        # PrusaSlicer no conoce ese valor: lo cambiaría por otro al cargar.
+        plano["ironing"], plano["ironing_type"] = "0", "top"
+    else:
+        plano["ironing"] = "1"
 
 
 def escribir_ini(plano: dict[str, str], destino: Path, *, origen: str, trio: dict[str, str],
