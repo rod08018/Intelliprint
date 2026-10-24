@@ -205,7 +205,7 @@ Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto
 | F2.15 | **Regla dura del veredicto**: `PASS ⟺ capa1 ∧ capa2 ∧ sin_defectos_LLM`. El LLM escribe en una lista, no en el veredicto | Test adversarial: con un QA Agent forzado a responder siempre "aprobado", una pieza con cota fuera de tolerancia **sigue dando FAIL** |
 | F2.16 | Capa de visión: pasar los renders de `views/` al modelo y pedir defectos | Detecta ≥ 3 de 5 catástrofes sembradas invisibles a las cotas (pocket en cara equivocada, sólido partido, booleana que borra media pieza) |
 | F2.17 | Bucle Part Designer ↔ DFM ↔ QA con máximo 3 iteraciones | Una pieza con defecto sembrado se corrige y pasa |
-| F2.18 | **Pieza de calibración de holguras** generada por el sistema (peine de agujeros y ejes 0.0–0.5 mm) | Tras imprimirla, el usuario introduce los resultados y el perfil se actualiza |
+| F2.18 | **Pieza de calibración de holguras** generada por el sistema (peine de agujeros y ejes 0.0–0.5 mm) | Tras imprimirla, el usuario introduce los resultados y el perfil se actualiza **2026-10-24:** `intelliprint calibrar pieza` construye el peine (5.0 a 5.5 mm), el eje de 5 mm y la placa M3 (2.6 a 3.6 y 3.8 a 4.4), sin números grabados porque no hay generador de texto: se orientan por una muesca. `intelliprint calibrar resultados` es el único camino que cambia `fits` y `holes` del perfil activo, y rechaza valores que la pieza no pudo dar. **Falta imprimirla y medir.** |
 
 **Entregable:** soporte NEMA17 regenerado usando generadores de librería, con QA y DFM aprobados; pieza de calibración impresa y perfil ajustado.
 

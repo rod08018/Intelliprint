@@ -331,6 +331,42 @@ def _bot(raiz: Path, env: dict, nombre: str) -> None:
     bot.run()
 
 
+def _calibrar(args, raiz: Path, env: dict, nombre: str) -> None:
+    """F2.18 (calibración): construir la pieza, o apuntar lo que encajó."""
+    from orchestrator.calibracion import CalibracionInvalida, aplicar_resultados, cuadro, recetas
+
+    activo = perfil_activo(raiz)
+    if args.accion == "pieza":
+        from mech_toolkit.generators import CATALOGO
+        from orchestrator.build import build_part
+
+        carpeta = (_workspace(raiz, env) / "projects"
+                   / f"{dt.datetime.now():%Y-%m-%d-%H%M}-calibracion_holguras")
+        carpeta.mkdir(parents=True)
+        (carpeta / "request.md").write_text(
+            f"Pieza de calibración de holguras para {activo.impresora.id} ({activo.material}).\n",
+            encoding="utf-8")
+        (carpeta / "calibracion.md").write_text(cuadro(), encoding="utf-8")
+        for receta in recetas():
+            print(f"[{nombre}] construyendo {receta.part}…")
+            build_part(receta, CATALOGO, carpeta / "parts" / receta.part, _freecadcmd(env))
+        print(f"[{nombre}] Listo: {carpeta}\n  Cómo probarla y qué apuntar: {carpeta / 'calibracion.md'}")
+        return
+
+    ruta = raiz / "config" / "printers" / f"{activo.impresora.id}.yaml"
+    if not os.access(ruta, os.W_OK):
+        sys.exit(f"no puedo escribir {ruta}: dentro del contenedor config/ es de solo "
+                 "lectura. Ejecuta esta orden en el PC.")
+    try:
+        aplicar_resultados(ruta, press_mm=args.press, slide_mm=args.slide,
+                           clearance_mm=args.clearance, m3_through_mm=args.m3_through,
+                           m3_selftap_mm=args.m3_selftap, m3_insert_mm=args.m3_insert,
+                           fecha=dt.date.today().isoformat())
+    except CalibracionInvalida as e:
+        sys.exit(f"no se ha cambiado nada: {e}")
+    print(f"[{nombre}] {ruta} calibrado con lo que mediste.")
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="intelliprint")
     sub = parser.add_subparsers(dest="comando", required=True)
@@ -360,6 +396,22 @@ def _parser() -> argparse.ArgumentParser:
     meca.add_argument("--adjunto", action="append", default=[], metavar="IMAGEN|TEXTO|PROYECTO",
                       help="una referencia para el diseñador: una imagen, un texto o el id de "
                            "un proyecto que ya salió. Se puede repetir.")
+    cal = sub.add_parser("calibrar", help="pieza de calibración de holguras (F2.18 (calibración))")
+    acciones = cal.add_subparsers(dest="accion", required=True)
+    acciones.add_parser("pieza", help="construir las piezas para imprimirlas")
+    res = acciones.add_parser(
+        "resultados", help="apuntar qué encajó: cambia las holguras del perfil activo")
+    for opcion, ayuda in (("--press", "holgura del primer agujero a presión"),
+                          ("--slide", "holgura del primero deslizante"),
+                          ("--clearance", "holgura del primero que gira libre"),
+                          ("--m3-through", "agujero pasante M3, mm"),
+                          ("--m3-selftap", "agujero de rosca directa M3, mm"),
+                          ("--m3-insert", "agujero del inserto M3, mm")):
+        res.add_argument(opcion, type=float, required=True, help=ayuda)
+    perf = sub.add_parser("perfil", help="importar una calibración de laminado de eufyMake Studio")
+    perf.add_argument("accion", choices=["importar"])
+    perf.add_argument("resto", nargs=argparse.REMAINDER,
+                      help="lo de python -m orchestrator.perfiles_laminado --help")
     return parser
 
 
@@ -382,6 +434,13 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.comando == "proyectos":
         _proyectos(args, raiz, env, nombre)
+        return
+    if args.comando == "calibrar":
+        _calibrar(args, raiz, env, nombre)
+        return
+    if args.comando == "perfil":
+        from orchestrator.perfiles_laminado import main as importar
+        importar(args.resto)
         return
     grafo = _grafo(raiz, env)
 
