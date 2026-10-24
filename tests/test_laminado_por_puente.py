@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 from mcp.server import MCPServer
 
+from orchestrator.impresion import perfil_activo
 from orchestrator.slicing import LaminadoFallido, elegir_laminador
 
 HOST = r"C:\repo\workspace"
@@ -79,7 +80,8 @@ def test_se_manda_el_NOMBRE_del_perfil_no_su_ruta(puente):
     )
     laminar(Path("/workspace/p/cubo.stl"), Path("/workspace/p/cubo.gcode"))
 
-    assert puente.recibido["perfil"] == "ankermake_m5_petg.ini"
+    # El del perfil activo: lo decide config/impresion.yaml, no este módulo.
+    assert puente.recibido["perfil"] == perfil_activo(Path(".")).laminado
 
 
 def test_un_fallo_del_host_llega_como_fallo_de_laminado(puente):
@@ -101,8 +103,9 @@ def test_sin_puente_se_usa_el_binario_de_siempre(monkeypatch, tmp_path):
         "orchestrator.slicing.slice_stl",
         lambda stl, perfil, salida: llamadas.append((stl, perfil, salida)),
     )
-    laminar = elegir_laminador(tmp_path, {})
+    laminar = elegir_laminador(Path("."), {})
     laminar(Path("a.stl"), Path("a.gcode"))
 
-    assert llamadas == [(Path("a.stl"), tmp_path / "config/slicing/ankermake_m5_petg.ini",
+    assert llamadas == [(Path("a.stl"),
+                         Path(".") / "config/slicing" / perfil_activo(Path(".")).laminado,
                          Path("a.gcode"))]

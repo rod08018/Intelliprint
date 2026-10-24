@@ -1,0 +1,20 @@
+# G-code de inicio de la AnkerMake M5 con config/slicing/m5_esun_plamas_precision.ini
+# (el perfil activo: eSun PLA+, importado de la calibración del usuario en eufyMake).
+# Estado: NO VERIFICADO EN LA IMPRESORA con un G-code de PrusaSlicer.
+# Las cuatro primeras órdenes son el start_gcode de eufyMake con el que el
+# usuario sí imprimió (215 °C, cama a 60 °C); el resto lo añade PrusaSlicer.
+# Cuando una impresión real salga bien, cambia la línea de Estado a
+# 'VERIFICADO EN LA IMPRESORA el <fecha>'. Si este test falla, el inicio
+# ha cambiado: revísalo ANTES de actualizar la instantánea.
+M104 S215 ; set final nozzle temp
+M190 S60 ; set and wait for bed temp to stabilize
+M109 S215 ; wait for nozzle temp to stabilize
+G28 ;Home
+G21 ; set units to millimeters
+G90 ; use absolute coordinates
+M83 ; use relative distances for extrusion
+M107
+G1 E-1 F2400
+G1 Z.35 F600
+G1 X105.389 Y105.865 F15000
+G1 Z.05 F600

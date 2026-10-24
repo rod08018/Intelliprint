@@ -27,6 +27,7 @@ from pathlib import Path
 from mcp.server import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 
+from orchestrator.impresion import perfil_activo
 from orchestrator.slicing import LaminadoFallido, slice_stl
 
 PUERTO = int(os.environ.get("PRUSASLICER_BRIDGE_PORT", "8102"))
@@ -130,17 +131,18 @@ mcp = MCPServer(
 
 
 @mcp.tool()
-def laminar(stl: str, salida: str, perfil: str = "ankermake_m5_petg.ini") -> dict:
+def laminar(stl: str, salida: str, perfil: str = "") -> dict:
     """Lamina un STL con el PrusaSlicer del escritorio y devuelve gramos,
     tiempo y si necesita soportes.
 
     `stl` y `salida` son rutas del HOST dentro del workspace compartido.
-    `perfil` es el NOMBRE de un .ini de config/slicing/.
+    `perfil` es el NOMBRE de un .ini de config/slicing/; vacío, el activo
+    (config/impresion.yaml).
     """
     workspace = _workspace()
     entrada = comprobar_dentro(stl, workspace)
     destino = comprobar_dentro(salida, workspace)
-    ini = resolver_perfil(perfil, _raiz() / "config" / "slicing")
+    ini = resolver_perfil(perfil or perfil_activo(_raiz()).laminado, _raiz() / "config" / "slicing")
 
     if not entrada.is_file():
         return {"ok": False, "error": f"no encuentro el STL: {entrada}"}
@@ -152,13 +154,14 @@ def laminar(stl: str, salida: str, perfil: str = "ankermake_m5_petg.ini") -> dic
 
 
 @mcp.tool()
-def abrir_en_prusaslicer(stls: list[str], perfil: str = "ankermake_m5_petg.ini") -> dict:
+def abrir_en_prusaslicer(stls: list[str], perfil: str = "") -> dict:
     """Abre el PrusaSlicer del escritorio con las piezas y el perfil ya
     cargados, para que la persona vea qué va a imprimir y cómo.
 
     No espera a que se cierre: la ventana es de la persona, no del sistema.
     """
     workspace = _workspace()
+    perfil = perfil or perfil_activo(_raiz()).laminado
     programa = ejecutable_con_ventana(os.environ.get("PRUSASLICER", ""))
     if not programa or not Path(programa).exists():
         return {"ok": False, "error": f"no encuentro PrusaSlicer: {programa or '(sin definir)'}"}

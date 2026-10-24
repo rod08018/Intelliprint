@@ -11,11 +11,13 @@ from pathlib import Path
 import pytest
 
 from orchestrator.slicing import (
-    PERFIL_M5,
     parse_tiempo,
     prusaslicer,
     slice_stl,
 )
+
+PERFIL_M5 = Path("config/slicing/ankermake_m5_petg.ini")
+"""El de PETG: sigue en el catálogo como alternativa al perfil activo."""
 
 
 def test_parsea_los_formatos_de_tiempo_de_prusaslicer():

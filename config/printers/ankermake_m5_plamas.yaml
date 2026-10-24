@@ -1,0 +1,68 @@
+# Perfil de impresora + material: AnkerMake M5 con eSun PLA+.
+#
+# Copia de ankermake_m5_petg.yaml con otro material (2026-10-24). El usuario
+# calibró el LAMINADO de este filamento en eufyMake Studio
+# (config/slicing/m5_esun_plamas_precision.ini), no las holguras: estos
+# `fits` y `holes` siguen siendo los defaults, y M3_through_mm no se toca
+# hasta imprimir la pieza de calibración (F2.18).
+# Ver SISTEMA_MULTIAGENTE.md § 7.
+#
+# ⚠️ SIN CALIBRAR. Los valores de `fits` son los defaults para boquilla de
+# 0.4 mm y NO son transferibles entre impresoras ni materiales. Deben
+# sustituirse por mediciones reales tras imprimir la pieza de calibración
+# (tarea F2.18). Hasta entonces, espera encajes flojos o apretados.
+#
+# ⚠️ Aviso específico de la AnkerMake M5: PrusaSlicer NO trae perfil para
+# esta impresora. Hay que definirla a mano (forma de cama, boquilla,
+# velocidades y G-code de inicio y fin). Eso es parte de F1.12, y sin ello
+# el laminado usará una máquina equivocada.
+
+id: ankermake_m5_plamas
+printer: AnkerMake M5
+material: PLA+
+calibrated: false            # pasa a true cuando F2.18 actualice los valores
+
+nozzle_mm: 0.4
+line_width_mm: 0.42
+layer_height_mm: 0.2
+
+bed_mm: {x: 235, y: 235, z: 250}
+
+# La M5 es de extrusor directo y va muy rápida (hasta 500 mm/s). Eso NO afecta
+# a la geometría ni a las holguras, pero sí a las estimaciones de tiempo: los
+# valores por defecto de PrusaSlicer, pensados para otras máquinas, darán
+# tiempos poco realistas hasta que el perfil de laminado esté afinado (F1.12).
+
+# Cuánto puede desviarse la pieza construida de la cota que exige el contrato
+# antes de considerarse un fallo. NO es una holgura: es la precisión con la que
+# el modelo tiene que acertar. Lo usa la capa 1 del QA (§ 7.1).
+assertion_tol_mm: 0.05
+
+# Holguras en diámetro, aplicadas por apply_fit() según el `fit` de la interfaz
+fits:
+  press_mm: 0.10             # encaje a presión
+  slide_mm: 0.20             # encaje deslizante
+  clearance_mm: 0.35         # holgura / movimiento (rango típico 0.30–0.40)
+
+# Agujeros para tornillería métrica
+holes:
+  # ⚠️ DEUDA (PLAN § deuda técnica): 3.3 es casi un ajuste "justo" de la
+  # ISO 273 (3.26) y contradice clearance_mm: 0.35 de arriba. La ISO normal
+  # es 3.4. Pendiente de la pieza de calibración (F2.18), que necesita la
+  # impresora. No cambiar a ciegas.
+  M3_through_mm: 3.3         # rango típico 3.2–3.4
+  M3_selftap_mm: 2.8         # rosca directa en plástico
+  M3_insert_mm: 4.1          # inserto térmico; confirmar con el fabricante
+  M3_nut_af_mm: 5.9          # entrecaras 5.7 + 0.2 de holgura
+
+# Reglas estructurales
+walls:
+  min_mm: 0.8                # 2 × ancho de línea
+  recommended_mm: 1.2
+  structural_mm: 1.8         # ≈ 4 perímetros
+
+overhang_max_deg: 45
+bridge_max_mm: 10
+
+# Densidad del material, para estimar masa
+density_g_cm3: 1.24             # «esun pla+» en el paquete de eufyMake del usuario

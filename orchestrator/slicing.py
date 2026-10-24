@@ -15,8 +15,6 @@ from typing import Callable
 
 from orchestrator.schemas.slicing_report import SlicingReport
 
-PERFIL_M5 = Path("config/slicing/ankermake_m5_petg.ini")
-
 _MACOS = "/Applications/PrusaSlicer.app/Contents/MacOS/PrusaSlicer"
 
 
@@ -96,9 +94,12 @@ def elegir_laminador(raiz: Path, env) -> "Callable[[Path, Path], SlicingReport]"
     binario de siempre. Un solo sitio decide, para que el grafo y el CLI no
     tengan que saber dónde está corriendo el sistema.
     """
+    from orchestrator.impresion import perfil_activo
+
+    perfil = perfil_activo(raiz).laminado
     destino = env.get("PRUSASLICER_BRIDGE")
     if not destino:
-        return lambda stl, salida: slice_stl(stl, raiz / PERFIL_M5, salida)
+        return lambda stl, salida: slice_stl(stl, Path(raiz) / "config" / "slicing" / perfil, salida)
 
     from orchestrator.hostpaths import a_ruta_del_host
     from orchestrator.mcp.client import ClienteMCP
@@ -119,7 +120,7 @@ def elegir_laminador(raiz: Path, env) -> "Callable[[Path, Path], SlicingReport]"
             # El NOMBRE del perfil, no su ruta: el catálogo lo resuelve el
             # host dentro de su config/slicing/. La ruta del contenedor
             # (/app/config/…) allí no existe.
-            perfil=PERFIL_M5.name,
+            perfil=perfil,
         )
         if not respuesta.get("ok"):
             # Traducirlo aquí: dejar pasar el diccionario reventaría más

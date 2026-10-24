@@ -33,7 +33,8 @@ from orchestrator.human.port import Question  # noqa: E402
 from orchestrator.llm.providers.deepseek import DeepSeekClient  # noqa: E402
 from orchestrator.recipes.compose import RESULT_PREFIX, compose_build_script  # noqa: E402
 from orchestrator.schemas.part_result import PartResult  # noqa: E402
-from orchestrator.slicing import PERFIL_M5, LaminadoFallido, slice_stl  # noqa: E402
+from orchestrator.impresion import perfil_activo  # noqa: E402
+from orchestrator.slicing import LaminadoFallido, slice_stl  # noqa: E402
 from orchestrator.state_machine import AprobacionRequerida, advance  # noqa: E402
 from orchestrator.tasks import slug, spec_to_task  # noqa: E402
 
@@ -148,7 +149,7 @@ def main(peticion: str) -> None:
     try:
         informe = slice_stl(
             carpeta / f"{tarea.part}.stl",
-            RAIZ / PERFIL_M5,
+            RAIZ / "config" / "slicing" / perfil_activo(RAIZ).laminado,
             fabricacion / f"{tarea.part}.gcode",
         )
     except (LaminadoFallido, ValueError) as e:

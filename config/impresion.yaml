@@ -1,0 +1,9 @@
+# El perfil activo: con qué impresora y material se diseña y con qué
+# perfil de PrusaSlicer se lamina. Es el ÚNICO sitio donde se elige: el
+# código no nombra perfiles (lo comprueba tests/test_impresion.py).
+#
+# 2026-10-24: la M5 con eSun PLA+, calibrada por el usuario en eufyMake
+# Studio. El de PETG sigue en config/ como alternativa, sin calibrar.
+
+impresora: ankermake_m5_plamas          # config/printers/<id>.yaml: holguras
+laminado: m5_esun_plamas_precision.ini  # config/slicing/<nombre>: PrusaSlicer

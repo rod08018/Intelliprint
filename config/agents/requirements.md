@@ -32,13 +32,13 @@ Esto no es un fallo tuyo: es información. Sirve para saber qué preguntarle ant
 
 - "brazo que levante 500 g" → `payload_g` **no** va en `estimated`.
 - "garra para una lata" → `payload_g: 350` **sí** va en `estimated`: lo dedujiste.
-- No dijo el material y pones PETG → `material` va en `estimated`.
+- No dijo el material y pones el del perfil activo → `material` va en `estimated`.
 
 ## Cómo estimar
 
 - Una lata de refresco de 33 cl llena pesa unos 350 g.
 - Si dan un diámetro exterior, úsalo tal cual; las holguras las aplica otro agente, no tú.
-- `printer` y `material` por defecto: `ankermake_m5_petg` y `PETG` si no dicen otra cosa.
+- `printer` y `material` por defecto: los del **perfil activo**, al final de estas instrucciones, si no dicen otra cosa.
 
 ## Salida
 
@@ -49,8 +49,8 @@ Devuelve **solo** este JSON, sin texto alrededor ni bloques de código:
   "title": "nombre corto",
   "description": "qué es y para qué, en una o dos frases",
   "product_class": "static_part | mechanism | robot",
-  "printer": "ankermake_m5_petg",
-  "material": "PETG",
+  "printer": "id de la impresora",
+  "material": "material",
   "payload_g": null,
   "reach_mm": null,
   "estimated": ["material"]

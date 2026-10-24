@@ -19,6 +19,7 @@ from orchestrator.build import design_and_build
 from orchestrator.config import load_env
 from orchestrator.graph import Dependencias, crear_grafo
 from orchestrator.human.adapters.cli import CliAdapter
+from orchestrator.impresion import perfil_activo
 from orchestrator.llm.providers.deepseek import DeepSeekClient
 from orchestrator.llm.router import Router
 from orchestrator.slicing import elegir_laminador
@@ -72,7 +73,7 @@ def _grafo(raiz: Path, env: dict):
         )
 
     deps = Dependencias(
-        requirements=RequirementsAgent(cliente),
+        requirements=RequirementsAgent(cliente, activo=perfil_activo(raiz)),
         disenar=disenar,
         laminar=elegir_laminador(raiz, env),
         port=CliAdapter(),
@@ -105,16 +106,13 @@ def _informar(final: dict, nombre: str) -> None:
 
 
 def _mecanismo(args, raiz: Path, env: dict, nombre: str) -> None:
-    import yaml
 
     from mech_toolkit.generators import CATALOGO
-    from mech_toolkit.profile import PrinterProfile
     from orchestrator.agents.part_designer import PartDesignerAgent
     from orchestrator.mechanisms.run import build_mechanism, llm_designer
     from orchestrator.mechanisms.slider_crank import SliderCrankLayout
 
-    perfil = PrinterProfile(**yaml.safe_load(
-        (raiz / "config/printers/ankermake_m5_petg.yaml").read_text()))
+    perfil = perfil_activo(raiz).impresora
     if args.peticion != ["biela-manivela"]:
         _mecanismo_desde_texto(args, raiz, env, nombre, perfil)
         return
@@ -161,7 +159,7 @@ def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> 
     peticion = " ".join(args.peticion)
     if args.archivo:
         peticion = Path(peticion).read_text(encoding="utf-8")
-    impresora = yaml.safe_load((raiz / "config/printers/ankermake_m5_petg.yaml").read_text())
+    impresora = perfil_activo(raiz).datos
     cama = tuple(impresora["bed_mm"][k] for k in "xyz")
     hueco = perfil.fit_mm("slide") / 2
     router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
@@ -225,18 +223,16 @@ def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> 
 
 def _diseñar_mecanismo(peticion: str, raiz: Path, env: dict, nombre: str, log):
     """El trabajo que hace el bot: el mismo flujo del comando `mecanismo`."""
-    import yaml
 
     from mech_toolkit.generators import CATALOGO
-    from mech_toolkit.profile import PrinterProfile
     from orchestrator.agents.design_reviewer import DesignReviewerAgent
     from orchestrator.agents.mechanism_designer import MechanismDesignerAgent
     from orchestrator.agents.part_designer import PartDesignerAgent
     from orchestrator.mechanisms.flow import design_mechanism
     from orchestrator.tasks import slug
 
-    impresora = yaml.safe_load((raiz / "config/printers/ankermake_m5_petg.yaml").read_text())
-    perfil = PrinterProfile(**impresora)
+    impresora = perfil_activo(raiz).datos
+    perfil = perfil_activo(raiz).impresora
     cama = tuple(impresora["bed_mm"][k] for k in "xyz")
     hueco = perfil.fit_mm("slide") / 2
     router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
@@ -274,17 +270,14 @@ def _diseñar_mecanismo(peticion: str, raiz: Path, env: dict, nombre: str, log):
 def _animar(args, raiz: Path, env: dict, nombre: str) -> None:
     """Rehace ensamble y animación desde el mecanismo y las piezas ya
     construidas: no vuelve a diseñar ni a gastar modelo."""
-    import yaml
 
-    from mech_toolkit.profile import PrinterProfile
     from orchestrator.mechanisms.run import build_mechanism
     from orchestrator.mechanisms.spec_layout import SpecLayout
     from orchestrator.schemas.mechanism import MechanismSpec
 
     carpeta = Path(args.carpeta)
     spec = MechanismSpec.model_validate_json((carpeta / "mechanism.json").read_text(encoding="utf-8"))
-    perfil = PrinterProfile(**yaml.safe_load(
-        (raiz / "config/printers/ankermake_m5_petg.yaml").read_text(encoding="utf-8")))
+    perfil = perfil_activo(raiz).impresora
     informe = build_mechanism(
         SpecLayout(spec), carpeta, _freecadcmd(env),
         min_gap_mm=perfil.fit_mm("slide") / 2, disenar=lambda n, c: None, animar=True)

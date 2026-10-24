@@ -9,25 +9,33 @@ from pathlib import Path
 
 import pytest
 
-from orchestrator.slicing import PERFIL_M5, prusaslicer, slice_stl
-from tests.test_slicing import _cubo_stl
+from orchestrator.slicing import prusaslicer, slice_stl
+from tests.test_slicing import PERFIL_M5, _cubo_stl
 
-INSTANTANEA = Path("tests/snapshots/m5_start_gcode.txt")
+PERFILES = [
+    (PERFIL_M5, Path("tests/snapshots/m5_start_gcode.txt")),
+    (Path("config/slicing/m5_esun_plamas_precision.ini"),
+     Path("tests/snapshots/m5_esun_plamas_start_gcode.txt")),
+]
 LINEAS = 12
 
 
 def _inicio(gcode: Path) -> list[str]:
     ordenes = [l.rstrip() for l in gcode.read_text(errors="ignore").splitlines()
-               if l.strip() and not l.startswith(";")]
+               # M73 es el aviso de tiempo restante: cambia con la estimación,
+               # no con lo que hace la máquina.
+               if l.strip() and not l.startswith(";") and not l.startswith("M73 ")]
     return ordenes[:LINEAS]
 
 
 @pytest.mark.skipif(prusaslicer() is None, reason="PrusaSlicer no disponible")
-def test_el_gcode_de_inicio_no_cambia_sin_que_nadie_lo_mire(tmp_path):
+@pytest.mark.parametrize("perfil, instantanea", PERFILES, ids=lambda x: Path(x).stem)
+def test_el_gcode_de_inicio_no_cambia_sin_que_nadie_lo_mire(tmp_path, perfil, instantanea):
     stl = tmp_path / "cubo.stl"
     _cubo_stl(stl)
-    slice_stl(stl, PERFIL_M5, tmp_path / "cubo.gcode")
+    slice_stl(stl, perfil, tmp_path / "cubo.gcode")
 
-    esperado = [l for l in INSTANTANEA.read_text().splitlines() if not l.startswith("#")]
+    esperado = [l for l in instantanea.read_text(encoding="utf-8").splitlines()
+                if not l.startswith("#")]
 
     assert _inicio(tmp_path / "cubo.gcode") == esperado

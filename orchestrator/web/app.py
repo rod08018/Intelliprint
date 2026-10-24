@@ -21,6 +21,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import BaseModel, Field, field_validator
 
+from orchestrator.impresion import perfil_activo
 from orchestrator.hostpaths import RutaFueraDelWorkspace, a_ruta_del_host
 from orchestrator.jobs import JobStore
 from orchestrator.registry import estado_de, indice
@@ -31,7 +32,6 @@ from orchestrator.web.versiones import (
 # SECCIONES: dónde buscar. `archivo/` también: archivar no es borrar, y un
 # intento fallido es la única prueba de por qué algo no funcionó.
 
-PERFIL = "ankermake_m5_petg.ini"
 
 
 class ProyectoDesconocido(LookupError):
@@ -135,11 +135,13 @@ def _en_marcha(workspace: Path) -> str | None:
 
 
 def crear_app(workspace: Path, puente=None, host_workspace: str = "",
-              trabajos: JobStore | None = None) -> FastAPI:
+              trabajos: JobStore | None = None, raiz: Path = Path(".")) -> FastAPI:
     """La aplicación. `puente` es la URL del MCP del host, o en los tests el
     propio servidor; None si no hay puente configurado. `trabajos` lanza los
-    diseños que se piden desde la página; None si esta web no puede."""
+    diseños que se piden desde la página; None si esta web no puede. `raiz`
+    es donde está config/, para leer el perfil activo."""
     app = FastAPI(title="Intelliprint", docs_url=None, redoc_url=None)
+    perfil = perfil_activo(raiz).laminado
     app.state.trabajos = trabajos
     workspace = Path(workspace)
 
@@ -241,7 +243,7 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
             raise HTTPException(500, str(e))
         try:
             respuesta = ClienteMCP(puente, timeout=60).llamar(
-                "abrir_en_prusaslicer", stls=stls, perfil=PERFIL)
+                "abrir_en_prusaslicer", stls=stls, perfil=perfil)
         except PuenteInalcanzable as e:
             raise HTTPException(
                 503, f"el puente del PC no contesta ({e}). ¿Está arrancado? "
