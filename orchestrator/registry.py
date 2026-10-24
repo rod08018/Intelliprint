@@ -14,6 +14,7 @@ Dos reglas:
   versiones aparte para saber cómo evolucionó.
 """
 
+import datetime
 import json
 import os
 import shutil
@@ -41,7 +42,12 @@ def _lee_json(ruta: Path):
         return None
 
 
-def _vivo(pid: int) -> bool:
+TOLERANCIA_ARRANQUE_S = 120
+"""Entre que el JobStore lanza el proceso y apunta la hora pasa un instante;
+dos minutos sobran y un pid reutilizado por otro trabajo nunca cae dentro."""
+
+
+def _vivo(pid: int, inicio: str | None = None) -> bool:
     """Trabajando de verdad, no solo presente en la tabla de procesos.
 
     Un proceso que terminó y que su padre no ha recogido queda **zombi**, y
@@ -51,14 +57,29 @@ def _vivo(pid: int) -> bool:
     Y `os.kill` también acepta el id de un HILO, que `ps -p` no encuentra:
     los job.json guardan pids de otro contenedor, y en el de la web eran
     hilos del propio servidor (2026-10-23, tres proyectos «trabajando» y la
-    página sin dejar pedir nada). Sin respuesta de `ps` no hay proceso."""
+    página sin dejar pedir nada). Sin respuesta de `ps` no hay proceso.
+
+    Ni siquiera un proceso vivo de verdad basta: el pid es el que tuvo en
+    SU contenedor, y en otro lo lleva quien sea. El brazo robótico corría
+    como pid 8 y tres proyectos de hacía un mes, con `"pid": 8`, salían
+    «trabajando» (2026-10-24). Con `inicio`, el proceso tiene que haber
+    arrancado cuando arrancó ese trabajo."""
     try:
         os.kill(pid, 0)
     except (OSError, TypeError):
         return False
-    estado = subprocess.run(["ps", "-p", str(pid), "-o", "state="],
-                            capture_output=True, text=True).stdout.strip()
-    return bool(estado) and not estado.startswith("Z")
+    salida = subprocess.run(["ps", "-p", str(pid), "-o", "state=,etimes="],
+                            capture_output=True, text=True).stdout.split()
+    if not salida or salida[0].startswith("Z"):
+        return False
+    if inicio and len(salida) > 1:
+        try:
+            lanzado = datetime.datetime.fromisoformat(inicio).timestamp()
+            arranco = time.time() - int(salida[1])
+        except ValueError:
+            return True
+        return abs(arranco - lanzado) <= TOLERANCIA_ARRANQUE_S
+    return True
 
 
 def estado_de(carpeta: Path) -> dict:
@@ -80,7 +101,7 @@ def estado_de(carpeta: Path) -> dict:
         (f.stat().st_mtime for f in carpeta.rglob("*") if f.is_file()), default=0)
     # Sin rounds.json y tocado hace nada: lo más probable es que siga
     # trabajando. Un proyecto terminado no vuelve a "en marcha" por ser reciente.
-    if (trabajo.get("pid") and _vivo(trabajo["pid"])) or (not rondas and tocado_hace < RECIENTE_S):
+    if (trabajo.get("pid") and _vivo(trabajo["pid"], trabajo.get("inicio"))) or (not rondas and tocado_hace < RECIENTE_S):
         estado = "en marcha"
     elif not rondas:
         estado = "antiguo" if tiene_obra else "incompleto"

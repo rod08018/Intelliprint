@@ -133,6 +133,10 @@ class JobStore:
             env=ENTORNO,
         )
         self._procesos[job_id] = proceso
+        # El registro mira este pid y su hora de arranque: con los del
+        # proceso viejo, el proyecto reanudado nunca salía «en marcha».
+        (destino / "job.json").write_text(
+            json.dumps({"pid": proceso.pid, "inicio": dt.datetime.now().isoformat()}), encoding="utf-8")
         (destino / "cancelado").unlink(missing_ok=True)
         return job_id
 

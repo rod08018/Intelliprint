@@ -205,3 +205,32 @@ def test_un_hilo_de_quien_pregunta_no_cuenta_como_en_marcha(tmp_path):
         hilo.join()
 
     assert fila["estado"] != "en marcha"
+
+
+def test_un_pid_reutilizado_por_otro_trabajo_no_resucita_un_proyecto_viejo(tmp_path):
+    """Fallo real (2026-10-24): el brazo robótico corría como pid 8 en el
+    contenedor de la web, y tres proyectos de hacía un mes guardaban
+    `"pid": 8` en su job.json —su número en otro contenedor—. La página
+    pintaba «4 trabajando». El pid solo vale si el proceso arrancó cuando
+    arrancó ese trabajo."""
+    import datetime as dt
+    import subprocess
+
+    vivo = subprocess.Popen(["sleep", "30"])
+    try:
+        viejo = _proyecto(tmp_path, "2026-09-21-2107-pastillero", rondas=[{"feedback": ""}])
+        (viejo / "job.json").write_text(json.dumps(
+            {"pid": vivo.pid, "inicio": "2026-09-21T21:07:06.328746"}), encoding="utf-8")
+        _envejecer(viejo, horas=6)
+        nuevo = _proyecto(tmp_path, "2026-10-24-0231-brazo", rondas=[{"feedback": "- choca"}])
+        (nuevo / "job.json").write_text(json.dumps(
+            {"pid": vivo.pid, "inicio": dt.datetime.now().isoformat()}), encoding="utf-8")
+
+        filas = {f["id"]: f for f in indice(tmp_path)}
+    finally:
+        vivo.kill()
+        vivo.wait()
+
+    assert filas[viejo.name]["estado"] == "aprobado"
+    # El que de verdad lleva ese pid sigue en marcha.
+    assert filas[nuevo.name]["estado"] == "en marcha"

@@ -131,6 +131,25 @@ def test_reanudar_un_proyecto_usa_su_carpeta_y_conserva_el_registro(tmp_path):
     assert len(list(tmp_path.iterdir())) == 1      # no crea otro proyecto
 
 
+def test_reanudar_apunta_el_proceso_nuevo_en_job_json(tmp_path):
+    """El registro decide si un proyecto trabaja por el pid de job.json y la
+    hora a la que arrancó. Reanudar lanzaba otro proceso y dejaba apuntado el
+    viejo: el proyecto reanudado nunca salía «en marcha»."""
+    import json
+
+    store = JobStore(tmp_path, comando=["/bin/sh", "-c", "sleep 0.1"])
+    job = store.start("algo")
+    _esperar(store, job, "terminado")
+    antes = json.loads((tmp_path / job / "job.json").read_text())
+
+    store.resume(job)
+
+    despues = json.loads((tmp_path / job / "job.json").read_text())
+    assert despues["pid"] == store._procesos[job].pid
+    assert despues["inicio"] > antes["inicio"]
+    _esperar(store, job, "terminado")
+
+
 def test_los_archivos_se_dejan_donde_el_canal_puede_leerlos(tmp_path):
     """OpenClaw no manda archivos fuera de su carpeta, así que Intelliprint
     los deja allí listos (fallo real: Crafty no pudo enviar el GIF)."""
