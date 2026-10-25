@@ -207,6 +207,34 @@ def test_un_hilo_de_quien_pregunta_no_cuenta_como_en_marcha(tmp_path):
     assert fila["estado"] != "en marcha"
 
 
+def test_lo_que_escribe_la_web_no_hace_parecer_vivo_un_proyecto(tmp_path):
+    """Fallo real (2026-10-24): la web guarda la vista de las piezas y el
+    .3mf DENTRO del proyecto. Un proyecto sin rondas tocado hace poco cuenta
+    como en marcha, así que mirar la pieza de calibración bloqueaba «Diseñar»
+    media hora. Eso no es trabajo del proyecto."""
+    carpeta = _proyecto(tmp_path, "2026-10-24-1607-calibracion", artefactos=("assembly.FCStd",))
+    _envejecer(carpeta, horas=2)
+    (carpeta / "vista.png").write_bytes(b"png")
+    (carpeta / "imprimir").mkdir()
+    (carpeta / "imprimir" / "p.3mf").write_bytes(b"PK")
+
+    assert indice(tmp_path)[0]["estado"] != "en marcha"
+
+
+def test_con_job_json_manda_el_proceso_y_no_lo_reciente(tmp_path):
+    """La regla de «tocado hace poco» es para lo lanzado a mano, que no deja
+    job.json. Si lo hay, el proceso dice si trabaja: una pieza recién
+    construida cuyo proceso ya terminó no sigue «en marcha»."""
+    import subprocess
+
+    hijo = subprocess.Popen(["true"])
+    hijo.wait()
+    carpeta = _proyecto(tmp_path, "2026-10-24-1607-calibracion", artefactos=("assembly.FCStd",))
+    (carpeta / "job.json").write_text(json.dumps({"pid": hijo.pid}), encoding="utf-8")
+
+    assert indice(tmp_path)[0]["estado"] != "en marcha"
+
+
 def test_un_pid_reutilizado_por_otro_trabajo_no_resucita_un_proyecto_viejo(tmp_path):
     """Fallo real (2026-10-24): el brazo robótico corría como pid 8 en el
     contenedor de la web, y tres proyectos de hacía un mes guardaban

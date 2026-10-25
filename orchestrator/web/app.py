@@ -28,6 +28,7 @@ from orchestrator.slicing import UsoDesconocido, ajustes_de_uso
 from orchestrator.hostpaths import RutaFueraDelWorkspace, a_ruta_del_host
 from orchestrator.jobs import JobStore
 from orchestrator.registry import estado_de, indice
+from orchestrator.web.documentos import documentos_de
 from orchestrator.web.estadisticas import estadisticas
 from orchestrator.web.versiones import (
     SECCIONES, agrupar, componer_modificacion, marca_de, raices)
@@ -111,6 +112,7 @@ def _listar(workspace: Path) -> list[dict]:
             fila = {k: v for k, v in fila.items() if k != "carpeta"}
             fila["seccion"] = seccion
             fila["piezas"] = len(piezas_de(carpeta / fila["id"]))
+            fila["es_mecanismo"] = (carpeta / fila["id"] / "mechanism.json").is_file()
             e = estadisticas(carpeta / fila["id"], en_marcha=fila["estado"] == "en marcha")
             # La lista lleva el resumen; la historia de rondas y la tabla de
             # requisitos son del detalle, o la portada pesaría lo que pesan
@@ -227,7 +229,27 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
         return {"id": carpeta.name, "peticion": peticion,
                 "modificacion": marca_de(carpeta).get("modificacion"),
                 "piezas": piezas_con_uso(carpeta),
+                "es_mecanismo": (carpeta / "mechanism.json").is_file(),
+                "vista": bool(piezas_de(carpeta)),
+                "documentos": documentos_de(carpeta),
                 **estadisticas(carpeta, en_marcha=en_marcha)}
+
+    @app.get("/proyectos/{id}/vista.png")
+    def vista(id: str) -> FileResponse:
+        """Las piezas dibujadas, para lo que no tiene animación. Se guarda en
+        el proyecto y solo se redibuja si alguna STL es más nueva."""
+        carpeta = _proyecto(id)
+        piezas = piezas_de(carpeta)
+        if not piezas:
+            raise HTTPException(404, "este proyecto no tiene piezas construidas")
+        png = carpeta / "vista.png"
+        if not png.is_file() or png.stat().st_mtime < max(p.stat().st_mtime for p in piezas):
+            from orchestrator.vista import dibujar_piezas
+            try:
+                dibujar_piezas(piezas, png)
+            except ValueError as e:
+                raise HTTPException(409, str(e))
+        return FileResponse(png, media_type="image/png")
 
     @app.get("/proyectos/{id}/animation.gif")
     def animacion(id: str) -> FileResponse:
@@ -399,13 +421,18 @@ def _fila(g: dict, hay_puente: bool, puede_modificar: bool = False) -> str:
         otros = f" (y {f['fallos'] - 1} más)" if f.get("fallos", 1) > 1 else ""
         falla = (f'<div class="falla" title="{e(f["fallo"])}">✗ ronda {ronda}: '
                  f'{e(f["fallo"][:140])}{"…" if len(f["fallo"]) > 140 else ""}{otros}</div>')
+    # Sin animación (no es un mecanismo), la vista de las piezas.
     miniatura = (f'<img class="mini" src="/proyectos/{mejor}/animation.gif" alt="" loading="lazy">'
-                 if f.get("animacion") else '<div class="mini vacia"></div>')
+                 if f.get("animacion") else
+                 f'<img class="mini" src="/proyectos/{mejor}/vista.png" alt="" loading="lazy">'
+                 if f["piezas"] else '<div class="mini vacia"></div>')
     estado = "en marcha" if g.get("en_marcha") else f["estado"]
     opciones = "".join(_opcion(v, f["id"]) for v in reversed(versiones))
     total = (f" · {g['usd_total']:.2f} USD entre todas" if len(versiones) > 1 and g.get("usd_total")
              else "")
     mod_desactivado = "" if puede_modificar else "disabled"
+    modificar = (_cuadro_modificar(id_, len(versiones), mod_desactivado)
+                 if any(v.get("es_mecanismo") for v in versiones) else "")
     return f"""
       <tr class="fila" data-id="{id_}" data-estado="{e(estado)}">
         <td class="estado" title="{e(f['estado'])}">{ICONOS.get(f['estado'], '·')}</td>
@@ -425,13 +452,20 @@ def _fila(g: dict, hay_puente: bool, puede_modificar: bool = False) -> str:
           <label>Versión <select data-versiones="{id_}">{opciones}</select></label>
           <span class="suave">{len(versiones)} {"versión" if len(versiones) == 1 else "versiones"}{total} · proyecto <code>{id_}</code></span>
         </div>
-        <div class="modificar">
+        {modificar}<div class="contenido"></div>
+      </td></tr>"""
+
+
+def _cuadro_modificar(id_: str, n: int, mod_desactivado: str) -> str:
+    """Solo para mecanismos: una modificación relanza el DISEÑO del
+    mecanismo con la petición del proyecto. Con la de una pieza de
+    calibración, el diseñador inventaría un mecanismo (2026-10-24)."""
+    return f"""<div class="modificar">
           <textarea data-modificar="{id_}" rows="3" placeholder="Qué quieres cambiar de la versión elegida. Por ejemplo: que la rueda tenga 16 dientes y la base 5 mm más gruesa."></textarea>
-          <div class="pie"><span>Crea la v{len(versiones) + 1} de este proyecto a partir de la versión elegida: su diseño y su petición, más el cambio.</span>
+          <div class="pie"><span>Crea la v{n + 1} de este proyecto a partir de la versión elegida: su diseño y su petición, más el cambio.</span>
             <button class="btn pri" data-lanzar="{id_}" {mod_desactivado}>Pedir modificación</button></div>
         </div>
-        <div class="contenido"></div>
-      </td></tr>"""
+        """
 
 
 def _tabla(filas: list[dict], hay_puente: bool, vacio: str, puede_modificar: bool = False) -> str:
@@ -516,6 +550,13 @@ _ESTILO = """
   .plan > div { margin-left:14px; }
   .etiqueta { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--suave); margin-top:6px; }
   .vacio { color:var(--suave); }
+  .documento { background:var(--tarjeta); border:1px solid var(--linea); border-radius:8px; padding:4px 14px 10px;
+               font-size:13px; margin-bottom:12px; }
+  .documento h3, .documento h4, .documento h5 { margin:12px 0 6px; font-size:13px; }
+  .documento ul { padding-left:18px; margin:6px 0; }
+  .documento p { margin:6px 0; }
+  .documento pre { white-space:pre-wrap; font:12px/1.4 ui-monospace,Consolas,monospace;
+                   background:var(--fondo2); padding:8px 10px; border-radius:6px; }
   .pedir textarea, .modificar textarea { width:100%; font:inherit; font-size:14px; padding:10px 12px; resize:vertical;
                     background:var(--tarjeta); color:var(--fg); border:1px solid var(--linea); border-radius:10px; }
   .pedir textarea:focus, .modificar textarea:focus { outline:2px solid var(--acento); outline-offset:-1px; }
@@ -556,7 +597,11 @@ _GUION = r"""
   function pintarDetalle(d) {
     const gif = d.animacion
       ? `<img class="gif" src="/proyectos/${encodeURIComponent(d.id)}/animation.gif?t=${Date.now()}" alt="Animación del ciclo">`
-      : `<div class="sin-gif">Todavía no hay animación.<br>Se genera al montar el mecanismo.</div>`;
+      : d.vista && !d.es_mecanismo
+      ? `<img class="gif" src="/proyectos/${encodeURIComponent(d.id)}/vista.png" alt="Las piezas">`
+      : d.es_mecanismo
+      ? `<div class="sin-gif">Todavía no hay animación.<br>Se genera al montar el mecanismo.</div>`
+      : `<div class="sin-gif">Todavía no hay piezas construidas.</div>`;
     let req = "<p class='vacio'>Ninguna ronda ha medido requisitos todavía.</p>";
     if (d.requisitos) {
       const filas = d.requisitos.filas.map(f => {
@@ -604,14 +649,18 @@ _GUION = r"""
             <span class="resumen mal">${esc(corto(r.feedback))}</span></summary><pre>${esc(r.feedback)}</pre></details>`;
       return `<li><b>Ronda ${r.ronda}</b> <span class="suave">${esc(r.titulo)}</span>${cuerpo}</li>`;
     }).join("") || "<li class='vacio'>Este proyecto no guarda historia de rondas (es anterior a que existiera).</li>";
+    // Lo que acompaña a las piezas: cómo usarlas, por qué se detuvo, el revisor.
+    const docs = (d.documentos || []).map(x => `<h3>${esc(x.titulo)}</h3><div class="documento">${x.html}</div>`).join("");
     const pedido = (d.modificacion ? `<div class="pedido"><div class="etiqueta">Cambio pedido en esta versión</div>${esc(d.modificacion)}</div>` : "")
       + (d.peticion ? `<details class="plan"><summary><span class="etiqueta">Petición completa que recibió el diseñador</span></summary><pre>${esc(d.peticion)}</pre></details>` : "");
     // Cómo se lamina cada pieza: lo que no es «general» lleva más (o menos) material.
     const piezas = (d.piezas || []).length ? `<div class="det">Piezas: ${d.piezas.map(p =>
       esc(p.nombre) + (p.uso !== "general" ? ` <b>(${esc(p.uso)})</b>` : "")).join(", ")}</div>` : "";
-    return `<div class="detalle"><div>${gif}${verif}${piezas}</div><div>${pedido}
-      <h3>Precisión: lo pedido frente a lo medido</h3>${req}
-      <h3>Rondas</h3><ul class="rondas">${rondas}</ul></div></div>`;
+    // Una pieza que no es un mecanismo no se diseñó por rondas ni mide
+    // requisitos con la cinemática: esas secciones solo confundían.
+    const diseno = d.es_mecanismo || d.rondas.length
+      ? `<h3>Precisión: lo pedido frente a lo medido</h3>${req}<h3>Rondas</h3><ul class="rondas">${rondas}</ul>` : "";
+    return `<div class="detalle"><div>${gif}${verif}${piezas}</div><div>${docs}${pedido}${diseno}</div></div>`;
   }
 
   // sessionStorage puede no estar (ventana privada estricta): sin él se

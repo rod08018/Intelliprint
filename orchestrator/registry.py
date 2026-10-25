@@ -32,6 +32,12 @@ RECIENTE_S = 30 * 60
 mano, sin job.json. Archivarla le quita la carpeta al proceso mientras
 trabaja (pasó de verdad con la leva)."""
 
+DERIVADOS = ("vista.png", "imprimir")
+"""Lo que la WEB escribe dentro del proyecto (la vista de las piezas, el
+.3mf para PrusaSlicer). No es trabajo del proyecto: contarlo como «tocado
+hace poco» hacía que mirar la pieza de calibración la pusiera en marcha y
+bloqueara «Diseñar» media hora (2026-10-24)."""
+
 ARTEFACTOS = ("assembly.FCStd", "animation.gif", "review.md", "design_cost.md")
 
 
@@ -98,10 +104,17 @@ def estado_de(carpeta: Path) -> dict:
     tiene_obra = ((carpeta / "assembly.FCStd").exists()
                   or any(carpeta.glob("*.FCStd")) or any(carpeta.glob("parts/*/*.step")))
     tocado_hace = time.time() - max(
-        (f.stat().st_mtime for f in carpeta.rglob("*") if f.is_file()), default=0)
+        (f.stat().st_mtime for f in carpeta.rglob("*")
+         if f.is_file() and f.relative_to(carpeta).parts[0] not in DERIVADOS), default=0)
     # Sin rounds.json y tocado hace nada: lo más probable es que siga
     # trabajando. Un proyecto terminado no vuelve a "en marcha" por ser reciente.
-    if (trabajo.get("pid") and _vivo(trabajo["pid"], trabajo.get("inicio"))) or (not rondas and tocado_hace < RECIENTE_S):
+    # «Tocado hace poco» es para lo lanzado a mano, que no deja job.json.
+    # Si lo hay, manda el proceso.
+    if trabajo.get("pid"):
+        vivo = _vivo(trabajo["pid"], trabajo.get("inicio"))
+    else:
+        vivo = not rondas and tocado_hace < RECIENTE_S
+    if vivo:
         estado = "en marcha"
     elif not rondas:
         estado = "antiguo" if tiene_obra else "incompleto"

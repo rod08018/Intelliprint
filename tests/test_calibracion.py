@@ -182,4 +182,10 @@ def test_la_orden_de_la_pieza_deja_un_proyecto_que_la_web_puede_abrir(tmp_path):
     assert [p.stem for p in piezas_de(carpeta)] == [
         "calibracion_agujeros", "calibracion_eje", "calibracion_m3"]
     assert "Posición" in (carpeta / "calibracion.md").read_text(encoding="utf-8")
-    assert (carpeta / "request.md").is_file()
+    # Deja dicho qué proceso la construyó: sin job.json, una carpeta recién
+    # hecha y sin rondas se toma por un diseño en marcha.
+    assert (carpeta / "job.json").is_file()
+    # La primera línea es el título del proyecto en la web: corta, o sale
+    # cortada a media palabra («…ankermake_m5_plamas (P»).
+    assert (carpeta / "request.md").read_text(encoding="utf-8").splitlines()[0] == (
+        "Pieza de calibración de holguras")

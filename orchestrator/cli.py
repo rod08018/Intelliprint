@@ -8,6 +8,7 @@ cae a mitad, se retoma sin repetir la admisión ni lo ya construido.
 """
 
 import argparse
+import json
 import datetime as dt
 import os
 import shutil
@@ -343,8 +344,13 @@ def _calibrar(args, raiz: Path, env: dict, nombre: str) -> None:
         carpeta = (_workspace(raiz, env) / "projects"
                    / f"{dt.datetime.now():%Y-%m-%d-%H%M}-calibracion_holguras")
         carpeta.mkdir(parents=True)
+        # Quién la construye: sin job.json, una carpeta recién hecha y sin
+        # rondas se toma por un diseño en marcha y bloquea «Diseñar».
+        (carpeta / "job.json").write_text(json.dumps(
+            {"pid": os.getpid(), "inicio": dt.datetime.now().isoformat()}), encoding="utf-8")
         (carpeta / "request.md").write_text(
-            f"Pieza de calibración de holguras para {activo.impresora.id} ({activo.material}).\n",
+            # La primera línea es el título en la web: corta, o sale cortada.
+            f"Pieza de calibración de holguras\n\nPara {activo.impresora.id} ({activo.material}).\n",
             encoding="utf-8")
         (carpeta / "calibracion.md").write_text(cuadro(), encoding="utf-8")
         for receta in recetas():

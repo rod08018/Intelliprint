@@ -657,6 +657,8 @@ def test_el_detalle_de_una_version_dice_que_modificacion_se_pidio(ws):
     assert detalle["peticion"].startswith("un trinquete")
 
 
-def test_cada_proyecto_tiene_donde_pedir_una_modificacion(ws):
+def test_cada_mecanismo_tiene_donde_pedir_una_modificacion(ws):
+    (ws / "projects" / "2026-09-20-trinquete" / "mechanism.json").write_text(
+        '{"parts": []}', encoding="utf-8")
     html = _ws_con_trabajos(ws).get("/").text
     assert 'data-modificar="2026-09-20-trinquete"' in html
