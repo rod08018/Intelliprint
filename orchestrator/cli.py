@@ -181,16 +181,20 @@ def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> 
     print(f"[{nombre}] Mecanismo desde tu texto → {carpeta}")
     print(f"  Mechanism Designer: {router.for_role('reason').model} · "
           f"Part Designer: {router.for_role('design').model}")
-    informe = design_mechanism(
-        peticion,
-        MechanismDesignerAgent(mecanico, CATALOGO, perfil, cama, hueco,
-                               wall_mm=impresora["walls"]["structural_mm"],
-                               reserva=cliente),
-        PartDesignerAgent(cliente, CATALOGO),
-        carpeta, _freecadcmd(env), min_gap_mm=hueco,
-        reviewer=DesignReviewerAgent(cliente), continuar=args.continuar,
-        presupuesto=presupuesto, referencias=referencias,
-    )
+    # Crafty lanza esto en el contenedor del MCP y la web lo mira desde el
+    # suyo: sin latido, el pid de job.json no le dice nada (2026-10-26).
+    from orchestrator.registry import latir
+    with latir(carpeta):
+        informe = design_mechanism(
+            peticion,
+            MechanismDesignerAgent(mecanico, CATALOGO, perfil, cama, hueco,
+                                   wall_mm=impresora["walls"]["structural_mm"],
+                                   reserva=cliente),
+            PartDesignerAgent(cliente, CATALOGO),
+            carpeta, _freecadcmd(env), min_gap_mm=hueco,
+            reviewer=DesignReviewerAgent(cliente), continuar=args.continuar,
+            presupuesto=presupuesto, referencias=referencias,
+        )
     f = informe.final
     print()
     motivo_parada = {
@@ -240,14 +244,16 @@ def _diseñar_mecanismo(peticion: str, raiz: Path, env: dict, nombre: str, log):
     cliente = _cliente(router, env)
     carpeta = (_workspace(raiz, env) / "projects"
                / f"{dt.datetime.now():%Y-%m-%d-%H%M}-{slug(peticion.splitlines()[0])[:40]}")
-    informe = design_mechanism(
-        peticion,
-        MechanismDesignerAgent(_cliente(router, env, "reason"), CATALOGO, perfil, cama, hueco,
-                               wall_mm=impresora["walls"]["structural_mm"]),
-        PartDesignerAgent(cliente, CATALOGO),
-        carpeta, _freecadcmd(env), min_gap_mm=hueco,
-        reviewer=DesignReviewerAgent(cliente), log=log,
-    )
+    from orchestrator.registry import latir
+    with latir(carpeta):
+        informe = design_mechanism(
+            peticion,
+            MechanismDesignerAgent(_cliente(router, env, "reason"), CATALOGO, perfil, cama, hueco,
+                                   wall_mm=impresora["walls"]["structural_mm"]),
+            PartDesignerAgent(cliente, CATALOGO),
+            carpeta, _freecadcmd(env), min_gap_mm=hueco,
+            reviewer=DesignReviewerAgent(cliente), log=log,
+        )
     f = informe.final
     lineas = [f"[{nombre}] {informe.rounds[-1].title}: {len(informe.rounds)} ronda(s)"]
     if f is not None:
@@ -353,9 +359,11 @@ def _calibrar(args, raiz: Path, env: dict, nombre: str) -> None:
             f"Pieza de calibración de holguras\n\nPara {activo.impresora.id} ({activo.material}).\n",
             encoding="utf-8")
         (carpeta / "calibracion.md").write_text(cuadro(), encoding="utf-8")
-        for receta in recetas():
-            print(f"[{nombre}] construyendo {receta.part}…")
-            build_part(receta, CATALOGO, carpeta / "parts" / receta.part, _freecadcmd(env))
+        from orchestrator.registry import latir
+        with latir(carpeta):
+            for receta in recetas():
+                print(f"[{nombre}] construyendo {receta.part}…")
+                build_part(receta, CATALOGO, carpeta / "parts" / receta.part, _freecadcmd(env))
         print(f"[{nombre}] Listo: {carpeta}\n  Cómo probarla y qué apuntar: {carpeta / 'calibracion.md'}")
         return
 

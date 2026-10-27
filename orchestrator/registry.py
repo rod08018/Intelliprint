@@ -14,11 +14,13 @@ Dos reglas:
   versiones aparte para saber cómo evolucionó.
 """
 
+import contextlib
 import datetime
 import json
 import os
 import shutil
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -38,7 +40,52 @@ DERIVADOS = ("vista.png", "imprimir")
 hace poco» hacía que mirar la pieza de calibración la pusiera en marcha y
 bloqueara «Diseñar» media hora (2026-10-24)."""
 
+LATIDO = "latido"
+"""El archivo que el proceso de un diseño toca mientras vive. El pid de
+job.json solo se puede comprobar desde SU contenedor: Crafty lanza en el
+del MCP y la web mira desde el suyo, así que el sargento salía «⚠️
+incompleto» mientras el razonador pensaba su primera ronda (2026-10-26).
+El latido se ve desde cualquier contenedor que comparta `workspace/`."""
+
+LATIDO_CADA_S = 20
+LATIDO_VALE_S = 90
+"""Más de cuatro latidos perdidos: el proceso murió sin poder quitar el
+archivo (SIGKILL, el contenedor recreado)."""
+
+NO_ES_TRABAJO = (*DERIVADOS, LATIDO)
+"""Lo que no cuenta como «tocado hace poco». El latido dice que el proceso
+existe, no que avance: contarlo escondería un proyecto colgado."""
+
 ARTEFACTOS = ("assembly.FCStd", "animation.gif", "review.md", "design_cost.md")
+
+
+@contextlib.contextmanager
+def latir(carpeta: Path):
+    """Mientras dure el `with`, un hilo toca `carpeta/latido` cada
+    LATIDO_CADA_S. Al salir lo quita, para que la web no espere LATIDO_VALE_S
+    en ver que terminó."""
+    carpeta = Path(carpeta)
+    carpeta.mkdir(parents=True, exist_ok=True)
+    archivo = carpeta / LATIDO
+    parar = threading.Event()
+
+    def _latir():
+        while True:
+            try:
+                archivo.touch()
+            except OSError:
+                pass   # la carpeta se movió: el diseño fallará por su cuenta
+            if parar.wait(LATIDO_CADA_S):
+                return
+
+    hilo = threading.Thread(target=_latir, name="latido", daemon=True)
+    hilo.start()
+    try:
+        yield
+    finally:
+        parar.set()
+        hilo.join()
+        archivo.unlink(missing_ok=True)
 
 
 def _lee_json(ruta: Path):
@@ -105,12 +152,19 @@ def estado_de(carpeta: Path) -> dict:
                   or any(carpeta.glob("*.FCStd")) or any(carpeta.glob("parts/*/*.step")))
     tocado_hace = time.time() - max(
         (f.stat().st_mtime for f in carpeta.rglob("*")
-         if f.is_file() and f.relative_to(carpeta).parts[0] not in DERIVADOS), default=0)
+         if f.is_file() and f.relative_to(carpeta).parts[0] not in NO_ES_TRABAJO), default=0)
     # Sin rounds.json y tocado hace nada: lo más probable es que siga
     # trabajando. Un proyecto terminado no vuelve a "en marcha" por ser reciente.
     # «Tocado hace poco» es para lo lanzado a mano, que no deja job.json.
-    # Si lo hay, manda el proceso.
-    if trabajo.get("pid"):
+    # Si lo hay, manda el proceso: su latido, que se ve desde cualquier
+    # contenedor, y si no late (anterior al latido), su pid.
+    latido = carpeta / LATIDO
+    if latido.exists():
+        try:
+            vivo = time.time() - latido.stat().st_mtime < LATIDO_VALE_S
+        except OSError:   # lo quitó justo ahora: terminó
+            vivo = False
+    elif trabajo.get("pid"):
         vivo = _vivo(trabajo["pid"], trabajo.get("inicio"))
     else:
         vivo = not rondas and tocado_hace < RECIENTE_S

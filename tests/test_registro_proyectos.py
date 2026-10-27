@@ -262,3 +262,56 @@ def test_un_pid_reutilizado_por_otro_trabajo_no_resucita_un_proyecto_viejo(tmp_p
     assert filas[viejo.name]["estado"] == "aprobado"
     # El que de verdad lleva ese pid sigue en marcha.
     assert filas[nuevo.name]["estado"] == "en marcha"
+
+
+def _de_otro_contenedor(carpeta):
+    """El job.json que deja el JobStore del contenedor del MCP: un pid que
+    aquí no existe, lanzado ahora mismo."""
+    import datetime as dt
+
+    (carpeta / "job.json").write_text(json.dumps(
+        {"pid": 999999, "inicio": dt.datetime.now().isoformat()}), encoding="utf-8")
+
+
+def test_un_proyecto_que_corre_en_otro_contenedor_sale_en_marcha_si_late(tmp_path):
+    """Fallo real (2026-10-26): Crafty lanzó el sargento en el contenedor
+    del MCP y la web, que busca el pid en el SUYO, lo pintaba «⚠️ incompleto»
+    mientras el razonador pensaba su primera ronda. El pid de otro contenedor
+    no se puede comprobar; el latido que el proceso deja en su carpeta sí."""
+    from orchestrator.registry import latir
+
+    carpeta = _proyecto(tmp_path, "2026-10-27-035747-mini_sargento")
+    _de_otro_contenedor(carpeta)
+
+    with latir(carpeta):
+        dentro = indice(tmp_path)[0]["estado"]
+    fuera = indice(tmp_path)[0]["estado"]
+
+    assert dentro == "en marcha"
+    assert fuera == "incompleto"
+
+
+def test_un_latido_viejo_es_un_proceso_muerto(tmp_path):
+    """Un proceso que muere de golpe (SIGKILL, el contenedor reiniciado) no
+    llega a quitar su latido. Que el archivo exista no basta: tiene que ser
+    reciente."""
+    carpeta = _proyecto(tmp_path, "2026-10-27-035747-mini_sargento")
+    _de_otro_contenedor(carpeta)
+    (carpeta / "latido").write_text("", encoding="utf-8")
+    _envejecer(carpeta, horas=0.5)
+
+    assert indice(tmp_path)[0]["estado"] == "incompleto"
+
+
+def test_el_latido_no_esconde_un_proyecto_colgado(tmp_path):
+    """El latido dice que el proceso existe, no que avance: si contara como
+    «tocado hace poco», un proyecto atascado nunca saldría colgado."""
+    carpeta = _proyecto(tmp_path, "2026-10-27-035747-mini_sargento")
+    _de_otro_contenedor(carpeta)
+    _envejecer(carpeta, horas=0.5)
+    (carpeta / "latido").write_text("", encoding="utf-8")   # recién latido
+
+    fila = indice(tmp_path)[0]
+
+    assert fila["estado"] == "en marcha"
+    assert fila["parece_colgado"] is True
