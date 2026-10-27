@@ -56,6 +56,9 @@ NO_ES_TRABAJO = (*DERIVADOS, LATIDO)
 """Lo que no cuenta como «tocado hace poco». El latido dice que el proceso
 existe, no que avance: contarlo escondería un proyecto colgado."""
 
+ICONOS = {"aprobado": "✅", "con reparos": "🟠", "antiguo": "📦", "fallido": "❌",
+          "en marcha": "⏳", "incompleto": "⚠️"}
+
 ARTEFACTOS = ("assembly.FCStd", "animation.gif", "review.md", "design_cost.md")
 
 
@@ -135,6 +138,13 @@ def _vivo(pid: int, inicio: str | None = None) -> bool:
     return True
 
 
+def _suspensos_del_revisor(carpeta: Path) -> int:
+    """Cuántos requisitos de la petición dice el revisor que NO se cumplen.
+    «No verificable» no cuenta: nadie lo comprueba, ni a favor ni en contra."""
+    revision = _lee_json(carpeta / "review.json") or {}
+    return sum(1 for i in revision.get("items", []) if i.get("verdict") == "no_cumple")
+
+
 def estado_de(carpeta: Path) -> dict:
     """Qué es este proyecto, mirando lo que tiene dentro."""
     rondas = _lee_json(carpeta / "rounds.json") or []
@@ -174,6 +184,14 @@ def estado_de(carpeta: Path) -> dict:
         estado = "antiguo" if tiene_obra else "incompleto"
     elif motivo:
         estado = "fallido"
+    elif suspensos := _suspensos_del_revisor(carpeta):
+        # Sin choques es que funciona, no que sea lo pedido: el revisor solo
+        # puede devolver el diseño unas pocas veces, y agotadas, el sargento
+        # salía ✅ «aprobado» con 11 requisitos del usuario sin cumplir
+        # (2026-10-26).
+        estado = "con reparos"
+        motivo = (f"funciona, pero el revisor encontró {suspensos} "
+                  f"requisito{'s' if suspensos > 1 else ''} de la petición sin cumplir")
     else:
         estado = "aprobado"
 
@@ -205,8 +223,6 @@ def escribir_indice(carpeta: Path) -> Path:
     carpeta = Path(carpeta)
     filas = indice(carpeta)
     total = sum(f["usd"] for f in filas)
-    iconos = {"aprobado": "✅", "antiguo": "📦", "fallido": "❌",
-              "en marcha": "⏳", "incompleto": "⚠️"}
     lineas = [
         "# Proyectos", "",
         f"{len(filas)} proyectos · {sum(1 for f in filas if f['estado'] == 'aprobado')} aprobados "
@@ -217,7 +233,7 @@ def escribir_indice(carpeta: Path) -> Path:
     for f in filas:
         archivos = ", ".join(a.split(".")[0] for a in f["archivos"]) or "—"
         detalle = f["motivo"] or f["peticion"] or f["titulo"]
-        lineas.append(f"| [{f['id']}]({f['id']}/) | {iconos.get(f['estado'], '')} {f['estado']} | "
+        lineas.append(f"| [{f['id']}]({f['id']}/) | {ICONOS.get(f['estado'], '')} {f['estado']} | "
                       f"{f['rondas']} | {f['usd']:.2f} | {detalle} | {archivos} |")
     destino = carpeta / "INDEX.md"
     destino.write_text("\n".join(lineas) + "\n", encoding="utf-8")
@@ -233,7 +249,8 @@ def archivar(proyectos: Path, archivo: Path, proteger: set[str] | None = None) -
     proteger = proteger or set()
     movidos = []
     for fila in indice(proyectos):
-        if (fila["estado"] in {"aprobado", "antiguo", "en marcha"}
+        # Con reparos también se queda: funciona y tiene piezas, es obra.
+        if (fila["estado"] in {"aprobado", "con reparos", "antiguo", "en marcha"}
                 or fila["id"] in proteger):
             continue
         archivo.mkdir(parents=True, exist_ok=True)

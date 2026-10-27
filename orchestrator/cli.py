@@ -306,8 +306,8 @@ def _proyectos(args, raiz: Path, env: dict, nombre: str) -> None:
     filas = indice(proyectos)
     print(f"[{nombre}] {len(filas)} proyectos en projects/ · índice en {indice_path}")
     for f in filas:
-        marca = {"aprobado": "✓", "antiguo": "·", "fallido": "✗",
-                 "en marcha": "…", "incompleto": "?"}[f["estado"]]
+        marca = {"aprobado": "✓", "con reparos": "~", "antiguo": "·", "fallido": "✗",
+                 "en marcha": "…", "incompleto": "?"}.get(f["estado"], "?")
         print(f"  {marca} {f['id']}  {f['rondas']} rondas  {f['usd']:.2f} USD  {f['titulo'][:40]}")
 
 

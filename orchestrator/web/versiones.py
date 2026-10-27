@@ -23,8 +23,10 @@ MARCA = "proyecto.json"
 
 SECCIONES = ("projects", "archivo")
 
-MERITO_ESTADO = {"aprobado": 4, "antiguo": 3, "fallido": 2, "incompleto": 1, "en marcha": 0}
-"""Una versión aprobada gana a cualquier otra. `antiguo` es obra anterior al
+MERITO_ESTADO = {"aprobado": 5, "con reparos": 4, "antiguo": 3, "fallido": 2, "incompleto": 1,
+                 "en marcha": 0}
+"""Una versión aprobada gana a cualquier otra; la que funciona pero el
+revisor suspende, a todo lo demás. `antiguo` es obra anterior al
 registro que dejó piezas: no se sabe si salió, pero hay algo que imprimir."""
 
 _CITA = re.compile(r"^# proyecto (\S+) \(")

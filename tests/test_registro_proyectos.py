@@ -315,3 +315,43 @@ def test_el_latido_no_esconde_un_proyecto_colgado(tmp_path):
 
     assert fila["estado"] == "en marcha"
     assert fila["parece_colgado"] is True
+
+
+def _revisado(carpeta, **veredictos):
+    items = [{"requirement": f"{v} {i}", "verdict": v, "comment": "c"}
+             for v, n in veredictos.items() for i in range(n)]
+    (carpeta / "review.json").write_text(
+        json.dumps({"summary": "s", "items": items}), encoding="utf-8")
+    return carpeta
+
+
+def test_lo_que_el_revisor_suspende_no_sale_aprobado(tmp_path):
+    """Fallo real (2026-10-26): el sargento salía ✅ «aprobado» y «★ la
+    mejor» con 11 requisitos del usuario sin cumplir. El revisor solo puede
+    devolver el diseño unas pocas veces; agotadas, la última ronda sin
+    choques se daba por buena y el registro no miraba review.json. Sin
+    choques es que funciona, no que sea lo que se pidió."""
+    carpeta = _revisado(_envejecer(_resuelto(tmp_path, "2026-10-27-035747-sargento")),
+                        cumple=7, no_cumple=11, no_verificable=9)
+
+    fila = indice(tmp_path)[0]
+
+    assert fila["estado"] == "con reparos"
+    assert "11" in fila["motivo"]
+
+
+def test_lo_que_el_revisor_no_suspende_sigue_aprobado(tmp_path):
+    """«No verificable» no es un suspenso: nadie lo comprueba, ni a favor ni
+    en contra."""
+    _revisado(_envejecer(_resuelto(tmp_path, "2026-09-21-1611-trinquete")),
+              cumple=5, no_verificable=3)
+
+    assert indice(tmp_path)[0]["estado"] == "aprobado"
+
+
+def test_lo_que_tiene_reparos_no_se_archiva(tmp_path):
+    """Funciona y tiene piezas: es obra, no un intento fallido."""
+    proyectos = tmp_path / "projects"
+    _revisado(_envejecer(_resuelto(proyectos, "2026-10-27-035747-sargento")), no_cumple=2)
+
+    assert archivar(proyectos, tmp_path / "archivo") == []

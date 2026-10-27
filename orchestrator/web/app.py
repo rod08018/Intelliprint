@@ -322,7 +322,7 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
 # cuenta aparte y nunca como aprobación (ADR-003). Todo el texto que escribió
 # un modelo (títulos, planes, motivos) se escapa: es dato, no HTML.
 
-ICONOS = {"aprobado": "✅", "antiguo": "📦", "fallido": "❌",
+ICONOS = {"aprobado": "✅", "con reparos": "🟠", "antiguo": "📦", "fallido": "❌",
           "en marcha": "⏳", "incompleto": "⚠️"}
 
 
