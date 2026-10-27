@@ -99,6 +99,5 @@ def test_a_un_proyecto_que_no_es_un_mecanismo_no_se_le_piden_modificaciones(web)
     """Una modificación relanza el DISEÑO del mecanismo con la petición del
     proyecto: con la de la pieza de calibración, el diseñador inventaría
     un mecanismo a partir de «Pieza de calibración de holguras»."""
-    html = web.get("/").text
-    assert f'data-modificar="{ID}"' not in html
-    assert 'data-modificar="2026-10-20-trinquete"' in html
+    assert f'data-modificar="{ID}"' not in web.get(f"/p/{ID}").text
+    assert 'data-modificar="2026-10-20-trinquete"' in web.get("/p/2026-10-20-trinquete").text

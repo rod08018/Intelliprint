@@ -156,6 +156,8 @@ class FixPlan(BaseModel):
 class MechanismSpec(BaseModel):
     title: str
     summary: str
+    categoria: str | None = None
+    """Para ordenar la galería: una de config/categorias.yaml (F5.5 (web))."""
     fix_plan: FixPlan | None = None
     assumptions: list[str] = []
     """Decisiones que tomó el agente donde el usuario dijo "tú decides"."""

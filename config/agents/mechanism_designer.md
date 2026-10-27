@@ -64,6 +64,7 @@ Devuelve **solo** el JSON, sin texto alrededor. Ejemplo de la forma (un péndulo
 {{
   "title": "Péndulo",
   "summary": "Un brazo que oscila ±30° alrededor de un eje horizontal sobre un soporte.",
+  "categoria": "mecanismos",
   "assumptions": ["eje de Ø4 comprado; agujeros de 4.35"],
   "params": {{"amp": 30}},
   "driver": {{"name": "t", "unit": "deg", "start": 0, "end": 360, "step": 15, "label": "fase"}},
@@ -78,5 +79,7 @@ Devuelve **solo** el JSON, sin texto alrededor. Ejemplo de la forma (un péndulo
   "checks": [{{"body": "brazo", "measure": "rotation", "axis": "y", "expected": 60, "tolerance": 1, "description": "oscila ±30°"}}]
 }}
 ```
+
+`categoria` ordena el proyecto en la galería del usuario: elige UNA de estas, tal cual: {categorias}.
 
 `measure` puede ser `travel` (recorrido del origen de la pieza a lo largo de un eje del mundo) o `rotation` (ángulo barrido alrededor de un eje del mundo).

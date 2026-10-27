@@ -34,9 +34,10 @@ RECIENTE_S = 30 * 60
 mano, sin job.json. Archivarla le quita la carpeta al proceso mientras
 trabaja (pasó de verdad con la leva)."""
 
-DERIVADOS = ("vista.png", "imprimir")
+DERIVADOS = ("vista.png", "imprimir", "vistas", "categoria.json")
 """Lo que la WEB escribe dentro del proyecto (la vista de las piezas, el
-.3mf para PrusaSlicer). No es trabajo del proyecto: contarlo como «tocado
+.3mf para PrusaSlicer, la miniatura de cada pieza, la categoría que eligió
+el usuario). No es trabajo del proyecto: contarlo como «tocado
 hace poco» hacía que mirar la pieza de calibración la pusiera en marcha y
 bloqueara «Diseñar» media hora (2026-10-24)."""
 

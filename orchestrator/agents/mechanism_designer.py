@@ -10,6 +10,7 @@ siguiente como `rechazo`.
 from pathlib import Path
 
 from mech_toolkit.profile import PrinterProfile
+from orchestrator.categorias import CATEGORIAS
 from orchestrator.llm.structured import LlmClient, structured
 from orchestrator.mechanisms.checks import levantar_apoyadas, mechanism_problems
 from orchestrator.mechanisms.kinematics import Kinematics
@@ -38,6 +39,7 @@ class MechanismDesignerAgent:
             slide=f"{profile.fit_mm('slide'):g}", press=f"{profile.fit_mm('press'):g}",
             wall=f"{wall_mm:g}",
             catalog=catalog.describe(),
+            categorias=", ".join(CATEGORIAS),
         )
 
     def design(self, peticion: str, rechazo: tuple[str, str] | None = None,

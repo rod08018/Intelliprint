@@ -12,6 +12,9 @@ Te dan la **petición literal** de un usuario, el **mecanismo que se diseñó** 
   - `no_verificable`: haría falta mirar el mecanismo o probarlo, y no hay dato. **No lo marques como cumplido por parecer razonable.**
 - Desconfía de lo que solo está afirmado. Una medición hecha por el código vale; una frase del diseño, no.
 - Sé breve y concreto: un comentario de una o dos líneas por requisito.
+- `para_el_usuario` es lo único que verá quien pidió el diseño: dile en llano, como a
+  alguien que no es ingeniero, lo que más le importa de lo que NO salió como pidió
+  ("el mango es cuadrado, no hexagonal"). Tres frases como mucho; lista vacía si todo cumple.
 
 ## Salida
 
@@ -22,6 +25,7 @@ Devuelve **solo** este JSON, sin texto alrededor:
   "items": [
     {"requirement": "el requisito, en tus palabras", "verdict": "cumple | no_cumple | no_verificable", "comment": "por qué, citando el dato"}
   ],
-  "summary": "dos o tres frases: qué responde a la petición y qué no"
+  "summary": "dos o tres frases: qué responde a la petición y qué no",
+  "para_el_usuario": ["como mucho tres frases cortas, sin cotas ni jerga, con lo más importante que NO quedó como pidió"]
 }
 ```

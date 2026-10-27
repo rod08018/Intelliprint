@@ -279,20 +279,20 @@ def test_el_detalle_y_el_gif_no_aceptan_rutas_por_id(web):
         assert web.get(f"/proyectos/{malo}/animation.gif").status_code == 404
 
 
-def test_la_portada_ensena_la_ronda_y_el_gif(ws_con_rondas, puente):
+def test_la_portada_ensena_el_gif(ws_con_rondas, puente):
     html = TestClient(crear_app(ws_con_rondas, puente=puente, host_workspace=HOST)).get("/").text
     assert "/proyectos/2026-09-20-trinquete/animation.gif" in html
-    assert "ronda 1" in html.lower()
 
 
-def test_la_fila_dice_que_impide_terminar(ws_con_rondas, puente):
+def test_el_proyecto_dice_que_impide_terminar(ws_con_rondas, puente):
     """Fallo real: «2/2» en la fila con el proyecto en la ronda 9. Los
-    requisitos son solo una parte; la fila tiene que decir qué falla."""
+    requisitos son solo una parte; el proyecto tiene que decir qué falla."""
     p = ws_con_rondas / "projects" / "2026-09-20-trinquete"
     (p / "rounds.json").write_text('[{"number": 1, "title": "t", "feedback": "- choca"}]',
                                    encoding="utf-8")
-    html = TestClient(crear_app(ws_con_rondas, puente=puente, host_workspace=HOST)).get("/").text
-    assert "✗ ronda 1: choca" in html
+    web = TestClient(crear_app(ws_con_rondas, puente=puente, host_workspace=HOST))
+    html = web.get("/p/2026-09-20-trinquete").text
+    assert "No salió" in html and "choca" in html
 
 
 # --- Pedir un diseño desde la web -------------------------------------------
@@ -540,19 +540,20 @@ def test_las_versiones_pueden_estar_unas_en_archivo_y_otras_no(ws):
     assert gato["seccion"] == "projects"
 
 
-def test_la_portada_pinta_un_proyecto_por_solicitud_con_selector_de_versiones(ws):
+def test_la_portada_pinta_un_proyecto_por_solicitud_con_sus_versiones(ws):
     for n in (1, 2, 3):
         _version(ws, f"2026-09-21-0{n}-gato", "Un gato de tijera", "" if n == 2 else "- choca")
+    web = TestClient(crear_app(ws, host_workspace=HOST))
 
-    html = TestClient(crear_app(ws, host_workspace=HOST)).get("/").text
-
+    html = web.get("/").text
     assert html.count('data-id="2026-09-21-01-gato"') == 1
     assert 'data-id="2026-09-21-02-gato"' not in html
+
+    # En su página están todas, abre con la mejor, y los botones bajan esa.
+    pagina = web.get("/p/2026-09-21-01-gato").text
     for n in (1, 2, 3):
-        assert f'<option value="2026-09-21-0{n}-gato"' in html
-    # Abre con la mejor elegida, y los botones bajan/abren esa.
-    assert '<option value="2026-09-21-02-gato" selected' in html
-    assert 'href="/proyectos/2026-09-21-02-gato.zip"' in html
+        assert f'?v=2026-09-21-0{n}-gato"' in pagina
+    assert 'href="/proyectos/2026-09-21-02-gato.zip"' in pagina
 
 
 # --- Pedir una modificación dentro del proyecto -----------------------------
@@ -660,5 +661,5 @@ def test_el_detalle_de_una_version_dice_que_modificacion_se_pidio(ws):
 def test_cada_mecanismo_tiene_donde_pedir_una_modificacion(ws):
     (ws / "projects" / "2026-09-20-trinquete" / "mechanism.json").write_text(
         '{"parts": []}', encoding="utf-8")
-    html = _ws_con_trabajos(ws).get("/").text
+    html = _ws_con_trabajos(ws).get("/p/2026-09-20-trinquete").text
     assert 'data-modificar="2026-09-20-trinquete"' in html
