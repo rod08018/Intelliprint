@@ -192,3 +192,27 @@ def test_el_registro_se_ve_mientras_el_trabajo_sigue_aunque_sea_python(tmp_path)
 
     assert estado["estado"] == "trabajando"
     assert "ronda 1: el diseñador propone" in estado["ultimo"]
+
+
+def test_otro_gestor_no_lanza_mientras_uno_trabaja(tmp_path):
+    """Fallo real (2026-10-26): Crafty pidió UN sargento y salieron dos a la
+    vez. El MCP creaba un JobStore nuevo en cada llamada, con la lista de
+    procesos vacía, así que «uno a la vez» nunca saltaba. Lo que está en
+    marcha se mira en el workspace, no en la memoria de quien pregunta."""
+    JobStore(tmp_path, comando=["/bin/sh", "-c", "sleep 3"]).start("uno")
+
+    with pytest.raises(RuntimeError, match="ya hay un proyecto"):
+        JobStore(tmp_path, comando=["/bin/sh", "-c", "true"]).start("dos")
+
+
+def test_cancelar_un_trabajo_lanzado_por_otro_gestor(tmp_path):
+    """Por lo mismo, `cancelar_proyecto` no paraba nada y contestaba
+    «terminado» con el trabajo siguiendo."""
+    lanzador = JobStore(tmp_path, comando=["/bin/sh", "-c", "sleep 30"])
+    job = lanzador.start("uno")
+    otro = JobStore(tmp_path, comando=["/bin/sh", "-c", "true"])
+
+    otro.cancel(job)
+
+    lanzador._procesos[job].wait(timeout=5)
+    assert otro.status(job)["estado"] == "cancelado"

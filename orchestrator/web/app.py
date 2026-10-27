@@ -27,39 +27,12 @@ from orchestrator.proyecto_3mf import Pieza, escribir_3mf
 from orchestrator.slicing import UsoDesconocido, ajustes_de_uso
 from orchestrator.hostpaths import RutaFueraDelWorkspace, a_ruta_del_host
 from orchestrator.jobs import JobStore
-from orchestrator.registry import estado_de, indice
+from orchestrator.registry import en_marcha, estado_de
 from orchestrator.web.documentos import documentos_de
 from orchestrator.web.estadisticas import estadisticas
-from orchestrator.web.versiones import (
-    SECCIONES, agrupar, componer_modificacion, marca_de, raices)
-
-# SECCIONES: dónde buscar. `archivo/` también: archivar no es borrar, y un
-# intento fallido es la única prueba de por qué algo no funcionó.
-
-
-
-class ProyectoDesconocido(LookupError):
-    """El id no nombra un proyecto del workspace."""
-
-
-def resolver_proyecto(id: str, workspace: Path) -> Path:
-    """La carpeta del proyecto `id`, en `projects/` o en `archivo/`.
-
-    `id` es un NOMBRE. Lo que no sea un nombre —separadores, `..`, rutas
-    absolutas— se rechaza antes de tocar el disco: si no, bajar "el
-    proyecto ../../" sería bajar lo que hay por encima del workspace.
-    """
-    if (not id or id in (".", "..") or id.startswith(".")
-            or "/" in id or "\\" in id or ":" in id or Path(id).name != id):
-        raise ProyectoDesconocido(id)
-    raiz = Path(workspace).resolve()
-    for seccion in SECCIONES:
-        carpeta = raiz / seccion / id
-        # Segunda comprobación, sobre la ruta YA resuelta: un enlace
-        # simbólico dentro de projects/ podría apuntar fuera.
-        if carpeta.is_dir() and carpeta.resolve().is_relative_to(raiz):
-            return Path(workspace) / seccion / id
-    raise ProyectoDesconocido(id)
+from orchestrator.web.versiones import (  # noqa: F401 (los tests los importan de aquí)
+    ProyectoDesconocido, agrupar, ejecuciones, lanzar_modificacion, marca_de,
+    piezas_de, resolver_proyecto)
 
 
 def empaquetar(carpeta: Path) -> bytes:
@@ -79,12 +52,6 @@ def empaquetar(carpeta: Path) -> bytes:
     return memoria.getvalue()
 
 
-def piezas_de(carpeta: Path) -> list[Path]:
-    """Las STL que construyó el sistema. Las dos rutas del diseño —pieza
-    única y mecanismo— las dejan en parts/<nombre>/<nombre>.stl."""
-    return sorted(Path(carpeta).glob("parts/*/*.stl"))
-
-
 def usos_de(carpeta: Path) -> dict[str, str]:
     """El uso que el diseñador declaró para cada pieza (F3.16 (usos)). Se lee
     el JSON a pelo: un mechanism.json anterior a los usos no lo trae, y no
@@ -101,30 +68,6 @@ def piezas_con_uso(carpeta: Path) -> list[dict]:
     return [{"nombre": stl.stem, "uso": usos.get(stl.stem, "general")} for stl in piezas_de(carpeta)]
 
 
-def _listar(workspace: Path) -> list[dict]:
-    """Una fila por EJECUCIÓN. Lo que se enseña son proyectos: `agrupar`."""
-    filas = []
-    for seccion in SECCIONES:
-        carpeta = Path(workspace) / seccion
-        if not carpeta.is_dir():
-            continue
-        for fila in indice(carpeta):
-            fila = {k: v for k, v in fila.items() if k != "carpeta"}
-            fila["seccion"] = seccion
-            fila["piezas"] = len(piezas_de(carpeta / fila["id"]))
-            fila["es_mecanismo"] = (carpeta / fila["id"] / "mechanism.json").is_file()
-            e = estadisticas(carpeta / fila["id"], en_marcha=fila["estado"] == "en marcha")
-            # La lista lleva el resumen; la historia de rondas y la tabla de
-            # requisitos son del detalle, o la portada pesaría lo que pesan
-            # todos los proyectos juntos.
-            e.pop("rondas")
-            if e["requisitos"]:
-                e["requisitos"] = {k: v for k, v in e["requisitos"].items() if k != "filas"}
-            fila.update(e)
-            filas.append(fila)
-    return filas
-
-
 class Modificacion(BaseModel):
     peticion: str = Field(max_length=20_000)
 
@@ -138,21 +81,6 @@ class Modificacion(BaseModel):
 
 class Pedido(Modificacion):
     basado_en: str | None = None
-
-
-def _en_marcha(workspace: Path) -> str | None:
-    """Un proyecto que sigue trabajando, lo lanzara quien lo lanzara.
-
-    No basta con preguntar al JobStore de la web: Crafty lanza los suyos
-    desde el contenedor del MCP, y este no los conoce. Lo que ven los dos
-    es el workspace."""
-    carpeta = Path(workspace) / "projects"
-    if not carpeta.is_dir():
-        return None
-    for fila in indice(carpeta):
-        if fila["estado"] == "en marcha":
-            return fila["id"]
-    return None
 
 
 def crear_app(workspace: Path, puente=None, host_workspace: str = "",
@@ -177,7 +105,7 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
         if trabajos is None:
             raise HTTPException(503, "esta web no tiene con qué lanzar diseños")
         referencias = [_proyecto(pedido.basado_en).name] if pedido.basado_en else []
-        otro = trabajos.current() or _en_marcha(workspace)
+        otro = trabajos.current() or en_marcha(workspace / "projects")
         if otro:
             raise HTTPException(
                 409, f"ya hay un proyecto en marcha ({otro}); espera a que termine")
@@ -195,29 +123,20 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
         if trabajos is None:
             raise HTTPException(503, "esta web no tiene con qué lanzar diseños")
         base = _proyecto(id)
-        otro = trabajos.current() or _en_marcha(workspace)
+        otro = trabajos.current() or en_marcha(workspace / "projects")
         if otro:
             raise HTTPException(
                 409, f"ya hay un proyecto en marcha ({otro}); espera a que termine")
-        raiz = raices(workspace).get(base.name, base.name)
-        original = ((base / "request.md").read_text(encoding="utf-8", errors="ignore")
-                    if (base / "request.md").is_file() else "")
-        # Sin mechanism.json el cargador de referencias rechaza el id y el
-        # trabajo moriría al arrancar; la petición ya lleva lo que se pidió.
-        referencias = [base.name] if (base / "mechanism.json").is_file() else []
         try:
-            nueva = trabajos.start(
-                componer_modificacion(original, base.name, pedido.peticion),
-                referencias=referencias,
-                proyecto={"proyecto": raiz, "basado_en": base.name,
-                          "modificacion": pedido.peticion})
+            return lanzar_modificacion(trabajos, workspace, base, pedido.peticion)
         except RuntimeError as e:
             raise HTTPException(409, str(e))
-        return {"id": nueva, "proyecto": raiz}
+        except ValueError as e:   # una pieza que no existe
+            raise HTTPException(422, str(e))
 
     @app.get("/api/proyectos")
     def proyectos() -> list[dict]:
-        return agrupar(_listar(workspace), workspace)
+        return agrupar(ejecuciones(workspace), workspace)
 
     @app.get("/api/proyectos/{id}")
     def detalle(id: str) -> dict:
@@ -309,7 +228,7 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
 
     @app.get("/", response_class=HTMLResponse)
     def portada() -> str:
-        return _pagina(agrupar(_listar(workspace), workspace), hay_puente=puente is not None,
+        return _pagina(agrupar(ejecuciones(workspace), workspace), hay_puente=puente is not None,
                        puede_pedir=trabajos is not None)
 
     return app

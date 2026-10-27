@@ -44,12 +44,21 @@ def _proyectos() -> Path:
     return workspace / "projects"
 
 
+_STORE: JobStore | None = None
+
+
 def _store() -> JobStore:
-    raiz = _raiz()
-    workspace = Path(os.environ.get("INTELLIPRINT_WORKSPACE") or raiz / "workspace")
-    ejecutable = raiz / ".venv" / "bin" / "intelliprint"
-    comando = [str(ejecutable) if ejecutable.exists() else "intelliprint", "mecanismo"]
-    return JobStore(workspace / "projects", comando)
+    """El gestor de trabajos, UNO para todo el servidor. Se creaba uno nuevo
+    en cada llamada, con la lista de procesos vacía: «uno a la vez» nunca
+    saltaba y cancelar no paraba nada. Así salieron dos sargentos a la vez
+    (2026-10-26)."""
+    global _STORE
+    if _STORE is None:
+        raiz = _raiz()
+        ejecutable = raiz / ".venv" / "bin" / "intelliprint"
+        comando = [str(ejecutable) if ejecutable.exists() else "intelliprint", "mecanismo"]
+        _STORE = JobStore(_proyectos(), comando)
+    return _STORE
 
 
 @mcp.tool()
@@ -106,7 +115,11 @@ def estado_proyecto(proyecto: str = "") -> dict:
         carpeta = Path(filas[0]["carpeta"])
     if not carpeta.exists():
         return {"error": f"no existe el proyecto {proyecto!r}"}
+    from orchestrator.web.versiones import raices
+
     estado = estado_de(carpeta)
+    # De qué encargo es versión: Crafty habla de proyectos, no de carpetas.
+    estado["proyecto"] = raices(_proyectos().parent).get(carpeta.name, carpeta.name)
     registro = carpeta / "run.log"
     if registro.exists():
         estado["ultimo"] = "\n".join(
@@ -141,9 +154,64 @@ def archivos_proyecto(proyecto: str = "") -> dict:
 
 @mcp.tool()
 def listar_proyectos(limite: int = 10) -> list[dict]:
-    """Los proyectos más recientes del workspace con su estado, sus rondas y
-    lo que costó cada uno; los lanzados por consola también."""
-    return indice(_proyectos())[:limite]
+    """Los proyectos más recientes, cada uno con sus versiones. Un proyecto
+    es un encargo; cada vez que se rediseña o se modifica, una versión más.
+
+    `proyecto` es el id con el que se nombra el encargo; `mejor`, la versión
+    que hay que enseñar; `en_marcha`, la que está trabajando si hay alguna."""
+    from orchestrator.web.versiones import proyectos
+
+    resumen = []
+    for g in proyectos(_proyectos().parent)[:limite]:
+        resumen.append({
+            "proyecto": g["id"],
+            "nombre": g.get("titulo"),
+            "estado": "en marcha" if g.get("en_marcha") else g["estado"],
+            "motivo": g.get("motivo", ""),
+            "mejor": g["mejor"],
+            "en_marcha": g.get("en_marcha"),
+            "usd_total": g.get("usd_total", 0),
+            "versiones": [{"id": v["id"], "version": v["version"], "estado": v["estado"],
+                           "motivo": v.get("motivo", ""), "modificacion": v.get("modificacion"),
+                           "usd": (v.get("coste") or {}).get("usd", 0)}
+                          for v in g["versiones"]],
+        })
+    return resumen
+
+
+@mcp.tool()
+def modificar_proyecto(proyecto: str, cambio: str, pieza: str = "") -> dict:
+    """Cambia algo de un proyecto que ya existe: crea una VERSIÓN nueva del
+    mismo proyecto partiendo de su mejor versión (o de la versión que
+    nombres). Úsalo para toda corrección, cambio o reintento de un encargo;
+    `disenar_mecanismo` es solo para encargos nuevos.
+
+    `cambio`: lo que el usuario quiere distinto, con sus palabras y medidas.
+    `pieza` (opcional): si el cambio es de una sola pieza, su nombre; las
+    demás se quedan como están."""
+    from orchestrator.web.versiones import (
+        ProyectoDesconocido, lanzar_modificacion, proyectos, resolver_proyecto)
+
+    if not cambio.strip():
+        return {"error": "di qué hay que cambiar"}
+    workspace = _proyectos().parent
+    try:
+        base = resolver_proyecto(proyecto, workspace)
+    except ProyectoDesconocido:
+        return {"error": f"no existe el proyecto {proyecto!r}; búscalo con listar_proyectos"}
+    # Nombrado el encargo, se parte de su mejor versión, no de la primera.
+    grupo = next((g for g in proyectos(workspace) if g["id"] == base.name), None)
+    if grupo:
+        base = resolver_proyecto(grupo["mejor"], workspace)
+    store = _store()
+    try:
+        r = lanzar_modificacion(store, workspace, base, cambio, pieza=pieza)
+    except RuntimeError as e:
+        return {"error": str(e), "en_marcha": store.current()}
+    except ValueError as e:   # una pieza que no existe
+        return {"error": str(e)}
+    return {"proyecto": r["proyecto"], "version": r["id"], "basado_en": base.name,
+            "aviso": "Versión nueva en marcha. Pregunta el estado de vez en cuando."}
 
 
 @mcp.tool()

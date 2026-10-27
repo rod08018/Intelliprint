@@ -210,6 +210,19 @@ def estado_de(carpeta: Path) -> dict:
     }
 
 
+def en_marcha(carpeta: Path) -> str | None:
+    """Un proyecto de `carpeta` que sigue trabajando, lo lanzara quien lo
+    lanzara: la web, Crafty desde el contenedor del MCP o una consola. Lo que
+    ven todos es el workspace, no la memoria de quien pregunta."""
+    carpeta = Path(carpeta)
+    if not carpeta.is_dir():
+        return None
+    for fila in indice(carpeta):
+        if fila["estado"] == "en marcha":
+            return fila["id"]
+    return None
+
+
 def indice(carpeta: Path) -> list[dict]:
     """Todos los proyectos, del más reciente al más antiguo."""
     carpeta = Path(carpeta)

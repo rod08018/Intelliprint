@@ -178,7 +178,17 @@ def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> 
         referencias = desde_el_entorno(args.adjunto, _workspace(raiz, env), env)
     except ReferenciaInvalida as e:
         sys.exit(f"referencia no válida: {e}")
+    # Una versión nueva de un proyecto parte de su base y solo cambia lo
+    # pedido: rediseñar entero un sargento para agrandarle el mango eran
+    # 4-7 rondas del razonador (2026-10-26).
+    from orchestrator.web.versiones import edicion_de
+    edicion = (edicion_de(carpeta, _workspace(raiz, env))
+               if args.carpeta and not args.continuar else None)
+    base, cambio, pieza = edicion or (None, "", "")
     print(f"[{nombre}] Mecanismo desde tu texto → {carpeta}")
+    if base is not None:
+        print(f"  versión nueva: parte de {base.name} y cambia "
+              + (f"solo «{pieza}»" if pieza else "lo pedido"))
     print(f"  Mechanism Designer: {router.for_role('reason').model} · "
           f"Part Designer: {router.for_role('design').model}")
     # Crafty lanza esto en el contenedor del MCP y la web lo mira desde el
@@ -194,6 +204,7 @@ def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> 
             carpeta, _freecadcmd(env), min_gap_mm=hueco,
             reviewer=DesignReviewerAgent(cliente), continuar=args.continuar,
             presupuesto=presupuesto, referencias=referencias,
+            base=base, cambio=cambio, pieza=pieza,
         )
     f = informe.final
     print()

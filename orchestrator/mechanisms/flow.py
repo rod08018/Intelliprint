@@ -14,6 +14,7 @@ es cuando más falta hace abrirlo.
 
 import json
 import re
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -172,12 +173,62 @@ def _dibujar(spec, carpeta: Path, part_agent, hechas: dict, freecadcmd: str, pre
             )
             (destino / "recipe.json").write_text(receta.model_dump_json(indent=2), encoding="utf-8")
             (destino / "brief.md").write_text(p.brief + "\n", encoding="utf-8")
+            # Con qué se dibujó: otra ejecución (una versión nueva, un
+            # «continuar») sabe así que la pieza ya está hecha.
+            (destino / CLAVE).write_text(json.dumps(
+                {"brief": p.brief, "bbox_min": list(p.bbox_min), "bbox_max": list(p.bbox_max)}),
+                encoding="utf-8")
             hechas[p.name] = clave
         except (ConstruccionFallida, SalidaInvalida) as e:
             hechas.pop(p.name, None)
             motivo = getattr(e, "motivo", str(e))
             fallos.append(f"- la pieza «{p.name}» no se pudo dibujar como la describes: {motivo}")
     return fallos
+
+
+CLAVE = "clave.json"
+
+
+def _hechas_del_disco(carpeta: Path) -> dict[str, tuple]:
+    """Las piezas que ya están dibujadas en `carpeta/parts`, con la clave con
+    la que se dibujaron. Sin esto la caché vivía solo en memoria: un
+    «continuar» o una versión nueva lo redibujaban todo.
+
+    Las piezas de antes de `clave.json` valen si su brief.md coincide con el
+    enunciado de mechanism.json; la caja se toma de ahí."""
+    hechas: dict[str, tuple] = {}
+    try:
+        spec = json.loads((carpeta / "mechanism.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        spec = {}
+    del_spec = {p.get("name"): p for p in spec.get("parts", [])}
+    for destino in sorted((carpeta / "parts").glob("*")):
+        nombre = destino.name
+        if not (destino / f"{nombre}.step").exists():
+            continue
+        try:
+            c = json.loads((destino / CLAVE).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            p = del_spec.get(nombre)
+            brief = destino / "brief.md"
+            if (not p or not brief.exists()
+                    or brief.read_text(encoding="utf-8").strip() != p["brief"].strip()):
+                continue
+            c = {"brief": p["brief"], "bbox_min": p["bbox_min"], "bbox_max": p["bbox_max"]}
+        hechas[nombre] = (c["brief"], tuple(c["bbox_min"]), tuple(c["bbox_max"]))
+    return hechas
+
+
+def _partir_de(base: Path, carpeta: Path) -> str:
+    """Copia el diseño y las piezas de `base` a la carpeta nueva. La base no
+    se toca: es otra versión del proyecto."""
+    (carpeta / "parts").mkdir(parents=True, exist_ok=True)
+    for pieza in sorted((Path(base) / "parts").glob("*")):
+        if pieza.is_dir():
+            shutil.copytree(pieza, carpeta / "parts" / pieza.name, dirs_exist_ok=True)
+    texto = (Path(base) / "mechanism.json").read_text(encoding="utf-8")
+    (carpeta / "mechanism.json").write_text(texto, encoding="utf-8")
+    return texto
 
 
 class Round(BaseModel):
@@ -297,7 +348,13 @@ def design_mechanism(
     animar: bool = True,
     log=print,
     referencias=None,
+    base: Path | None = None,
+    cambio: str = "",
+    pieza: str = "",
 ) -> FlowReport:
+    """Con `base` (la carpeta de otra versión), parte de su diseño y sus
+    piezas y aplica `cambio` —a `pieza`, si se dice cuál— en vez de diseñar
+    desde cero. Lo demás, igual: se dibuja lo que cambió y se verifica todo."""
     carpeta = Path(carpeta)
     (carpeta / "request.md").parent.mkdir(parents=True, exist_ok=True)
     (carpeta / "request.md").write_text(peticion + "\n", encoding="utf-8")
@@ -305,7 +362,8 @@ def design_mechanism(
         referencias.guardar(carpeta)
         log(f"  referencias: {len(referencias.imagenes)} imagen(es) y "
             f"{len(referencias.textos)} texto(s) o diseño(s)")
-    hechas: dict[str, tuple] = {}
+    base_texto = _partir_de(base, carpeta) if base is not None else None
+    hechas = _hechas_del_disco(carpeta) if (base is not None or continuar) else {}
     rondas: list[Round] = []
     rechazo = _retomar(carpeta) if continuar else None
     spec = None
@@ -333,9 +391,13 @@ def design_mechanism(
             # El coste se escribe por el camino: en un proyecto de 40 minutos
             # hay que poder mirar cuánto llevas gastado sin esperar al final.
             presupuesto.escribir(carpeta)
-        log(f"  ronda {n}: el Mechanism Designer propone el mecanismo…")
+        editar = base_texto is not None and n == 1
+        a_que = f" a «{pieza}»" if pieza else ""
+        log(f"  ronda {n}: el Mechanism Designer " + (
+            f"aplica el cambio{a_que}…" if editar else "propone el mecanismo…"))
         try:
-            spec = mechanism_agent.design(peticion, rechazo=rechazo, referencias=referencias)
+            spec = (mechanism_agent.modificar(peticion, base_texto, cambio, pieza=pieza) if editar
+                    else mechanism_agent.design(peticion, rechazo=rechazo, referencias=referencias))
         except SalidaInvalida as e:
             # Una ronda sin especificación válida es una ronda FALLIDA, no el
             # final del proyecto. Antes se paraba aquí con «se atascó

@@ -149,21 +149,51 @@ class JobStore:
             except (ProcessLookupError, PermissionError):
                 proceso.terminate()
             (self.carpeta / job_id / "cancelado").write_text("", encoding="utf-8")
+        elif self._cancelar_ajeno(job_id):
+            (self.carpeta / job_id / "cancelado").write_text("", encoding="utf-8")
+
+    def _cancelar_ajeno(self, job_id: str) -> bool:
+        """Un trabajo que no lanzó este gestor: el MCP creaba uno nuevo en
+        cada llamada y `cancelar_proyecto` contestaba «terminado» con el
+        trabajo siguiendo (2026-10-26). Se para por el pid de job.json, solo
+        si ese proceso es el que arrancó con el trabajo."""
+        from orchestrator.registry import _lee_json, _vivo
+
+        trabajo = _lee_json(self.carpeta / job_id / "job.json") or {}
+        pid = trabajo.get("pid")
+        if not pid or not _vivo(pid, trabajo.get("inicio")):
+            return False
+        try:
+            # Lanzado con start_new_session: su grupo lleva su mismo número.
+            os.killpg(pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError):
+            return False
+        return True
 
     # --- consultar ------------------------------------------------------------
 
     def current(self) -> str | None:
+        """Lo que está trabajando: lo lanzado aquí, y si no, lo que diga el
+        workspace. Con solo la memoria de este gestor, Crafty lanzó un
+        segundo sargento con el primero a medias (2026-10-26)."""
+        from orchestrator.registry import en_marcha
+
         for nombre, proceso in self._procesos.items():
             if proceso.poll() is None:
                 return nombre
-        return None
+        return en_marcha(self.carpeta)
 
     def status(self, job_id: str, lineas: int = 12) -> dict:
         carpeta = self.carpeta / job_id
         if not carpeta.exists():
             raise KeyError(f"no existe el proyecto {job_id!r}")
         proceso = self._procesos.get(job_id)
-        codigo = proceso.poll() if proceso else 0
+        if proceso:
+            codigo = proceso.poll()
+        else:
+            # No lo lanzó este gestor: el registro dice si sigue trabajando.
+            from orchestrator.registry import estado_de
+            codigo = None if estado_de(carpeta)["estado"] == "en marcha" else 0
         cancelado = (carpeta / "cancelado").exists()
         estado = ("trabajando" if codigo is None else
                   "cancelado" if cancelado else

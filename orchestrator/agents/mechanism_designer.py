@@ -85,3 +85,50 @@ class MechanismDesignerAgent:
         return structured(self._client, prompt, MechanismSpec, extra_validation=comprobar,
                           cliente_de_reserva=self._reserva,
                           imagenes=referencias.imagenes if referencias else None)
+
+    def modificar(self, peticion: str, base: str, cambio: str, pieza: str = "") -> MechanismSpec:
+        """Aplica `cambio` a un diseño que YA funciona (`base`, su JSON), en
+        vez de diseñar desde cero. Con `pieza`, las demás vuelven tal cual
+        de la base aunque el modelo las toque: la caché de piezas compara el
+        enunciado letra por letra, y así no se redibuja nada que no cambió.
+
+        Fallo real (2026-10-26): pedir un mango más grande al sargento era
+        un diseño nuevo, de 4 a 7 rondas del razonador y todas las piezas
+        redibujadas."""
+        anterior = MechanismSpec.model_validate_json(base)
+        de_la_base = {p.name: p for p in anterior.parts}
+        if pieza and pieza not in de_la_base:
+            raise KeyError(f"el diseño no tiene ninguna pieza «{pieza}»; tiene: "
+                           + ", ".join(de_la_base))
+        prompt = (
+            f"{self._instrucciones}\n## Petición del usuario\n\n{peticion}\n"
+            "\n## Diseño actual\n\nEste diseño YA FUNCIONA: se construye y se mueve sin "
+            f"chocar en todo el recorrido.\n\n{base}\n"
+            f"\n## Cambio que pide el usuario\n\n{cambio}\n"
+            + (f"\nCambia SOLO la pieza «{pieza}». Las demás se quedan exactamente como "
+               "están: el sistema las restaura de la base aunque las toques.\n" if pieza else "")
+            + "\nDevuelve el diseño completo con ese cambio y NADA más. Lo que el cambio no "
+              "toca se copia letra por letra: enunciados, cajas, orígenes. Si el cambio "
+              "obliga a ajustar otra cosa (un eje más largo, un parámetro), ajústalo y "
+              "explícalo en `fix_plan`.\n"
+        )
+
+        def comprobar(spec: MechanismSpec) -> None:
+            if pieza:
+                nombres = {p.name for p in spec.parts}
+                faltan = set(de_la_base) - nombres
+                if faltan:
+                    raise ValueError("has quitado piezas que no había que tocar: "
+                                     + ", ".join(sorted(faltan)))
+                spec.parts = [p if p.name == pieza or p.name not in de_la_base
+                              else de_la_base[p.name].model_copy(deep=True) for p in spec.parts]
+            Kinematics(spec).validate()
+            self.ajustes = levantar_apoyadas(spec, self._min_gap_mm)
+            problemas = mechanism_problems(spec, self._min_gap_mm)
+            if problemas:
+                raise ValueError("; ".join(problemas))
+
+        # Editar no necesita el razonador: si hay modelo sin pensamiento, ese.
+        # Si la edición no sale, el bucle normal sigue con el razonador.
+        return structured(self._reserva or self._client, prompt, MechanismSpec,
+                          extra_validation=comprobar)

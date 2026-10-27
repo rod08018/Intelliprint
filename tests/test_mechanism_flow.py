@@ -642,3 +642,74 @@ def test_si_no_sale_se_entrega_la_mejor_ronda_y_no_la_ultima(tmp_path):
     assert brazo["bbox_max"] == [35, 5, 5]           # el de la ronda 1, no el de 80 de la 2
     assert (tmp_path / "assembly.FCStd").exists()
     assert informe.final is not None
+
+
+# --- Cambiar una pieza sin rediseñar todo -------------------------------------
+#
+# Fallo real (2026-10-26): una corrección del sargento era un diseño nuevo
+# desde cero. El diseñador recibía el anterior solo como «ejemplo», lo volvía
+# a proponer entero (4-7 rondas del razonador, ~0.3 USD, ~25 min) y se
+# redibujaban todas las piezas. Al usuario le pedían un mango más grande.
+
+
+def _brazo_cambiado(tocar_la_base=False):
+    """El brazo con otro enunciado. Con `tocar_la_base`, el modelo cambia
+    también la base sin que nadie se lo pida: eso no puede colarse."""
+    s = _spec(0.5)
+    s["parts"][1]["brief"] = "Pieza «brazo»: barra de 30 entre centros, más robusta."
+    if tocar_la_base:
+        s["parts"][0]["brief"] = "Pieza «base»: placa 40x20x6, rediseñada."
+    return s
+
+
+def test_modificar_una_pieza_deja_las_demas_tal_cual():
+    base = json.dumps(_spec(0.5))
+    agente = MechanismDesignerAgent(Guion([json.dumps(_brazo_cambiado(tocar_la_base=True))]),
+                                    CATALOGO, PERFIL, (235, 235, 250), 0.1)
+
+    spec = agente.modificar("un brazo", base, "el brazo más robusto", pieza="brazo")
+
+    original = json.loads(base)["parts"][0]
+    assert spec.parts[0].model_dump(exclude_defaults=True) == \
+        type(spec.parts[0]).model_validate(original).model_dump(exclude_defaults=True)
+    assert "más robusta" in spec.parts[1].brief
+
+
+def test_modificar_una_pieza_que_no_existe_lo_dice():
+    agente = MechanismDesignerAgent(Guion([]), CATALOGO, PERFIL, (235, 235, 250), 0.1)
+    with pytest.raises(KeyError, match="mango"):
+        agente.modificar("un brazo", json.dumps(_spec(0.5)), "más grande", pieza="mango")
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_una_modificacion_solo_redibuja_la_pieza_que_cambia(tmp_path):
+    primera = tmp_path / "v1"
+    design_mechanism(
+        "un brazo que gire 90° sobre una base",
+        MechanismDesignerAgent(Guion([json.dumps(_spec(0.5))]), CATALOGO, PERFIL, (235, 235, 250), 0.1),
+        PartDesignerAgent(DisenadorDePiezas(), CATALOGO),
+        primera, _freecadcmd(), min_gap_mm=0.1, animar=False)
+
+    mecanico = Guion([json.dumps(_brazo_cambiado(tocar_la_base=True))])
+    piezas = DisenadorDePiezas()
+    informe = design_mechanism(
+        "un brazo que gire 90° sobre una base",
+        MechanismDesignerAgent(mecanico, CATALOGO, PERFIL, (235, 235, 250), 0.1),
+        PartDesignerAgent(piezas, CATALOGO),
+        tmp_path / "v2", _freecadcmd(), min_gap_mm=0.1, animar=False,
+        base=primera, cambio="el brazo más robusto", pieza="brazo")
+
+    assert informe.ok
+    # Una sola llamada al diseñador del mecanismo, y para editar, no para
+    # diseñar desde cero ni para «corregir un diseño que no funciona».
+    assert len(mecanico.prompts) == 1
+    assert "## Cambio que pide el usuario" in mecanico.prompts[0]
+    assert "NO funciona" not in mecanico.prompts[0]
+    # Solo se dibuja el brazo; la base viene hecha de la v1.
+    dibujadas = [p.split("## Tarea")[-1] for p in piezas.prompts]
+    assert all("«brazo»" in t for t in dibujadas) and dibujadas
+    v1 = json.loads((primera / "mechanism.json").read_text(encoding="utf-8"))
+    v2 = json.loads((tmp_path / "v2" / "mechanism.json").read_text(encoding="utf-8"))
+    assert v2["parts"][0] == v1["parts"][0]
+    # La v1 no se toca.
+    assert "más robusta" not in (primera / "mechanism.json").read_text(encoding="utf-8")
