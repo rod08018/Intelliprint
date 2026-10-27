@@ -27,7 +27,7 @@ from langgraph.graph import END, START, StateGraph
 from orchestrator.human.port import HumanPort
 from orchestrator.schemas.spec import Spec
 from orchestrator.state_machine import AprobacionRequerida, advance
-from orchestrator.tasks import slug, spec_to_task
+from orchestrator.tasks import nombre_corto, spec_to_task
 
 
 class Estado(TypedDict, total=False):
@@ -97,7 +97,7 @@ def crear_grafo(deps: Dependencias, db_path: Path):
             # Sin confirmación no hay proyecto: nada en disco (ADR-008).
             return {"spec": spec.model_dump(), "estado": "INTAKE"}
 
-        proyecto = deps.workspace / f"{dt.date.today().isoformat()}-{slug(spec.title)}"
+        proyecto = deps.workspace / f"{dt.date.today().isoformat()}-{nombre_corto(spec.title, 40)}"
         proyecto.mkdir(parents=True, exist_ok=True)
         (proyecto / "spec.yaml").write_text(
             yaml.safe_dump(spec.model_dump(), allow_unicode=True, sort_keys=False),

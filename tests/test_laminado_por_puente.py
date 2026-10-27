@@ -109,3 +109,38 @@ def test_sin_puente_se_usa_el_binario_de_siempre(monkeypatch, tmp_path):
     assert llamadas == [(Path("a.stl"),
                          Path(".") / "config/slicing" / perfil_activo(Path(".")).laminado,
                          Path("a.gcode"))]
+
+
+def test_con_prusaslicer_aqui_se_lamina_aqui_aunque_haya_puente(monkeypatch, tmp_path, puente):
+    """Fallo real (2026-10-27): el .env lleva PRUSASLICER_BRIDGE para los
+    contenedores, y la CLI del PC también lo lee. En el PC, con PrusaSlicer
+    instalado, laminaba por el puente y la traducción de rutas daba por
+    «fuera del workspace» un STL que estaba dentro: los tres e2e de pieza
+    suelta caían sin llegar a laminar. El contenedor deja PRUSASLICER vacío
+    a propósito, así que allí sigue mandando el puente."""
+    binario = tmp_path / "prusa-slicer-console.exe"
+    binario.write_text("")
+    llamadas = []
+    monkeypatch.setattr(
+        "orchestrator.slicing.slice_stl",
+        lambda stl, perfil, salida, ajustes=None: llamadas.append(stl))
+    laminar = elegir_laminador(Path("."), {
+        "PRUSASLICER": str(binario), "PRUSASLICER_BRIDGE": puente,
+        "INTELLIPRINT_WORKSPACE": str(tmp_path), "HOST_WORKSPACE": HOST})
+
+    laminar(tmp_path / "p" / "cubo.stl", tmp_path / "p" / "cubo.gcode")
+
+    assert llamadas == [tmp_path / "p" / "cubo.stl"]
+    assert puente.recibido == {}
+
+
+def test_en_el_contenedor_manda_el_puente(puente):
+    """PRUSASLICER vacío (lo pone así el compose) o una ruta del PC que aquí
+    no existe: por el puente."""
+    for prusa in ("", r"C:\Program Files\Prusa3D\PrusaSlicer\prusa-slicer-console.exe"):
+        laminar = elegir_laminador(Path("."), {
+            "PRUSASLICER": prusa, "PRUSASLICER_BRIDGE": puente,
+            "INTELLIPRINT_WORKSPACE": "/workspace", "HOST_WORKSPACE": HOST})
+        laminar(Path("/workspace/p/cubo.stl"), Path("/workspace/p/cubo.gcode"))
+        assert puente.recibido["stl"] == HOST + r"\p\cubo.stl"
+        puente.recibido.clear()

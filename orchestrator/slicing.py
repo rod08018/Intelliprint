@@ -127,7 +127,12 @@ def elegir_laminador(raiz: Path, env) -> "Callable[[Path, Path], SlicingReport]"
 
     perfil = perfil_activo(raiz).laminado
     destino = env.get("PRUSASLICER_BRIDGE")
-    if not destino:
+    # Con PrusaSlicer AQUÍ se lamina aquí, haya puente o no: el .env lleva el
+    # puente para los contenedores y la CLI del PC también lo lee; laminaba
+    # por el puente y los e2e de pieza suelta caían (2026-10-27). En el
+    # contenedor PRUSASLICER viene vacío a propósito (docker-compose.yml).
+    aqui = env.get("PRUSASLICER") and Path(env["PRUSASLICER"]).is_file()
+    if not destino or aqui:
         catalogo = Path(raiz) / "config" / "slicing"
         return lambda stl, salida, uso="general": slice_stl(
             stl, catalogo / perfil, salida, ajustes=ajustes_de_uso(uso, catalogo))

@@ -42,3 +42,21 @@ def test_el_enunciado_lleva_la_peticion_literal_del_usuario():
     tarea = spec_to_task(spec)
 
     assert "agujeros de 3.3 mm en cuadro de 31" in tarea.brief
+
+
+def test_un_titulo_largo_da_un_nombre_que_cabe_en_las_rutas_de_windows():
+    """Fallo real (2026-10-27): «Placa 40x40x5 con taladro central de 25 mm»
+    se repite tres veces en la ruta (parts/<pieza>/<pieza>.FCStd, más la
+    carpeta del proyecto) y FreeCAD, en Windows, no pasa de 260 caracteres:
+    con la misma receta construía a 204 y fallaba a 262. El nombre se corta
+    entre palabras, nunca a mitad."""
+    from orchestrator.tasks import nombre_corto
+
+    titulo = "Placa 40x40x5 con taladro central de 25 mm"
+    pieza = spec_to_task(_SPEC.model_copy(update={"title": titulo})).part
+    assert pieza == "placa_40x40x5_con_taladro"
+
+    # La ruta con la que falló: la carpeta temporal de pytest en el PC.
+    base = "C:/Users/jdr/AppData/Local/Temp/pytest-of-jdr/pytest-1897/test_de_la_frase_a_la_pieza_pl0"
+    ruta = f"{base}/projects/2026-10-27-{nombre_corto(titulo, 40)}/parts/{pieza}/{pieza}.FCStd"
+    assert len(ruta) < 260

@@ -45,13 +45,19 @@ CASOS = [
 @pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
 @pytest.mark.parametrize("peticion,volumen", CASOS)
 def test_de_la_frase_a_la_pieza(tmp_path, peticion, volumen):
-    salida = subprocess.run(
+    proceso = subprocess.run(
         [INTELLIPRINT, "new", peticion],
         input="sí\n", capture_output=True, text=True, timeout=900,
         env={**os.environ, "INTELLIPRINT_WORKSPACE": str(tmp_path)},
-    ).stdout
+    )
+    salida = proceso.stdout
 
-    medido = float(re.search(r"pieza:\s+([\d.]+) mm³", salida).group(1))
+    # Sin la línea, que se vea por qué, con el error del proceso: un
+    # AttributeError de None no decía nada, y el fallo real era el
+    # laminado, no la pieza (2026-10-27).
+    linea = re.search(r"pieza:\s+([\d.]+) mm³", salida)
+    assert linea, f"{salida}\n--- stderr ---\n{proceso.stderr[-4000:]}"
+    medido = float(linea.group(1))
     assert medido == pytest.approx(volumen, abs=1.0), salida
 
     assert "NO aparecen en la pieza" not in salida  # trazabilidad (F1.16 (trazabilidad))
