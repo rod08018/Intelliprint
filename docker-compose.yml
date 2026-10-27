@@ -30,6 +30,11 @@ services:
       # buscar un .exe de Windows que nunca va a estar.
       PRUSASLICER: ""
       INTELLIPRINT_WORKSPACE: /workspace
+      # La clave de DeepSeek de la variable de entorno del PC, que manda
+      # sobre la del .env: el 2026-10-26 eran distintas y los contenedores
+      # usaban la vieja del .env sin que nadie lo supiera. Sin variable en
+      # la shell, compose cae a la del .env. Así no se copia a ningún archivo.
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
       # El contenedor `ollama` que ya corre en esta máquina, visto desde
       # aquí. Con el servicio `ollama` de abajo sería http://ollama:11434.
       OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
@@ -149,6 +154,8 @@ services:
       OPENCLAW_CONFIG_DIR: /home/node/.openclaw
       OPENCLAW_WORKSPACE_DIR: /home/node/.openclaw/workspace
       TZ: America/Guatemala
+      # La misma que el orquestador: la del PC, o la del .env si no la hay.
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
     entrypoint: ["sh", "/intelliprint/crafty-entrypoint.sh"]
     volumes:
       - crafty_estado:/home/node/.openclaw
