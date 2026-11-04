@@ -57,6 +57,9 @@ def _cliente(router: Router, env: dict, role: str = "design"):
     )
 
 
+CONSTRUCCIONES_KIT = 5
+
+
 def _disenar_con_kit(raiz: Path, env: dict, cliente):
     """Las piezas sueltas se dibujan con el kit (F5.18 (kit)): el catálogo
     de generadores no sabía hacer una cartela, un hexágono ni un chaflán. Los
@@ -64,12 +67,18 @@ def _disenar_con_kit(raiz: Path, env: dict, cliente):
     from orchestrator.agents.disenador_kit import DisenadorKitAgent
 
     freecad = _freecadcmd(env)
-    disenador = DisenadorKitAgent(cliente, perfil_activo(raiz))
+    router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
+    # Con el razonador y cinco construcciones: en el banco (2026-11-04)
+    # deepseek-chat recibía el motivo exacto —«los lados 2 y 7 se cruzan»,
+    # «el rebaje del servo no toca la pieza»— y no lo corregía en tres.
+    disenador = DisenadorKitAgent(_cliente(router, env, "reason"), perfil_activo(raiz),
+                                  reserva=cliente)
 
     def disenar(spec, carpeta, part, concepto=None):
         return design_and_build(
             disenador, spec_to_task(spec, concepto).brief, None, carpeta,
             freecadcmd=freecad, part=part, request=spec.request, perfil=disenador.perfil,
+            max_construcciones=CONSTRUCCIONES_KIT,
         )
     return disenar
 

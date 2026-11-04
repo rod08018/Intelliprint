@@ -48,3 +48,19 @@ def test_un_fallo_de_construccion_vuelve_con_el_programa_anterior():
     guion = Guion([json.dumps({"part": "x", "codigo": BUENO})])
     DisenadorKitAgent(guion, ACTIVO).design("t", rechazo=("CODIGO_VIEJO", "línea 4: radio"))
     assert "CODIGO_VIEJO" in guion.prompts[0] and "línea 4: radio" in guion.prompts[0]
+
+
+def test_si_el_razonador_se_corta_contesta_el_de_reserva():
+    """El diseñador del kit pasa al razonador (banco 2026-11-04: deepseek-chat
+    no corregía en tres intentos un perfil con lados cruzados aunque se le
+    dijera cuáles). Un razonador puede agotar max_tokens pensando, y entonces
+    tiene que contestar el modelo sin pensamiento, como en los mecanismos."""
+    from orchestrator.llm.providers.deepseek import RespuestaCortada
+
+    class Razonador:
+        def complete(self, prompt, **_):
+            raise RespuestaCortada("agotó max_tokens")
+
+    reserva = Guion([json.dumps({"part": "x", "codigo": BUENO})])
+    p = DisenadorKitAgent(Razonador(), ACTIVO, reserva=reserva).design("t")
+    assert "kit.caja" in p.codigo

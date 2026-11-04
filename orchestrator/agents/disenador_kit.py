@@ -22,8 +22,12 @@ _DEL_PERFIL = ("printer", "material", "layer_height_mm", "bed_mm", "fits", "hole
 
 
 class DisenadorKitAgent:
-    def __init__(self, client: LlmClient, activo, prompt_path: Path = PROMPT_PATH) -> None:
+    def __init__(self, client: LlmClient, activo, prompt_path: Path = PROMPT_PATH,
+                 reserva: LlmClient | None = None) -> None:
+        """`reserva`: el modelo sin pensamiento, por si el razonador se corta
+        (ver `structured`)."""
         self._client = client
+        self._reserva = reserva
         self.perfil = activo.datos
         """Lo que el kit recibe al construir: de aquí salen tornillos y holguras."""
         perfil = {k: activo.datos[k] for k in _DEL_PERFIL if k in activo.datos}
@@ -41,4 +45,4 @@ class DisenadorKitAgent:
             prompt += ("\n## Tu programa anterior NO se pudo construir\n\n"
                        f"```\n{anterior}\n```\n\nMotivo:\n{motivo}\n\n"
                        "Corrígelo. No repitas el mismo error.\n")
-        return structured(self._client, prompt, Programa)
+        return structured(self._client, prompt, Programa, cliente_de_reserva=self._reserva)
