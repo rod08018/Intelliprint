@@ -61,3 +61,29 @@ def test_lo_que_no_es_un_agujero_no_se_mide_aqui():
     banco y de F6.12 (techo), no de esta medida."""
     cota = Requisito(id="R1", tipo="cota", texto="200 mm de fondo", valor=200, origen="usuario")
     assert defectos([cota], []) == []
+
+
+# --- sondas dentro del bucle (F6.12 (techo) llevado a F6.7 (lazo)) ----------------
+
+def test_un_encaje_con_seccion_pide_una_ventana_y_siempre_se_mira_el_acabado():
+    """Rejuzgada con las sondas, la corrida del 62 % daba 81 %, y lo que
+    fallaba eran las aristas vivas y las ventanas de los servos: cosas que
+    el diseñador nunca recibía como motivo, porque el bucle solo medía
+    agujeros (2026-11-04)."""
+    from orchestrator.banco import AristasVivas, Ventana
+    from orchestrator.medida import sondas_de
+
+    servo = Requisito(id="R1", tipo="encaje", texto="el servo mide 40.7 x 19.7 mm",
+                      valor=40.7, origen="usuario", seccion_mm=[40.7, 19.7])
+    sondas = sondas_de([servo])
+    assert any(isinstance(s, AristasVivas) for s in sondas)
+    [v] = [s for s in sondas if isinstance(s, Ventana)]
+    assert (v.ancho_mm, v.alto_mm) == (40.7, 19.7)
+
+
+def test_la_seccion_de_un_encaje_cubre_sus_cotas():
+    peticion = "el cuerpo del servo mide 40.7 x 19.7 mm"
+    servo = Requisito(id="R1", tipo="encaje", texto="el cuerpo del servo mide 40.7 x 19.7 mm",
+                      origen="usuario", seccion_mm=[40.7, 19.7])
+    from orchestrator.schemas.spec import errores_de_requisitos
+    assert errores_de_requisitos([servo], peticion) == []

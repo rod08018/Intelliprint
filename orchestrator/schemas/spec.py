@@ -47,6 +47,11 @@ class Requisito(BaseModel):
     cantidad: int | None = None
     """Para un `agujero`: cuántos de ese diámetro. Sin esto «faltan 2 de
     los 4 agujeros del NEMA17» no se podía medir (F6.7 (lazo))."""
+    seccion_mm: list[float] = []
+    """Para un `encaje`: la sección del cuerpo que tiene que pasar, ancho y
+    alto («el servo mide 40.7 x 19.7»). Se comprueba al construir que pasa
+    por una abertura de la pieza: en el banco, la «ventana» del MG996R era un
+    rebaje ciego de 4 mm y nadie se lo dijo al diseñador (2026-11-04)."""
     separaciones_mm: list[float] = []
     """Para un `agujero`: distancias entre centros que pide la petición
     («separados 60 mm», «en cuadro de 31»). Cuentan como cotas cubiertas."""
@@ -69,7 +74,7 @@ def errores_de_requisitos(requisitos: list[Requisito], peticion: str) -> list[st
                 f"{r.id}: dice venir del usuario, pero «{r.texto}» no está en la petición. "
                 "Cita el fragmento tal cual, o márcalo como `estimado`.")
     cubiertas = [r.valor for r in requisitos if r.valor is not None and r.unidad == "mm"]
-    cubiertas += [s for r in requisitos for s in r.separaciones_mm]
+    cubiertas += [s for r in requisitos for s in r.separaciones_mm + r.seccion_mm]
     for cota in requested_dimensions(peticion):
         if not any(abs(v - cota) < 1e-6 for v in cubiertas):
             errores.append(

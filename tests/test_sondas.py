@@ -190,3 +190,17 @@ def construir(kit):
 """
     [r] = _medir(ele, [Ventana(tipo="ventana", ancho_mm=40.7, alto_mm=19.7)], tmp_path)
     assert r.estado == "cumple"
+
+
+def test_acabar_deja_la_pieza_sin_aristas_vivas(tmp_path):
+    """`acabar()` es lo que el diseñador tiene que llamar al final: chaflán de
+    0.5 en la base (un redondeo abajo sería un voladizo) y redondeo en todo
+    lo demás. Con la escalera de dos cajas quedan aristas a media altura que
+    «verticales» + «base» no tocaban."""
+    escalera = """
+def construir(kit):
+    p = kit.caja(30, 20, 10) + kit.caja(15, 20, 8, en=(0, 0, 9.5))
+    return p.taladrar("a", 4, en=(22, 10, 10)).acabar()
+"""
+    [r] = _medir(escalera, [AristasVivas(tipo="aristas_vivas", max_fraccion=0.1)], tmp_path)
+    assert r.estado == "cumple", r.detalle

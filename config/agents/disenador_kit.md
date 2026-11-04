@@ -27,8 +27,7 @@ def construir(kit):
         # Horizontal respecto a la cama: en lágrima.
         pieza = pieza.taladrar(f"pared_{i + 1}", 4.5, en=(CANTO, y, ANCHO / 2), eje="-x",
                                lagrima=True, avellanado=9)
-    pieza = pieza.redondear(1, aristas="verticales")
-    return pieza.achaflanar(0.5, aristas="base")
+    return pieza.acabar()
 ```
 
 ## Reglas
@@ -40,9 +39,10 @@ def construir(kit):
 5. **Una sola pieza**: los cuerpos que se unen tienen que **solaparse**, no solo tocarse en una cara. Si dudas, mételos 0.5 mm uno dentro del otro.
 6. **Respeta las secciones mínimas del concepto**: el cálculo de resistencia las dio por buenas así. No las adelgaces.
 7. **Imprimible sin soportes**: nada en voladizo a más de `overhang_max_deg`, puentes de menos de `bridge_max_mm`, agujeros horizontales con `lagrima=True`, paredes de al menos `walls.structural_mm` donde hay carga.
-8. **Acabado de producto, al final**: `redondear` las aristas exteriores (1–2 mm) y `achaflanar(0.5, aristas="base")` contra la pata de elefante. Si el radio no cabe en alguna arista (una pared fina), esa queda viva con un aviso y la pieza sale igual; para que no pase, usa un radio menor que la mitad de la pared más fina o acota con `dentro`.
+8. **Acabado de producto: termina SIEMPRE con `pieza.acabar()`**. Achaflana la base contra la pata de elefante y redondea todas las demás aristas. Se mide al construir: si quedan más del 10 % de aristas vivas, vuelve como defecto. No uses `redondear` solo en las verticales: las de arriba y las de media altura quedan vivas. Si una pared es fina, `acabar(radio=0.5)`.
 9. **Cada agujero tiene que tocar material**: si un rasgo no quita nada (está fuera de la pieza), es un error con la caja de la pieza. Antes de colocar agujeros, comprueba que la placa es lo bastante grande para su separación y su margen.
 10. **No apliques holguras a las cotas del usuario** salvo las de encaje que pida el concepto: un tubo de Ø32 que tiene que entrar lleva `32 + kit.holgura("slide")`.
+11. **Una ventana para un componente lo atraviesa entero**: si un requisito dice que un cuerpo tiene que pasar (un servo de 40.7 × 19.7), la abertura atraviesa la pieza de lado a lado, con holgura (`+ kit.holgura("clearance")` en cada medida). Un rebaje ciego no vale: se mide al construir.
 
 Solo puedes usar lo que hay en el kit, aritmética, `for`, `if`, listas y las funciones `range`, `len`, `min`, `max`, `abs`, `round`, `enumerate`, `zip`, `sum`, `sqrt`, `sin`, `cos`, `tan`, `atan2`, `radians`, `degrees`, `hypot` y `pi`. Nada de `import`, `open`, clases ni `try`: un programa así se rechaza con la línea y el motivo.
 

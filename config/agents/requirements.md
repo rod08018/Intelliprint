@@ -50,6 +50,7 @@ Convierte la petición en una lista de `requisitos`. Cada uno lleva:
 - `valor` y `unidad` cuando hay número: `unidad` es `mm` para longitudes y diámetros, `kg` para cargas.
 - `origen`: `usuario` (lo dijo), `estimado` (lo supones tú), `catalogo` (sale de la hoja de datos de un componente con nombre, como un MG996R).
 - Solo para `agujero`: `cantidad` (cuántos de ese diámetro) y `separaciones_mm`, las distancias entre centros que da la petición. «Cuatro agujeros de 3.3 mm en cuadro de 31 mm» es **un** requisito: `valor: 3.3`, `cantidad: 4`, `separaciones_mm: [31]`. «2 agujeros de 4.5 mm separados 60 mm»: `valor: 4.5`, `cantidad: 2`, `separaciones_mm: [60]`. Con esto se comprueba la pieza al construirla: si un agujero falta o está fuera de su sitio, se corrige antes de entregarla.
+- Solo para `encaje` de un cuerpo que tiene que **pasar** por la pieza (el cuerpo de un servo por su ventana): `seccion_mm` con su ancho y su alto. «El cuerpo del servo mide 40.7 x 19.7 mm» es `tipo: encaje`, `seccion_mm: [40.7, 19.7]`. Se comprueba que pasa por una abertura de la pieza.
 
 **Cada medida en mm de la petición tiene que estar en algún requisito con ese `valor`.** Si dice «separados 60 mm», hay un requisito con `valor: 60`. «60x40 mm» son dos valores: 60 y 40. El tamaño de un tornillo («tornillos de 4 mm») va como `fijacion`, y el agujero para él es otra cosa.
 

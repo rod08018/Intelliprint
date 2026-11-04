@@ -282,6 +282,24 @@ class Cuerpo:
         0.5 mm en la «base» evita la pata de elefante."""
         return self._acabar("achaflanar", distancia, self._aristas(aristas, dentro), aristas)
 
+    def acabar(self, radio=1.0, chaflan_base=0.5) -> "Cuerpo":
+        """El acabado de producto, en una llamada, AL FINAL: chaflán de
+        `chaflan_base` en las aristas que tocan la cama (contra la pata de
+        elefante; un redondeo abajo sería un voladizo) y redondeo de `radio`
+        en todas las demás. Donde el radio no cabe, la arista queda viva con
+        un aviso. En el banco (2026-11-04) entre el 36 % y el 63 % de las
+        aristas quedaban vivas: se redondeaban las verticales y nada más."""
+        pieza = self.achaflanar(chaflan_base, aristas="base") if chaflan_base else self
+        z0 = pieza._forma.BoundBox.ZMin
+        # Todas menos las que quedan ENTERAS en la franja del chaflán. Con una
+        # caja «por encima del chaflán» se quedaban fuera las verticales, que
+        # empiezan justo en él (test de la escalera, 2026-11-04).
+        franja = z0 + (chaflan_base or 0) + 0.05
+        elegidas = [i for i, e in enumerate(pieza._forma.Edges) if e.BoundBox.ZMax > franja]
+        if not elegidas:
+            return pieza
+        return pieza._acabar("redondear", radio, elegidas, "todas menos la base")
+
     def _cortar(self, nombre, herramienta) -> "Cuerpo":
         """Quita un rasgo con nombre, comprobando que de verdad quita algo.
 

@@ -70,3 +70,46 @@ def test_si_nunca_cumple_todo_se_entrega_el_que_menos_falla(tmp_path):
     assert [d[:2] for d in resultado.defectos] == ["R2"]
     assert receta.codigo == SOLO_R1
     assert resultado.volume_mm3 == pytest.approx(1000 - 2 * math.pi * 1.5 ** 2 * 5, abs=0.01)
+
+
+# --- sondas en el bucle ----------------------------------------------------------------
+
+SERVO = [Requisito(id="R1", tipo="encaje", texto="el servo mide 30 x 20 mm", origen="usuario",
+                   seccion_mm=[30, 20])]
+REBAJE = """
+def construir(kit):
+    p = kit.caja(50, 40, 10).quitar("ventana", kit.caja(31, 21, 5, en=(9.5, 9.5, 6)))
+    return p.redondear(1, aristas="todas")
+"""
+PASANTE = REBAJE.replace("kit.caja(31, 21, 5, en=(9.5, 9.5, 6))",
+                         "kit.caja(31, 21, 12, en=(9.5, 9.5, -1))")
+VIVA = PASANTE.replace('    return p.redondear(1, aristas="todas")', "    return p")
+
+
+def _con_sondas(guion, tmp_path):
+    from orchestrator.medida import defectos_de_la_pieza
+
+    material = PERFIL["resistencia"]
+    return design_and_build(
+        guion, "t", None, tmp_path, freecadcmd=_freecadcmd(), part="p", perfil=PERFIL,
+        max_construcciones=3, entregar_mejor=True,
+        check=lambda r: "\n".join(defectos_de_la_pieza(
+            SERVO, r, tmp_path / "p.step", _freecadcmd(), material)) or None)
+
+
+def test_una_ventana_ciega_vuelve_al_disenador(tmp_path):
+    """El soporte del MG996R del banco: un rebaje de 4 mm donde tenía que
+    pasar el servo."""
+    guion = Guion([REBAJE, PASANTE])
+    _, resultado = _con_sondas(guion, tmp_path)
+    assert resultado.defectos == []
+    assert "30 × 20" in guion.rechazos[1][1]
+
+
+def test_el_mejor_intento_prima_la_funcion_sobre_el_acabado(tmp_path):
+    """Entre una pieza bien acabada donde el servo no entra y una con aristas
+    vivas donde sí, se entrega la que funciona."""
+    guion = Guion([REBAJE, VIVA, REBAJE])
+    receta, resultado = _con_sondas(guion, tmp_path)
+    assert receta.codigo == VIVA
+    assert all(d.startswith("acabado") for d in resultado.defectos)

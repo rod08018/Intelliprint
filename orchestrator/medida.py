@@ -57,3 +57,50 @@ def defectos(requisitos, rasgos: list[dict]) -> list[str]:
                     f"estar a {s:g} mm entre centros, y entre los que hay las distancias son "
                     f"{', '.join(f'{d:g}' for d in distancias)} mm")
     return fallos
+
+
+# --- sondas dentro del bucle -----------------------------------------------------------
+
+ACABADO = "acabado"
+"""Prefijo de los defectos de estética: el mejor intento (F6.8 (mejor))
+cuenta antes los de función. Una pieza bien acabada donde el servo no
+entra es peor que una con aristas vivas donde sí."""
+
+
+def sondas_de(requisitos) -> list:
+    """Las sondas del banco (F6.12 (techo)) que se pueden pedir desde los
+    requisitos. Rejuzgada con ellas, la corrida del 62 % daba 81 %, y lo que
+    fallaba eran aristas vivas y ventanas de servo que el diseñador nunca
+    recibía como motivo: el bucle solo medía agujeros (2026-11-04).
+
+    El acabado se mira siempre: que se vea como un producto no lo pide nadie
+    con esas palabras, pero lo espera todo el mundo."""
+    from orchestrator.banco import AristasVivas, Ventana
+
+    sondas = [AristasVivas(tipo="aristas_vivas", max_fraccion=0.1)]
+    for r in requisitos:
+        if r.tipo == "encaje" and len(r.seccion_mm) == 2:
+            sondas.append(Ventana(tipo="ventana", ancho_mm=r.seccion_mm[0],
+                                  alto_mm=r.seccion_mm[1], porque=f"{r.id} («{r.texto}»)"))
+    return sondas
+
+
+def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
+                         material: dict) -> list[str]:
+    """Lo que la pieza construida no cumple: agujeros (con los rasgos del
+    kit) y sondas sobre el STEP. Los de acabado van con su prefijo."""
+    from orchestrator.banco import AristasVivas, medir_sondas
+
+    fallos = defectos(requisitos, resultado.rasgos)
+    sondas = sondas_de(requisitos)
+    for sonda, medida in zip(sondas, medir_sondas(step, sondas, freecadcmd, material)):
+        if medida.estado != "no_cumple":
+            continue   # «sin medir» (una sonda rota) no es culpa del diseñador
+        if isinstance(sonda, AristasVivas):
+            fallos.append(f"{ACABADO}: {medida.detalle}. Redondea o achaflana también las "
+                          "aristas de arriba y de los lados, no solo las verticales: "
+                          "`redondear(1, aristas=\"todas\")` al final")
+        else:
+            fallos.append(f"{sonda.porque}: {medida.detalle}. La abertura tiene que atravesar "
+                          "la pieza entera, no ser un rebaje, y llevar holgura")
+    return fallos

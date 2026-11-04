@@ -54,7 +54,10 @@ def spec_to_task(spec: Spec, concepto=None) -> PartTask:
             + (f" → {r.valor:g} {r.unidad}" if r.valor is not None else "")
             + (f", {r.cantidad} de ellos" if r.cantidad else "")
             + (f", a {', '.join(f'{s:g}' for s in r.separaciones_mm)} mm entre centros"
-               if r.separaciones_mm else "") + "\n"
+               if r.separaciones_mm else "")
+            + (f"; tiene que pasar entero por una abertura de la pieza: "
+               f"{' × '.join(f'{s:g}' for s in r.seccion_mm)} mm"
+               if len(r.seccion_mm) == 2 else "") + "\n"
             for r in spec.requisitos) + "\n"
     if concepto is not None:
         brief += concepto.para_el_disenador() + "\n\n"

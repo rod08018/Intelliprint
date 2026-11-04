@@ -159,8 +159,13 @@ def design_and_build(
             defecto = check(resultado) if check is not None else None
             if defecto and entregar_mejor:
                 lista = [d for d in defecto.splitlines() if d.strip()]
-                if mejor is None or len(lista) < mejor[0]:
-                    mejor = (len(lista), receta, lista, perdidas)
+                # Primero la función, después el acabado: una pieza bien
+                # acabada donde el servo no entra es peor que una con aristas
+                # vivas donde sí.
+                acabado = sum(d.startswith("acabado") for d in lista)
+                nota = (len(lista) - acabado, acabado)
+                if mejor is None or nota < mejor[0]:
+                    mejor = (nota, receta, lista, perdidas)
             if defecto:
                 # Un desacuerdo de CAJA suele ser de quien la declaró, no de
                 # quien dibujó: se le da una corrección al Part Designer y, si
