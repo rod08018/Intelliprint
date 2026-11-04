@@ -121,7 +121,8 @@ segunda vez se le avisa al agente de que se está repitiendo."""
 MAX_RONDAS_DE_REVISION = 2
 """Cuántas veces se le devuelven al diseñador los incumplimientos que ve el
 revisor. Su juicio no es aritmético (ADR-003): insistir sin límite puede no
-converger nunca."""
+converger nunca. Agotadas, el diseño se sigue REVISANDO —lo que se entrega
+siempre lleva su informe—, pero ya no vuelve: sale `con_defectos`."""
 
 
 MAX_FALLOS_PARA_AFINAR = 3
@@ -136,6 +137,9 @@ class _Mejor:
     spec: object
     texto: str
     feedback: str
+    review: object = None
+    """El informe del revisor de ESTA ronda: si se entrega la mejor ronda,
+    se entrega con su informe y no con el de la última."""
 
 
 def _guardar_spec(carpeta: Path, n: int, spec, spec_path: Path) -> str:
@@ -243,7 +247,9 @@ class Round(BaseModel):
 class FlowReport(BaseModel):
     rounds: list[Round]
     stopped_because: str = "resuelto"
-    """resuelto | atascado | presupuesto | rondas. Lo que detuvo el bucle."""
+    """resuelto | con_defectos | atascado | presupuesto | rondas. Lo que
+    detuvo el bucle. `con_defectos`: lo mecánico pasa, pero el revisor sigue
+    viendo requisitos del usuario sin cumplir y ya no le quedan rondas."""
     spent_usd: float = 0.0
     final: MechanismReport | None
     spec_path: str
@@ -477,17 +483,25 @@ def design_mechanism(
 
         # El juicio del revisor también es retroalimentación: un requisito
         # incumplido que solo se cuenta al final no lo corrige nadie.
-        if not feedback and reviewer is not None and revisiones < MAX_RONDAS_DE_REVISION:
+        # Fallo real (sargentos del 2026-10-27): agotadas las rondas de
+        # revisión, la siguiente ya no se revisaba, salía «resuelto» y se
+        # guardaba el informe de una ronda anterior. Se entregaron como buenos
+        # diseños con 8 y 11 requisitos incumplidos.
+        sin_rondas_de_revision = False
+        review_de_la_ronda = None
+        if not feedback and reviewer is not None:
             if presupuesto is not None:
                 presupuesto.etapa(f"ronda {n} · revisión")
             log("    revisión del diseño frente a tu petición…")
-            review = reviewer.review(peticion, spec, measurements(spec, layout, final))
+            review = review_de_la_ronda = reviewer.review(
+                peticion, spec, measurements(spec, layout, final))
             incumplidos = review.por_veredicto("no_cumple")
             if incumplidos:
-                revisiones += 1
                 feedback = "\n".join(
                     f"- requisito del usuario sin cumplir — {i.requirement}: {i.comment}"
                     for i in incumplidos)
+                sin_rondas_de_revision = revisiones >= MAX_RONDAS_DE_REVISION
+                revisiones += 1
 
         plan = spec.fix_plan.model_dump() if spec.fix_plan else None
         rondas.append(Round(number=n, title=spec.title, feedback=feedback, plan=plan))
@@ -501,10 +515,14 @@ def design_mechanism(
         nota = puntuacion(Verificacion(ver.etapa, feedback.splitlines() if feedback else [],
                                        ver.desvio))
         if mejor is None or nota < mejor.nota:
-            mejor = _Mejor(n, nota, spec, texto_spec, feedback)
+            mejor = _Mejor(n, nota, spec, texto_spec, feedback, review_de_la_ronda)
 
         if not feedback:
             parada = "resuelto"
+            break
+        if sin_rondas_de_revision:
+            log("    ✋ el revisor sigue viendo requisitos sin cumplir y no le quedan rondas")
+            parada = "con_defectos"
             break
 
         # ¿Se está repitiendo? Volver a proponer lo mismo no arregla nada.
@@ -543,6 +561,7 @@ def design_mechanism(
     if parada != "resuelto" and mejor is not None and mejor.ronda != ultima_con_spec:
         log(f"  ↩ no quedó resuelto: se monta la ronda {mejor.ronda}, la más cercana")
         spec = mejor.spec
+        review = mejor.review
         spec_path.write_text(mejor.texto, encoding="utf-8")
         fallos = _dibujar(spec, carpeta, part_agent, hechas, freecadcmd, presupuesto,
                           mejor.ronda, log)

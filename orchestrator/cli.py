@@ -212,6 +212,7 @@ def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> 
         "resuelto": "", "atascado": " — se atascó repitiendo el mismo fallo",
         "presupuesto": f" — se acabó el presupuesto ({informe.spent_usd:.2f} USD)",
         "rondas": " — se alcanzó el límite de rondas",
+        "con_defectos": " — CON DEFECTOS: el revisor ve requisitos sin cumplir",
     }[informe.stopped_because]
     print(f"[{nombre}] {informe.rounds[-1].title}: {len(informe.rounds)} ronda(s)"
           f"{motivo_parada}. Gasto: {informe.spent_usd:.2f} USD "

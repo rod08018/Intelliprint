@@ -272,6 +272,34 @@ def test_lo_que_el_revisor_marca_como_no_cumple_vuelve_al_disenador(tmp_path):
 
 
 @pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_lo_que_el_revisor_sigue_suspendiendo_no_sale_resuelto(tmp_path):
+    """Fallo real (sargentos del 2026-10-27): tras las dos rondas de
+    revisión, la tercera ya no se revisaba, salía «resuelto» y se guardaba
+    el informe de una ronda ANTERIOR. Así se entregaron como buenos diseños
+    con 8 y 11 requisitos incumplidos."""
+    from orchestrator.agents.design_reviewer import DesignReviewerAgent
+
+    mecanico = Guion([json.dumps(_spec(0.5)), json.dumps(_correccion(0.6)),
+                      json.dumps(_correccion(0.7, "otra altura"))])
+    suspenso = _informe_de_revision([{"requirement": "el brazo mide 30 mm",
+                                      "verdict": "no_cumple", "comment": "mide 25"}])
+    revisor = Guion([suspenso, suspenso, suspenso])
+    informe = design_mechanism(
+        "un brazo que gire sobre una base",
+        MechanismDesignerAgent(mecanico, CATALOGO, PERFIL, (235, 235, 250), 0.1),
+        PartDesignerAgent(DisenadorDePiezas(), CATALOGO),
+        tmp_path, _freecadcmd(), min_gap_mm=0.1, animar=False,
+        reviewer=DesignReviewerAgent(revisor),
+    )
+
+    assert informe.stopped_because == "con_defectos"
+    assert not informe.ok
+    assert len(revisor.prompts) == 3          # el diseño entregado SÍ se revisó
+    assert "mide 25" in informe.rounds[-1].feedback
+    assert (tmp_path / "blocked.md").exists()
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
 def test_si_se_atasca_repitiendo_el_mismo_fallo_para_y_lo_dice(tmp_path):
     """Sin esto, un fallo que el modelo no sabe arreglar quema el presupuesto
     entero repitiendo la misma propuesta."""

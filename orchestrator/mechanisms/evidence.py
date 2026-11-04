@@ -84,6 +84,8 @@ def escribir_bloqueo(carpeta: Path, *, titulo: str, parada: str, rondas: list[di
         "atascado": "se **atascó**: el mismo fallo se repetía y el diseño no avanzaba",
         "presupuesto": f"se acabó el **presupuesto** del proyecto ({gasto_usd:.2f} USD)",
         "rondas": "se alcanzó el límite de rondas",
+        "con_defectos": ("terminó **con defectos**: funciona mecánicamente, pero el revisor "
+                         "sigue viendo requisitos tuyos sin cumplir"),
     }.get(parada, parada)
 
     lineas = [
