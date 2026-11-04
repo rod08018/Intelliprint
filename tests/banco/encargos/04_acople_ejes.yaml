@@ -30,6 +30,6 @@ oraculo:
     min_mm: [25, 21.8, 21.8]
     max_mm: [25.2, 22.2, 22.2]
     porque: el cuerpo es un cilindro de 22 x 25
-  - tipo: pendiente
-    que: los dos ejes quedan coaxiales
-    fase: F2.12 (aserciones)
+  - tipo: coaxiales
+    diametros_mm: [[5.0, 5.4], [8.0, 8.4]]
+    porque: un acople que no alinea los ejes los dobla al girar

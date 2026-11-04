@@ -19,6 +19,13 @@ oraculo:
     min_mm: [40, 37, 37]
     porque: los dos tubos entran 20 mm cada uno; Ø32 más dos paredes de 2.5 da 37
   - tipo: sin_soportes
-  - tipo: pendiente
-    que: los dos alojamientos son coaxiales y el paso del aire no se estrecha de golpe
-    fase: F2.12 (aserciones)
+  - tipo: coaxiales
+    diametros_mm: [[32.1, 32.8], [25.1, 25.8]]
+    porque: los dos tubos tienen que quedar en línea
+  - tipo: paso_libre
+    diametro_mm: 20
+    eje_de_mm: [32.1, 32.8]
+    porque: >
+      el aire no se estrecha de golpe: un tubo de 25 de diámetro exterior
+      tiene unos 21 por dentro, así que por el adaptador tiene que pasar al
+      menos un Ø20 de punta a punta

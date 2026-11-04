@@ -88,6 +88,85 @@ class SinSoportes(BaseModel):
         return []
 
 
+class _Sonda(BaseModel):
+    """Lo que se mide con una sonda de FreeCAD sobre el STEP (F6.12 (techo)).
+    Ver `mech_toolkit/sondas.py`."""
+
+    porque: str = ""
+
+    def clave(self) -> str:
+        return self.model_dump_json()
+
+    def cotas_de_la_peticion(self) -> list[float]:
+        return []
+
+
+class AristasVivas(_Sonda):
+    """«Se ve como un producto»: las aristas exteriores redondeadas o achaflanadas."""
+    tipo: Literal["aristas_vivas"]
+    max_fraccion: float = 0.1
+    angulo_min_grados: float = 60.0
+
+
+class Resistencia(_Sonda):
+    """Aguanta la carga con el factor de seguridad del perfil, calculado en
+    la sección REAL de la pieza construida, no en la que dice el concepto."""
+    tipo: Literal["resistencia"]
+    carga_N: float
+    fijacion_diametro_mm: float
+    direccion: Literal["entre_agujeros", "perpendicular_al_eje"]
+    brazo: Literal["punta", "centro"]
+    eje_diametro_mm: float | None = None
+
+    def cotas_de_la_peticion(self) -> list[float]:
+        return [self.fijacion_diametro_mm]
+
+
+class Ventana(_Sonda):
+    """Una abertura pasante por la que cabe el cuerpo de un componente."""
+    tipo: Literal["ventana"]
+    ancho_mm: float
+    alto_mm: float
+
+    def cotas_de_la_peticion(self) -> list[float]:
+        return [self.ancho_mm, self.alto_mm]
+
+
+class Coaxiales(_Sonda):
+    tipo: Literal["coaxiales"]
+    diametros_mm: list[list[float]]
+    tol_mm: float = 0.1
+    tol_grados: float = 0.5
+
+
+class PasoLibre(_Sonda):
+    tipo: Literal["paso_libre"]
+    diametro_mm: float
+    eje_de_mm: list[float]
+
+
+class ParedMinima(_Sonda):
+    tipo: Literal["pared_minima"]
+    min_mm: float
+
+
+class Ranura(_Sonda):
+    tipo: Literal["ranura"]
+    min_mm: float
+    max_mm: float
+    area_min_mm2: float = 50.0
+
+    def cotas_de_la_peticion(self) -> list[float]:
+        return [self.max_mm]
+
+
+class Retencion(_Sonda):
+    tipo: Literal["retencion"]
+    diametro_min_mm: float
+    diametro_max_mm: float
+    vuelta_min_grados: float = 200.0
+
+
 class Pendiente(BaseModel):
     """Lo que el banco exige pero aún no sabe medir. Cuenta como sin medir."""
 
@@ -99,8 +178,9 @@ class Pendiente(BaseModel):
         return []
 
 
-Asercion = Annotated[Agujeros | Cilindro | Envolvente | SinSoportes | Pendiente,
-                     Field(discriminator="tipo")]
+Asercion = Annotated[Agujeros | Cilindro | Envolvente | SinSoportes | Pendiente | AristasVivas
+                     | Resistencia | Ventana | Coaxiales | PasoLibre | ParedMinima | Ranura
+                     | Retencion, Field(discriminator="tipo")]
 
 
 class Encargo(BaseModel):
@@ -125,11 +205,16 @@ class Hechos(BaseModel):
     volumen_mm3: float
     soportes: bool | None = None
     """Lo que dijo PrusaSlicer; None si no se laminó."""
+    sondas: dict[str, "Resultado"] = {}
+    """Lo que midió cada sonda (F6.12 (techo)), por la clave de su aserción."""
 
 
 class Resultado(BaseModel):
     estado: Estado
     detalle: str
+
+
+Hechos.model_rebuild()   # `sondas` usa Resultado, que va después
 
 
 def _unitario(v):
@@ -233,6 +318,9 @@ def _juzgar_envolvente(a: Envolvente, h: Hechos) -> Resultado:
 
 
 def juzgar(a, h: Hechos) -> Resultado:
+    if isinstance(a, _Sonda):
+        return h.sondas.get(a.clave()) or Resultado(estado="sin_medir",
+                                                     detalle="la sonda no llegó a medir")
     if isinstance(a, Agujeros):
         return _juzgar_agujeros(a, h)
     if isinstance(a, Cilindro):
@@ -288,7 +376,50 @@ print("INTELLIPRINT_BBOX:" + json.dumps([b.XLength, b.YLength, b.ZLength, forma.
 '''
 
 
-def extraer_hechos(step: Path, freecadcmd: str, laminado: Path | None) -> Hechos:
+_SONDAS = '''\
+import json
+import sys
+sys.path.insert(0, {toolkit!r})
+import Part
+from mech_toolkit.sondas import medir
+forma = Part.read({step!r})
+if len(forma.Solids) == 1:
+    forma = forma.Solids[0]
+print("INTELLIPRINT_SONDAS:" + json.dumps(medir(forma, json.loads({specs!r}),
+                                                json.loads({material!r}))))
+'''
+
+
+def medir_sondas(step: Path, aserciones: list, freecadcmd: str,
+                 material: dict) -> list[Resultado]:
+    """Corre las sondas de `aserciones` sobre el STEP, en un solo freecadcmd."""
+    import tempfile
+
+    import mech_toolkit
+
+    if not aserciones:
+        return []
+    with tempfile.TemporaryDirectory() as tmp:
+        script = Path(tmp) / "sondas.py"
+        script.write_text(_SONDAS.format(
+            toolkit=str(Path(mech_toolkit.__file__).resolve().parent.parent), step=str(step),
+            specs=json.dumps([a.model_dump() for a in aserciones]),
+            material=json.dumps(material)), encoding="utf-8")
+        proceso = subprocess.run([freecadcmd, str(script)], capture_output=True, text=True,
+                                 timeout=900)
+    linea = next((l for l in proceso.stdout.splitlines() if l.startswith("INTELLIPRINT_SONDAS:")),
+                 None)
+    if linea is None:
+        motivo = (proceso.stdout + proceso.stderr).strip().splitlines()[-1:] or ["sin salida"]
+        return [Resultado(estado="sin_medir", detalle=f"las sondas no corrieron: {motivo[0]}")
+                for _ in aserciones]
+    return [Resultado(estado="sin_medir" if r["cumple"] is None else
+                      "cumple" if r["cumple"] else "no_cumple", detalle=r["detalle"])
+            for r in json.loads(linea.split(":", 1)[1])]
+
+
+def extraer_hechos(step: Path, freecadcmd: str, laminado: Path | None,
+                   aserciones: list | None = None, material: dict | None = None) -> Hechos:
     import tempfile
 
     from mech_toolkit.measure import extract_cylinders
@@ -303,8 +434,11 @@ def extraer_hechos(step: Path, freecadcmd: str, laminado: Path | None) -> Hechos
     soportes = None
     if laminado is not None and laminado.exists():
         soportes = json.loads(laminado.read_text(encoding="utf-8"))["needs_supports"]
+    sondas = [a for a in aserciones or [] if isinstance(a, _Sonda)]
+    medidas = medir_sondas(step, sondas, freecadcmd, material or {}) if sondas else []
     return Hechos(cilindros=extract_cylinders(step, freecadcmd), bbox_mm=bbox,
-                  volumen_mm3=volumen, soportes=soportes)
+                  volumen_mm3=volumen, soportes=soportes,
+                  sondas={a.clave(): r for a, r in zip(sondas, medidas)})
 
 
 def motivo_del_fallo(salida: str) -> str:
@@ -317,7 +451,7 @@ def motivo_del_fallo(salida: str) -> str:
 
 
 def correr(encargo: Encargo, carpeta: Path, orden: list[str], freecadcmd: str,
-           env: dict) -> tuple[list[Resultado], str | None]:
+           env: dict, material: dict | None = None) -> tuple[list[Resultado], str | None]:
     """Pide la pieza como la pediría una persona y la juzga. Devuelve los
     resultados y, si no llegó a construirse, el porqué."""
     carpeta.mkdir(parents=True, exist_ok=True)
@@ -333,6 +467,33 @@ def correr(encargo: Encargo, carpeta: Path, orden: list[str], freecadcmd: str,
     if proceso.returncode != 0 or step is None:
         sin = [Resultado(estado="no_cumple", detalle="no hay pieza") for _ in encargo.oraculo]
         return sin, motivo_del_fallo(proceso.stdout + "\n" + proceso.stderr)
+    return juzgar_pieza(encargo, carpeta, freecadcmd, material), None
+
+
+def juzgar_pieza(encargo: Encargo, carpeta: Path, freecadcmd: str,
+                 material: dict | None = None) -> list[Resultado]:
+    step = next(carpeta.glob("projects/*/parts/*/*.step"))
     laminado = next(carpeta.glob("projects/*/fabrication/slicing_report.json"), None)
-    hechos = extraer_hechos(step, freecadcmd, laminado)
-    return [juzgar(a, hechos) for a in encargo.oraculo], None
+    hechos = extraer_hechos(step, freecadcmd, laminado, encargo.oraculo, material)
+    return [juzgar(a, hechos) for a in encargo.oraculo]
+
+
+def rejuzgar(encargos: list[Encargo], corrida: Path, freecadcmd: str,
+             material: dict | None = None) -> tuple[dict, dict]:
+    """Vuelve a juzgar las piezas de una corrida ya hecha, sin pedirlas otra
+    vez: cambiar el juez no debería costar 46 minutos de modelo. Una pieza
+    cuenta como construida si `intelliprint new` dijo «Listo»; que exista el
+    STEP no basta (puede ser el de un intento fallido)."""
+    resultados, fallos = {}, {}
+    for i, e in enumerate(encargos, 1):
+        carpeta = Path(corrida) / f"{i:02d}"
+        salida = carpeta / "salida.txt"
+        construida = salida.exists() and "] Listo:" in salida.read_text(encoding="utf-8",
+                                                                        errors="ignore")
+        if not construida or next(carpeta.glob("projects/*/parts/*/*.step"), None) is None:
+            resultados[e.nombre] = [Resultado(estado="no_cumple", detalle="no hay pieza")
+                                    for _ in e.oraculo]
+            fallos[e.nombre] = "no se construyó en esa corrida"
+            continue
+        resultados[e.nombre] = juzgar_pieza(e, carpeta, freecadcmd, material)
+    return resultados, fallos

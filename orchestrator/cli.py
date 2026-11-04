@@ -470,12 +470,21 @@ def _banco(args, raiz: Path, env: dict, nombre: str) -> None:
     """Cada encargo se pide como lo pediría una persona, en una carpeta
     propia dentro de workspace/banco/: así queda la evidencia de cada
     corrida y nunca se pisan los proyectos de verdad."""
-    from orchestrator.banco import cargar_encargos, correr, informe
+    from orchestrator.banco import cargar_encargos, correr, informe, rejuzgar
 
     encargos = [e for e in cargar_encargos(raiz / "tests" / "banco" / "encargos")
                 if not args.solo or e.nombre in args.solo]
     if not encargos:
         sys.exit(f"ningún encargo se llama {', '.join(args.solo)}")
+    material = perfil_activo(raiz).datos["resistencia"]
+    if args.rejuzgar:
+        corrida = Path(args.rejuzgar)
+        resultados, fallos = rejuzgar(encargos, corrida, _freecadcmd(env), material)
+        texto = informe(resultados, modelo="rejuzgada con el juez de hoy", fallos=fallos)
+        # Al lado del informe original, sin pisarlo: es la evidencia de esa corrida.
+        (corrida / "banco_rejuzgado.md").write_text(texto, encoding="utf-8")
+        print(texto)
+        return
     # Carpetas cortas: dentro van projects/<fecha-título>/parts/<pieza>/<pieza>.step
     # y FreeCAD en Windows no abre rutas de más de 260 caracteres. Con el
     # nombre del encargo, dos piezas de la primera corrida no se construyeron.
@@ -485,7 +494,7 @@ def _banco(args, raiz: Path, env: dict, nombre: str) -> None:
     for i, e in enumerate(encargos, 1):
         print(f"[{nombre}] banco: {e.nombre} (carpeta {i:02d})…", flush=True)
         resultados[e.nombre], fallo = correr(e, salida / f"{i:02d}", orden, _freecadcmd(env),
-                                             dict(os.environ))
+                                             dict(os.environ), material)
         if fallo:
             fallos[e.nombre] = fallo
     modelo = env.get("DEEPSEEK_MODEL", "deepseek")
@@ -550,6 +559,9 @@ def _parser() -> argparse.ArgumentParser:
                                          "(F6.1 (evaluación)); cuesta dinero")
     banco.add_argument("--solo", action="append", default=[], metavar="ENCARGO",
                        help="correr solo este encargo (se puede repetir)")
+    banco.add_argument("--rejuzgar", metavar="CORRIDA",
+                       help="volver a juzgar las piezas de una corrida ya hecha "
+                            "(workspace/banco/<fecha>), sin pedirlas otra vez ni gastar modelo")
     perf = sub.add_parser("perfil", help="importar una calibración de laminado de eufyMake Studio")
     perf.add_argument("accion", choices=["importar"])
     perf.add_argument("resto", nargs=argparse.REMAINDER,

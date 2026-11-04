@@ -16,9 +16,18 @@ oraculo:
       200), el ala de pared tiene que alojar dos agujeros a 60 mm, y menos de
       15 mm de ancho no aguanta 5 kg en PLA
   - tipo: sin_soportes
-  - tipo: pendiente
-    que: aguanta 5 kg en la punta del brazo con las capas sin trabajar a tracción
-    fase: el cálculo de resistencia del ingeniero
-  - tipo: pendiente
-    que: se ve como un producto, sin aristas exteriores vivas
-    fase: la revisión de estética
+  - tipo: resistencia
+    carga_N: 24.5
+    fijacion_diametro_mm: 4.5
+    direccion: entre_agujeros
+    brazo: punta
+    porque: >
+      5 kg de libros sobre dos escuadras son 2.5 kg por escuadra (24.5 N), y
+      el caso desfavorable es todo en la punta del brazo; la gravedad va en
+      la línea entre los dos agujeros de la pared
+  - tipo: aristas_vivas
+    max_fraccion: 0.1
+    porque: >
+      se ve como un producto y no como un prototipo: como mucho un 10 % de
+      las aristas entre caras planas queda en esquina viva, sin redondear ni
+      achaflanar

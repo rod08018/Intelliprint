@@ -14,9 +14,13 @@ oraculo:
     diametro_mm: 3.3
     patron_mm: [[0, 0], [20, 0], [0, 20], [20, 20]]
   - tipo: sin_soportes
-  - tipo: pendiente
-    que: el cuerpo de 22.8 x 12.2 pasa por su ventana con holgura
-    fase: F2.12 (aserciones)
-  - tipo: pendiente
-    que: se ve como un producto, sin aristas exteriores vivas
-    fase: la revisión de estética
+  - tipo: ventana
+    ancho_mm: 22.8
+    alto_mm: 12.2
+    porque: el cuerpo del servo pasa por su ventana
+  - tipo: aristas_vivas
+    max_fraccion: 0.1
+    porque: >
+      se ve como un producto y no como un prototipo: como mucho un 10 % de
+      las aristas entre caras planas queda en esquina viva, sin redondear ni
+      achaflanar

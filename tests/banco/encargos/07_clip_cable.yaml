@@ -10,9 +10,16 @@ oraculo:
     diametro_min_mm: 6.0
     diametro_max_mm: 6.8
   - tipo: sin_soportes
-  - tipo: pendiente
-    que: la boca abraza un canto de 18 mm con algo de interferencia
-    fase: F2.12 (aserciones)
-  - tipo: pendiente
-    que: el cable entra por una abertura más estrecha que 6 mm y queda retenido
-    fase: F2.12 (aserciones)
+  - tipo: ranura
+    min_mm: 17
+    max_mm: 18
+    porque: >
+      se encaja a presión en un canto de 18 mm: la boca tiene que ser algo
+      más estrecha que 18, pero no tanto que no entre (al menos 17)
+  - tipo: retencion
+    diametro_min_mm: 6.0
+    diametro_max_mm: 6.8
+    vuelta_min_grados: 200
+    porque: >
+      el cable queda retenido si su alojamiento lo abraza más de media vuelta:
+      la abertura por la que entra es entonces más estrecha que 6 mm

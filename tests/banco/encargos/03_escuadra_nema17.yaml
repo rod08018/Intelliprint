@@ -19,9 +19,19 @@ oraculo:
     diametro_mm: 4.5
     patron_mm: [[0, 0], [30, 0]]
   - tipo: sin_soportes
-  - tipo: pendiente
-    que: el ala aguanta 20 N de la correa sin doblarse (cartela si hace falta)
-    fase: el cálculo de resistencia del ingeniero
-  - tipo: pendiente
-    que: se ve como un producto, sin aristas exteriores vivas
-    fase: la revisión de estética
+  - tipo: resistencia
+    carga_N: 20
+    fijacion_diametro_mm: 4.5
+    direccion: perpendicular_al_eje
+    eje_diametro_mm: 22.4
+    brazo: centro
+    porque: >
+      la correa tira con 20 N perpendicular al eje del motor, a la altura del
+      eje (el centro del taladro de 22.4), y el ala vertical trabaja en
+      voladizo desde los tornillos de la base
+  - tipo: aristas_vivas
+    max_fraccion: 0.1
+    porque: >
+      se ve como un producto y no como un prototipo: como mucho un 10 % de
+      las aristas entre caras planas queda en esquina viva, sin redondear ni
+      achaflanar

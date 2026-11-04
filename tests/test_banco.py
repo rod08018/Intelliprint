@@ -182,3 +182,21 @@ def test_cada_cota_del_oraculo_sale_de_la_peticion_literal():
         for a in e.oraculo:
             for cota in a.cotas_de_la_peticion():
                 assert f"{cota:g}" in e.peticion, f"{e.nombre}: {cota:g} no está en la petición"
+
+
+def test_rejuzgar_no_puntua_una_pieza_que_no_se_construyo(tmp_path):
+    """Rejuzgar (F6.12 (techo)) reutiliza las piezas de una corrida para no
+    gastar modelo al cambiar el juez. Un STEP sin el «Listo» de la orden
+    puede ser de un intento fallido: no puntúa, igual que al correr."""
+    from orchestrator.banco import Encargo, rejuzgar
+
+    e = Encargo(nombre="x", categoria="casa", peticion="un gancho",
+                oraculo=[{"tipo": "sin_soportes"}])
+    pieza = tmp_path / "01" / "projects" / "p" / "parts" / "p"
+    pieza.mkdir(parents=True)
+    (pieza / "p.step").write_text("restos", encoding="utf-8")
+    (tmp_path / "01" / "salida.txt").write_text("Traceback ...", encoding="utf-8")
+
+    resultados, fallos = rejuzgar([e], tmp_path, freecadcmd="no-se-llama")
+    assert [r.estado for r in resultados["x"]] == ["no_cumple"]
+    assert "x" in fallos

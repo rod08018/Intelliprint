@@ -12,9 +12,16 @@ oraculo:
     min_mm: [50, 50, 10]
     porque: sobresale 50 mm; la placa tiene que alojar dos agujeros a 40 mm con margen
   - tipo: sin_soportes
-  - tipo: pendiente
-    que: aguanta 8 kg colgados en la punta
-    fase: el cálculo de resistencia del ingeniero
-  - tipo: pendiente
-    que: la punta del gancho está redondeada y no engancha la tela
-    fase: la revisión de estética
+  - tipo: resistencia
+    carga_N: 78.5
+    fijacion_diametro_mm: 4.5
+    direccion: entre_agujeros
+    brazo: punta
+    porque: >
+      8 kg son 78.5 N colgados en la punta del gancho, a 50 mm de la pared;
+      los agujeros van en vertical, así que la gravedad va en su línea
+  - tipo: aristas_vivas
+    max_fraccion: 0.1
+    porque: >
+      la punta redondeada no engancha la tela: como mucho un 10 % de las
+      aristas entre caras planas queda en esquina viva

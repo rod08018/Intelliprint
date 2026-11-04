@@ -14,12 +14,18 @@ oraculo:
     diametro_mm: 5.5
     patron_mm: [[0, 0], [20, 0]]
   - tipo: sin_soportes
-  - tipo: pendiente
-    que: el cuerpo de 40.7 x 19.7 pasa por su ventana con holgura
-    fase: F2.12 (aserciones)
-  - tipo: pendiente
-    que: pared mínima estructural en todo el soporte
-    fase: F2.6 (dfm)
-  - tipo: pendiente
-    que: se ve como un producto, sin aristas exteriores vivas
-    fase: la revisión de estética
+  - tipo: ventana
+    ancho_mm: 40.7
+    alto_mm: 19.7
+    porque: el cuerpo del servo pasa por su ventana
+  - tipo: pared_minima
+    min_mm: 1.8
+    porque: >
+      un soporte que aguanta un servo de 55 g tirando de un brazo lleva
+      paredes estructurales: 1.8 mm, cuatro perímetros de 0.42 en la M5
+  - tipo: aristas_vivas
+    max_fraccion: 0.1
+    porque: >
+      se ve como un producto y no como un prototipo: como mucho un 10 % de
+      las aristas entre caras planas queda en esquina viva, sin redondear ni
+      achaflanar
