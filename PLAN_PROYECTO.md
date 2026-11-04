@@ -304,6 +304,28 @@ Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto
 | F6.4 | Reanudación tras caída (reiniciar contenedor a mitad de proyecto) | El proyecto continúa desde el último estado |
 | F6.5 | Documentación: README de uso, cómo añadir hardware, impresoras y agentes | Un tercero puede levantar el sistema siguiendo el README |
 | F6.6 | Proyecto final: brazo de 6 GDL | Diseño completo con < 20 % de pasos escalados a DeepSeek |
+| F6.7 | **Requisitos medidos dentro del bucle** (lazo): tras construir, el código compara los rasgos con nombre del kit con los requisitos —diámetro y número de agujeros, patrón por distancias entre centros, alojamientos, envolvente— y lo que no cuadra vuelve al diseñador como un fallo de construcción, con los números. Hoy esa medida solo la hace el banco, después, cuando ya no hay arreglo | En el banco ninguna pieza sale con un agujero pedido que falte o con el patrón desviado sin que el diseñador lo haya recibido como motivo |
+| F6.8 | **Entregar el mejor intento** (mejor): si ninguna construcción cumple todo, se entrega la que más requisitos cumple, marcada «con defectos» y con la lista, en vez de nada. Hoy una pieza que se construyó en el intento 2 y falló en el 5 sale sin pieza | Ningún encargo del banco queda sin pieza si al menos una construcción salió |
+| F6.9 | **El diseñador ve su pieza** (vistas): en cada reintento recibe las vistas renderizadas de lo que construyó (DeepSeek Flash acepta imágenes) además del motivo. Dibuja a ciegas: no ve que el gancho mide 21 mm o que la ventana del servo está fuera | Las vistas viajan en cada reintento; un test comprueba que el cliente las manda |
+| F6.10 | **Ejemplos resueltos por familia** (ejemplos): escuadra con cartela, soporte de servo, gancho, clip elástico y pieza de revolución, cada uno construido por un test como el del prompt. **No** con las medidas del banco: sería aprenderse el examen | Los cinco ejemplos se construyen en la suite; la nota no se compara con encargos que copien un ejemplo |
+| F6.11 | **Biblioteca de componentes, adelantada** (biblioteca): la fase 4 entra aquí. `kit.componente("SG90")` da el hueco y los puntos de fijación con cotas de hoja de datos citada, para que el diseñador no saque de memoria un servo, un NEMA17 o un perfil 2020 | Los soportes de servo y motor del banco usan el componente; sus cotas coinciden con la hoja citada |
+| F6.12 | **Subir el techo de la nota** (techo): 13 de las 42 exigencias son «sin medir» y cuentan como no aprobadas, así que la nota máxima posible hoy es 69 %. Medir la resistencia de la sección real construida, la coaxialidad y la holgura de una ventana con su componente | Ninguna exigencia del banco queda «sin medir» salvo las de estética, que llegan con la fase 8 |
+| F6.13 | **Banco con repeticiones** (ruido): cada encargo tres veces, con nota media, dispersión, coste y tiempo por encargo, y ampliarlo a 15 encargos. Con una sola corrida de 8 piezas la nota varía ±10 % sin tocar nada: 33, 43 y 38 % con el mismo código | Un cambio se da por bueno solo si su mejora supera la dispersión medida |
+
+### Plan para la nota global del banco (2026-11-04)
+
+La nota está mal y es la medida de «usable»: **45 % de partida, y 33, 43 y 38 % con el kit**. Lo que dicen las tres corridas, 24 piezas en total:
+
+- **9 de 24 no se construyeron** y cada una pierde todas sus exigencias: es más de la mitad de los puntos perdidos. Ya no es el kit, sino geometría del diseñador —perfiles con lados que se cruzan, rasgos fuera de la pieza— que no corrige aunque reciba el motivo exacto. En curso: el diseñador con razonador y cinco construcciones (F5.18 (kit)).
+- **Las que se construyen fallan en lo que pide el usuario**: el patrón de Ø2 del SG90 desviado 4.1 mm, 2 de los 4 agujeros Ø3.3 del NEMA17, el clip sin su alojamiento Ø6. Lo mide el banco, pero el diseñador nunca se entera: F6.7 (lazo).
+- **13 de 42 exigencias no se pueden medir**, así que el techo es 69 %: F6.12 (techo).
+- **El ruido tapa las mejoras**: F6.13 (ruido).
+
+Orden, de más a menos puntos por esfuerzo: F6.7 (lazo) → F6.8 (mejor) → F6.13 (ruido) → F6.9 (vistas) → F6.10 (ejemplos) → F6.11 (biblioteca) → F6.12 (techo). Después de cada uno, banco.
+
+**Objetivo:** 60 % de media en tres corridas con el techo de hoy, y 75 % cuando F6.12 (techo) lo suba. Las fases 7 y 8 (revisión visual y estética) van después: con piezas que no se construyen no hay nada que mirar.
+
+**Visión.** DeepSeek Flash acepta imágenes (`image_url` en base64; ver api-docs.deepseek.com/guides/vision). El cliente de este repo ya las manda desde F5.2 (adjuntos) —comprobado el 2026-09-21: una imagen roja, «Rojo»—, así que F6.9 (vistas) y las fases 7 y 8 **no esperan** a los modelos locales de F0.11 (migrar).
 
 ---
 
