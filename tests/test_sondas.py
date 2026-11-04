@@ -204,3 +204,14 @@ def construir(kit):
 """
     [r] = _medir(escalera, [AristasVivas(tipo="aristas_vivas", max_fraccion=0.1)], tmp_path)
     assert r.estado == "cumple", r.detalle
+
+
+def test_la_envolvente_de_una_pieza_redondeada_es_la_real(tmp_path):
+    """Fallo real (2026-11-04): con `acabar()` la placa de 80 × 50 del e2e
+    medía 80.82 × 50.82 para el juez, que usaba `BoundBox`; en caras curvas
+    sale holgada. Era la medida, no la pieza."""
+    from orchestrator.banco import extraer_hechos
+
+    step = _step("def construir(kit):\n    return kit.caja(80, 50, 4).redondear(5).acabar()\n", tmp_path)
+    h = extraer_hechos(step, _freecadcmd(), None)
+    assert sorted(h.bbox_mm) == pytest.approx([4, 50, 80], abs=0.01)

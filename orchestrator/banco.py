@@ -371,7 +371,9 @@ _ENVOLVENTE = '''\
 import json
 import Part
 forma = Part.read({step!r})
-b = forma.BoundBox
+# optimalBoundingBox: con redondeos tóricos BoundBox sale holgada; la placa
+# de 80 × 50 del e2e medía 80.82 × 50.82 para el juez (2026-11-04).
+b = forma.optimalBoundingBox()
 print("INTELLIPRINT_BBOX:" + json.dumps([b.XLength, b.YLength, b.ZLength, forma.Volume]))
 '''
 
