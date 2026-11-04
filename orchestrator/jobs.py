@@ -251,8 +251,16 @@ class JobStore:
                 for nombre, archivo in ARCHIVOS.items() if (carpeta / archivo).exists()}
 
     def list(self, limite: int = 10) -> list[dict]:
-        # Por fecha real y no por nombre: dos proyectos del mismo segundo
-        # quedarían ordenados alfabéticamente.
+        # Por cuándo se LANZÓ (job.json, con microsegundos), y por la fecha de
+        # la carpeta solo si no hay job.json. Con la fecha de la carpeta, dos
+        # proyectos del mismo segundo salían a veces al revés: cualquier
+        # archivo que se escribe dentro la mueve (test intermitente, 2026-11-04).
+        from orchestrator.registry import _lee_json
+
+        def lanzado(p: Path) -> str:
+            inicio = (_lee_json(p / "job.json") or {}).get("inicio")
+            return inicio or dt.datetime.fromtimestamp(p.stat().st_mtime).isoformat()
+
         carpetas = sorted((p for p in self.carpeta.iterdir() if p.is_dir()),
-                          key=lambda p: (p.stat().st_mtime, p.name), reverse=True)
+                          key=lambda p: (lanzado(p), p.name), reverse=True)
         return [self.status(p.name, lineas=3) for p in carpetas[:limite]]
