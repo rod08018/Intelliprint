@@ -1,0 +1,22 @@
+nombre: soporte_sg90
+categoria: robots
+peticion: >
+  Soporte para un micro servo SG90 sobre la placa de un robot. El servo mide
+  22.8 x 12.2 mm y se atornilla por sus orejetas con dos tornillos de rosca
+  directa, en agujeros de 2 mm separados 27.8 mm. La placa del robot tiene
+  agujeros M3 en cuadro de 20 mm: el soporte lleva 4 agujeros de 3.3 mm en
+  cuadro de 20 mm para fijarlo.
+oraculo:
+  - tipo: agujeros
+    diametro_mm: 2
+    patron_mm: [[0, 0], [27.8, 0]]
+  - tipo: agujeros
+    diametro_mm: 3.3
+    patron_mm: [[0, 0], [20, 0], [0, 20], [20, 20]]
+  - tipo: sin_soportes
+  - tipo: pendiente
+    que: el cuerpo de 22.8 x 12.2 pasa por su ventana con holgura
+    fase: F2.12 (aserciones)
+  - tipo: pendiente
+    que: se ve como un producto, sin aristas exteriores vivas
+    fase: la revisión de estética

@@ -16,6 +16,7 @@ import io
 import os
 import zipfile
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, Response
@@ -95,10 +96,14 @@ class Categoria(BaseModel):
 
 class Pedido(Modificacion):
     basado_en: str | None = None
+    tipo: Literal["pieza", "mecanismo"] = "mecanismo"
+    """F5.17 (pieza): una pieza suelta no pasa por el flujo de mecanismos,
+    que exige dos piezas como mínimo."""
 
 
 def crear_app(workspace: Path, puente=None, host_workspace: str = "",
-              trabajos: JobStore | None = None, raiz: Path = Path(".")) -> FastAPI:
+              trabajos: JobStore | None = None, raiz: Path = Path("."),
+              orden_pieza: list[str] | None = None) -> FastAPI:
     """La aplicación. `puente` es la URL del MCP del host, o en los tests el
     propio servidor; None si no hay puente configurado. `trabajos` lanza los
     diseños que se piden desde la página; None si esta web no puede. `raiz`
@@ -124,7 +129,11 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
             raise HTTPException(
                 409, f"ya hay un proyecto en marcha ({otro}); espera a que termine")
         try:
-            return {"id": trabajos.start(pedido.peticion, referencias=referencias)}
+            comando = orden_pieza if pedido.tipo == "pieza" else None
+            if pedido.tipo == "pieza" and not orden_pieza:
+                raise HTTPException(503, "esta web no tiene con qué diseñar piezas sueltas")
+            return {"id": trabajos.start(pedido.peticion, referencias=referencias,
+                                         comando=comando)}
         except RuntimeError as e:
             raise HTTPException(409, str(e))
 
@@ -300,6 +309,7 @@ def main() -> None:
         host_workspace=os.environ.get("HOST_WORKSPACE", ""),
         # La misma orden que lanza Crafty (mcp_server._store).
         trabajos=JobStore(workspace / "projects", ["intelliprint", "mecanismo"]),
+        orden_pieza=["intelliprint", "pieza"],
     )
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("WEB_PORT", "8080")))
 

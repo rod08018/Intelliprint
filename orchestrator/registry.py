@@ -150,7 +150,9 @@ def estado_de(carpeta: Path) -> dict:
     """Qué es este proyecto, mirando lo que tiene dentro."""
     rondas = _lee_json(carpeta / "rounds.json") or []
     coste = _lee_json(carpeta / "design_cost.json") or {}
-    mecanismo = _lee_json(carpeta / "mechanism.json") or {}
+    # Una pieza suelta (F5.17 (pieza)) deja su título en pieza.json.
+    mecanismo = (_lee_json(carpeta / "mechanism.json")
+                 or _lee_json(carpeta / "pieza.json") or {})
     trabajo = _lee_json(carpeta / "job.json") or {}
     peticion = ""
     if (carpeta / "request.md").exists():

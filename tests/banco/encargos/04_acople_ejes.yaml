@@ -1,0 +1,35 @@
+nombre: acople_ejes
+categoria: robots
+peticion: >
+  Acople para unir el eje de 5 mm de un motor con una varilla de 8 mm. Cuerpo
+  cilíndrico de 22 mm de diámetro y 25 mm de largo; cada eje entra hasta la
+  mitad. Un prisionero M3 radial para apretar cada eje, en agujeros de 2.8 mm
+  para roscar.
+oraculo:
+  - tipo: cilindro
+    interior: true
+    nominal_mm: 5
+    diametro_min_mm: 5.0
+    diametro_max_mm: 5.4
+  - tipo: cilindro
+    interior: true
+    nominal_mm: 8
+    diametro_min_mm: 8.0
+    diametro_max_mm: 8.4
+  - tipo: cilindro
+    interior: false
+    nominal_mm: 22
+    diametro_min_mm: 21.8
+    diametro_max_mm: 22.2
+  - tipo: cilindro
+    interior: true
+    nominal_mm: 2.8
+    diametro_min_mm: 2.6
+    diametro_max_mm: 3.0
+  - tipo: envolvente
+    min_mm: [25, 21.8, 21.8]
+    max_mm: [25.2, 22.2, 22.2]
+    porque: el cuerpo es un cilindro de 22 x 25
+  - tipo: pendiente
+    que: los dos ejes quedan coaxiales
+    fase: F2.12 (aserciones)

@@ -63,6 +63,14 @@ services:
       - ./tests:/app/tests:ro
       - ./mcp:/app/mcp:ro
       - ./scripts:/app/scripts:ro
+      # Los documentos también: un test comprueba que cada ID citado en el
+      # código existe en el plan, y con el plan copiado en la imagen una
+      # tarea nueva salía en rojo hasta reconstruirla (2026-11-03).
+      - ./PLAN_PROYECTO.md:/app/PLAN_PROYECTO.md:ro
+      - ./DECISIONES.md:/app/DECISIONES.md:ro
+      - ./SISTEMA_MULTIAGENTE.md:/app/SISTEMA_MULTIAGENTE.md:ro
+      - ./CLAUDE.md:/app/CLAUDE.md:ro
+      - ./README.md:/app/README.md:ro
 
   # La interfaz web (F5.5 (web)): pedir un diseño, lista de proyectos,
   # descarga en zip y el botón que abre las piezas en el PrusaSlicer del

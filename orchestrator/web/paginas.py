@@ -191,6 +191,7 @@ def galeria(grupos: list[dict], workspace: Path, hay_puente: bool, puede_pedir: 
   </header>
   <dialog id="nuevo">
     <form method="dialog" class="cabeza-dialogo"><h2>Nuevo diseño</h2><button class="cerrar" aria-label="Cerrar">✕</button></form>
+    <label class="partir">Qué es <select id="tipo"><option value="pieza">una pieza (soporte, gancho, adaptador…)</option><option value="mecanismo">un mecanismo (piezas que se mueven)</option></select></label>
     <textarea id="peticion" rows="9" placeholder="{e(EJEMPLO)}"></textarea>
     <label class="partir">Partir de <select id="basado_en"><option value="">nada, empezar de cero</option>{opciones}</select></label>
     <div class="pie-dialogo"><span class="nota" id="nota-pedir">{e(nota)}</span>
@@ -500,7 +501,7 @@ GUION_GALERIA = r"""
     const caja = document.querySelector("#peticion"), b = document.querySelector("#disenar");
     if (!caja.value.trim()) { avisar("Escribe primero qué quieres que diseñe."); caja.focus(); return; }
     b.disabled = true; b.textContent = "Lanzando…";
-    const [ok, d] = await enviar("/api/disenar", {peticion: caja.value, basado_en: document.querySelector("#basado_en").value || null});
+    const [ok, d] = await enviar("/api/disenar", {peticion: caja.value, tipo: document.querySelector("#tipo").value, basado_en: document.querySelector("#basado_en").value || null});
     if (ok) { location.href = "/p/" + encodeURIComponent(d.id); return; }
     avisar(detalle(d) || "No se pudo lanzar."); b.disabled = false; b.textContent = "Diseñar";
   });

@@ -1,0 +1,24 @@
+nombre: escuadra_repisa
+categoria: casa
+peticion: >
+  Escuadra para una repisa de madera de 200 mm de fondo que tiene que aguantar
+  5 kg de libros. Se atornilla a la pared con 2 tornillos de 4 mm (agujeros de
+  4.5 mm separados 60 mm) y a la repisa con otros 2 iguales, también separados
+  60 mm.
+oraculo:
+  - tipo: agujeros
+    diametro_mm: 4.5
+    patron_mm: [[0, 0], [60, 0]]
+  - tipo: envolvente
+    min_mm: [150, 70, 15]
+    porque: >
+      el brazo tiene que llegar al menos a tres cuartos del fondo (150 de
+      200), el ala de pared tiene que alojar dos agujeros a 60 mm, y menos de
+      15 mm de ancho no aguanta 5 kg en PLA
+  - tipo: sin_soportes
+  - tipo: pendiente
+    que: aguanta 5 kg en la punta del brazo con las capas sin trabajar a tracción
+    fase: el cálculo de resistencia del ingeniero
+  - tipo: pendiente
+    que: se ve como un producto, sin aristas exteriores vivas
+    fase: la revisión de estética

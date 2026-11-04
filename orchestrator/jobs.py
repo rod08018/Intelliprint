@@ -77,13 +77,17 @@ class JobStore:
     # --- lanzar y parar -------------------------------------------------------
 
     def start(self, peticion: str, referencias: list[str] | None = None,
-              proyecto: dict | None = None) -> str:
+              proyecto: dict | None = None, comando: list[str] | None = None) -> str:
         """`referencias`: imágenes, textos o ids de proyectos que ya salieron,
         para el diseñador (F5.2 (adjuntos)). Opcionales.
 
         `proyecto`: si esto es una versión nueva de un proyecto que ya
         existe, de cuál (`web.versiones`). Se escribe ANTES de arrancar:
-        mientras trabaja, la web ya tiene que pintarla dentro de su proyecto."""
+        mientras trabaja, la web ya tiene que pintarla dentro de su proyecto.
+
+        `comando`: otra orden que la del gestor, p. ej. `intelliprint pieza`
+        para una pieza suelta (F5.17 (pieza)). Queda en job.json para reanudar."""
+        comando = comando or self._comando
         en_marcha = self.current()
         if en_marcha:
             raise RuntimeError(
@@ -106,14 +110,15 @@ class JobStore:
         # `start_new_session`: el trabajo tiene su propio grupo de procesos, así
         # se puede cancelar con todo lo que lanza (freecadcmd incluido).
         proceso = subprocess.Popen(
-            [*self._comando, str(destino / "request.md"), "--archivo", "--carpeta", str(destino),
+            [*comando, str(destino / "request.md"), "--archivo", "--carpeta", str(destino),
              *(x for r in referencias or [] for x in ("--adjunto", r))],
             stdout=registro, stderr=subprocess.STDOUT, start_new_session=True,
             env=ENTORNO,
         )
         self._procesos[nombre] = proceso
-        (destino / "job.json").write_text(
-            json.dumps({"pid": proceso.pid, "inicio": dt.datetime.now().isoformat()}), encoding="utf-8")
+        (destino / "job.json").write_text(json.dumps(
+            {"pid": proceso.pid, "inicio": dt.datetime.now().isoformat(), "comando": comando}),
+            encoding="utf-8")
         return nombre
 
     def resume(self, job_id: str) -> str:
@@ -126,8 +131,10 @@ class JobStore:
         if en_marcha:
             raise RuntimeError(f"ya hay un proyecto en marcha ({en_marcha})")
         registro = (destino / "run.log").open("a", encoding="utf-8")
+        from orchestrator.registry import _lee_json
+        comando = (_lee_json(destino / "job.json") or {}).get("comando") or self._comando
         proceso = subprocess.Popen(
-            [*self._comando, str(destino / "request.md"), "--archivo",
+            [*comando, str(destino / "request.md"), "--archivo",
              "--carpeta", str(destino), "--continuar"],
             stdout=registro, stderr=subprocess.STDOUT, start_new_session=True,
             env=ENTORNO,
@@ -135,8 +142,9 @@ class JobStore:
         self._procesos[job_id] = proceso
         # El registro mira este pid y su hora de arranque: con los del
         # proceso viejo, el proyecto reanudado nunca salía «en marcha».
-        (destino / "job.json").write_text(
-            json.dumps({"pid": proceso.pid, "inicio": dt.datetime.now().isoformat()}), encoding="utf-8")
+        (destino / "job.json").write_text(json.dumps(
+            {"pid": proceso.pid, "inicio": dt.datetime.now().isoformat(), "comando": comando}),
+            encoding="utf-8")
         (destino / "cancelado").unlink(missing_ok=True)
         return job_id
 

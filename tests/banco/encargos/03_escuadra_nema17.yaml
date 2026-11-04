@@ -1,0 +1,27 @@
+nombre: escuadra_nema17
+categoria: robots
+peticion: >
+  Escuadra en L para montar un motor NEMA17 en vertical sobre una base. La
+  cara del motor lleva un taladro central de 22.4 mm para el resalte y 4
+  agujeros de 3.3 mm en cuadro de 31 mm. La otra ala se atornilla a la base
+  con 2 tornillos M4, agujeros de 4.5 mm separados 30 mm. El motor tira de
+  una correa con unos 20 N.
+oraculo:
+  - tipo: cilindro
+    interior: true
+    nominal_mm: 22.4
+    diametro_min_mm: 22.3
+    diametro_max_mm: 22.6
+  - tipo: agujeros
+    diametro_mm: 3.3
+    patron_mm: [[0, 0], [31, 0], [0, 31], [31, 31]]
+  - tipo: agujeros
+    diametro_mm: 4.5
+    patron_mm: [[0, 0], [30, 0]]
+  - tipo: sin_soportes
+  - tipo: pendiente
+    que: el ala aguanta 20 N de la correa sin doblarse (cartela si hace falta)
+    fase: el cálculo de resistencia del ingeniero
+  - tipo: pendiente
+    que: se ve como un producto, sin aristas exteriores vivas
+    fase: la revisión de estética

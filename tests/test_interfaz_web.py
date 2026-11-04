@@ -663,3 +663,27 @@ def test_cada_mecanismo_tiene_donde_pedir_una_modificacion(ws):
         '{"parts": []}', encoding="utf-8")
     html = _ws_con_trabajos(ws).get("/p/2026-09-20-trinquete").text
     assert 'data-modificar="2026-09-20-trinquete"' in html
+
+
+def test_pedir_una_pieza_lanza_la_orden_de_piezas_y_no_la_de_mecanismos(ws):
+    """F5.17 (pieza): un soporte o un gancho no es un mecanismo, y el flujo de
+    mecanismos exige dos piezas. Desde la web se elige qué se pide."""
+    import sys
+
+    from orchestrator.jobs import JobStore
+
+    trabajos = JobStore(ws / "projects", comando=[
+        sys.executable, "-c", "import sys; print('MECANISMO', sys.argv)"])
+    web = TestClient(crear_app(ws, host_workspace=HOST, trabajos=trabajos, orden_pieza=[
+        sys.executable, "-c", "import sys; print('PIEZA', sys.argv)"]))
+
+    r = web.post("/api/disenar", json={"peticion": "un gancho de pared", "tipo": "pieza"})
+
+    assert r.status_code == 200, r.text
+    registro = _esperar_registro(ws / "projects" / r.json()["id"])
+    assert "PIEZA" in registro and "MECANISMO" not in registro
+
+
+def test_la_pagina_deja_elegir_entre_pieza_y_mecanismo(ws):
+    html = _ws_con_trabajos(ws).get("/").text
+    assert 'id="tipo"' in html and 'value="pieza"' in html and 'value="mecanismo"' in html

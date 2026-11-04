@@ -1,0 +1,24 @@
+nombre: adaptador_tubo
+categoria: casa
+peticion: >
+  Adaptador para unir un tubo de 32 mm de diámetro exterior con otro de 25 mm
+  de diámetro exterior (aspiradora). Cada tubo entra 20 mm dentro del
+  adaptador, con pared de 2.5 mm.
+oraculo:
+  - tipo: cilindro
+    interior: true
+    nominal_mm: 32
+    diametro_min_mm: 32.1
+    diametro_max_mm: 32.8
+  - tipo: cilindro
+    interior: true
+    nominal_mm: 25
+    diametro_min_mm: 25.1
+    diametro_max_mm: 25.8
+  - tipo: envolvente
+    min_mm: [40, 37, 37]
+    porque: los dos tubos entran 20 mm cada uno; Ø32 más dos paredes de 2.5 da 37
+  - tipo: sin_soportes
+  - tipo: pendiente
+    que: los dos alojamientos son coaxiales y el paso del aire no se estrecha de golpe
+    fase: F2.12 (aserciones)

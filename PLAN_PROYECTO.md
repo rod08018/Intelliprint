@@ -283,6 +283,7 @@ Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto
 | F5.14 | **Gate humano #2** con resumen: BOM, placas, gramos, horas, advertencias de QA | Aprobación deja los archivos en `fabrication/` |
 | F5.15 | Instrucciones de ensamble generadas (orden, hardware por paso, capturas) | Documento legible para montar la garra sin ayuda |
 | F5.16 | Registro de feedback de impresión ("flojo", "apretado", "se rompió en X"), también por Telegram | El feedback ajusta el perfil de holguras o crea defectos en la pieza |
+| F5.17 | **Pieza suelta por todos los canales** (pieza): `intelliprint pieza` diseña, construye y lamina una pieza que no se mueve sin confirmación por consola, en la carpeta que le dan; la web (selector «pieza / mecanismo») y Crafty (`disenar_pieza`) la lanzan por `JobStore`, que guarda la orden en `job.json` para reanudar con la misma. Antes solo se podían pedir mecanismos, que exigen dos piezas: un soporte o un gancho no tenían por dónde entrar | Desde la web y desde Telegram se pide un gancho y sale un proyecto de una pieza que el registro ve como cualquier otro, con `blocked.md` si no sale. **Hecho (2026-11-03).** Sin gate de concepto todavía |
 
 **Entregable:** le mandas al bot *"una pieza que sujete un vaso en el carruaje de mi hijo"* con dos fotos, te pregunta lo que falta, apruebas los dos gates desde el móvil y recibes el G-code — con otros dos proyectos abiertos a la vez y los costos de DeepSeek visibles.
 
@@ -292,7 +293,7 @@ Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto
 
 | ID | Tarea | Criterio de aceptación |
 |----|-------|------------------------|
-| F6.1 | Suite de evaluación: 10 requerimientos de referencia con resultados esperados | Se ejecuta con un comando y produce tabla de métricas |
+| F6.1 | Suite de evaluación: 10 requerimientos de referencia con resultados esperados | Se ejecuta con un comando y produce tabla de métricas **2026-11-03, adelantada:** `intelliprint banco` (`orchestrator/banco.py`) corre 8 encargos reales de robots y casa (`tests/banco/encargos/`) y mide la pieza construida —agujeros por patrón, alojamientos, envolvente, laminado sin soportes— contra un oráculo escrito desde la petición literal. Lo que aún no sabe medir cuenta como «sin medir», no como aprobado. **Nota de partida: 45 % (19 de 42)** con `deepseek-chat`; 13 exigencias sin medir hasta F2.6 (dfm), F2.12 (aserciones) y la revisión de estética |
 | F6.2 | Comparar modelos locales por rol (`qwen3.8`, `qwen3:32b`, `gemma3:27b`, `mistral-small`) usando el perfil `prod` | Tabla de tasa de éxito, iteraciones y tiempo por rol; actualizar `models.yaml` |
 | F6.3 | Afinar prompts con los fallos más frecuentes de los logs | Mejora medible en la suite |
 | F6.4 | Reanudación tras caída (reiniciar contenedor a mitad de proyecto) | El proyecto continúa desde el último estado |

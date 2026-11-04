@@ -24,7 +24,7 @@ from orchestrator.impresion import perfil_activo
 from orchestrator.llm.providers.deepseek import DeepSeekClient
 from orchestrator.llm.router import Router
 from orchestrator.slicing import elegir_laminador
-from orchestrator.tasks import spec_to_task
+from orchestrator.tasks import nombre_corto, spec_to_task
 
 
 def _raiz() -> Path:
@@ -393,6 +393,71 @@ def _calibrar(args, raiz: Path, env: dict, nombre: str) -> None:
     print(f"[{nombre}] {ruta} calibrado con lo que mediste.")
 
 
+def _pieza(args, raiz: Path, env: dict, nombre: str) -> None:
+    """Una pieza suelta sin confirmación por consola (F5.17 (pieza)): quien la
+    lanza desde la web o Telegram ya confirmó al pedirla. Para probar a mano
+    con confirmación sigue estando `intelliprint new`."""
+    from mech_toolkit.generators import CATALOGO
+    from orchestrator.agents.part_designer import PartDesignerAgent
+    from orchestrator.agents.requirements import RequirementsAgent
+    from orchestrator.pieza import disenar_pieza
+
+    texto = " ".join(args.peticion)
+    peticion = Path(texto).read_text(encoding="utf-8") if args.archivo else texto
+    carpeta = (Path(args.carpeta) if args.carpeta else _workspace(raiz, env) / "projects"
+               / f"{dt.datetime.now():%Y-%m-%d-%H%M%S}-{nombre_corto(peticion.splitlines()[0], 40)}")
+    router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
+    cliente = _cliente(router, env)
+    freecad = _freecadcmd(env)
+    disenador = PartDesignerAgent(cliente, CATALOGO)
+
+    def disenar(spec, destino, parte):
+        return design_and_build(disenador, spec_to_task(spec).brief, CATALOGO, destino,
+                                freecadcmd=freecad, part=parte, request=spec.request)
+
+    print(f"[{nombre}] Pieza → {carpeta}", flush=True)
+    informe = disenar_pieza(
+        peticion, carpeta,
+        requisitos=RequirementsAgent(cliente, activo=perfil_activo(raiz)),
+        disenar=disenar, laminar=elegir_laminador(raiz, env))
+    if informe.resuelto:
+        gramos = f", {informe.gramos:.1f} g" if informe.gramos is not None else ""
+        print(f"[{nombre}] ✓ {informe.titulo}: "
+              f"{' x '.join(f'{v:g}' for v in informe.bbox_mm)} mm{gramos}")
+    else:
+        print(f"[{nombre}] ✗ {informe.titulo}: {informe.motivo}")
+        sys.exit(1)
+
+
+def _banco(args, raiz: Path, env: dict, nombre: str) -> None:
+    """Cada encargo se pide como lo pediría una persona, en una carpeta
+    propia dentro de workspace/banco/: así queda la evidencia de cada
+    corrida y nunca se pisan los proyectos de verdad."""
+    from orchestrator.banco import cargar_encargos, correr, informe
+
+    encargos = [e for e in cargar_encargos(raiz / "tests" / "banco" / "encargos")
+                if not args.solo or e.nombre in args.solo]
+    if not encargos:
+        sys.exit(f"ningún encargo se llama {', '.join(args.solo)}")
+    # Carpetas cortas: dentro van projects/<fecha-título>/parts/<pieza>/<pieza>.step
+    # y FreeCAD en Windows no abre rutas de más de 260 caracteres. Con el
+    # nombre del encargo, dos piezas de la primera corrida no se construyeron.
+    salida = _workspace(raiz, env) / "banco" / f"{dt.datetime.now():%m%d-%H%M}"
+    orden = [sys.executable, "-m", "orchestrator.cli", "new"]
+    resultados, fallos = {}, {}
+    for i, e in enumerate(encargos, 1):
+        print(f"[{nombre}] banco: {e.nombre} (carpeta {i:02d})…", flush=True)
+        resultados[e.nombre], fallo = correr(e, salida / f"{i:02d}", orden, _freecadcmd(env),
+                                             dict(os.environ))
+        if fallo:
+            fallos[e.nombre] = fallo
+    modelo = env.get("DEEPSEEK_MODEL", "deepseek")
+    texto = informe(resultados, modelo=modelo, fallos=fallos)
+    (salida / "banco.md").write_text(texto, encoding="utf-8")
+    print(texto)
+    print(f"[{nombre}] informe en {salida / 'banco.md'}")
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="intelliprint")
     sub = parser.add_subparsers(dest="comando", required=True)
@@ -434,6 +499,20 @@ def _parser() -> argparse.ArgumentParser:
                           ("--m3-selftap", "agujero de rosca directa M3, mm"),
                           ("--m3-insert", "agujero del inserto M3, mm")):
         res.add_argument(opcion, type=float, required=True, help=ayuda)
+    pieza = sub.add_parser("pieza", help="diseñar una pieza suelta sin preguntar por consola "
+                                         "(lo que lanzan la web y Crafty)")
+    pieza.add_argument("peticion", nargs="+")
+    pieza.add_argument("--archivo", action="store_true",
+                       help="la petición es la ruta de un archivo de texto")
+    pieza.add_argument("--carpeta", help="carpeta del proyecto (por defecto, una nueva)")
+    # Lo que pasa JobStore a cualquier orden. Reanudar una pieza es volver a
+    # hacerla en su carpeta; los adjuntos aún no los usa el flujo de piezas.
+    pieza.add_argument("--continuar", action="store_true", help=argparse.SUPPRESS)
+    pieza.add_argument("--adjunto", action="append", default=[], help=argparse.SUPPRESS)
+    banco = sub.add_parser("banco", help="pedir las piezas del banco y medir si salen usables "
+                                         "(F6.1 (evaluación)); cuesta dinero")
+    banco.add_argument("--solo", action="append", default=[], metavar="ENCARGO",
+                       help="correr solo este encargo (se puede repetir)")
     perf = sub.add_parser("perfil", help="importar una calibración de laminado de eufyMake Studio")
     perf.add_argument("accion", choices=["importar"])
     perf.add_argument("resto", nargs=argparse.REMAINDER,
@@ -467,6 +546,12 @@ def main(argv: list[str] | None = None) -> None:
     if args.comando == "perfil":
         from orchestrator.perfiles_laminado import main as importar
         importar(args.resto)
+        return
+    if args.comando == "banco":
+        _banco(args, raiz, env, nombre)
+        return
+    if args.comando == "pieza":
+        _pieza(args, raiz, env, nombre)
         return
     grafo = _grafo(raiz, env)
 

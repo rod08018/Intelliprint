@@ -1,0 +1,18 @@
+nombre: clip_cable
+categoria: casa
+peticion: >
+  Clip para sujetar un cable de 6 mm de diámetro al canto de una mesa de 18 mm
+  de grosor, sin tornillos: se encaja a presión en el canto.
+oraculo:
+  - tipo: cilindro
+    interior: true
+    nominal_mm: 6
+    diametro_min_mm: 6.0
+    diametro_max_mm: 6.8
+  - tipo: sin_soportes
+  - tipo: pendiente
+    que: la boca abraza un canto de 18 mm con algo de interferencia
+    fase: F2.12 (aserciones)
+  - tipo: pendiente
+    que: el cable entra por una abertura más estrecha que 6 mm y queda retenido
+    fase: F2.12 (aserciones)

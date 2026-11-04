@@ -61,6 +61,34 @@ def _store() -> JobStore:
     return _STORE
 
 
+def _orden_pieza() -> list[str]:
+    """La orden de una pieza suelta (F5.17 (pieza)), con el mismo ejecutable
+    que la de mecanismos."""
+    ejecutable = _raiz() / ".venv" / "bin" / "intelliprint"
+    return [str(ejecutable) if ejecutable.exists() else "intelliprint", "pieza"]
+
+
+@mcp.tool()
+def disenar_pieza(peticion: str) -> dict:
+    """Diseña UNA pieza que no se mueve —un soporte, un gancho, una escuadra,
+    un adaptador, un clip— y la construye y lamina.
+
+    Para piezas sueltas. Si lo que pide tiene partes que se mueven entre sí
+    (bisagras, trinquetes, prensas), es `disenar_mecanismo`.
+
+    Tarda unos minutos: devuelve el identificador al momento. La petición
+    tiene que llevar TODAS las medidas que dio el usuario, tal cual: qué
+    sujeta, a qué se atornilla, diámetros y separaciones de agujeros, carga.
+    """
+    store = _store()
+    try:
+        job = store.start(peticion, comando=_orden_pieza())
+    except RuntimeError as e:
+        return {"error": str(e), "en_marcha": store.current()}
+    return {"proyecto": job,
+            "aviso": "Diseñando la pieza. Tarda unos minutos; pregunta el estado de vez en cuando."}
+
+
 @mcp.tool()
 def disenar_mecanismo(peticion: str, referencias: list[str] | None = None) -> dict:
     """Diseña un mecanismo a partir de una petición en texto y lo verifica.

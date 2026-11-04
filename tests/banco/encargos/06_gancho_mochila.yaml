@@ -1,0 +1,20 @@
+nombre: gancho_mochila
+categoria: casa
+peticion: >
+  Gancho de pared para colgar una mochila de hasta 8 kg. Se atornilla con 2
+  tornillos de 4 mm, agujeros de 4.5 mm separados 40 mm en vertical, y el
+  gancho sobresale 50 mm de la pared.
+oraculo:
+  - tipo: agujeros
+    diametro_mm: 4.5
+    patron_mm: [[0, 0], [0, 40]]
+  - tipo: envolvente
+    min_mm: [50, 50, 10]
+    porque: sobresale 50 mm; la placa tiene que alojar dos agujeros a 40 mm con margen
+  - tipo: sin_soportes
+  - tipo: pendiente
+    que: aguanta 8 kg colgados en la punta
+    fase: el cálculo de resistencia del ingeniero
+  - tipo: pendiente
+    que: la punta del gancho está redondeada y no engancha la tela
+    fase: la revisión de estética

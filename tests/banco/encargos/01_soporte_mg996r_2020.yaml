@@ -1,0 +1,25 @@
+nombre: soporte_mg996r_2020
+categoria: robots
+peticion: >
+  Soporte para fijar un servo MG996R a un perfil de aluminio 2020. El cuerpo
+  del servo mide 40.7 x 19.7 mm y se atornilla por sus orejetas con 4
+  tornillos M3: agujeros de 3.3 mm con centros en un rectángulo de 49.5 x 10 mm.
+  Al perfil va con 2 tornillos M5, agujeros de 5.5 mm separados 20 mm.
+  Que se imprima sin soportes.
+oraculo:
+  - tipo: agujeros
+    diametro_mm: 3.3
+    patron_mm: [[0, 0], [49.5, 0], [0, 10], [49.5, 10]]
+  - tipo: agujeros
+    diametro_mm: 5.5
+    patron_mm: [[0, 0], [20, 0]]
+  - tipo: sin_soportes
+  - tipo: pendiente
+    que: el cuerpo de 40.7 x 19.7 pasa por su ventana con holgura
+    fase: F2.12 (aserciones)
+  - tipo: pendiente
+    que: pared mínima estructural en todo el soporte
+    fase: F2.6 (dfm)
+  - tipo: pendiente
+    que: se ve como un producto, sin aristas exteriores vivas
+    fase: la revisión de estética

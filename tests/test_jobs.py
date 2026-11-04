@@ -216,3 +216,21 @@ def test_cancelar_un_trabajo_lanzado_por_otro_gestor(tmp_path):
 
     lanzador._procesos[job].wait(timeout=5)
     assert otro.status(job)["estado"] == "cancelado"
+
+
+def test_una_pieza_se_lanza_con_su_orden_y_se_reanuda_con_la_misma(tmp_path):
+    """F5.17 (pieza): la web y Crafty piden piezas sueltas, no solo mecanismos.
+    Reanudar tiene que repetir la orden con la que se lanzó: con la del
+    gestor, una pieza se reanudaba como mecanismo."""
+    mecanismo = [sys.executable, "-c", "print('orden mecanismo')"]
+    pieza = [sys.executable, "-c", "print('orden pieza')"]
+    store = JobStore(tmp_path, comando=mecanismo)
+    job = store.start("gancho de pared", comando=pieza)
+    _esperar(store, job, "terminado")
+
+    store.resume(job)
+    _esperar(store, job, "terminado")
+
+    registro = (tmp_path / job / "run.log").read_text()
+    assert registro.count("orden pieza") == 2
+    assert "orden mecanismo" not in registro

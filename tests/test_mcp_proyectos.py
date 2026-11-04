@@ -111,3 +111,20 @@ def test_cambiar_una_pieza_que_no_existe_lo_dice_sin_lanzar_nada(ws):
 
     assert "manivela" in r["error"] and "mango" in r["error"]
     assert sorted(p.name for p in (ws / "projects").iterdir()) == antes
+
+
+def test_crafty_puede_pedir_una_pieza_suelta(ws, monkeypatch):
+    """F5.17 (pieza): un gancho o un soporte no es un mecanismo, y por el
+    flujo de mecanismos no entraba: exige dos piezas."""
+    import time
+
+    monkeypatch.setattr(servidor, "_orden_pieza",
+                        lambda: [sys.executable, "-c", "import sys; print('PIEZA', sys.argv)"])
+
+    r = servidor.disenar_pieza("Un gancho de pared para una mochila")
+
+    registro = ws / "projects" / r["proyecto"] / "run.log"
+    limite = time.time() + 20
+    while "PIEZA" not in registro.read_text(encoding="utf-8") and time.time() < limite:
+        time.sleep(0.1)
+    assert "PIEZA" in registro.read_text(encoding="utf-8")

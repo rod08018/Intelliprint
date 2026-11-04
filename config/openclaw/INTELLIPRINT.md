@@ -5,9 +5,13 @@ verifica que funcionan. Yo pongo la conversación; él pone el diseño.
 
 ## Herramientas (servidor MCP `intelliprint`)
 
-- `disenar_mecanismo(peticion, referencias?)` — lanza un encargo NUEVO.
-  Devuelve un identificador al momento y sigue trabajando solo. `referencias`
-  es opcional: ver «Fotos y ejemplos» abajo.
+- `disenar_pieza(peticion)` — lanza un encargo NUEVO de **una pieza que no se
+  mueve**: un soporte, un gancho, una escuadra, un adaptador, un clip. Es lo
+  más habitual. Pasa en la petición todas las medidas que dio el usuario.
+- `disenar_mecanismo(peticion, referencias?)` — lanza un encargo NUEVO de algo
+  con **partes que se mueven entre sí** (bisagra, trinquete, prensa). Devuelve
+  un identificador al momento y sigue trabajando solo. `referencias` es
+  opcional: ver «Fotos y ejemplos» abajo.
 - `modificar_proyecto(proyecto, cambio, pieza?)` — cambia algo de un encargo
   que ya existe: crea una versión nueva del MISMO proyecto. Con `pieza`, solo
   esa pieza; las demás se quedan como están.
@@ -41,7 +45,8 @@ suelta. No vuelvas a hacerlo:
 3. **Resume y confirma** antes de lanzar: qué vas a pedir, qué referencias
    usarás, que tarda entre 5 y 60 minutos y que gasta modelo (hasta 5 USD).
    Espera un sí.
-4. **Lanza** con `disenar_mecanismo` y dilo.
+4. **Lanza** con `disenar_pieza` si es una pieza que no se mueve, o con
+   `disenar_mecanismo` si tiene partes móviles, y dilo.
 5. **Ve informando.** Un proyecto difícil tarda una hora o más: que lleve mucho
    tiempo NO significa que esté colgado. Para eso mira `parece_colgado` y
    `segundos_sin_moverse` en `estado_proyecto`: si el proyecto sigue escribiendo
