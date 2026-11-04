@@ -13,6 +13,8 @@ import math
 import FreeCAD
 import Part
 
+from mech_toolkit.kit import convexa
+
 V = FreeCAD.Vector
 
 
@@ -64,11 +66,7 @@ def aristas_vivas(forma, max_fraccion=0.1, angulo_min_grados=60.0):
         n1, n2 = (_normal(c, p) for c in caras)
         total += e.Length
         angulo = math.degrees(math.acos(max(-1.0, min(1.0, n1.dot(n2)))))
-        fuera = n1 + n2
-        if fuera.Length < 1e-9:
-            continue
-        convexa = not forma.isInside(p + fuera.normalize() * 0.05, 1e-6, True)
-        if convexa and angulo >= angulo_min_grados:
+        if angulo >= angulo_min_grados and convexa(forma, e):
             viva += e.Length
     fraccion = viva / total if total else 0.0
     return {"cumple": fraccion <= max_fraccion,
@@ -201,22 +199,53 @@ def resistencia(forma, carga_N, fijacion_diametro_mm, direccion, brazo, material
 
 # --- ventanas, pasos y ranuras -------------------------------------------------------------
 
+_CRUCE = {"x": ("y", "z"), "y": ("x", "z"), "z": ("x", "y")}
+
+
+def _rango(bb, eje):
+    return getattr(bb, eje.upper() + "Min"), getattr(bb, eje.upper() + "Max")
+
+
+def _bahias(cara, eje, en):
+    """Los huecos de una sección: lo que le falta para llenar su rectángulo
+    envolvente. Sirven los cerrados (un agujero) y los abiertos por UN solo
+    lado (una ranura en U); uno abierto por dos lados es el rincón de una L y
+    no sujeta nada. Fallo real (2026-11-04): la sonda solo miraba agujeros
+    cerrados, y la ranura en U del soporte del MG996R, por la que el servo
+    entra y atornilla sus orejetas a la placa, contaba como suspenso."""
+    bb = cara.BoundBox
+    (a, (a0, a1)), (b, (b0, b1)) = ((x, _rango(bb, x)) for x in _CRUCE[eje])
+
+    def punto(va, vb):
+        d = {eje: en, a: va, b: vb}
+        return V(d["x"], d["y"], d["z"])
+
+    rect = Part.Face(Part.makePolygon([punto(a0, b0), punto(a1, b0), punto(a1, b1),
+                                       punto(a0, b1), punto(a0, b0)]))
+    for bahia in rect.cut(cara).Faces:
+        h = bahia.BoundBox
+        lados = sum(abs(v - borde) < 1e-3 for x, bordes in ((a, (a0, a1)), (b, (b0, b1)))
+                    for v, borde in zip(_rango(h, x), bordes))
+        if lados <= 1:
+            yield bahia
+
+
 def ventana(forma, ancho_mm, alto_mm):
     """Una abertura pasante por la que cabe un rectángulo de ancho × alto
     (el cuerpo de un servo), en la dirección de x, y o z."""
     b = forma.BoundBox
     for eje, n in (("x", V(1, 0, 0)), ("y", V(0, 1, 0)), ("z", V(0, 0, 1))):
-        lo, hi = {"x": (b.XMin, b.XMax), "y": (b.YMin, b.YMax), "z": (b.ZMin, b.ZMax)}[eje]
+        lo, hi = _rango(b, eje)
         # Nueve cortes y no uno: en una escuadra en L el corte por la mitad
         # puede no pasar por la placa que lleva la ventana.
         huecos = []
         for k in range(1, 10):
+            en = lo + (hi - lo) * k / 10
             try:
-                cara = Part.makeFace(forma.slice(n, lo + (hi - lo) * k / 10),
-                                     "Part::FaceMakerBullseye")
+                cara = Part.makeFace(forma.slice(n, en), "Part::FaceMakerBullseye")
+                huecos += list(_bahias(cara, eje, en))
             except Exception:
                 continue
-            huecos += [w for f in cara.Faces for w in f.Wires[1:]]
         for w in huecos:
             c = w.BoundBox.Center
             for a, h in ((ancho_mm, alto_mm), (alto_mm, ancho_mm)):
@@ -227,7 +256,10 @@ def ventana(forma, ancho_mm, alto_mm):
                     caja = Part.makeBox(a, largo, h, V(c.x - a / 2, lo - 1, c.z - h / 2))
                 else:
                     caja = Part.makeBox(largo, a, h, V(lo - 1, c.y - a / 2, c.z - h / 2))
-                if forma.common(caja).Volume < 1e-3:
+                # `distToShape` además del booleano: en el soporte del SG90 del
+                # banco (2026-11-04) `common` devolvía vacío para una caja que
+                # atravesaba la base maciza. Tocar no es pasar: hace falta holgura.
+                if forma.common(caja).Volume < 1e-3 and forma.distToShape(caja)[0] > 1e-4:
                     return {"cumple": True,
                             "detalle": f"pasa un {ancho_mm:g} × {alto_mm:g} por la abertura en {eje}"}
     return {"cumple": False,

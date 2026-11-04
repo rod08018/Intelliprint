@@ -327,6 +327,14 @@ Orden, de más a menos puntos por esfuerzo: F6.7 (lazo) → F6.8 (mejor) → F6.
 
 **Techo subido (F6.12 (techo)):** la misma corrida, rejuzgada con las sondas, da 81 %. Lo que queda por ganar es diseño, y el diseñador no se entera: las aristas vivas y la ventana pasante no están en el bucle de F6.7 (lazo), que solo mide agujeros.
 
+**Con las sondas en el bucle y `acabar()` (corrida `1104-1420`, 2026-11-04): 95 % (41 de 43)**, rejuzgada con el juez de hoy (la corrida del 62 %, rejuzgada igual, da 84 %). 86 minutos. Siete de las ocho piezas cumplen todo. Al mirar los dos fallos que quedaban salieron tres errores del juez, no del diseño, y se arreglaron con su test:
+
+- la ranura en U abierta por arriba del MG996R, por la que el servo entra y atornilla las orejetas, no contaba: la sonda de ventana solo miraba agujeros cerrados;
+- la sonda de aristas vivas contaba también los rincones (n1 + n2 cae fuera del sólido en los dos casos);
+- en el SG90, `common` y `cut` devolvían vacío para una caja que atravesaba la base maciza, y la sonda la daba por pasante. Ahora hace falta además holgura medida con `distToShape`.
+
+Y uno del kit: `acabar()` redondeaba también los rincones, que **añade** material: la ventana de 23.2 × 12.6 del SG90 ya no dejaba pasar el cuerpo de 22.8 × 12.2. Ahora redondea solo las esquinas. Lo que falla, los dos en el SG90, es real: esa ventana estrechada y un 38 % de aristas vivas. Es una sola corrida (F6.13 (ruido)), y el aviso de F6.10 (ejemplos) sigue: el ejemplo del prompt se parece a la escuadra de repisa del banco, así que el banco necesita piezas que el diseñador no haya visto.
+
 **Objetivo:** 60 % de media en tres corridas con el techo de hoy, y 75 % cuando F6.12 (techo) lo suba. Las fases 7 y 8 (revisión visual y estética) van después: con piezas que no se construyen no hay nada que mirar.
 
 **Visión.** DeepSeek Flash acepta imágenes (`image_url` en base64; ver api-docs.deepseek.com/guides/vision). El cliente de este repo ya las manda desde F5.2 (adjuntos) —comprobado el 2026-09-21: una imagen roja, «Rojo»—, así que F6.9 (vistas) y las fases 7 y 8 **no esperan** a los modelos locales de F0.11 (migrar).

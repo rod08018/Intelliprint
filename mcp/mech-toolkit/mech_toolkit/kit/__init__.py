@@ -38,6 +38,27 @@ LARGO = 2000.0
 """Lo que mide una broca pasante: más que cualquier pieza de la cama."""
 
 
+def convexa(forma, arista) -> bool:
+    """Si la arista es una esquina hacia fuera (el sólido ocupa un cuadrante
+    a su alrededor) y no un rincón (ocupa tres). Se mira un punto junto a la
+    arista en la dirección n1 − n2: fuera del sólido en una esquina, dentro
+    de la pared en un rincón. Con n1 + n2, como se hacía, los dos casos caen
+    fuera y todo parecía esquina (2026-11-04).
+
+    Importa porque redondear un rincón AÑADE material: en el soporte del SG90
+    del banco rellenó las cuatro esquinas de la ventana y el servo ya no
+    entraba."""
+    caras = forma.ancestorsOfType(arista, Part.Face)
+    if len(caras) != 2:
+        return False
+    p = arista.valueAt((arista.FirstParameter + arista.LastParameter) / 2)
+    n1, n2 = (c.normalAt(*c.Surface.parameter(p)) for c in caras)
+    d = n1 - n2
+    if d.Length < 1e-6:
+        return False   # caras tangentes: no hay esquina
+    return not forma.isInside(p + d.normalize() * 0.05, 1e-6, True)
+
+
 class KitError(ValueError):
     """Un error en el uso del kit, escrito para que el diseñador lo corrija."""
 
@@ -295,7 +316,11 @@ class Cuerpo:
         # caja «por encima del chaflán» se quedaban fuera las verticales, que
         # empiezan justo en él (test de la escalera, 2026-11-04).
         franja = z0 + (chaflan_base or 0) + 0.05
-        elegidas = [i for i, e in enumerate(pieza._forma.Edges) if e.BoundBox.ZMax > franja]
+        # Y solo las esquinas: redondear un rincón añade material y estrecha
+        # las ventanas y los encajes (ver `convexa`).
+        forma = pieza._forma
+        elegidas = [i for i, e in enumerate(forma.Edges)
+                    if e.BoundBox.ZMax > franja and convexa(forma, e)]
         if not elegidas:
             return pieza
         return pieza._acabar("redondear", radio, elegidas, "todas menos la base")

@@ -97,9 +97,11 @@ def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
         if medida.estado != "no_cumple":
             continue   # «sin medir» (una sonda rota) no es culpa del diseñador
         if isinstance(sonda, AristasVivas):
-            fallos.append(f"{ACABADO}: {medida.detalle}. Redondea o achaflana también las "
-                          "aristas de arriba y de los lados, no solo las verticales: "
-                          "`redondear(1, aristas=\"todas\")` al final")
+            # Antes decía `redondear(1, aristas="todas")`: redondea también los
+            # rincones, y en el SG90 del banco eso cerró la ventana del servo.
+            fallos.append(f"{ACABADO}: {medida.detalle}. Termina con `return pieza.acabar()`, "
+                          "que redondea todas las esquinas sin rellenar los rincones; si "
+                          "una pared es fina, `acabar(radio=0.5)`")
         else:
             fallos.append(f"{sonda.porque}: {medida.detalle}. La abertura tiene que atravesar "
                           "la pieza entera, no ser un rebaje, y llevar holgura")

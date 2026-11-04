@@ -215,3 +215,58 @@ def test_la_envolvente_de_una_pieza_redondeada_es_la_real(tmp_path):
     step = _step("def construir(kit):\n    return kit.caja(80, 50, 4).redondear(5).acabar()\n", tmp_path)
     h = extraer_hechos(step, _freecadcmd(), None)
     assert sorted(h.bbox_mm) == pytest.approx([4, 50, 80], abs=0.01)
+
+
+def test_una_arista_concava_no_cuenta_como_viva(tmp_path):
+    """Una L de dos cajas: perfil (x, z) de 30 + 5 + 25 + 25 + 5 + 30 = 120 mm,
+    dos veces, más 6 aristas de 20 en y: 360 mm. La esquina interior (x = 5,
+    z = 5) es cóncava y mide 20: vivas, 340 de 360. Fallo real (2026-11-04):
+    la sonda las contaba todas, y redondear la esquina interior de una
+    ventana la estrecha."""
+    ele = "def construir(kit):\n    return kit.caja(30, 20, 5) + kit.caja(5, 20, 30)\n"
+    [r] = _medir(ele, [AristasVivas(tipo="aristas_vivas", max_fraccion=0.1)], tmp_path)
+    assert "(340 de 360 mm)" in r.detalle, r.detalle
+
+
+def test_una_ranura_abierta_por_arriba_deja_pasar_el_servo(tmp_path):
+    """El soporte del MG996R del banco (2026-11-04): una placa de pie con una
+    ranura en U de 41.1 × 20.1 abierta por arriba. El servo entra por ella y
+    atornilla sus orejetas a la placa; la sonda solo buscaba agujeros
+    cerrados y lo daba por suspenso. Un hueco abierto por DOS lados (el
+    rincón de una L) no sujeta nada y no cuenta."""
+    u = """
+def construir(kit):
+    placa = kit.caja(60, 6, 30, en=(-30, 0, 0)) + kit.caja(60, 40, 6, en=(-30, 0, 0))
+    return placa.quitar("ranura", kit.caja(41.1, 42, 30, en=(-20.55, -1, 9.9)))
+"""
+    ele = "def construir(kit):\n    return kit.caja(60, 5, 60) + kit.caja(60, 60, 5)\n"
+    v = Ventana(tipo="ventana", ancho_mm=40.7, alto_mm=19.7)
+    [ranura] = _medir(u, [v], tmp_path / "1")
+    [rincon] = _medir(ele, [v], tmp_path / "2")
+    assert ranura.estado == "cumple", ranura.detalle
+    assert rincon.estado == "no_cumple"
+
+
+def test_acabar_no_estrecha_una_ventana(tmp_path):
+    """El soporte del SG90 del banco (2026-11-04): ventana de 23.2 × 12.6 para
+    un cuerpo de 22.8 × 12.2, y el redondeo de 1 mm rellenaba sus cuatro
+    esquinas interiores (aristas cóncavas): el servo ya no entraba."""
+    marco = """
+def construir(kit):
+    p = kit.caja(60, 40, 10).quitar("ventana", kit.caja(23.2, 12.6, 12, en=(18, 13, -1)))
+    return p.acabar()
+"""
+    [r] = _medir(marco, [Ventana(tipo="ventana", ancho_mm=22.8, alto_mm=12.2)], tmp_path)
+    assert r.estado == "cumple", r.detalle
+
+
+def test_un_booleano_que_falla_en_silencio_no_deja_pasar_nada():
+    """El soporte del SG90 del banco (2026-11-04, copiado tal cual): `common`
+    y `cut` devuelven vacío para una caja que atraviesa la base maciza, y la
+    sonda la daba por pasante. El cuerpo de 22.8 × 12.2 NO cabe: la ventana
+    es de 23.2 × 12.6 y el redondeo de sus rincones invade 0.72 mm³
+    (medido aparte con `distToShape`, que sí da 0 al chocar)."""
+    step = Path(__file__).parent / "sondas_regresiones" / "sg90_booleano_mudo.step"
+    [r] = medir_sondas(step, [Ventana(tipo="ventana", ancho_mm=22.8, alto_mm=12.2)],
+                       _freecadcmd(), MATERIAL)
+    assert r.estado == "no_cumple", r.detalle
