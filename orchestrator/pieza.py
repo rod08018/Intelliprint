@@ -25,7 +25,7 @@ from typing import Callable
 import yaml
 from pydantic import BaseModel
 
-from orchestrator.build import ConstruccionFallida
+from orchestrator.build import ConstruccionFallida, guardar_diseno
 from orchestrator.schemas.concepto import ConceptoComprobado
 from orchestrator.schemas.spec import Spec
 from orchestrator.tasks import spec_to_task
@@ -137,8 +137,7 @@ def disenar_pieza(peticion: str, carpeta: Path, *, requisitos,
         informe.motivo = e.motivo
         _cerrar(carpeta, spec.title, informe, peticion)
         return informe
-    (carpeta / "parts" / tarea.part / "recipe.json").write_text(
-        receta.model_dump_json(indent=2), encoding="utf-8")
+    guardar_diseno(carpeta / "parts" / tarea.part, receta)
     informe.volumen_mm3, informe.bbox_mm = resultado.volume_mm3, list(resultado.bbox_mm)
 
     # Lo que la trazabilidad no encontró es un defecto, no una nota al pie:

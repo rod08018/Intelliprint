@@ -23,6 +23,9 @@ class PartResult(BaseModel):
     solids: int
     fcstd_object: str | None = None
     """Nombre interno de la pieza final dentro del .FCStd."""
+    rasgos: list[dict] = []
+    """Los agujeros, tuercas, colisas y huecos con nombre que registró el kit
+    (F5.18 (kit)): lo que la medida compara con los requisitos."""
     untraced_mm: list[float] = []
     """Cotas de la petición literal que no aparecen en la receta tras los
     reintentos (F1.16 (trazabilidad)). Se muestran en el informe; no rompen la pieza."""

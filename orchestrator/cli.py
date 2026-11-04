@@ -57,25 +57,31 @@ def _cliente(router: Router, env: dict, role: str = "design"):
     )
 
 
+def _disenar_con_kit(raiz: Path, env: dict, cliente):
+    """Las piezas sueltas se dibujan con el kit (F5.18 (kit)): el catálogo
+    de generadores no sabía hacer una cartela, un hexágono ni un chaflán. Los
+    mecanismos siguen con recetas hasta que el kit los cubra."""
+    from orchestrator.agents.disenador_kit import DisenadorKitAgent
+
+    freecad = _freecadcmd(env)
+    disenador = DisenadorKitAgent(cliente, perfil_activo(raiz))
+
+    def disenar(spec, carpeta, part, concepto=None):
+        return design_and_build(
+            disenador, spec_to_task(spec, concepto).brief, None, carpeta,
+            freecadcmd=freecad, part=part, request=spec.request, perfil=disenador.perfil,
+        )
+    return disenar
+
+
 def _grafo(raiz: Path, env: dict):
-    from mech_toolkit.generators import CATALOGO
-    from orchestrator.agents.part_designer import PartDesignerAgent
     from orchestrator.agents.requirements import RequirementsAgent
 
     router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
     cliente = _cliente(router, env)
-    freecad = _freecadcmd(env)
-    disenador = PartDesignerAgent(cliente, CATALOGO)
-
-    def disenar(spec, carpeta, part, concepto=None):
-        return design_and_build(
-            disenador, spec_to_task(spec, concepto).brief, CATALOGO, carpeta,
-            freecadcmd=freecad, part=part, request=spec.request,
-        )
-
     deps = Dependencias(
         requirements=RequirementsAgent(cliente, activo=perfil_activo(raiz)),
-        disenar=disenar,
+        disenar=_disenar_con_kit(raiz, env, cliente),
         laminar=elegir_laminador(raiz, env),
         port=CliAdapter(),
         workspace=_workspace(raiz, env) / "projects",
@@ -406,8 +412,6 @@ def _pieza(args, raiz: Path, env: dict, nombre: str) -> None:
     """Una pieza suelta sin confirmación por consola (F5.17 (pieza)): quien la
     lanza desde la web o Telegram ya confirmó al pedirla. Para probar a mano
     con confirmación sigue estando `intelliprint new`."""
-    from mech_toolkit.generators import CATALOGO
-    from orchestrator.agents.part_designer import PartDesignerAgent
     from orchestrator.agents.requirements import RequirementsAgent
     from orchestrator.pieza import APROBADO, concebir_pieza, disenar_pieza
 
@@ -431,15 +435,9 @@ def _pieza(args, raiz: Path, env: dict, nombre: str) -> None:
         print(f"[{nombre}] ✋ concepto listo: espera tu visto bueno ({carpeta / 'concepto.md'})")
         return
 
-    freecad = _freecadcmd(env)
-    disenador = PartDesignerAgent(cliente, CATALOGO)
-
-    def disenar(spec, destino, parte, concepto=None):
-        return design_and_build(disenador, spec_to_task(spec, concepto).brief, CATALOGO, destino,
-                                freecadcmd=freecad, part=parte, request=spec.request)
-
     informe = disenar_pieza(peticion, carpeta, requisitos=requisitos,
-                            disenar=disenar, laminar=elegir_laminador(raiz, env))
+                            disenar=_disenar_con_kit(raiz, env, cliente),
+                            laminar=elegir_laminador(raiz, env))
     if informe.resuelto:
         gramos = f", {informe.gramos:.1f} g" if informe.gramos is not None else ""
         print(f"[{nombre}] ✓ {informe.titulo}: "

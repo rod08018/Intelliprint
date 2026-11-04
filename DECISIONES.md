@@ -37,6 +37,32 @@ Fecha de la sesión: **2026-09-18**.
 - **El porcentaje de piezas que usan la escotilla se convierte en métrica de producto**, no en tasa de fallo: cada pieza atípica nombra el generador que falta escribir. El sistema se vuelve más determinista con el uso.
 - El riesgo principal se desplaza de "el modelo escribe mal" a "me faltan generadores", que es un problema de trabajo acotado en vez de uno de fiabilidad estadística.
 
+**Enmienda (2026-11-04): las piezas sueltas se escriben con un kit, en una lista blanca (F5.18 (kit)).**
+
+**Qué falló.** «Me faltan generadores» resultó no ser un problema acotado: cada pieza real necesitaba uno nuevo.
+- Las V del sargento salieron con 63 cajas en escalera.
+- Los hexágonos salieron cuadrados.
+- La escuadra de repisa, con un concepto bueno (una L con nervio, tumbada), salió maciza: 121 g. No había manera de decir «este perfil, extruido».
+
+La escotilla de F2.9 nunca se construyó.
+
+**Decisión.** Para las piezas sueltas, el diseñador escribe una función `construir(kit)` contra un **kit** propio (`mech_toolkit/kit/`). El kit tiene:
+- perfiles extruidos en cualquier plano y revolución;
+- booleanas, giros y espejo;
+- redondeo y chaflán por selector de aristas;
+- agujeros (lágrima, avellanado), tornillos y tuercas **con la tabla del perfil**, y colisas.
+
+Cada agujero, tuerca o hueco lleva **nombre** y queda registrado como rasgo (ADR-011). Es lo que se medirá contra los requisitos.
+
+**Lo que cambia de la seguridad.** Ya no viene de que el código lo escriba una persona. Viene de dos cosas:
+- **La lista blanca** (`kit/sandbox.py`), que se comprueba dos veces: en el orquestador y otra vez dentro de FreeCAD antes de ejecutar.
+  - Solo se admite una función `construir`, aritmética, `for`, `if` y colecciones.
+  - Solo se pueden usar **los atributos de la API del kit**: ningún `_algo`, ni `__class__`, ni `gi_frame`.
+  - Nada de `import`, `open`, `eval`, clases ni `try`.
+- **Medir lo que sale.** El epílogo sigue exigiendo un sólido válido y uno solo. La medida contra los requisitos es F2.6 y F2.12.
+
+**Lo que se conserva.** Un error del modelo sigue volviendo como un error con línea y motivo, dentro del bucle de reintento, antes de lanzar FreeCAD. Los mecanismos siguen con recetas hasta que el kit los cubra: el flujo de mecanismos depende de las cajas envolventes de cada generador.
+
 ---
 
 ## ADR-003 · El veredicto del QA es aritmético; el LLM solo puede añadir defectos

@@ -3,11 +3,18 @@
 Llama a un modelo real y cuesta unos céntimos. Aislado con
 INTELLIPRINT_WORKSPACE: nunca toca el workspace/ de verdad.
 
-Los volúmenes esperados están calculados A MANO a partir de la petición:
-son un oráculo independiente del sistema, no una salida suya.
+Lo esperado sale A MANO de la petición: un oráculo independiente del
+sistema, no una salida suya. Se mide la pieza construida —envolvente,
+alojamientos y patrón de agujeros— con el juez del banco (F6.1 (evaluación)).
+
+Hasta el kit (F5.18 (kit)) se comparaba el volumen exacto de una placa
+desnuda. Con el kit, el diseñador redondea las aristas y achaflana la base
+a propósito (acabado de producto, contra la pata de elefante), y la placa
+NEMA17 salió 44 mm³ por debajo de la cuenta: 30 del chaflán de 0.5 en el
+perímetro y 20 de los redondeos. El volumen dejó de ser lo que se pidió;
+los agujeros y la envolvente no.
 """
 
-import math
 import os
 import re
 import subprocess
@@ -16,6 +23,7 @@ from pathlib import Path
 
 import pytest
 
+from orchestrator.banco import Agujeros, Cilindro, Envolvente, extraer_hechos, juzgar
 from orchestrator.config import load_env
 from tests.test_fcstd_output import _visibilidad_gui
 from tests.test_generators import _freecadcmd
@@ -23,28 +31,38 @@ from tests.test_generators import _freecadcmd
 INTELLIPRINT = str(Path(sys.executable).parent / "intelliprint")
 _env = load_env(Path(".env"))
 
+
+def _caja(x, y, z):
+    return Envolvente(tipo="envolvente", min_mm=[x - 0.1, y - 0.1, z - 0.1],
+                      max_mm=[x + 0.1, y + 0.1, z + 0.1])
+
+
+def _cuadro(d, lado):
+    return Agujeros(tipo="agujeros", diametro_mm=d,
+                    patron_mm=[[0, 0], [lado, 0], [0, lado], [lado, lado]])
+
+
+def _central(d):
+    return Cilindro(tipo="cilindro", interior=True, nominal_mm=d,
+                    diametro_min_mm=d - 0.1, diametro_max_mm=d + 0.1)
+
+
 CASOS = [
-    (
-        "soporte para NEMA17: placa de 60x60x6 mm con taladro central de 22.4 mm "
-        "y cuatro agujeros de 3.3 mm en cuadro de 31 mm",
-        60 * 60 * 6 - math.pi * 11.2**2 * 6 - 4 * math.pi * 1.65**2 * 6,
-    ),
-    (
-        "placa de 40x40x5 mm con taladro central de 25 mm",
-        40 * 40 * 5 - math.pi * 12.5**2 * 5,
-    ),
-    (
-        "placa de 80x50x4 mm con cuatro agujeros de 4.3 mm en cuadro de 40 mm",
-        80 * 50 * 4 - 4 * math.pi * 2.15**2 * 4,
-    ),
+    ("soporte para NEMA17: placa de 60x60x6 mm con taladro central de 22.4 mm "
+     "y cuatro agujeros de 3.3 mm en cuadro de 31 mm",
+     [_caja(60, 60, 6), _central(22.4), _cuadro(3.3, 31)]),
+    ("placa de 40x40x5 mm con taladro central de 25 mm",
+     [_caja(40, 40, 5), _central(25)]),
+    ("placa de 80x50x4 mm con cuatro agujeros de 4.3 mm en cuadro de 40 mm",
+     [_caja(80, 50, 4), _cuadro(4.3, 40)]),
 ]
 
 
 @pytest.mark.llm
 @pytest.mark.skipif(not _env.get("DEEPSEEK_API_KEY"), reason="sin DEEPSEEK_API_KEY")
 @pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
-@pytest.mark.parametrize("peticion,volumen", CASOS)
-def test_de_la_frase_a_la_pieza(tmp_path, peticion, volumen):
+@pytest.mark.parametrize("peticion,oraculo", CASOS)
+def test_de_la_frase_a_la_pieza(tmp_path, peticion, oraculo):
     proceso = subprocess.run(
         [INTELLIPRINT, "new", peticion],
         input="sí\n", capture_output=True, text=True, timeout=900,
@@ -57,12 +75,13 @@ def test_de_la_frase_a_la_pieza(tmp_path, peticion, volumen):
     # laminado, no la pieza (2026-10-27).
     linea = re.search(r"pieza:\s+([\d.]+) mm³", salida)
     assert linea, f"{salida}\n--- stderr ---\n{proceso.stderr[-4000:]}"
-    medido = float(linea.group(1))
-    assert medido == pytest.approx(volumen, abs=1.0), salida
+    proyecto = next((tmp_path / "projects").iterdir())
+    hechos = extraer_hechos(next(proyecto.glob("parts/*/*.step")), _freecadcmd(), None)
+    fallos = [r.detalle for r in (juzgar(a, hechos) for a in oraculo) if r.estado != "cumple"]
+    assert not fallos, f"{fallos}\n{salida}"
 
     assert "NO aparecen en la pieza" not in salida  # trazabilidad (F1.16 (trazabilidad))
 
-    proyecto = next((tmp_path / "projects").iterdir())
     fcstd = next(proyecto.glob("parts/*/*.FCStd"))
     assert sum(_visibilidad_gui(fcstd).values()) == 1  # se verá al abrirlo
     assert re.search(r"laminado:\s+([\d.]+) g", salida)

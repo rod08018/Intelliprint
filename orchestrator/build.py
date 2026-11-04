@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Callable
 
 from orchestrator.fcstd import mostrar_solo
-from orchestrator.recipes.compose import compose_build_script
+from orchestrator.recipes.compose import compose_build_script, compose_program_script
 from orchestrator.schemas.part_result import BuildOutputError, PartResult
 from orchestrator.schemas.recipe import GeneratorCatalog, Recipe
 from orchestrator.traceability import untraced
@@ -47,14 +47,35 @@ def motivo_del_fallo(salida: str) -> str:
     return "\n".join(lineas[-6:]) or "build.py terminó sin resultado y sin error"
 
 
+def _texto(diseno) -> str:
+    """Lo que vuelve al agente como «tu diseño anterior»: el programa tal
+    cual, no escapado dentro de un JSON donde no se leen las líneas."""
+    return diseno.codigo if hasattr(diseno, "codigo") else diseno.model_dump_json(indent=2)
+
+
+def guardar_diseno(carpeta: Path, diseno) -> None:
+    """`recipe.json`, el mismo nombre que con una receta, y, si es un
+    programa del kit, también `programa.py`, que es lo que se lee a mano."""
+    carpeta = Path(carpeta)
+    carpeta.mkdir(parents=True, exist_ok=True)
+    (carpeta / "recipe.json").write_text(diseno.model_dump_json(indent=2), encoding="utf-8")
+    if hasattr(diseno, "codigo"):
+        (carpeta / "programa.py").write_text(diseno.codigo, encoding="utf-8")
+
+
 def build_part(
-    receta: Recipe, catalog: GeneratorCatalog, carpeta: Path, freecadcmd: str
+    receta, catalog: GeneratorCatalog | None, carpeta: Path, freecadcmd: str,
+    perfil: dict | None = None,
 ) -> PartResult:
+    """`receta` es una `Recipe` (generadores del catálogo) o un `Programa`
+    del kit (F5.18 (kit)), que necesita el `perfil` para la tornillería."""
+    carpeta = Path(carpeta)
     carpeta.mkdir(parents=True, exist_ok=True)
     build = carpeta / "build.py"
-    build.write_text(
-        compose_build_script(receta, catalog, output_dir=carpeta), encoding="utf-8"
-    )
+    script = (compose_build_script(receta, catalog, output_dir=carpeta)
+              if isinstance(receta, Recipe) else
+              compose_program_script(receta, output_dir=carpeta, perfil=perfil))
+    build.write_text(script, encoding="utf-8")
     proceso = subprocess.run(
         [freecadcmd, str(build)], capture_output=True, text=True, timeout=180
     )
@@ -81,6 +102,7 @@ def design_and_build(
     check: Callable[[PartResult], str | None] | None = None,
     check_es_de_la_caja: bool = False,
     max_construcciones: int = MAX_CONSTRUCCIONES,
+    perfil: dict | None = None,
 ) -> tuple[Recipe, PartResult]:
     """Diseña y construye, devolviendo al agente el motivo de cada fallo.
 
@@ -105,14 +127,14 @@ def design_and_build(
         if perdidas and intento < max_construcciones - 1:
             cotas = ", ".join(f"{c:g} mm" for c in perdidas)
             rechazo = (
-                receta.model_dump_json(indent=2),
+                _texto(receta),
                 f"estas cotas de la petición del usuario no aparecen en tu receta: "
                 f"{cotas}. Úsalas tal cual; mandan sobre lo que sepas de este tipo de pieza.",
             )
             continue
 
         try:
-            resultado = build_part(receta, catalog, Path(carpeta), freecadcmd)
+            resultado = build_part(receta, catalog, Path(carpeta), freecadcmd, perfil=perfil)
             defecto = check(resultado) if check is not None else None
             if defecto:
                 # Un desacuerdo de CAJA suele ser de quien la declaró, no de
@@ -126,7 +148,7 @@ def design_and_build(
             raise
         except ConstruccionFallida as error:
             motivo = error.motivo
-            rechazo = (receta.model_dump_json(indent=2), motivo)
+            rechazo = (_texto(receta), motivo)
     raise ConstruccionFallida(
         f"{max_construcciones} construcciones fallidas. Último motivo: {motivo}"
     )

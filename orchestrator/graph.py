@@ -24,6 +24,7 @@ import yaml
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 
+from orchestrator.build import guardar_diseno
 from orchestrator.human.port import HumanPort
 from orchestrator.schemas.concepto import ConceptoComprobado
 from orchestrator.schemas.spec import Spec
@@ -133,7 +134,7 @@ def crear_grafo(deps: Dependencias, db_path: Path):
         carpeta.mkdir(parents=True, exist_ok=True)
 
         receta, resultado = deps.disenar(spec, carpeta, tarea.part, concepto)
-        (carpeta / "recipe.json").write_text(receta.model_dump_json(indent=2), encoding="utf-8")
+        guardar_diseno(carpeta, receta)
         versionar(proyecto, "diseño: PARTS_BUILT")
         return {
             "part": tarea.part,

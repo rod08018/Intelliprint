@@ -24,6 +24,32 @@ import FreeCAD
 import Part
 
 doc = FreeCAD.newDocument({part!r})
+_rasgos = []
+'''
+
+_PREAMBULO_PROGRAMA = '''\
+# build.py — GENERADO desde el programa del diseñador (F5.18 (kit)). No editar:
+# el programa se valida otra vez antes de ejecutarse (ADR-002, enmienda).
+import json
+import sys
+
+sys.path.insert(0, {toolkit!r})
+
+import FreeCAD
+import Part
+
+from mech_toolkit.kit import Kit, KitError, ejecutar
+
+doc = FreeCAD.newDocument({part!r})
+_kit = Kit(perfil=json.loads({perfil!r}))
+try:
+    _cuerpo = ejecutar({codigo!r}, _kit)
+except KitError as _e:
+    # Una línea: el motivo que vuelve al diseñador sale de aquí.
+    raise RuntimeError("INTELLIPRINT_FALLO: " + str(_e).replace("\\n", " "))
+_obj = doc.addObject("Part::Feature", "pieza")
+_obj.Shape = _cuerpo._forma
+_rasgos = _kit.rasgos()
 '''
 
 _EPILOGO = '''
@@ -82,8 +108,29 @@ print({prefix!r} + json.dumps({{
     "bbox_max": [_bb.XMax, _bb.YMax, _bb.ZMax],
     "solids": _n_solidos,
     "fcstd_object": _pieza.Name,
+    "rasgos": _rasgos,
 }}))
 '''
+
+
+def compose_program_script(programa, output_dir: Path | str = ".",
+                           perfil: dict | None = None) -> str:
+    """El `build.py` de un programa del kit (F5.18 (kit)). El programa va como
+    texto y se ejecuta con `ejecutar`, que lo valida otra vez dentro de
+    FreeCAD; el epílogo es el mismo que el de una receta."""
+    import mech_toolkit
+
+    salida = Path(output_dir)
+    return _PREAMBULO_PROGRAMA.format(
+        toolkit=str(Path(mech_toolkit.__file__).resolve().parent.parent),
+        part=programa.part, perfil=json.dumps(perfil or {}), codigo=programa.codigo,
+    ) + _EPILOGO.format(
+        part=programa.part,
+        stl=str(salida / f"{programa.part}.stl"),
+        step=str(salida / f"{programa.part}.step"),
+        fcstd=str(salida / f"{programa.part}.FCStd"),
+        prefix=RESULT_PREFIX,
+    )
 
 
 def compose_build_script(

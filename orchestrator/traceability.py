@@ -44,9 +44,10 @@ def requested_dimensions(peticion: str) -> list[float]:
     return cotas
 
 
-def untraced(peticion: str, receta: Recipe, tol: float = 1e-6) -> list[float]:
+def untraced(peticion: str, receta, tol: float = 1e-6) -> list[float]:
     """Cotas de la petición que no aparecen en ningún parámetro de la receta."""
-    valores = [
+    # Un programa del kit (F5.18 (kit)) da sus constantes; una receta, sus parámetros.
+    valores = receta.numeros() if hasattr(receta, "numeros") else [
         float(v) for paso in receta.steps for v in paso.params.values()
         if isinstance(v, (int, float)) and not isinstance(v, bool)
     ]
