@@ -76,9 +76,14 @@ def disenar_pieza(peticion: str) -> dict:
     Para piezas sueltas. Si lo que pide tiene partes que se mueven entre sí
     (bisagras, trinquetes, prensas), es `disenar_mecanismo`.
 
-    Tarda unos minutos: devuelve el identificador al momento. La petición
-    tiene que llevar TODAS las medidas que dio el usuario, tal cual: qué
-    sujeta, a qué se atornilla, diámetros y separaciones de agujeros, carga.
+    Devuelve el identificador al momento. Primero el ingeniero propone CÓMO
+    resolverlo y para: `estado_proyecto` dirá «por aprobar» y traerá el
+    `concepto`. Enséñaselo al usuario y pasa su respuesta a
+    `aprobar_concepto`. Hasta entonces no se modela nada.
+
+    La petición tiene que llevar TODAS las medidas que dio el usuario, tal
+    cual: qué sujeta, a qué se atornilla, diámetros y separaciones de
+    agujeros, carga.
     """
     store = _store()
     try:
@@ -148,6 +153,9 @@ def estado_proyecto(proyecto: str = "") -> dict:
     estado = estado_de(carpeta)
     # De qué encargo es versión: Crafty habla de proyectos, no de carpetas.
     estado["proyecto"] = raices(_proyectos().parent).get(carpeta.name, carpeta.name)
+    if estado["estado"] == "por aprobar" and (carpeta / "concepto.md").exists():
+        # F3.20 (concepto): lo que Crafty tiene que enseñar, y esperar.
+        estado["concepto"] = (carpeta / "concepto.md").read_text(encoding="utf-8", errors="ignore")
     registro = carpeta / "run.log"
     if registro.exists():
         estado["ultimo"] = "\n".join(
@@ -258,6 +266,26 @@ def continuar_proyecto(proyecto: str = "") -> dict:
     except (KeyError, RuntimeError) as e:
         return {"error": str(e)}
     return {"proyecto": proyecto, "aviso": "Reintentando desde el último diseño."}
+
+
+@mcp.tool()
+def aprobar_concepto(proyecto: str, respuestas: str = "") -> dict:
+    """El visto bueno del usuario al concepto de una pieza «por aprobar».
+
+    Sin `respuestas`: el usuario aprueba la idea tal cual y se modela.
+    Con `respuestas`: lo que contestó a las preguntas del ingeniero, o lo
+    que quiere cambiar de la idea, con SUS palabras. NO aprueba: el
+    ingeniero propone otro concepto, que vuelve a esperar. Llámalo solo
+    cuando el usuario haya dicho que sí, o con lo que haya contestado."""
+    store = _store()
+    try:
+        store.aprobar(proyecto, respuestas=respuestas, por="telegram")
+    except (KeyError, ValueError, RuntimeError) as e:
+        return {"error": str(e)}
+    if respuestas.strip():
+        return {"proyecto": proyecto,
+                "aviso": "El ingeniero rehace el concepto con lo que has dicho."}
+    return {"proyecto": proyecto, "aviso": "Aprobado: diseñando la pieza. Tarda unos minutos."}
 
 
 @mcp.tool()

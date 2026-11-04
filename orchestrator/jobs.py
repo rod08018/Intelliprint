@@ -130,6 +130,10 @@ class JobStore:
         en_marcha = self.current()
         if en_marcha:
             raise RuntimeError(f"ya hay un proyecto en marcha ({en_marcha})")
+        return self._relanzar(job_id)
+
+    def _relanzar(self, job_id: str) -> str:
+        destino = self.carpeta / job_id
         registro = (destino / "run.log").open("a", encoding="utf-8")
         from orchestrator.registry import _lee_json
         comando = (_lee_json(destino / "job.json") or {}).get("comando") or self._comando
@@ -147,6 +151,30 @@ class JobStore:
             encoding="utf-8")
         (destino / "cancelado").unlink(missing_ok=True)
         return job_id
+
+    def aprobar(self, job_id: str, respuestas: str = "", por: str = "") -> str:
+        """El visto bueno al concepto del ingeniero (F3.20 (concepto)), y sigue.
+
+        Con `respuestas` NO se aprueba: se añaden a la petición, tal cual las
+        escribió la persona, y el ingeniero propone otro concepto que vuelve
+        a esperar. Contestar puede cambiar la idea, y lo que se modela tiene
+        que ser algo que la persona haya visto."""
+        from orchestrator.pieza import CONCEPTO, aprobar_concepto
+        destino = self.carpeta / job_id
+        if not (destino / CONCEPTO).exists():
+            raise ValueError(f"{job_id} no tiene ningún concepto esperando el visto bueno")
+        # Antes de tocar nada: con la marca puesta, un proyecto sin rondas y
+        # recién tocado parece «en marcha», y se negaba a reanudarse a sí mismo.
+        en_marcha = self.current()
+        if en_marcha:
+            raise RuntimeError(f"ya hay un proyecto en marcha ({en_marcha})")
+        if respuestas.strip():
+            with (destino / "request.md").open("a", encoding="utf-8") as f:
+                f.write(f"\nRespuestas a las preguntas del ingeniero: {respuestas.strip()}\n")
+            (destino / CONCEPTO).unlink()
+        else:
+            aprobar_concepto(destino, por=por)
+        return self._relanzar(job_id)
 
     def cancel(self, job_id: str) -> None:
         proceso = self._procesos.get(job_id)

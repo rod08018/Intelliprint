@@ -27,6 +27,9 @@ _SOPORTE = json.dumps(
         "material": "PETG",
         "payload_g": None,
         "reach_mm": None,
+        # F3.17 (requisitos): cada cota de la petición necesita su requisito.
+        "requisitos": [{"id": "R1", "tipo": "encaje", "texto": "tubo de 68 mm",
+                        "valor": 68, "origen": "usuario"}],
     }
 )
 
@@ -47,7 +50,7 @@ def test_el_prompt_incluye_las_instrucciones_del_agente_y_la_peticion():
     afinarlo es la tarea F6.3 (prompts) y no debería requerir tocar Python."""
     cliente = ClienteGuionizado([_SOPORTE])
 
-    RequirementsAgent(cliente).draft("sujeta un vaso")
+    RequirementsAgent(cliente).draft("sujeta un vaso a un tubo de 68 mm")
 
     prompt = cliente.prompts[0]
     assert "Requirements Agent" in prompt  # viene del .md
@@ -107,6 +110,14 @@ def test_la_peticion_literal_se_conserva_aunque_el_resumen_pierda_las_cotas():
             "product_class": "static_part",
             "printer": "ankermake_m5_petg",
             "material": "PETG",
+            "requisitos": [
+                {"id": "R1", "tipo": "cota", "texto": "60x60x6", "valor": 60, "origen": "usuario"},
+                {"id": "R2", "tipo": "cota", "texto": "60x60x6", "valor": 6, "origen": "usuario"},
+                {"id": "R3", "tipo": "agujero", "texto": "agujeros de 3.3 mm", "valor": 3.3,
+                 "origen": "usuario"},
+                {"id": "R4", "tipo": "cota", "texto": "cuadro de 31 mm", "valor": 31,
+                 "origen": "usuario"},
+            ],
         }
     )
     peticion = "placa de 60x60x6 con agujeros de 3.3 mm en cuadro de 31 mm"

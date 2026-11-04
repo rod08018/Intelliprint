@@ -58,9 +58,9 @@ NO_ES_TRABAJO = (*DERIVADOS, LATIDO)
 existe, no que avance: contarlo escondería un proyecto colgado."""
 
 ICONOS = {"aprobado": "✅", "con reparos": "🟠", "antiguo": "📦", "fallido": "❌",
-          "en marcha": "⏳", "incompleto": "⚠️"}
+          "en marcha": "⏳", "incompleto": "⚠️", "por aprobar": "✋"}
 
-ARTEFACTOS = ("assembly.FCStd", "animation.gif", "review.md", "design_cost.md")
+ARTEFACTOS = ("assembly.FCStd", "animation.gif", "review.md", "design_cost.md", "concepto.md")
 
 
 @contextlib.contextmanager
@@ -171,6 +171,8 @@ def estado_de(carpeta: Path) -> dict:
     # «Tocado hace poco» es para lo lanzado a mano, que no deja job.json.
     # Si lo hay, manda el proceso: su latido, que se ve desde cualquier
     # contenedor, y si no late (anterior al latido), su pid.
+    por_aprobar = ((carpeta / "concepto.json").exists()
+                   and not (carpeta / "concepto_aprobado").exists())
     latido = carpeta / LATIDO
     if latido.exists():
         try:
@@ -180,9 +182,16 @@ def estado_de(carpeta: Path) -> dict:
     elif trabajo.get("pid"):
         vivo = _vivo(trabajo["pid"], trabajo.get("inicio"))
     else:
-        vivo = not rondas and tocado_hace < RECIENTE_S
+        # Un concepto por aprobar se acaba de escribir y el proceso ya salió:
+        # «reciente» no quiere decir aquí que siga trabajando.
+        vivo = not rondas and not por_aprobar and tocado_hace < RECIENTE_S
     if vivo:
         estado = "en marcha"
+    elif por_aprobar:
+        # F3.20 (concepto): el ingeniero propuso y espera el visto bueno. No
+        # es «incompleto»: no falta nada del sistema, falta la persona.
+        estado = "por aprobar"
+        motivo = "el ingeniero propone un concepto y espera tu visto bueno"
     elif not rondas:
         estado = "antiguo" if tiene_obra else "incompleto"
     elif motivo:
@@ -266,7 +275,8 @@ def archivar(proyectos: Path, archivo: Path, proteger: set[str] | None = None) -
     movidos = []
     for fila in indice(proyectos):
         # Con reparos también se queda: funciona y tiene piezas, es obra.
-        if (fila["estado"] in {"aprobado", "con reparos", "antiguo", "en marcha"}
+        # Por aprobar también: está esperando a la persona, no ha fallado.
+        if (fila["estado"] in {"aprobado", "con reparos", "antiguo", "en marcha", "por aprobar"}
                 or fila["id"] in proteger):
             continue
         archivo.mkdir(parents=True, exist_ok=True)

@@ -60,3 +60,11 @@ bridge_max_mm: 10
 
 # Densidad del material, para estimar masa
 density_g_cm3: 1.27
+
+# Resistencia de la pieza IMPRESA, para el cálculo del ingeniero (F3.19 (resistencia)).
+# ⚠️ SIN ENSAYAR: estimación conservadora. El PETG pega mejor entre capas
+# que el PLA y fluye menos, pero a lo largo del filamento resiste algo menos.
+resistencia:
+  xy_MPa: 30
+  z_MPa: 18
+  factor_seguridad: 3

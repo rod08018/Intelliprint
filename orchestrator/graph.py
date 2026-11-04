@@ -25,6 +25,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 
 from orchestrator.human.port import HumanPort
+from orchestrator.schemas.concepto import ConceptoComprobado
 from orchestrator.schemas.spec import Spec
 from orchestrator.state_machine import AprobacionRequerida, advance
 from orchestrator.tasks import nombre_corto, spec_to_task
@@ -39,6 +40,7 @@ class Estado(TypedDict, total=False):
     recipe: dict
     result: dict
     slicing: dict
+    concepto: dict | None
 
 
 @dataclass
@@ -50,6 +52,9 @@ class Dependencias:
     laminar: Callable  # (stl, salida) -> SlicingReport
     port: HumanPort
     workspace: Path
+    ingeniero: Any = None
+    """.concebir(spec) -> ConceptoComprobado (F3.18 (ingeniero)). Opcional:
+    sin él se diseña directamente desde la especificación, como antes."""
 
 
 def versionar(proyecto: Path, mensaje: str) -> None:
@@ -91,8 +96,13 @@ def _resumen(spec: Spec) -> str:
 def crear_grafo(deps: Dependencias, db_path: Path):
     def admision(s: Estado) -> Estado:
         spec = deps.requirements.draft(s["peticion"])
+        # F3.20 (concepto): la confirmación enseña también CÓMO se va a
+        # resolver. Aprobar una especificación sin ver la idea era aprobar a
+        # ciegas lo que luego se dibujaba.
+        concepto = deps.ingeniero.concebir(spec) if deps.ingeniero is not None else None
+        resumen = _resumen(spec) + (f"\n\n{concepto.texto()}" if concepto else "")
         try:
-            estado = advance("INTAKE", "SPEC_READY", port=deps.port, resumen=_resumen(spec))
+            estado = advance("INTAKE", "SPEC_READY", port=deps.port, resumen=resumen)
         except AprobacionRequerida:
             # Sin confirmación no hay proyecto: nada en disco (ADR-008).
             return {"spec": spec.model_dump(), "estado": "INTAKE"}
@@ -103,17 +113,26 @@ def crear_grafo(deps: Dependencias, db_path: Path):
             yaml.safe_dump(spec.model_dump(), allow_unicode=True, sort_keys=False),
             encoding="utf-8",
         )
+        if concepto is not None:
+            (proyecto / "concepto.json").write_text(concepto.model_dump_json(indent=2),
+                                                    encoding="utf-8")
+            (proyecto / "concepto.md").write_text(
+                f"# {spec.title}: el concepto\n\n{concepto.texto()}\n", encoding="utf-8")
+            # Confirmado por consola: es el mismo visto bueno que el de la web.
+            (proyecto / "concepto_aprobado").write_text('{"por": "consola"}', encoding="utf-8")
         versionar(proyecto, "admisión: SPEC_READY")
-        return {"spec": spec.model_dump(), "estado": estado, "proyecto": str(proyecto)}
+        return {"spec": spec.model_dump(), "estado": estado, "proyecto": str(proyecto),
+                "concepto": concepto.model_dump() if concepto else None}
 
     def diseno(s: Estado) -> Estado:
         spec = Spec(**s["spec"])
-        tarea = spec_to_task(spec)
+        concepto = (ConceptoComprobado(**s["concepto"]) if s.get("concepto") else None)
+        tarea = spec_to_task(spec, concepto)
         proyecto = Path(s["proyecto"])
         carpeta = proyecto / "parts" / tarea.part
         carpeta.mkdir(parents=True, exist_ok=True)
 
-        receta, resultado = deps.disenar(spec, carpeta, tarea.part)
+        receta, resultado = deps.disenar(spec, carpeta, tarea.part, concepto)
         (carpeta / "recipe.json").write_text(receta.model_dump_json(indent=2), encoding="utf-8")
         versionar(proyecto, "diseño: PARTS_BUILT")
         return {

@@ -21,6 +21,10 @@ from orchestrator.schemas.recipe import Recipe
 _NUM = r"\d+(?:[.,]\d+)?"
 _MATRIZ = re.compile(rf"({_NUM})\s*[x×]\s*({_NUM})(?:\s*[x×]\s*({_NUM}))?(?:\s*mm)?", re.I)
 _CON_UNIDAD = re.compile(rf"({_NUM})\s*mm\b", re.I)
+_TORNILLO = re.compile(rf"\b(?:tornillos?|pernos?|bulones?)\s+(?:de\s+)?({_NUM})\s*mm\b", re.I)
+"""«2 tornillos de 4 mm» nombra el tornillo, no una cota de la pieza: lo que
+la pieza lleva es el agujero para él (4.5). Falso positivo real del banco
+(2026-11-03): la escuadra de repisa suspendía por no tener ningún 4."""
 
 
 def _numero(texto: str) -> float:
@@ -33,6 +37,7 @@ def requested_dimensions(peticion: str) -> list[float]:
     for m in _MATRIZ.finditer(peticion):
         cotas.extend(_numero(g) for g in m.groups() if g is not None)
         ocupado.append(m.span())
+    ocupado.extend(m.span(1) for m in _TORNILLO.finditer(peticion))
     for m in _CON_UNIDAD.finditer(peticion):
         if not any(a <= m.start() < b for a, b in ocupado):
             cotas.append(_numero(m.group(1)))

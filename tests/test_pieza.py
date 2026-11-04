@@ -9,11 +9,12 @@ y el canal, salga o no salga.
 import json
 
 from orchestrator.build import ConstruccionFallida
-from orchestrator.pieza import disenar_pieza
+from orchestrator.pieza import aprobar_concepto, concebir_pieza, disenar_pieza
 from orchestrator.registry import estado_de
 from orchestrator.schemas.part_result import PartResult
 from orchestrator.schemas.recipe import Recipe
 from orchestrator.schemas.slicing_report import SlicingReport
+from orchestrator.schemas.concepto import Concepto, ConceptoComprobado
 from orchestrator.schemas.spec import Spec
 
 PETICION = "gancho de pared con dos agujeros de 4.5 mm separados 40 mm"
@@ -26,7 +27,7 @@ class Requisitos:
 
 
 def _disenar(untraced=()):
-    def disenar(spec, carpeta, parte):
+    def disenar(spec, carpeta, parte, concepto=None):
         carpeta.mkdir(parents=True, exist_ok=True)
         (carpeta / f"{parte}.stl").write_text("solid", encoding="utf-8")
         receta = Recipe(part=parte, steps=[{"generator": "generate_box", "params": {
@@ -54,7 +55,7 @@ def test_una_pieza_que_sale_queda_aprobada_en_el_registro_con_su_titulo(tmp_path
 
 
 def test_una_pieza_que_no_se_construye_deja_el_porque(tmp_path):
-    def falla(spec, carpeta, parte):
+    def falla(spec, carpeta, parte, concepto=None):
         raise ConstruccionFallida("3 construcciones fallidas. Último motivo: sólido partido")
 
     informe = disenar_pieza(PETICION, tmp_path, requisitos=Requisitos(), disenar=falla,
@@ -81,3 +82,65 @@ def test_sin_laminador_la_pieza_sale_igual(tmp_path):
     informe = disenar_pieza(PETICION, tmp_path, requisitos=Requisitos(),
                             disenar=_disenar(), laminar=None, log=lambda *_: None)
     assert informe.resuelto and informe.gramos is None
+
+
+# --- la puerta del concepto (F3.20 (concepto)) ------------------------------------
+
+def _nada(*_):
+    pass
+
+
+class Ingeniero:
+    def concebir(self, spec):
+        return ConceptoComprobado(concepto=Concepto(
+            idea="gancho en J con un nervio en la espalda", camino_de_carga="c",
+            orientacion="de lado sobre la cama", preguntas=["¿cuánto pesa la mochila?"]))
+
+
+def test_la_pieza_espera_el_visto_bueno_del_concepto_antes_de_modelar(tmp_path):
+    """Modelar cuesta dinero y tiempo: si la idea no es la que quieres, se
+    dice ANTES. Hasta ahora lo primero que veías era la pieza hecha."""
+    concebir_pieza(PETICION, tmp_path, requisitos=Requisitos(), ingeniero=Ingeniero(),
+                   log=_nada)
+
+    fila = estado_de(tmp_path)
+    assert fila["estado"] == "por aprobar"
+    assert "concepto.md" in fila["archivos"]
+    texto = (tmp_path / "concepto.md").read_text(encoding="utf-8")
+    assert "gancho en J" in texto and "¿cuánto pesa la mochila?" in texto
+    assert not (tmp_path / "parts").exists()
+
+
+def test_aprobado_se_modela_ese_concepto_sin_volver_a_redactar_nada(tmp_path):
+    """Lo que se aprobó es lo que se dibuja: redactar otra vez la spec
+    podría dar otra distinta de la que viste."""
+    concebir_pieza(PETICION, tmp_path, requisitos=Requisitos(), ingeniero=Ingeniero(),
+                   log=_nada)
+    aprobar_concepto(tmp_path, por="web")
+    recibido = {}
+
+    def disenar(spec, carpeta, parte, concepto=None):
+        recibido["concepto"] = concepto
+        return _disenar()(spec, carpeta, parte)
+
+    class NoRedactes:
+        def draft(self, peticion):
+            raise AssertionError("ya había una especificación aprobada")
+
+    informe = disenar_pieza(PETICION, tmp_path, requisitos=NoRedactes(), disenar=disenar,
+                            laminar=_laminar, log=_nada)
+
+    assert informe.resuelto
+    assert recibido["concepto"].concepto.idea.startswith("gancho en J")
+    assert estado_de(tmp_path)["estado"] == "aprobado"
+
+
+def test_un_concepto_que_no_sale_deja_el_porque(tmp_path):
+    class NoSale:
+        def concebir(self, spec):
+            raise ValueError("el concepto no se sostiene: brazo NO aguanta")
+
+    concebir_pieza(PETICION, tmp_path, requisitos=Requisitos(), ingeniero=NoSale(), log=_nada)
+
+    assert estado_de(tmp_path)["estado"] == "fallido"
+    assert "NO aguanta" in (tmp_path / "blocked.md").read_text(encoding="utf-8")

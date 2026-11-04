@@ -67,9 +67,9 @@ def _grafo(raiz: Path, env: dict):
     freecad = _freecadcmd(env)
     disenador = PartDesignerAgent(cliente, CATALOGO)
 
-    def disenar(spec, carpeta, part):
+    def disenar(spec, carpeta, part, concepto=None):
         return design_and_build(
-            disenador, spec_to_task(spec).brief, CATALOGO, carpeta,
+            disenador, spec_to_task(spec, concepto).brief, CATALOGO, carpeta,
             freecadcmd=freecad, part=part, request=spec.request,
         )
 
@@ -79,8 +79,17 @@ def _grafo(raiz: Path, env: dict):
         laminar=elegir_laminador(raiz, env),
         port=CliAdapter(),
         workspace=_workspace(raiz, env) / "projects",
+        ingeniero=_ingeniero(raiz, router, env, cliente),
     )
     return crear_grafo(deps, _workspace(raiz, env) / "state.sqlite")
+
+
+def _ingeniero(raiz: Path, router: Router, env: dict, reserva):
+    """F3.18 (ingeniero), con el razonador: decidir cómo se resuelve una
+    pieza es el paso que más pensar pide. `reserva` es el modelo sin
+    pensamiento, por si el razonador se corta (ver `structured`)."""
+    from orchestrator.agents.ingeniero import IngenieroAgent
+    return IngenieroAgent(_cliente(router, env, "reason"), perfil_activo(raiz), reserva=reserva)
 
 
 def _workspace(raiz: Path, env: dict) -> Path:
@@ -400,7 +409,7 @@ def _pieza(args, raiz: Path, env: dict, nombre: str) -> None:
     from mech_toolkit.generators import CATALOGO
     from orchestrator.agents.part_designer import PartDesignerAgent
     from orchestrator.agents.requirements import RequirementsAgent
-    from orchestrator.pieza import disenar_pieza
+    from orchestrator.pieza import APROBADO, concebir_pieza, disenar_pieza
 
     texto = " ".join(args.peticion)
     peticion = Path(texto).read_text(encoding="utf-8") if args.archivo else texto
@@ -408,18 +417,29 @@ def _pieza(args, raiz: Path, env: dict, nombre: str) -> None:
                / f"{dt.datetime.now():%Y-%m-%d-%H%M%S}-{nombre_corto(peticion.splitlines()[0], 40)}")
     router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
     cliente = _cliente(router, env)
+    requisitos = RequirementsAgent(cliente, activo=perfil_activo(raiz))
+    print(f"[{nombre}] Pieza → {carpeta}", flush=True)
+
+    # F3.20 (concepto): sin visto bueno no se modela. La primera vez (y tras
+    # contestar al ingeniero) se propone el concepto y se para; la web o
+    # Crafty dejan la marca y reanudan, y entonces se modela ESE concepto.
+    if not (carpeta / APROBADO).exists():
+        concepto = concebir_pieza(peticion, carpeta, requisitos=requisitos,
+                                  ingeniero=_ingeniero(raiz, router, env, cliente))
+        if concepto is None:
+            sys.exit(f"[{nombre}] ✗ el concepto no salió: mira {carpeta / 'blocked.md'}")
+        print(f"[{nombre}] ✋ concepto listo: espera tu visto bueno ({carpeta / 'concepto.md'})")
+        return
+
     freecad = _freecadcmd(env)
     disenador = PartDesignerAgent(cliente, CATALOGO)
 
-    def disenar(spec, destino, parte):
-        return design_and_build(disenador, spec_to_task(spec).brief, CATALOGO, destino,
+    def disenar(spec, destino, parte, concepto=None):
+        return design_and_build(disenador, spec_to_task(spec, concepto).brief, CATALOGO, destino,
                                 freecadcmd=freecad, part=parte, request=spec.request)
 
-    print(f"[{nombre}] Pieza → {carpeta}", flush=True)
-    informe = disenar_pieza(
-        peticion, carpeta,
-        requisitos=RequirementsAgent(cliente, activo=perfil_activo(raiz)),
-        disenar=disenar, laminar=elegir_laminador(raiz, env))
+    informe = disenar_pieza(peticion, carpeta, requisitos=requisitos,
+                            disenar=disenar, laminar=elegir_laminador(raiz, env))
     if informe.resuelto:
         gramos = f", {informe.gramos:.1f} g" if informe.gramos is not None else ""
         print(f"[{nombre}] ✓ {informe.titulo}: "
@@ -499,8 +519,8 @@ def _parser() -> argparse.ArgumentParser:
                           ("--m3-selftap", "agujero de rosca directa M3, mm"),
                           ("--m3-insert", "agujero del inserto M3, mm")):
         res.add_argument(opcion, type=float, required=True, help=ayuda)
-    pieza = sub.add_parser("pieza", help="diseñar una pieza suelta sin preguntar por consola "
-                                         "(lo que lanzan la web y Crafty)")
+    pieza = sub.add_parser("pieza", help="diseñar una pieza suelta: propone el concepto y para; "
+                                         "con el visto bueno de la web o Crafty, la modela")
     pieza.add_argument("peticion", nargs="+")
     pieza.add_argument("--archivo", action="store_true",
                        help="la petición es la ruta de un archivo de texto")

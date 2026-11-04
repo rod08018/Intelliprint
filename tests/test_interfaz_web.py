@@ -687,3 +687,54 @@ def test_pedir_una_pieza_lanza_la_orden_de_piezas_y_no_la_de_mecanismos(ws):
 def test_la_pagina_deja_elegir_entre_pieza_y_mecanismo(ws):
     html = _ws_con_trabajos(ws).get("/").text
     assert 'id="tipo"' in html and 'value="pieza"' in html and 'value="mecanismo"' in html
+
+
+# --- El visto bueno al concepto (F3.20 (concepto)) ---------------------------
+
+def _por_aprobar(ws):
+    carpeta = ws / "projects" / "2026-11-04-gancho"
+    carpeta.mkdir(parents=True)
+    (carpeta / "request.md").write_text("un gancho para la mochila\n", encoding="utf-8")
+    (carpeta / "concepto.json").write_text("{}", encoding="utf-8")
+    (carpeta / "concepto.md").write_text(
+        "# Gancho: el concepto\n\n**Idea:** gancho en J con nervio\n\n"
+        "**Necesito que me digas:**\n- ¿cuánto pesa la mochila?\n", encoding="utf-8")
+    return carpeta
+
+
+def test_un_concepto_por_aprobar_se_lee_en_su_pagina_con_sus_botones(ws):
+    """Es lo primero que la persona tiene que ver: la idea y las preguntas,
+    y con qué aprobarla o contestar. Sin esto, el proyecto se quedaba
+    parado sin que nadie supiera por qué."""
+    _por_aprobar(ws)
+    html = _ws_con_trabajos(ws).get("/p/2026-11-04-gancho").text
+    assert "gancho en J con nervio" in html
+    assert "¿cuánto pesa la mochila?" in html
+    assert 'data-aprobar="2026-11-04-gancho"' in html
+
+
+def test_aprobar_desde_la_web_reanuda_el_diseno(ws):
+    carpeta = _por_aprobar(ws)
+    web = _ws_con_trabajos(ws)
+
+    r = web.post("/api/proyectos/2026-11-04-gancho/aprobar", json={})
+
+    assert r.status_code == 200, r.text
+    assert json.loads((carpeta / "concepto_aprobado").read_text())["por"] == "web"
+    assert "--continuar" in _esperar_registro(carpeta)
+
+
+def test_contestar_desde_la_web_anade_la_respuesta_literal(ws):
+    carpeta = _por_aprobar(ws)
+
+    r = _ws_con_trabajos(ws).post("/api/proyectos/2026-11-04-gancho/aprobar",
+                                  json={"respuestas": "unos 3 kg"})
+
+    assert r.status_code == 200, r.text
+    assert "unos 3 kg" in (carpeta / "request.md").read_text(encoding="utf-8")
+    assert not (carpeta / "concepto_aprobado").exists()
+
+
+def test_no_se_aprueba_lo_que_no_tiene_concepto(ws):
+    r = _ws_con_trabajos(ws).post("/api/proyectos/2026-09-20-trinquete/aprobar", json={})
+    assert r.status_code == 409

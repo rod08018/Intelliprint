@@ -18,7 +18,7 @@ import re
 from pathlib import Path
 
 from orchestrator.categorias import CATEGORIAS, OTROS, normalizar
-from orchestrator.web.documentos import documentos_de
+from orchestrator.web.documentos import a_html, documentos_de
 from orchestrator.web.versiones import piezas_de, resolver_proyecto
 
 e = html.escape
@@ -30,6 +30,7 @@ ESTADOS = {
     "fallido": ("No salió", "mal"),
     "incompleto": ("Se quedó a medias", "suave"),
     "en marcha": ("Diseñando…", "vivo"),
+    "por aprobar": ("Espera tu visto bueno", "ambar"),
 }
 """Lo que se le dice al usuario de cada estado del registro, y su color."""
 
@@ -243,6 +244,22 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
         motivo = v.get("fallo") or v.get("motivo") or ""
         explicacion = (f'<div class="aviso mal"><b>Por qué no salió</b><p>{e(_recortar(motivo, 220))}</p>'
                        '<p class="suave">Puedes pedir un cambio abajo, o ver los detalles técnicos.</p></div>')
+    elif v["estado"] == "por aprobar":
+        # F3.20 (concepto): lo primero que hay que ver es la idea, y con qué
+        # aprobarla o contestar a sus preguntas. Sin botones, el proyecto se
+        # quedaba parado sin que la página dijera por qué.
+        concepto = carpeta / "concepto.md"
+        # Sin su título: la página ya lleva el nombre del proyecto encima.
+        texto = (a_html(re.sub(r"\A#[^\n]*\n", "", concepto.read_text(encoding="utf-8", errors="ignore")))
+                 if concepto.is_file() else "")
+        bloqueo = "" if puede_pedir and not ocupado else " disabled"
+        explicacion = (
+            f'<div class="aviso ambar concepto"><b>Así lo resolvería</b>{texto}'
+            f'<form class="visto-bueno" data-aprobar="{vid}">'
+            '<textarea name="respuestas" rows="2" placeholder="Si quieres contestar o corregir algo, '
+            f'escríbelo aquí"{bloqueo}></textarea>'
+            f'<div class="pie-cambiar"><button class="btn" data-contestar{bloqueo}>Contestar</button>'
+            f'<button class="btn pri" data-si{bloqueo}>Aprobar y diseñar</button></div></form></div>')
     elif v["estado"] == "incompleto":
         explicacion = '<div class="aviso"><p>Este diseño se detuvo antes de terminar.</p></div>'
 
@@ -535,6 +552,19 @@ GUION_PROYECTO = r"""
                                  {peticion: caja.value, pieza: f.dataset.pieza || ""});
     if (ok) { location.href = "/p/" + encodeURIComponent(f.dataset.modificar); return; }
     avisar(detalle(d) || "No se pudo lanzar."); b.disabled = false; b.textContent = antes;
+  }));
+  document.querySelectorAll("form[data-aprobar]").forEach(f => f.addEventListener("submit", async ev => {
+    ev.preventDefault();
+    const caja = f.querySelector("[name=respuestas]");
+    const contestar = ev.submitter && ev.submitter.hasAttribute("data-contestar");
+    if (contestar && !caja.value.trim()) { avisar("Escribe primero tu respuesta."); caja.focus(); return; }
+    // Aprobar con algo escrito lo perdería: lo escrito es una corrección.
+    if (!contestar && caja.value.trim()) { avisar("Has escrito algo: pulsa «Contestar» para que lo tenga en cuenta."); return; }
+    f.querySelectorAll("button").forEach(b => b.disabled = true);
+    const [ok, d] = await enviar("/api/proyectos/" + encodeURIComponent(f.dataset.aprobar) + "/aprobar",
+                                 {respuestas: contestar ? caja.value : ""});
+    if (ok) { location.reload(); return; }
+    avisar(detalle(d) || "No se pudo."); f.querySelectorAll("button").forEach(b => b.disabled = false);
   }));
   document.querySelector("select[data-categoria]").addEventListener("change", async ev => {
     const [ok, d] = await enviar("/api/proyectos/" + encodeURIComponent(ev.target.dataset.categoria) + "/categoria",

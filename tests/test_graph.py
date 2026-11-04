@@ -8,6 +8,7 @@ la persistencia.
 
 import io
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -38,8 +39,9 @@ class Registro:
         self.llamadas.append("requirements")
         return _SPEC
 
-    def disenar(self, spec, carpeta, part):
+    def disenar(self, spec, carpeta, part, concepto=None):
         self.llamadas.append("diseno")
+        self.concepto = concepto
         if self._fallos:
             self._fallos -= 1
             raise RuntimeError("se cayó la luz")
@@ -117,3 +119,32 @@ def test_cada_etapa_deja_un_commit_en_el_proyecto(tmp_path):
         capture_output=True, text=True, check=True,
     ).stdout.splitlines()
     assert log == ["laminado: SLICED", "diseño: PARTS_BUILT", "admisión: SPEC_READY"]
+
+
+def test_el_concepto_del_ingeniero_se_confirma_y_llega_al_diseno(tmp_path):
+    """F3.20 (concepto): por consola la confirmación de la admisión enseña
+    también CÓMO se va a resolver, y lo que se dibuja es eso."""
+    import io as _io
+
+    from orchestrator.schemas.concepto import Concepto, ConceptoComprobado
+
+    class Ingeniero:
+        def concebir(self, spec):
+            reg.llamadas.append("ingeniero")
+            return ConceptoComprobado(concepto=Concepto(
+                idea="abrazadera partida con dos tornillos", camino_de_carga="c",
+                orientacion="de lado"))
+
+    reg = Registro()
+    salida = _io.StringIO()
+    deps = _deps(reg, "sí\n", tmp_path)
+    deps.port = CliAdapter(entrada=_io.StringIO("sí\n"), salida=salida)
+    deps.ingeniero = Ingeniero()
+    grafo = crear_grafo(deps, tmp_path / "state.sqlite")
+
+    final = grafo.invoke({"peticion": "soporte de vaso"}, {"configurable": {"thread_id": "c"}})
+
+    assert reg.llamadas[:3] == ["requirements", "ingeniero", "diseno"]
+    assert "abrazadera partida" in salida.getvalue()
+    assert reg.concepto.concepto.idea.startswith("abrazadera")
+    assert "abrazadera partida" in (Path(final["proyecto"]) / "concepto.md").read_text(encoding="utf-8")

@@ -381,3 +381,45 @@ Va FreeCAD **1.1.3**, la misma versión que el escritorio. Debian empaqueta la 1
 - Windows PowerShell 5.1 lee un `.ps1` sin BOM como cp1252: un guion largo acabó en `0x94`, que allí es una comilla doble, y el script no llegó a analizarse. Un test exige que todo `.ps1` sea ASCII puro.
 
 **Lo que sigue sin resolverse.** El PrusaSlicer del PC es **2.9.6** y el laminado lo hace él; no hay una segunda versión en juego. Pero si alguien levanta esto en una máquina sin PrusaSlicer, no hay laminado: el puente es obligatorio, no opcional. Se ve en la suite, donde tres tests se saltan dentro del contenedor y solo pasan en el host.
+
+---
+
+## ADR-015 · Ingeniero primero, CAD después
+
+**Estado:** aceptada · **Afecta a:** § 4.1, § 4.2; F3.17, F3.18, F3.19, F3.20
+
+**Problema.** Lo que salía era inusable, y no por falta de FreeCAD. Nadie pensaba la pieza. El Part Designer recibía la petición en prosa y dibujaba cajas. Lo midió el banco (F6.1, 45 %):
+- la escuadra «para 5 kg» salía con el espesor que se le ocurría al modelo;
+- el gancho, sin agujeros;
+- el adaptador de tubo, sin holgura.
+
+Además, la petición viajaba como texto. No se sabía qué cota era un agujero y cuál un fondo, y las modificaciones se apilaban: Ø34 y Ø40 convivieron en el mismo prompt del sargento.
+
+**Decisión.** Entre la especificación y el CAD entra un paso de ingeniería, con tres reglas:
+
+1. **Requisitos con nombre** (`Requisito` en `spec.py`). Cada uno lleva `id`, tipo, valor y origen. El código comprueba dos cosas que el modelo no puede saltarse:
+   - que lo que dice venir del usuario es una **cita literal** de la petición;
+   - que **ninguna cota en mm de la petición** se queda sin requisito.
+
+   Los dos errores vuelven al modelo dentro del bucle de `structured`, con el valor exacto.
+2. **Un ingeniero que decide cómo se resuelve** (`IngenieroAgent`, rol `reason`). Propone un `Concepto` con estas partes:
+   - la idea;
+   - el camino de carga;
+   - la orientación de impresión y por qué;
+   - las fijaciones, con los diámetros de la tabla del perfil;
+   - los casos de carga;
+   - una o dos alternativas;
+   - como mucho tres preguntas, solo por cotas críticas.
+
+   Recibe el perfil activo entero. Hasta ahora `M3_through_mm` no le llegaba a nadie que diseñara.
+3. **Lo que se puede contar lo cuenta el código** (`orchestrator/ingenieria.py`). El ingeniero plantea el caso de carga y el código calcula la flexión del voladizo. Usa la resistencia del material del perfil, entre capas si la orientación las pone a tracción. Si no llega al factor de seguridad, el concepto vuelve con el canto que haría falta. Un modelo se equivoca en una potencia y no se nota; esta cuenta tiene tests hechos a mano.
+
+**La barrera del concepto.** Una pieza no se modela sin visto bueno. Por consola va en la misma confirmación de la admisión. Por la web y Telegram, la pieza para en «por aprobar» con `concepto.md`.
+
+Contestar a las preguntas **no aprueba**. Las respuestas se añaden literales a la petición y el ingeniero propone otro concepto, que vuelve a esperar: lo que se modela tiene que ser algo que la persona haya visto. Es la misma regla que las otras barreras humanas (ADR-008): el silencio no aprueba.
+
+**Lo que no cubre.**
+- El cálculo es un voladizo de sección rectangular. No ve esquinas vivas, pandeo, fatiga ni fluencia: los absorbe un factor de seguridad alto (3). Un FEM con CalculiX queda como seguimiento.
+- La resistencia del material es una estimación conservadora **sin ensayar**, como las holguras (F2.18).
+- Los mecanismos todavía no pasan por el ingeniero.
+- Nadie **mide** aún que la pieza cumpla cada requisito. Eso es F2.6 y F2.12: ahora tienen por dónde agarrarlo.

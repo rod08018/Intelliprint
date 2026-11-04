@@ -128,3 +128,33 @@ def test_crafty_puede_pedir_una_pieza_suelta(ws, monkeypatch):
     while "PIEZA" not in registro.read_text(encoding="utf-8") and time.time() < limite:
         time.sleep(0.1)
     assert "PIEZA" in registro.read_text(encoding="utf-8")
+
+
+def test_crafty_ve_el_concepto_y_lo_aprueba_o_contesta(ws):
+    """F3.20 (concepto): por Telegram la pieza para a esperar tu visto bueno.
+    Crafty tiene que poder enseñarte la idea y pasar tu respuesta; sin eso
+    el proyecto se quedaba parado y Crafty no sabía por qué."""
+    import time
+
+    carpeta = _ejecucion(ws, "2026-11-04-gancho", "Un gancho para la mochila", mecanismo=False)
+    (carpeta / "rounds.json").unlink()
+    (carpeta / "concepto.json").write_text("{}", encoding="utf-8")
+    (carpeta / "concepto.md").write_text("**Idea:** gancho en J\n", encoding="utf-8")
+
+    estado = servidor.estado_proyecto("2026-11-04-gancho")
+    assert estado["estado"] == "por aprobar"
+    assert "gancho en J" in estado["concepto"]
+
+    r = servidor.aprobar_concepto("2026-11-04-gancho", respuestas="pesa unos 3 kg")
+    assert "error" not in r, r
+    assert "pesa unos 3 kg" in (carpeta / "request.md").read_text(encoding="utf-8")
+    limite = time.time() + 20
+    while "--continuar" not in (carpeta / "run.log").read_text(encoding="utf-8") \
+            and time.time() < limite:
+        time.sleep(0.1)
+    assert "--continuar" in (carpeta / "run.log").read_text(encoding="utf-8")
+
+
+def test_crafty_no_aprueba_lo_que_no_tiene_concepto(ws):
+    _ejecucion(ws, "2026-10-27-035747-sargento", "Un sargento de banco")
+    assert "error" in servidor.aprobar_concepto("2026-10-27-035747-sargento")

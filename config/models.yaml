@@ -62,6 +62,7 @@ agents:
   decomposition:  {model: $design, escalate_to: deepseek, escalate_after_failures: 1}
   kinematics:     {model: $design}
   mechanism:      {model: $reason}       # con deepseek-chat no cerró la bisagra en 3 rondas
+  ingeniero:      {model: $reason}       # F3.18 (ingeniero): decidir cómo se resuelve pide pensar
   actuation:      {model: $design}
   electronics:    {model: $design}
   part_designer:  {model: $design, escalate_to: deepseek, escalate_after_failures: 2}

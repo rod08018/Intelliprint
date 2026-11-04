@@ -94,6 +94,12 @@ class Categoria(BaseModel):
         return v
 
 
+class VistoBueno(BaseModel):
+    respuestas: str = Field(default="", max_length=2000)
+    """Vacío: se aprueba el concepto. Con texto: son las respuestas a las
+    preguntas del ingeniero, y vuelve a proponer (F3.20 (concepto))."""
+
+
 class Pedido(Modificacion):
     basado_en: str | None = None
     tipo: Literal["pieza", "mecanismo"] = "mecanismo"
@@ -157,6 +163,25 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
             raise HTTPException(409, str(e))
         except ValueError as e:   # una pieza que no existe
             raise HTTPException(422, str(e))
+
+    @app.post("/api/proyectos/{id}/aprobar")
+    def aprobar(id: str, visto: VistoBueno) -> dict:
+        """El visto bueno al concepto del ingeniero, o las respuestas a sus
+        preguntas. Es la barrera humana antes de gastar en modelar."""
+        if trabajos is None:
+            raise HTTPException(503, "esta web no tiene con qué lanzar diseños")
+        carpeta = _proyecto(id)
+        if carpeta.parent != trabajos.carpeta:
+            raise HTTPException(409, "solo se aprueban conceptos de proyectos en curso")
+        otro = trabajos.current()
+        if otro:
+            raise HTTPException(409, f"ya hay un proyecto en marcha ({otro}); espera a que termine")
+        try:
+            return {"id": trabajos.aprobar(carpeta.name, respuestas=visto.respuestas, por="web")}
+        except ValueError as e:     # no hay concepto que aprobar
+            raise HTTPException(409, str(e))
+        except RuntimeError as e:
+            raise HTTPException(409, str(e))
 
     @app.get("/api/proyectos")
     def proyectos() -> list[dict]:

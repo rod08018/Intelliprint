@@ -66,3 +66,17 @@ bridge_max_mm: 10
 
 # Densidad del material, para estimar masa
 density_g_cm3: 1.24             # «esun pla+» en el paquete de eufyMake del usuario
+
+# Resistencia de la pieza IMPRESA, para el cálculo del ingeniero (F3.19 (resistencia)).
+# ⚠️ SIN ENSAYAR, igual que las holguras: estimación conservadora. La hoja de
+# eSun da ~63 MPa a tracción para el filamento inyectado; una pieza FDM suele
+# quedarse en un 50-70 % de eso a lo largo del filamento y bastante menos
+# entre capas, que es por donde se rompe. Se baja a mano en vez de suponer
+# una impresión perfecta.
+resistencia:
+  xy_MPa: 35                 # a lo largo del filamento (pieza trabajando en su plano de capa)
+  z_MPa: 15                  # entre capas: la flexión intenta separarlas
+  # Alto a propósito: el cálculo es un voladizo simple, sin esquinas vivas
+  # ni fatiga, y el PLA fluye bajo carga constante (una repisa cargada
+  # meses se va doblando aunque el primer día aguante).
+  factor_seguridad: 3

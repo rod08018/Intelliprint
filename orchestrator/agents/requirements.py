@@ -8,9 +8,18 @@ la clase de producto — que a su vez decide qué agentes correrán después
 from pathlib import Path
 
 from orchestrator.llm.structured import LlmClient, structured
-from orchestrator.schemas.spec import Spec
+from orchestrator.schemas.spec import Spec, errores_de_requisitos
 
 PROMPT_PATH = Path("config/agents/requirements.md")
+
+
+def _citas_y_cotas(spec: Spec, peticion: str) -> None:
+    """Dentro del bucle de reintento: el modelo recibe el error exacto
+    («la petición dice 60 mm y ningún requisito lleva ese valor») y lo
+    corrige, en vez de que el fallo aparezca después, al medir."""
+    errores = errores_de_requisitos(spec.requisitos, peticion)
+    if errores:
+        raise ValueError("requisitos incompletos:\n- " + "\n- ".join(errores))
 
 
 class RequirementsAgent:
@@ -37,7 +46,8 @@ class RequirementsAgent:
         if adjuntos:
             partes.append("\n\n## Adjuntos\n")
             partes.extend(f"- {a}\n" for a in adjuntos)
-        spec = structured(self._client, "".join(partes), Spec)
+        spec = structured(self._client, "".join(partes), Spec,
+                          extra_validation=lambda s: _citas_y_cotas(s, peticion))
         # La petición literal la fija el código después de la llamada: el
         # modelo no puede perderla ni reescribirla al resumir.
         return spec.model_copy(update={"request": peticion})

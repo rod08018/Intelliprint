@@ -234,3 +234,43 @@ def test_una_pieza_se_lanza_con_su_orden_y_se_reanuda_con_la_misma(tmp_path):
     registro = (tmp_path / job / "run.log").read_text()
     assert registro.count("orden pieza") == 2
     assert "orden mecanismo" not in registro
+
+
+def test_aprobar_el_concepto_reanuda_la_pieza_con_su_orden(tmp_path):
+    """F3.20 (concepto): la web y Crafty dan el visto bueno y la pieza sigue
+    sola, con la orden con la que se lanzó."""
+    pieza = [sys.executable, "-c", "print('orden pieza')"]
+    store = JobStore(tmp_path, comando=["mecanismo"])
+    job = store.start("gancho de pared", comando=pieza)
+    _esperar(store, job, "terminado")
+    (tmp_path / job / "concepto.json").write_text("{}", encoding="utf-8")
+
+    store.aprobar(job, por="telegram")
+    _esperar(store, job, "terminado")
+
+    assert (tmp_path / job / "concepto_aprobado").exists()
+    assert (tmp_path / job / "run.log").read_text().count("orden pieza") == 2
+
+
+def test_responder_al_ingeniero_pide_otro_concepto_en_vez_de_aprobar(tmp_path):
+    """Si contestas a sus preguntas, el concepto puede cambiar: lo que se
+    modela tiene que ser algo que hayas visto, así que vuelve a esperar."""
+    store = JobStore(tmp_path, comando=[sys.executable, "-c", "print('orden pieza')"])
+    job = store.start("gancho de pared")
+    _esperar(store, job, "terminado")
+    (tmp_path / job / "concepto.json").write_text("{}", encoding="utf-8")
+
+    store.aprobar(job, respuestas="la mochila pesa 3 kg", por="web")
+    _esperar(store, job, "terminado")
+
+    assert not (tmp_path / job / "concepto_aprobado").exists()
+    assert not (tmp_path / job / "concepto.json").exists()
+    assert "la mochila pesa 3 kg" in (tmp_path / job / "request.md").read_text(encoding="utf-8")
+
+
+def test_no_se_aprueba_un_concepto_que_no_existe(tmp_path):
+    store = JobStore(tmp_path, comando=[sys.executable, "-c", "print('x')"])
+    job = store.start("gancho de pared")
+    _esperar(store, job, "terminado")
+    with pytest.raises(ValueError, match="concepto"):
+        store.aprobar(job, por="web")
