@@ -98,7 +98,7 @@ def test_un_error_del_programa_vuelve_con_su_linea(tmp_path):
         _construir("""
 def construir(kit):
     p = kit.caja(20, 10, 5)
-    return p.redondear(50, aristas="verticales")
+    return p.taladrar("perdido", 3, en=(100, 100, 100))
 """, tmp_path)
 
 
@@ -119,3 +119,46 @@ def test_el_ejemplo_del_prompt_se_construye(tmp_path):
     assert r.solids == 1
     assert r.bbox_mm[2] == pytest.approx(28)   # tumbada: el ancho es la altura
     assert [x["nombre"] for x in r.rasgos] == ["pared_1", "pared_2"]
+
+
+def test_redondear_verticales_con_un_agujero_solo_redondea_el_contorno(tmp_path):
+    """Se sospechó de la costura vertical de los agujeros como causa de los
+    redondeos fallidos del banco (2026-11-04); este test la descartó: pasa sin
+    tocar nada. Queda como oráculo del redondeo con agujeros.
+    Cuenta: 1000 − π·2²·5 (agujero) − 4·(1 − π/4)·5 (redondeo R1 de las
+    cuatro aristas exteriores) = 932.876 mm³."""
+    r = _construir("""
+def construir(kit):
+    p = kit.caja(20, 10, 5).taladrar("centro", 4, en=(10, 5, 5))
+    return p.redondear(1, aristas="verticales")
+""", tmp_path)
+    assert r.volume_mm3 == pytest.approx(1000 - math.pi * 4 * 5 - 4 * (1 - math.pi / 4) * 5,
+                                         abs=0.01)
+
+
+def test_un_agujero_que_no_toca_la_pieza_es_un_error(tmp_path):
+    """Fallo real del banco: el gancho taladraba a 40 mm en una placa de 30
+    de alto, un agujero caía fuera y la pieza salía sin él, en silencio."""
+    with pytest.raises(ConstruccionFallida, match="pared_2.*no toca"):
+        _construir("""
+def construir(kit):
+    p = kit.caja(6, 30, 20)
+    p = p.taladrar("pared_1", 4.5, en=(6, 10, 10), eje="-x")
+    return p.taladrar("pared_2", 4.5, en=(6, 50, 10), eje="-x")
+""", tmp_path)
+
+
+def test_un_redondeo_que_no_cabe_en_una_arista_no_tira_la_pieza(tmp_path):
+    """Fallo real del banco (2026-11-04): el soporte del MG996R y el clip se
+    construían bien, con todos sus agujeros, y morían en el redondeo final
+    de acabado porque R1 no cabía en alguna arista. La función manda: la
+    arista donde no cabe se queda viva, con un aviso, y la pieza sale.
+    Aquí un nervio de 1.5 mm: R1 cabe en cada arista suya por separado,
+    pero no en las dos a la vez."""
+    r = _construir("""
+def construir(kit):
+    p = kit.caja(20, 10, 5) + kit.caja(1.5, 10, 10, en=(9, 0, 4))
+    return p.redondear(1, aristas="verticales")
+""", tmp_path)
+    assert r.solids == 1
+    assert any("vivas" in a for a in r.avisos)

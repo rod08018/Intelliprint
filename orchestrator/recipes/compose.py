@@ -25,6 +25,7 @@ import Part
 
 doc = FreeCAD.newDocument({part!r})
 _rasgos = []
+_avisos = []
 '''
 
 _PREAMBULO_PROGRAMA = '''\
@@ -50,6 +51,7 @@ except KitError as _e:
 _obj = doc.addObject("Part::Feature", "pieza")
 _obj.Shape = _cuerpo._forma
 _rasgos = _kit.rasgos()
+_avisos = list(_kit._avisos)
 '''
 
 _EPILOGO = '''
@@ -109,6 +111,7 @@ print({prefix!r} + json.dumps({{
     "solids": _n_solidos,
     "fcstd_object": _pieza.Name,
     "rasgos": _rasgos,
+    "avisos": _avisos,
 }}))
 '''
 

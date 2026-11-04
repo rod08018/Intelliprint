@@ -40,6 +40,8 @@ class InformePieza(BaseModel):
     bbox_mm: list[float] = []
     gramos: float | None = None
     soportes: bool | None = None
+    avisos: list[str] = []
+    """Lo que el kit no pudo hacer sin romper la pieza (aristas que quedaron vivas)."""
 
 
 CONCEPTO = "concepto.json"
@@ -139,6 +141,7 @@ def disenar_pieza(peticion: str, carpeta: Path, *, requisitos,
         return informe
     guardar_diseno(carpeta / "parts" / tarea.part, receta)
     informe.volumen_mm3, informe.bbox_mm = resultado.volume_mm3, list(resultado.bbox_mm)
+    informe.avisos = list(resultado.avisos)
 
     # Lo que la trazabilidad no encontró es un defecto, no una nota al pie:
     # la pieza no lleva una cota que pediste.

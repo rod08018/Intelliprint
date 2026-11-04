@@ -76,6 +76,11 @@ def build_part(
               if isinstance(receta, Recipe) else
               compose_program_script(receta, output_dir=carpeta, perfil=perfil))
     build.write_text(script, encoding="utf-8")
+    if not isinstance(receta, Recipe):
+        # Antes de construir: si falla, es la única prueba de qué se intentó.
+        # Solo se guardaba al salir bien, y en el banco no quedó el programa
+        # de ninguna pieza que falló (2026-11-04).
+        (carpeta / "programa.py").write_text(receta.codigo, encoding="utf-8")
     proceso = subprocess.run(
         [freecadcmd, str(build)], capture_output=True, text=True, timeout=180
     )

@@ -157,28 +157,60 @@ class Cuerpo:
             raise KitError(f"ninguna arista «{aristas}»{donde}: no hay nada que redondear")
         return elegidas
 
+    def _acabar(self, operacion, medida, elegidas, aristas) -> "Cuerpo":
+        """Redondeo o chaflán, y si no cabe en todas las aristas a la vez, en
+        las que se pueda: las demás quedan vivas, con un aviso.
+
+        Fallo real del banco (2026-11-04): el soporte del MG996R y el clip se
+        construían con todos sus agujeros y morían en el redondeo de acabado,
+        porque R1 no cabía en alguna arista. El acabado es estética; la
+        función manda, y una pieza buena no se tira por una arista."""
+        hacer = getattr(self._forma, "makeFillet" if operacion == "redondear" else "makeChamfer")
+        try:
+            return self._nuevo(hacer(float(medida), elegidas))
+        except Exception:
+            pass
+        caben = []
+        for e in elegidas:   # de una en una, acumulando las que caben juntas
+            try:
+                hacer(float(medida), caben + [e])
+                caben.append(e)
+            except Exception:
+                continue
+        vivas = len(elegidas) - len(caben)
+        self._kit._avisos.append(
+            f"{operacion} {medida:g} mm: {vivas} de {len(elegidas)} aristas «{aristas}» no "
+            "lo admitían y quedaron vivas")
+        if not caben:
+            return self
+        return self._nuevo(hacer(float(medida), caben))
+
     def redondear(self, radio, aristas="verticales", dentro=None) -> "Cuerpo":
         """Redondea con `radio` las aristas elegidas: «todas», «verticales»,
         «horizontales», «base» (las que tocan la cama) o «arriba». `dentro`
-        acota a una caja ((x0, y0, z0), (x1, y1, z1))."""
-        elegidas = self._aristas(aristas, dentro)
-        try:
-            return self._nuevo(self._forma.makeFillet(float(radio), elegidas))
-        except Exception:
-            raise KitError(f"FreeCAD no pudo redondear R{radio:g} {len(elegidas)} aristas "
-                           f"«{aristas}»: el radio no cabe en alguna. Usa un radio menor "
-                           "o acota con `dentro`") from None
+        acota a una caja ((x0, y0, z0), (x1, y1, z1)). Si el radio no cabe en
+        alguna arista, esa queda viva y se avisa."""
+        return self._acabar("redondear", radio, self._aristas(aristas, dentro), aristas)
 
     def achaflanar(self, distancia, aristas="base", dentro=None) -> "Cuerpo":
         """Chaflán de `distancia` en las aristas elegidas (como `redondear`).
         0.5 mm en la «base» evita la pata de elefante."""
-        elegidas = self._aristas(aristas, dentro)
-        try:
-            return self._nuevo(self._forma.makeChamfer(float(distancia), elegidas))
-        except Exception:
-            raise KitError(f"FreeCAD no pudo achaflanar {distancia:g} mm {len(elegidas)} "
-                           f"aristas «{aristas}»: usa una distancia menor o acota con "
-                           "`dentro`") from None
+        return self._acabar("achaflanar", distancia, self._aristas(aristas, dentro), aristas)
+
+    def _cortar(self, nombre, herramienta) -> "Cuerpo":
+        """Quita un rasgo con nombre, comprobando que de verdad quita algo.
+
+        Fallo real del banco (2026-11-04): el gancho taladraba a 40 mm en una
+        placa de 30 de alto; un agujero caía fuera y la pieza salía sin él,
+        en silencio. Un rasgo que no toca la pieza es un error de posición."""
+        resultado = self._forma.cut(herramienta).removeSplitter()
+        if self._forma.Volume - resultado.Volume < 1e-6:
+            b = self._forma.BoundBox
+            raise KitError(
+                f"«{nombre}» no toca la pieza: no quita material. La pieza ocupa x de "
+                f"{b.XMin:.4g} a {b.XMax:.4g}, y de {b.YMin:.4g} a {b.YMax:.4g}, z de "
+                f"{b.ZMin:.4g} a {b.ZMax:.4g}; revisa `en` y `eje`")
+        return self._nuevo(resultado)
 
     # --- rasgos con nombre --------------------------------------------------------
 
@@ -220,7 +252,7 @@ class Cuerpo:
                              entrada=list(base), eje=list(d),
                              profundidad_mm=None if profundidad is None else float(profundidad),
                              lagrima=bool(lagrima), avellanado_mm=avellanado)
-        return self._nuevo(self._forma.cut(broca).removeSplitter())
+        return self._cortar(nombre, broca)
 
     def tornillo(self, nombre, metrica, en, eje="-z", tipo="pasante", profundidad=None,
                  lagrima=False, avellanado=None) -> "Cuerpo":
@@ -248,7 +280,7 @@ class Cuerpo:
                                             _v(en) - _eje(eje) * 1, _eje(eje))
         self._kit._registrar(nombre, "tuerca", entrecaras_mm=entrecaras, entrada=list(_v(en)),
                              eje=list(_eje(eje)), profundidad_mm=float(profundidad))
-        return self._nuevo(self._forma.cut(hueco).removeSplitter())
+        return self._cortar(nombre, hueco)
 
     def colisa(self, nombre, ancho, desde, hasta, eje="-z", profundidad=None) -> "Cuerpo":
         """Agujero alargado entre `desde` y `hasta` (los centros de los
@@ -269,7 +301,7 @@ class Cuerpo:
             hueco = hueco.fuse(Part.makeCylinder(float(ancho) / 2, largo + 1, c, d))
         self._kit._registrar(nombre, "colisa", ancho_mm=float(ancho), desde=list(a),
                              hasta=list(a + u), eje=list(d))
-        return self._nuevo(self._forma.cut(hueco).removeSplitter())
+        return self._cortar(nombre, hueco)
 
     def quitar(self, nombre, herramienta: "Cuerpo") -> "Cuerpo":
         """Resta `herramienta` y lo registra como un hueco con nombre (una
@@ -277,7 +309,7 @@ class Cuerpo:
         b = herramienta._forma.BoundBox
         self._kit._registrar(nombre, "hueco", desde=[b.XMin, b.YMin, b.ZMin],
                              hasta=[b.XMax, b.YMax, b.ZMax])
-        return self - herramienta
+        return self._cortar(nombre, herramienta._forma)
 
 
 class Kit:
@@ -286,6 +318,7 @@ class Kit:
     def __init__(self, perfil: dict | None = None) -> None:
         self.perfil = perfil or {}
         self._rasgos: list[dict] = []
+        self._avisos: list[str] = []
 
     def _registrar(self, nombre, tipo, **datos) -> None:
         if not isinstance(nombre, str) or not nombre:

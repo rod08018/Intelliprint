@@ -40,8 +40,9 @@ def construir(kit):
 5. **Una sola pieza**: los cuerpos que se unen tienen que **solaparse**, no solo tocarse en una cara. Si dudas, mételos 0.5 mm uno dentro del otro.
 6. **Respeta las secciones mínimas del concepto**: el cálculo de resistencia las dio por buenas así. No las adelgaces.
 7. **Imprimible sin soportes**: nada en voladizo a más de `overhang_max_deg`, puentes de menos de `bridge_max_mm`, agujeros horizontales con `lagrima=True`, paredes de al menos `walls.structural_mm` donde hay carga.
-8. **Acabado de producto, al final**: `redondear` las aristas exteriores (1–2 mm) y `achaflanar(0.5, aristas="base")` contra la pata de elefante. Si un redondeo falla, prueba un radio menor o acota con `dentro`; no lo quites sin más.
-9. **No apliques holguras a las cotas del usuario** salvo las de encaje que pida el concepto: un tubo de Ø32 que tiene que entrar lleva `32 + kit.holgura("slide")`.
+8. **Acabado de producto, al final**: `redondear` las aristas exteriores (1–2 mm) y `achaflanar(0.5, aristas="base")` contra la pata de elefante. Si el radio no cabe en alguna arista (una pared fina), esa queda viva con un aviso y la pieza sale igual; para que no pase, usa un radio menor que la mitad de la pared más fina o acota con `dentro`.
+9. **Cada agujero tiene que tocar material**: si un rasgo no quita nada (está fuera de la pieza), es un error con la caja de la pieza. Antes de colocar agujeros, comprueba que la placa es lo bastante grande para su separación y su margen.
+10. **No apliques holguras a las cotas del usuario** salvo las de encaje que pida el concepto: un tubo de Ø32 que tiene que entrar lleva `32 + kit.holgura("slide")`.
 
 Solo puedes usar lo que hay en el kit, aritmética, `for`, `if`, listas y las funciones `range`, `len`, `min`, `max`, `abs`, `round`, `enumerate`, `zip`, `sum`, `sqrt`, `sin`, `cos`, `tan`, `atan2`, `radians`, `degrees`, `hypot` y `pi`. Nada de `import`, `open`, clases ni `try`: un programa así se rechaza con la línea y el motivo.
 
