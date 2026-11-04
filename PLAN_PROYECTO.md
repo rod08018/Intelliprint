@@ -323,6 +323,8 @@ La nota está mal y es la medida de «usable»: **45 % de partida, y 33, 43 y 38
 
 Orden, de más a menos puntos por esfuerzo: F6.7 (lazo) → F6.8 (mejor) → F6.13 (ruido) → F6.9 (vistas) → F6.10 (ejemplos) → F6.11 (biblioteca) → F6.12 (techo). Después de cada uno, banco.
 
+**Primera corrida con el razonador, cinco construcciones y F6.7 (lazo) + F6.8 (mejor), 2026-11-04: 62 % (26 de 42).** Las 8 piezas se construyen, y de las 27 exigencias que se pueden medir cumplen 26 (falla solo la envolvente del acople, que sobresale 1.8 mm). Lo que queda son las 15 «sin medir»: con este banco la nota máxima es 64 %, así que el siguiente punto sale de F6.12 (techo), no del diseño. Es una sola corrida: falta confirmarla con F6.13 (ruido), y no separa cuánto es del razonador y cuánto del lazo (la corrida solo con el razonador se paró a medias para no esperar).
+
 **Objetivo:** 60 % de media en tres corridas con el techo de hoy, y 75 % cuando F6.12 (techo) lo suba. Las fases 7 y 8 (revisión visual y estética) van después: con piezas que no se construyen no hay nada que mirar.
 
 **Visión.** DeepSeek Flash acepta imágenes (`image_url` en base64; ver api-docs.deepseek.com/guides/vision). El cliente de este repo ya las manda desde F5.2 (adjuntos) —comprobado el 2026-09-21: una imagen roja, «Rojo»—, así que F6.9 (vistas) y las fases 7 y 8 **no esperan** a los modelos locales de F0.11 (migrar).
