@@ -21,6 +21,7 @@ existen); `Part` solo hace falta al construir, dentro de `freecadcmd`.
 
 import inspect
 import math
+import time
 import traceback
 
 try:   # dentro de freecadcmd
@@ -30,6 +31,9 @@ except ImportError:   # en el orquestador: solo se lee la API
     FreeCAD = Part = None
 
 TOL = 1e-6
+ACABADO_MAX_S = 40.0
+"""Lo más que se gasta buscando en qué aristas cabe un acabado que no cabe
+en todas: el resto queda vivo. FreeCAD entero tiene 180 s."""
 LARGO = 2000.0
 """Lo que mide una broca pasante: más que cualquier pieza de la cama."""
 
@@ -66,6 +70,48 @@ def _perpendiculares(d):
     return u, d.cross(u).normalize()
 
 
+def _valido(forma, que):
+    """Cada operación se comprueba al hacerse, no al final.
+
+    Fallo real del banco (2026-11-04): FreeCAD extruye un polígono con lados
+    que se cruzan, o redondea, devolviendo un sólido NO válido sin lanzar
+    ningún error, y el fallo salía al final, sin operación ni línea: tres
+    construcciones gastadas en adivinar."""
+    if not forma.isValid():
+        raise KitError(f"{que} dio un sólido no válido. Suele ser por caras que coinciden "
+                       "exactamente (solapa 0.5 mm o sepáralas) o por un perfil cuyos lados "
+                       "se cruzan")
+    return forma
+
+
+def _cruces(p3) -> list:
+    """Pares de lados del polígono que se tocan sin ser contiguos."""
+    n = len(p3)
+    lados = [Part.LineSegment(p3[i], p3[(i + 1) % n]).toShape() for i in range(n)]
+    pares = []
+    for i in range(n):
+        for j in range(i + 2, n):
+            if i == 0 and j == n - 1:
+                continue
+            if lados[i].distToShape(lados[j])[0] < 1e-7:
+                pares.append((i + 1, j + 1))
+    return pares
+
+
+def _cara(p3):
+    """La cara de un polígono cerrado, comprobando que sus lados no se cruzan:
+    FreeCAD la construye igual y el sólido sale no válido."""
+    cruces = _cruces(p3)
+    if cruces:
+        lados = ", ".join(f"{i} y {j}" for i, j in cruces[:4])
+        raise KitError(f"el polígono tiene lados que se cruzan (lados {lados}, contando "
+                       "desde el primer punto): ordena los puntos siguiendo el contorno")
+    try:
+        return Part.Face(Part.makePolygon(p3 + [p3[0]]))
+    except Exception:
+        raise KitError("el polígono no forma una cara: ¿puntos repetidos?") from None
+
+
 def _un_solido(forma):
     """Una operación booleana devuelve a menudo un compuesto de un solo
     sólido; se desenvuelve. Varios sólidos se dejan: el epílogo los
@@ -82,17 +128,18 @@ class Cuerpo:
         self._forma = forma
         self._kit = kit
 
-    def _nuevo(self, forma) -> "Cuerpo":
-        return Cuerpo(_un_solido(forma), self._kit)
+    def _nuevo(self, forma, que="la operación") -> "Cuerpo":
+        return Cuerpo(_valido(_un_solido(forma), que), self._kit)
 
     def __add__(self, otro: "Cuerpo") -> "Cuerpo":
-        return self._nuevo(self._forma.fuse(otro._forma).removeSplitter())
+        return self._nuevo(self._forma.fuse(otro._forma).removeSplitter(), "la unión (+)")
 
     def __sub__(self, otro: "Cuerpo") -> "Cuerpo":
-        return self._nuevo(self._forma.cut(otro._forma).removeSplitter())
+        return self._nuevo(self._forma.cut(otro._forma).removeSplitter(), "la resta (-)")
 
     def __and__(self, otro: "Cuerpo") -> "Cuerpo":
-        return self._nuevo(self._forma.common(otro._forma).removeSplitter())
+        return self._nuevo(self._forma.common(otro._forma).removeSplitter(),
+                           "la intersección (&)")
 
     # --- colocar --------------------------------------------------------------
 
@@ -127,7 +174,7 @@ class Cuerpo:
     def _aristas(self, aristas, dentro):
         b = self._forma.BoundBox
         elegidas = []
-        for e in self._forma.Edges:
+        for i, e in enumerate(self._forma.Edges):
             eb = e.BoundBox
             recta = len(e.Vertexes) == 2 and e.Curve.TypeId == "Part::GeomLine"
             d = (e.Vertexes[1].Point - e.Vertexes[0].Point) if recta else None
@@ -151,7 +198,7 @@ class Cuerpo:
                 ok = (eb.XMin >= x0 - 1e-4 and eb.XMax <= x1 + 1e-4 and eb.YMin >= y0 - 1e-4
                       and eb.YMax <= y1 + 1e-4 and eb.ZMin >= z0 - 1e-4 and eb.ZMax <= z1 + 1e-4)
             if ok:
-                elegidas.append(e)
+                elegidas.append(i)
         if not elegidas:
             donde = f" dentro de {dentro}" if dentro else ""
             raise KitError(f"ninguna arista «{aristas}»{donde}: no hay nada que redondear")
@@ -165,25 +212,63 @@ class Cuerpo:
         construían con todos sus agujeros y morían en el redondeo de acabado,
         porque R1 no cabía en alguna arista. El acabado es estética; la
         función manda, y una pieza buena no se tira por una arista."""
-        hacer = getattr(self._forma, "makeFillet" if operacion == "redondear" else "makeChamfer")
-        try:
-            return self._nuevo(hacer(float(medida), elegidas))
-        except Exception:
-            pass
-        caben = []
-        for e in elegidas:   # de una en una, acumulando las que caben juntas
+        nombre = "makeFillet" if operacion == "redondear" else "makeChamfer"
+        limite = time.monotonic() + ACABADO_MAX_S
+
+        def hacer(aristas):
+            """`aristas` son índices. Cada intento trabaja sobre su propia
+            COPIA de la forma: OCC ajusta tolerancias de la forma sobre la que
+            redondea, y en la escuadra de repisa los intentos sobre la misma
+            forma estropeaban uno que ya había salido válido (2026-11-04)."""
+            base = self._forma.copy()
             try:
-                hacer(float(medida), caben + [e])
-                caben.append(e)
+                f = _un_solido(getattr(base, nombre)(float(medida),
+                                                     [base.Edges[i] for i in aristas]))
             except Exception:
-                continue
-        vivas = len(elegidas) - len(caben)
+                return None
+            # Lo mismo que comprueba `_nuevo` después: un compuesto válido
+            # puede envolver un sólido que no lo es (la escuadra de repisa).
+            return f if f.isValid() else None
+
+        def caben_de(aristas):
+            """(aristas que admiten el acabado, la forma ya acabada), partiendo
+            por la mitad lo que falla: de una en una eran 90 s en la escuadra
+            de repisa, y FreeCAD pasaba de su tiempo (2026-11-04). Se guarda la
+            forma y no solo las aristas: rehacer el mismo chaflán dio una vez
+            un sólido no válido (OCC no siempre es determinista)."""
+            if not aristas or time.monotonic() > limite:
+                return [], None
+            forma = hacer(aristas)
+            if forma is not None:
+                return list(aristas), forma
+            if len(aristas) == 1:
+                return [], None
+            mitad = len(aristas) // 2
+            a, fa = caben_de(aristas[:mitad])
+            b, fb = caben_de(aristas[mitad:])
+            juntas = hacer(a + b) if a and b else None
+            if juntas is not None:
+                return a + b, juntas
+            return (a, fa) if len(a) >= len(b) else (b, fb)
+
+        forma = hacer(elegidas)
+        if forma is not None and forma.isValid():
+            return Cuerpo(forma, self._kit)
+        caben, forma = caben_de(elegidas)
+        # Se vuelve a mirar al final: en la escuadra de repisa, un chaflán que
+        # salió válido durante la búsqueda ya no lo era al terminarla, tras
+        # más intentos sobre la misma forma (2026-11-04). El acabado nunca
+        # rompe la pieza: si no queda válido, no se aplica.
+        for candidata in (forma, hacer(caben) if caben else None):
+            if candidata is not None and candidata.isValid():
+                self._kit._avisos.append(
+                    f"{operacion} {medida:g} mm: {len(elegidas) - len(caben)} de "
+                    f"{len(elegidas)} aristas «{aristas}» no lo admitían y quedaron vivas")
+                return Cuerpo(candidata, self._kit)
         self._kit._avisos.append(
-            f"{operacion} {medida:g} mm: {vivas} de {len(elegidas)} aristas «{aristas}» no "
-            "lo admitían y quedaron vivas")
-        if not caben:
-            return self
-        return self._nuevo(hacer(float(medida), caben))
+            f"{operacion} {medida:g} mm en las aristas «{aristas}»: no se pudo aplicar sin "
+            "romper la pieza, y se omite")
+        return self
 
     def redondear(self, radio, aristas="verticales", dentro=None) -> "Cuerpo":
         """Redondea con `radio` las aristas elegidas: «todas», «verticales»,
@@ -210,7 +295,7 @@ class Cuerpo:
                 f"«{nombre}» no toca la pieza: no quita material. La pieza ocupa x de "
                 f"{b.XMin:.4g} a {b.XMax:.4g}, y de {b.YMin:.4g} a {b.YMax:.4g}, z de "
                 f"{b.ZMin:.4g} a {b.ZMax:.4g}; revisa `en` y `eje`")
-        return self._nuevo(resultado)
+        return self._nuevo(resultado, f"«{nombre}»")
 
     # --- rasgos con nombre --------------------------------------------------------
 
@@ -413,12 +498,7 @@ class Kit:
             d = FreeCAD.Vector(alto, 0, 0)
         else:
             raise KitError("`plano` es «xy», «xz» o «yz»")
-        try:
-            cara = Part.Face(Part.makePolygon(p3 + [p3[0]]))
-        except Exception:
-            raise KitError("el polígono no forma una cara: ¿puntos repetidos o lados que se "
-                           "cruzan?") from None
-        return Cuerpo(cara.extrude(d), self)
+        return Cuerpo(_valido(_cara(p3).extrude(d), "extruir"), self)
 
     def revolucionar(self, puntos, grados=360, eje="z", en=(0, 0, 0)) -> Cuerpo:
         """Perfil de `puntos` (r, h) —distancia al eje y altura a lo largo de
@@ -428,12 +508,8 @@ class Kit:
         u, _ = _perpendiculares(d)
         base = _v(en)
         p3 = [base + u * float(r) + d * float(h) for r, h in puntos]
-        try:
-            cara = Part.Face(Part.makePolygon(p3 + [p3[0]]))
-        except Exception:
-            raise KitError("el perfil no forma una cara: ¿puntos repetidos o lados que se "
-                           "cruzan?") from None
-        return Cuerpo(cara.revolve(base, d, float(grados)), self)
+        return Cuerpo(_valido(_cara(p3).revolve(base, d, float(grados)), "revolucionar"),
+                      self)
 
 
 # --- la API que puede usar el programa -------------------------------------------------

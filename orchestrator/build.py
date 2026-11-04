@@ -19,6 +19,7 @@ from orchestrator.schemas.recipe import GeneratorCatalog, Recipe
 from orchestrator.traceability import untraced
 
 MAX_CONSTRUCCIONES = 3
+TIEMPO_MAX_S = 180
 
 
 class ConstruccionFallida(RuntimeError):
@@ -81,9 +82,16 @@ def build_part(
         # Solo se guardaba al salir bien, y en el banco no quedó el programa
         # de ninguna pieza que falló (2026-11-04).
         (carpeta / "programa.py").write_text(receta.codigo, encoding="utf-8")
-    proceso = subprocess.run(
-        [freecadcmd, str(build)], capture_output=True, text=True, timeout=180
-    )
+    try:
+        proceso = subprocess.run(
+            [freecadcmd, str(build)], capture_output=True, text=True, timeout=TIEMPO_MAX_S
+        )
+    except subprocess.TimeoutExpired:
+        # Vuelve al agente como cualquier fallo. Antes tumbaba el proyecto
+        # entero: la escuadra de repisa del banco murió así (2026-11-04).
+        raise ConstruccionFallida(
+            f"FreeCAD tardó más de {TIEMPO_MAX_S} s en construir la pieza: simplifícala "
+            "(menos booleanas, acabados solo en las aristas que se ven)") from None
     # El intérprete embebido de FreeCAD ignora PYTHONDONTWRITEBYTECODE.
     shutil.rmtree(carpeta / "__pycache__", ignore_errors=True)
     try:

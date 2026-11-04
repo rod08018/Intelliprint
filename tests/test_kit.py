@@ -162,3 +162,42 @@ def construir(kit):
 """, tmp_path)
     assert r.solids == 1
     assert any("vivas" in a for a in r.avisos)
+
+
+def test_un_poligono_que_se_corta_a_si_mismo_dice_donde(tmp_path):
+    """Fallo real del banco (2026-11-04): el perfil del gancho tenía lados
+    que se cruzaban. FreeCAD lo extruye sin quejarse y devuelve un sólido no
+    válido, y el error salía al final, sin decir qué operación ni qué línea:
+    tres construcciones gastadas en adivinar."""
+    with pytest.raises(ConstruccionFallida, match="línea 3.*se cruzan"):
+        _construir("""
+def construir(kit):
+    return kit.extruir([(0, 0), (10, 10), (10, 0), (0, 10)], 5)
+""", tmp_path)
+
+
+def test_si_freecad_se_cuelga_vuelve_como_motivo(tmp_path, monkeypatch):
+    """Fallo real del banco: la escuadra de repisa pasó de 180 s y el
+    TimeoutExpired tumbó el proyecto entero en vez de volver al diseñador."""
+    import subprocess
+
+    import orchestrator.build as build
+
+    def colgado(*a, **k):
+        raise subprocess.TimeoutExpired(a[0], k.get("timeout"))
+
+    monkeypatch.setattr(build.subprocess, "run", colgado)
+    with pytest.raises(ConstruccionFallida, match="tardó"):
+        _construir("def construir(kit):\n    return kit.caja(1, 1, 1)\n", tmp_path)
+
+
+@pytest.mark.parametrize("programa", sorted(Path("tests/kit_regresiones").glob("*.py")),
+                         ids=lambda p: p.stem)
+def test_programas_reales_que_el_acabado_rompia(programa, tmp_path):
+    """Programas tal cual los escribió el diseñador en el banco (2026-11-04).
+    Los dos se construían bien sin acabado y morían en él: el sg90 con un
+    redondeo que salía no válido, y la escuadra con un chaflán en «todas» que
+    tardaba más de 180 s y, al copiar la forma, salía no válido porque los
+    intentos sobre la misma forma la estropeaban."""
+    r = _construir(programa.read_text(encoding="utf-8"), tmp_path)
+    assert r.solids == 1
