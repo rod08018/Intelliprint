@@ -29,6 +29,9 @@ class PartResult(BaseModel):
     avisos: list[str] = []
     """Lo que el kit no pudo hacer sin romper la pieza, p. ej. aristas que
     no admitían el redondeo y quedaron vivas."""
+    defectos: list[str] = []
+    """Requisitos que la pieza entregada NO cumple, medidos al construir
+    (F6.7 (lazo)): se entrega la mejor que salió, no una que cumple."""
     untraced_mm: list[float] = []
     """Cotas de la petición literal que no aparecen en la receta tras los
     reintentos (F1.16 (trazabilidad)). Se muestran en el informe; no rompen la pieza."""

@@ -26,14 +26,15 @@ class Requisitos:
                     product_class="static_part", printer="m5", material="PLA+")
 
 
-def _disenar(untraced=()):
+def _disenar(untraced=(), defectos=()):
     def disenar(spec, carpeta, parte, concepto=None):
         carpeta.mkdir(parents=True, exist_ok=True)
         (carpeta / f"{parte}.stl").write_text("solid", encoding="utf-8")
         receta = Recipe(part=parte, steps=[{"generator": "generate_box", "params": {
             "length_mm": 60, "width_mm": 50, "height_mm": 10}}])
         return receta, PartResult(part=parte, volume_mm3=1234.0, bbox_mm=[60, 50, 10],
-                                  solids=1, untraced_mm=list(untraced))
+                                  solids=1, untraced_mm=list(untraced),
+                                  defectos=list(defectos))
     return disenar
 
 
@@ -144,3 +145,14 @@ def test_un_concepto_que_no_sale_deja_el_porque(tmp_path):
 
     assert estado_de(tmp_path)["estado"] == "fallido"
     assert "NO aguanta" in (tmp_path / "blocked.md").read_text(encoding="utf-8")
+
+
+def test_una_pieza_con_defectos_sale_pero_no_aprobada(tmp_path):
+    """F6.8 (mejor): se entrega la mejor que salió, y se dice qué no cumple."""
+    falta = "R2 («uno de 5 mm»): pide 1 agujero(s) de Ø5 y hay 0"
+    informe = disenar_pieza(PETICION, tmp_path, requisitos=Requisitos(),
+                            disenar=_disenar(defectos=[falta]), laminar=_laminar,
+                            log=lambda *_: None)
+    assert not informe.resuelto and informe.gramos == 3.0
+    assert falta in informe.motivo
+    assert falta in (tmp_path / "blocked.md").read_text(encoding="utf-8")

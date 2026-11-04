@@ -65,6 +65,7 @@ def _disenar_con_kit(raiz: Path, env: dict, cliente):
     de generadores no sabía hacer una cartela, un hexágono ni un chaflán. Los
     mecanismos siguen con recetas hasta que el kit los cubra."""
     from orchestrator.agents.disenador_kit import DisenadorKitAgent
+    from orchestrator.medida import defectos
 
     freecad = _freecadcmd(env)
     router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
@@ -75,10 +76,17 @@ def _disenar_con_kit(raiz: Path, env: dict, cliente):
                                   reserva=cliente)
 
     def disenar(spec, carpeta, part, concepto=None):
+        # F6.7 (lazo): lo que la pieza construida no cumple de los requisitos
+        # vuelve al diseñador como cualquier fallo; F6.8 (mejor): si nunca
+        # lo cumple todo, se entrega la que menos falla, con la lista.
+        def requisitos_medidos(resultado):
+            return "\n".join(defectos(spec.requisitos, resultado.rasgos)) or None
+
         return design_and_build(
             disenador, spec_to_task(spec, concepto).brief, None, carpeta,
             freecadcmd=freecad, part=part, request=spec.request, perfil=disenador.perfil,
-            max_construcciones=CONSTRUCCIONES_KIT,
+            max_construcciones=CONSTRUCCIONES_KIT, check=requisitos_medidos,
+            entregar_mejor=True,
         )
     return disenar
 
@@ -124,6 +132,8 @@ def _informar(final: dict, nombre: str) -> None:
     print(f"  pieza:    {r['volume_mm3']:.1f} mm³, envolvente {' x '.join(f'{v:g}' for v in r['bbox_mm'])} mm")
     print(f"  laminado: {s['grams']:.1f} g, {s['filament_mm'] / 1000:.2f} m, {h} h {m} min")
     print(f"  proyecto: {final['proyecto']}")
+    for d in r.get("defectos", []):
+        print(f"  ⚠️ no cumple: {d}")
     if r.get("untraced_mm"):
         cotas = ", ".join(f"{c:g} mm" for c in r["untraced_mm"])
         print(f"  ⚠️ cotas de tu petición que NO aparecen en la pieza: {cotas}. Revísala antes de imprimir.")

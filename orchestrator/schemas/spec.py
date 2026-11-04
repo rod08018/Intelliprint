@@ -44,6 +44,12 @@ class Requisito(BaseModel):
     valor: float | None = None
     unidad: str = "mm"
     origen: Literal["usuario", "estimado", "catalogo"]
+    cantidad: int | None = None
+    """Para un `agujero`: cuántos de ese diámetro. Sin esto «faltan 2 de
+    los 4 agujeros del NEMA17» no se podía medir (F6.7 (lazo))."""
+    separaciones_mm: list[float] = []
+    """Para un `agujero`: distancias entre centros que pide la petición
+    («separados 60 mm», «en cuadro de 31»). Cuentan como cotas cubiertas."""
 
 
 def _normal(texto: str) -> str:
@@ -63,6 +69,7 @@ def errores_de_requisitos(requisitos: list[Requisito], peticion: str) -> list[st
                 f"{r.id}: dice venir del usuario, pero «{r.texto}» no está en la petición. "
                 "Cita el fragmento tal cual, o márcalo como `estimado`.")
     cubiertas = [r.valor for r in requisitos if r.valor is not None and r.unidad == "mm"]
+    cubiertas += [s for r in requisitos for s in r.separaciones_mm]
     for cota in requested_dimensions(peticion):
         if not any(abs(v - cota) < 1e-6 for v in cubiertas):
             errores.append(

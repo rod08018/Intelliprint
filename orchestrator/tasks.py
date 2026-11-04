@@ -51,7 +51,10 @@ def spec_to_task(spec: Spec, concepto=None) -> PartTask:
         # cumple», y una modificación reemplaza R3 en vez de añadir prosa.
         brief += "Requisitos (cada uno con su id):\n" + "".join(
             f"- **{r.id}** ({r.tipo}, {r.origen}): {r.texto}"
-            + (f" → {r.valor:g} {r.unidad}" if r.valor is not None else "") + "\n"
+            + (f" → {r.valor:g} {r.unidad}" if r.valor is not None else "")
+            + (f", {r.cantidad} de ellos" if r.cantidad else "")
+            + (f", a {', '.join(f'{s:g}' for s in r.separaciones_mm)} mm entre centros"
+               if r.separaciones_mm else "") + "\n"
             for r in spec.requisitos) + "\n"
     if concepto is not None:
         brief += concepto.para_el_disenador() + "\n\n"

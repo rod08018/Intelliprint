@@ -148,6 +148,10 @@ def disenar_pieza(peticion: str, carpeta: Path, *, requisitos,
     if resultado.untraced_mm:
         cotas = ", ".join(f"{c:g} mm" for c in resultado.untraced_mm)
         informe.motivo = f"cotas de tu petición que NO aparecen en la pieza: {cotas}"
+    if resultado.defectos:
+        # F6.8 (mejor): la pieza sale, pero no como la pediste, y se dice qué falta.
+        informe.motivo = "\n".join(filter(None, [
+            informe.motivo, "la pieza entregada no cumple:", *resultado.defectos]))
 
     if laminar is not None:
         log("  laminado…")

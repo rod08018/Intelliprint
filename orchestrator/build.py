@@ -116,6 +116,7 @@ def design_and_build(
     check_es_de_la_caja: bool = False,
     max_construcciones: int = MAX_CONSTRUCCIONES,
     perfil: dict | None = None,
+    entregar_mejor: bool = False,
 ) -> tuple[Recipe, PartResult]:
     """Diseña y construye, devolviendo al agente el motivo de cada fallo.
 
@@ -125,9 +126,16 @@ def design_and_build(
     `check` mira la pieza YA construida y devuelve el motivo si no vale
     (p. ej. que está mal colocada para el ensamble). Ese motivo vuelve al
     agente por el mismo camino que un fallo de FreeCAD.
+
+    `entregar_mejor` (F6.8 (mejor)): si ninguna construcción pasa el `check`,
+    se entrega la que menos defectos tuvo, con ellos en `defectos`, en vez de
+    nada. Sin esto, medir requisitos dentro del bucle (F6.7 (lazo)) habría
+    BAJADO la nota: una pieza a la que le falta un agujero en el último
+    intento salía sin pieza, cuando antes salía y cumplía el resto.
     """
     rechazo: tuple[str, str] | None = None
     motivo = ""
+    mejor = None   # (número de defectos, receta, defectos, cotas perdidas)
     for intento in range(max_construcciones):
         receta = agent.design(brief, rechazo=rechazo)
         if part is not None:
@@ -149,6 +157,10 @@ def design_and_build(
         try:
             resultado = build_part(receta, catalog, Path(carpeta), freecadcmd, perfil=perfil)
             defecto = check(resultado) if check is not None else None
+            if defecto and entregar_mejor:
+                lista = [d for d in defecto.splitlines() if d.strip()]
+                if mejor is None or len(lista) < mejor[0]:
+                    mejor = (len(lista), receta, lista, perdidas)
             if defecto:
                 # Un desacuerdo de CAJA suele ser de quien la declaró, no de
                 # quien dibujó: se le da una corrección al Part Designer y, si
@@ -162,6 +174,12 @@ def design_and_build(
         except ConstruccionFallida as error:
             motivo = error.motivo
             rechazo = (_texto(receta), motivo)
+    if mejor is not None:
+        # Se reconstruye: en la carpeta quedaron los archivos del ÚLTIMO
+        # intento, que puede ser peor que el mejor o no haberse construido.
+        _, receta, lista, perdidas = mejor
+        resultado = build_part(receta, catalog, Path(carpeta), freecadcmd, perfil=perfil)
+        return receta, resultado.model_copy(update={"untraced_mm": perdidas, "defectos": lista})
     raise ConstruccionFallida(
         f"{max_construcciones} construcciones fallidas. Último motivo: {motivo}"
     )

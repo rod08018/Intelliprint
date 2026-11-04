@@ -1,0 +1,63 @@
+"""Requisitos medidos dentro del bucle de diseño (F6.7 (lazo)).
+
+En el banco (2026-11-04) las piezas que se construían fallaban en lo que
+pedía el usuario: el patrón de Ø2 del SG90 desviado 4.1 mm, 2 de los 4
+agujeros Ø3.3 del NEMA17. Lo medía el banco, después; el diseñador nunca se
+enteraba. Aquí se mide con los rasgos con nombre del kit, al construir, y lo
+que no cuadra vuelve al diseñador con los números.
+
+Las distancias esperadas están hechas a mano: dos agujeros con entrada en
+(0, 0, 5) y (27.8, 0, 5) están a 27.8 mm; si el segundo entra por otra cara,
+(27.8, 0, 0) con eje z, la distancia que cuenta es la perpendicular al eje,
+27.8, no la de los puntos de entrada.
+"""
+
+from orchestrator.medida import defectos
+from orchestrator.schemas.spec import Requisito
+
+
+def _agujero(nombre, d, x, y, z=5.0, eje=(0, 0, -1)):
+    return {"nombre": nombre, "tipo": "agujero", "diametro_mm": d,
+            "entrada": [x, y, z], "eje": list(eje)}
+
+
+def _req(valor, cantidad=None, separaciones=(), id="R1", texto="dos agujeros de 2 mm"):
+    return Requisito(id=id, tipo="agujero", texto=texto, valor=valor, origen="usuario",
+                     cantidad=cantidad, separaciones_mm=list(separaciones))
+
+
+def test_agujeros_en_su_sitio_no_dan_defectos():
+    rasgos = [_agujero("a", 2, 0, 0), _agujero("b", 2, 27.8, 0)]
+    assert defectos([_req(2, 2, [27.8])], rasgos) == []
+
+
+def test_faltan_agujeros_y_se_dice_cuantos_hay():
+    """El NEMA17 del banco: pedía 4 de Ø3.3 y salieron 2."""
+    rasgos = [_agujero("a", 3.3, 0, 0), _agujero("b", 3.3, 31, 0), _agujero("c", 22.4, 15, 15)]
+    [d] = defectos([_req(3.3, 4, id="R3", texto="cuatro agujeros de 3.3 mm")], rasgos)
+    assert "R3" in d and "4" in d and "hay 2" in d
+
+
+def test_patron_desviado_dice_las_distancias_que_hay():
+    """El SG90 del banco: los Ø2 tenían que estar a 27.8 y estaban a 23.7."""
+    rasgos = [_agujero("a", 2, 0, 0), _agujero("b", 2, 23.7, 0)]
+    [d] = defectos([_req(2, 2, [27.8])], rasgos)
+    assert "27.8" in d and "23.7" in d
+
+
+def test_la_separacion_se_mide_perpendicular_al_eje():
+    rasgos = [_agujero("a", 2, 0, 0, z=5), _agujero("b", 2, 27.8, 0, z=0)]
+    assert defectos([_req(2, 2, [27.8])], rasgos) == []
+
+
+def test_un_diametro_que_no_esta_lista_los_que_hay():
+    rasgos = [_agujero("a", 4.0, 0, 0)]
+    [d] = defectos([_req(4.5, 1, texto="agujeros de 4.5 mm")], rasgos)
+    assert "4.5" in d and "Ø4" in d
+
+
+def test_lo_que_no_es_un_agujero_no_se_mide_aqui():
+    """Una cota de fondo o un encaje no se sabe a qué eje va: eso es del
+    banco y de F6.12 (techo), no de esta medida."""
+    cota = Requisito(id="R1", tipo="cota", texto="200 mm de fondo", valor=200, origen="usuario")
+    assert defectos([cota], []) == []

@@ -123,3 +123,12 @@ def test_el_enunciado_del_disenador_lleva_cada_requisito_con_su_id():
     spec = Spec(**_spec(), request=REPISA)
     brief = spec_to_task(spec).brief
     assert "R3" in brief and "agujeros de 4.5 mm" in brief
+
+
+def test_una_separacion_de_agujeros_cubre_su_cota():
+    """F6.7 (lazo): «separados 60 mm» puede ir dentro del requisito del
+    agujero, que es donde se mide; no hace falta repetirlo como cota."""
+    agujeros = Requisito(id="R3", tipo="agujero", texto="agujeros de 4.5 mm", valor=4.5,
+                         origen="usuario", cantidad=2, separaciones_mm=[60])
+    resto = [Requisito.model_validate(r) for r in REQUISITOS if r["id"] in ("R1", "R2")]
+    assert errores_de_requisitos([*resto, agujeros], REPISA) == []
