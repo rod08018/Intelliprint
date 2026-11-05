@@ -40,6 +40,17 @@ if [ ! -f "$marca" ]; then
     touch "$marca"
 fi
 
+# El buscador (web_search con DuckDuckGo, sin clave). Su plugin no viene en
+# la imagen y sin el la configuracion no valida: se instala una vez, en la
+# version de la imagen fijada en el compose, no en la ultima.
+buscador="$OPENCLAW_STATE_DIR/.intelliprint-buscador"
+if [ ! -f "$buscador" ]; then
+    echo "[crafty] instalando el buscador: @openclaw/duckduckgo-plugin@2026.9.5"
+    oc config set --batch-json '[{"path":"plugins.entries.duckduckgo.enabled","value":true}]'
+    oc doctor --fix --non-interactive
+    touch "$buscador"
+fi
+
 mkdir -p "$OPENCLAW_WORKSPACE_DIR"
 cp /intelliprint/openclaw/IDENTITY.md /intelliprint/openclaw/INTELLIPRINT.md "$OPENCLAW_WORKSPACE_DIR/"
 

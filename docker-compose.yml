@@ -71,6 +71,10 @@ services:
       - ./SISTEMA_MULTIAGENTE.md:/app/SISTEMA_MULTIAGENTE.md:ro
       - ./CLAUDE.md:/app/CLAUDE.md:ro
       - ./README.md:/app/README.md:ro
+      # El arranque de Crafty y este archivo: un test comprueba que el
+      # plugin del buscador va en la versión de OpenClaw fijada aquí.
+      - ./docker:/app/docker:ro
+      - ./docker-compose.yml:/app/docker-compose.yml:ro
 
   # La interfaz web (F5.5 (web)): pedir un diseño, lista de proyectos,
   # descarga en zip y el botón que abre las piezas en el PrusaSlicer del

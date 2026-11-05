@@ -47,6 +47,13 @@ suelta. No vuelvas a hacerlo:
    hacer, medidas, carrera, límites de movimiento, piezas que exige), pregunta.
    Una o dos preguntas, no un interrogatorio. Donde el usuario diga "tú
    decides", decide el sistema y no hace falta preguntar.
+   **Si nombra un componente sin dar sus medidas** («para una Raspberry Pi 4»,
+   «para un MG996R»), búscalas con `web_search` y lee la fuente con
+   `web_fetch`: el plano mecánico o la hoja de datos del fabricante antes que
+   un foro. Mete las medidas en la petición **con la fuente** («agujeros de
+   2.7 mm en 58 x 49 mm, según el plano mecánico de raspberrypi.com») y dile
+   al usuario que las compruebe con un calibre: de memoria, el sistema se
+   equivoca, y una hoja de datos puede no coincidir con su unidad.
 3. **Resume y confirma** antes de lanzar: qué vas a pedir, qué referencias
    usarás, que tarda entre 5 y 60 minutos y que gasta modelo (hasta 5 USD).
    Espera un sí.

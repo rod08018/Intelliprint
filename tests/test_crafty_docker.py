@@ -140,3 +140,35 @@ def test_flash_queda_registrado_en_el_proveedor_antes_de_elegirlo():
     alta = rutas.index("models.providers.deepseek.models")
     assert {"id": "deepseek-flash", "name": "deepseek-flash"} in lote[alta]["value"]
     assert alta < rutas.index("agents.defaults.model.primary")
+
+
+def test_crafty_puede_buscar_en_internet():
+    """Para sacar medidas de hojas de datos (el plano mecánico de la
+    Raspberry Pi 4) sin dictarlas de memoria. Sin proveedor, `web_search`
+    contestaba «disabled or no provider is available» (2026-11-05).
+    DuckDuckGo no pide clave; DeepSeek como buscador no existe en la
+    versión fijada de OpenClaw (2026.9.5): «unknown web_search provider»."""
+    lote = lote_de_configuracion(ENV)
+    assert _valor(lote, "tools.web.search.enabled") is True
+    assert _valor(lote, "tools.web.search.provider") == "duckduckgo"
+
+
+def test_el_arranque_instala_el_buscador_antes_de_configurarlo():
+    """Sin el plugin, elegir duckduckgo no valida y Crafty no arranca. Y se
+    instala la versión de OpenClaw fijada en el compose, no la última."""
+    from pathlib import Path
+
+    arranque = Path("docker/crafty-entrypoint.sh").read_text(encoding="utf-8")
+    compose = Path("docker-compose.yml").read_text(encoding="utf-8")
+    assert arranque.index("duckduckgo") < arranque.index("--batch-json")
+    version = compose.split("ghcr.io/openclaw/openclaw:")[1].split()[0]
+    assert f"@openclaw/duckduckgo-plugin@{version}" in arranque
+
+
+def test_el_arranque_de_crafty_no_lleva_crlf():
+    """Se monta tal cual desde la copia de trabajo, sin pasar por git: un
+    parche escrito desde Windows le metió CRLF y `sh` murió en bucle con
+    «set: Illegal option -» (2026-11-05)."""
+    from pathlib import Path
+
+    assert b"\r\n" not in Path("docker/crafty-entrypoint.sh").read_bytes()

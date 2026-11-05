@@ -73,6 +73,13 @@ def lote_de_configuracion(env) -> list[dict]:
         # permitido y como principal (comprobado comparando su openclaw.json).
         {"path": f"agents.defaults.models.{modelo}", "value": {}},
         {"path": "agents.defaults.model.primary", "value": modelo},
+        # Buscar en internet, para sacar medidas de hojas de datos y planos
+        # (el de la Raspberry Pi 4) en vez de dictarlas de memoria. Sin
+        # proveedor, `web_search` contestaba «disabled» (2026-11-05).
+        # DuckDuckGo no pide clave; DeepSeek como buscador no existe en la
+        # versión fijada de OpenClaw. El plugin lo instala el arranque.
+        {"path": "tools.web.search.enabled", "value": True},
+        {"path": "tools.web.search.provider", "value": "duckduckgo"},
         *acceso,
         # Un bot de un dueño: meterlo en un grupo no debe abrirlo a los
         # demás miembros.
