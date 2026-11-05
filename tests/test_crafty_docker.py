@@ -127,3 +127,16 @@ def test_crafty_conversa_con_flash_por_defecto():
 def test_el_modelo_de_crafty_se_cambia_desde_el_entorno():
     lote = lote_de_configuracion({**ENV, "CRAFTY_MODEL": "deepseek/deepseek-v4-pro"})
     assert _valor(lote, "agents.defaults.model.primary") == "deepseek/deepseek-v4-pro"
+
+
+def test_flash_queda_registrado_en_el_proveedor_antes_de_elegirlo():
+    """Fallo real (2026-11-05): con el volumen de Crafty recién creado,
+    OpenClaw 2026.9.5 no trae deepseek-flash en su catálogo y rechaza
+    `agents.defaults.model.primary`; Crafty se reiniciaba en bucle. Con el
+    volumen viejo no se veía. Hay que darlo de alta en el proveedor, y
+    antes de elegirlo: el lote se aplica en orden."""
+    lote = lote_de_configuracion(ENV)
+    rutas = [c["path"] for c in lote]
+    alta = rutas.index("models.providers.deepseek.models")
+    assert {"id": "deepseek-flash", "name": "deepseek-flash"} in lote[alta]["value"]
+    assert alta < rutas.index("agents.defaults.model.primary")

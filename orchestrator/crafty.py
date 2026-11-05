@@ -60,8 +60,15 @@ def lote_de_configuracion(env) -> list[dict]:
     # más en salida. Para conversar y pasar encargos basta Flash, que sí las
     # ve. Decisión del usuario (2026-09-21).
     modelo = env.get("CRAFTY_MODEL") or MODELO_POR_DEFECTO
+    proveedor, _, nombre = modelo.partition("/")
     return [
         {"path": "gateway.mode", "value": "local"},
+        # Dado de alta en su proveedor ANTES de elegirlo: un OpenClaw recién
+        # instalado (2026.9.5) no trae deepseek-flash en el catálogo y
+        # rechazaba el modelo; Crafty se reiniciaba en bucle. Con el volumen
+        # viejo no se veía (2026-11-05).
+        {"path": f"models.providers.{proveedor}.models",
+         "value": [{"id": nombre, "name": nombre}]},
         # Lo mismo que hace `openclaw models set`: el modelo en el catálogo
         # permitido y como principal (comprobado comparando su openclaw.json).
         {"path": f"agents.defaults.models.{modelo}", "value": {}},
