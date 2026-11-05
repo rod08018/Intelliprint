@@ -382,6 +382,41 @@ def test_un_eje_mas_gordo_que_el_agujero_del_rodamiento_si_choca(tmp_path):
     assert cabe.estado == "no_cumple" and "rodamiento" in cabe.detalle
 
 
+SENSOR_EN_SU_HUECO = """
+def construir(kit):
+    sensor = kit.componente("hc-sr04", en=(0, 0, 3), entra_por="+y")
+    bloque = kit.caja(55, 25, 30, en=(-5, -8, 0))
+    return bloque.quitar("alojamiento del sensor", sensor.hueco())
+"""
+"""Un bloque al que se le resta el hueco del sensor: así lo hará el
+diseñador con `kit.componente`."""
+
+
+def test_el_hueco_del_componente_deja_meterlo_y_sacarlo(tmp_path):
+    """Del kit al juicio sin intermediarios: el programa coloca el sensor, el
+    rasgo queda junto al STEP y las sondas lo miden con la ficha real."""
+    import json
+    from orchestrator.banco import Componente, sondas_de_componente
+    step = _step(SENSOR_EN_SU_HUECO, tmp_path)
+    rasgos = json.loads((tmp_path / "rasgos.json").read_text(encoding="utf-8"))
+    sondas = sondas_de_componente(Componente(tipo="componente", ficha="hc-sr04"), rasgos)
+    cabe, entra = medir_sondas(step, sondas, _freecadcmd(), MATERIAL)
+    assert cabe.estado == "cumple", cabe.detalle
+    assert entra.estado == "cumple", entra.detalle
+
+
+def test_si_no_quita_el_hueco_el_bucle_le_dice_que_choca(tmp_path):
+    """Lo que vuelve al diseñador nombra la pieza del sensor que choca y cómo
+    se arregla."""
+    from orchestrator.medida import defectos_de_la_pieza
+    codigo = SENSOR_EN_SU_HUECO.replace(
+        'return bloque.quitar("alojamiento del sensor", sensor.hueco())', "return bloque")
+    resultado = build_part(Programa(part="p", codigo=codigo), None, tmp_path, _freecadcmd(),
+                           perfil=PERFIL)
+    fallos = defectos_de_la_pieza([], resultado, tmp_path / "p.step", _freecadcmd(), MATERIAL)
+    assert any("integrados de atrás" in f and "hueco()" in f for f in fallos), fallos
+
+
 def test_un_booleano_que_falla_en_silencio_no_deja_pasar_nada():
     """El soporte del SG90 del banco (2026-11-04, copiado tal cual): `common`
     y `cut` devuelven vacío para una caja que atraviesa la base maciza, y la

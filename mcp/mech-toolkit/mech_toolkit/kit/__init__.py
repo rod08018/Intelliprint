@@ -440,11 +440,92 @@ class Cuerpo:
         return self._cortar(nombre, herramienta._forma)
 
 
+class Componente:
+    """Un componente comprado colocado en la pieza (F6.11 (biblioteca)).
+
+    Su forma sale de la ficha de la biblioteca, no del programa: el soporte
+    del HC-SR04 (2026-11-05) dibujó el sensor con cajas y números de una
+    tienda, y el sensor real no entraba. Aquí el programa solo dice dónde va
+    y por dónde entra."""
+
+    def __init__(self, ficha: dict, en, giros, entra_por, kit) -> None:
+        self._ficha, self._en, self._giros = ficha, [float(c) for c in en], giros
+        self._entra_por, self._kit = entra_por, kit
+
+    def hueco(self, holgura="slide") -> "Cuerpo":
+        """Lo que hay que quitar a la pieza para que el componente quepa, se
+        pueda meter viniendo desde `entra_por` y quede libre lo que su ficha
+        pide (cable, haz, enchufes). `holgura`: «press», «slide», «clearance»
+        (del perfil, en diámetro) o un número en mm. Úsalo con
+        `pieza.quitar("nombre", componente.hueco())`. Un rodamiento sale
+        macizo: si lleva eje impreso, añádelo después de quitar el hueco."""
+        from mech_toolkit.componentes import EJES, barrido, primitivas, solido
+
+        h = float(holgura) if isinstance(holgura, (int, float)) else self._kit.holgura(holgura)
+        d = EJES[self._entra_por]
+        formas = []
+        for c in primitivas(self._ficha, self._en, self._giros, "cuerpos"):
+            if c["tipo"] == "caja":
+                c = {**c, "min": [a - h / 2 for a in c["min"]],
+                     "max": [b + h / 2 for b in c["max"]]}
+            else:
+                c = {**c, "interior": None, "diametro": c["diametro"] + h,
+                     "alto": c["alto"] + h,
+                     "base": [b - e * h / 2 for b, e in zip(c["base"], c["eje"])]}
+            formas.append(barrido(c, d, LARGO))
+        formas += [solido({**c, "interior": None})
+                   for c in primitivas(self._ficha, self._en, self._giros, "despejar")]
+        forma = formas[0]
+        for f in formas[1:]:
+            forma = forma.fuse(f)
+        return Cuerpo(forma.removeSplitter(), self._kit)
+
+    def agujeros(self) -> list:
+        """Los agujeros de fijación de la ficha, ya colocados en la pieza:
+        [{"nombre", "diametro", "en", "eje"}]. `en` es el centro del agujero
+        en la cara del componente; `eje`, hacia dónde va el tornillo."""
+        from mech_toolkit.componentes import colocar, orientar
+
+        return [{"nombre": a["nombre"], "diametro": float(a["diametro"]),
+                 "en": tuple(colocar(a["en"], self._en, self._giros)),
+                 "eje": tuple(orientar(a["eje"], self._giros))}
+                for a in self._ficha.get("fijacion") or []]
+
+    def punto(self, nombre) -> tuple:
+        """Dónde queda en la pieza el agujero de fijación `nombre` de la ficha."""
+        for a in self.agujeros():
+            if a["nombre"] == nombre:
+                return a["en"]
+        raise KitError(f"{self._ficha['id']} no tiene un agujero «{nombre}»; tiene: "
+                       f"{', '.join(a['nombre'] for a in self.agujeros()) or 'ninguno'}")
+
+    def envolvente(self) -> tuple:
+        """((xmin, ymin, zmin), (xmax, ymax, zmax)) de los cuerpos del
+        componente, ya colocado: para poner paredes y apoyos a su alrededor."""
+        from mech_toolkit.componentes import primitivas
+
+        mins, maxs = [], []
+        for c in primitivas(self._ficha, self._en, self._giros, "cuerpos"):
+            if c["tipo"] == "caja":
+                mins.append(c["min"])
+                maxs.append(c["max"])
+            else:
+                r = c["diametro"] / 2
+                fin = [b + e * c["alto"] for b, e in zip(c["base"], c["eje"])]
+                mins.append([min(a, b) - (0 if e else r)
+                             for a, b, e in zip(c["base"], fin, c["eje"])])
+                maxs.append([max(a, b) + (0 if e else r)
+                             for a, b, e in zip(c["base"], fin, c["eje"])])
+        return (tuple(min(m[n] for m in mins) for n in range(3)),
+                tuple(max(m[n] for m in maxs) for n in range(3)))
+
+
 class Kit:
     """Las piezas de partida. Cada una devuelve un `Cuerpo`."""
 
-    def __init__(self, perfil: dict | None = None) -> None:
+    def __init__(self, perfil: dict | None = None, fichas: dict | None = None) -> None:
         self.perfil = perfil or {}
+        self._fichas = fichas or {}
         self._rasgos: list[dict] = []
         self._avisos: list[str] = []
 
@@ -478,6 +559,32 @@ class Kit:
             raise KitError(f"el perfil no define el ajuste {ajuste!r}; tiene: "
                            f"{', '.join(sorted(k[:-3] for k in tabla)) or 'nada'}")
         return float(tabla[clave])
+
+    # --- componentes comprados ------------------------------------------------------
+
+    def componente(self, id, en=(0, 0, 0), girar=(), entra_por="+z",
+                   nombre=None) -> Componente:
+        """Coloca un componente comprado de la biblioteca (un sensor, una
+        placa, un servo, un motor, un perfil, un rodamiento). Su forma sale
+        de su ficha: nunca lo dibujes con cajas. `en`: dónde va el origen de
+        la ficha; `girar`: cuartos de vuelta, p. ej. [("z", 90)]; `entra_por`:
+        desde dónde se mete («+z»: bajando desde arriba; «+y»: desde delante,
+        hacia -y). Después, `pieza.quitar(..., componente.hueco())`."""
+        from mech_toolkit.componentes import EJES, primitivas
+
+        if id not in self._fichas:
+            raise KitError(f"no hay ficha de «{id}» en la biblioteca; hay: "
+                           f"{', '.join(sorted(self._fichas)) or 'ninguna'}")
+        if entra_por not in EJES:
+            raise KitError(f"`entra_por` es uno de {', '.join(EJES)}, no {entra_por!r}")
+        giros = [[str(e), float(g)] for e, g in girar]
+        try:
+            primitivas(self._fichas[id], en, giros)
+        except ValueError as e:
+            raise KitError(f"«{id}»: {e}") from None
+        self._registrar(nombre or id, "componente", ficha=id, en=[float(c) for c in en],
+                        giros=giros, entra_por=entra_por)
+        return Componente(self._fichas[id], en, giros, entra_por, self)
 
     # --- sólidos de partida ----------------------------------------------------------
 
@@ -558,7 +665,7 @@ class Kit:
 # --- la API que puede usar el programa -------------------------------------------------
 
 API = frozenset(
-    n for cls in (Kit, Cuerpo) for n, _ in inspect.getmembers(cls)
+    n for cls in (Kit, Cuerpo, Componente) for n, _ in inspect.getmembers(cls)
     if not n.startswith("_")) | {"perfil"}
 """Los únicos atributos que el programa puede tocar. `sandbox` los lee de
 aquí: un método nuevo del kit queda disponible sin tocar el validador."""
@@ -568,7 +675,8 @@ def referencia() -> str:
     """La API del kit para el prompt del diseñador, sacada de las firmas y los
     docstrings: la documentación no se puede quedar atrás del código."""
     lineas = []
-    for titulo, cls, prefijo in (("kit", Kit, "kit."), ("cuerpo", Cuerpo, "cuerpo.")):
+    for titulo, cls, prefijo in (("kit", Kit, "kit."), ("cuerpo", Cuerpo, "cuerpo."),
+                                 ("componente", Componente, "componente.")):
         lineas.append(f"### {titulo}\n")
         for n, f in inspect.getmembers(cls, inspect.isfunction):
             if n.startswith("_"):

@@ -376,9 +376,15 @@ def sondas_de_componente(a: Componente, rasgos: list[dict]) -> list[_Sonda]:
 
     colocado = next((r for r in rasgos if r.get("tipo") == "componente"
                      and r.get("ficha") == a.ficha), None)
-    if colocado is None:
-        return []
-    ficha = cargar(a.ficha).model_dump()
+    return [] if colocado is None else sondas_del_rasgo(colocado)
+
+
+def sondas_del_rasgo(colocado: dict) -> list[_Sonda]:
+    """Cabe y entra, para un componente que el programa colocó con
+    `kit.componente`: lo usan el banco y el bucle de diseño (F6.7 (lazo))."""
+    from orchestrator.componentes import cargar
+
+    ficha = cargar(colocado["ficha"]).model_dump()
     donde = {"ficha": ficha, "en": colocado["en"], "giros": colocado.get("giros") or []}
     return [ComponenteCabe(tipo="componente_cabe", **donde),
             ComponenteEntra(tipo="componente_entra", entra_por=colocado["entra_por"], **donde)]

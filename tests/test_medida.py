@@ -87,3 +87,15 @@ def test_la_seccion_de_un_encaje_cubre_sus_cotas():
                       origen="usuario", seccion_mm=[40.7, 19.7])
     from orchestrator.schemas.spec import errores_de_requisitos
     assert errores_de_requisitos([servo], peticion) == []
+
+
+def test_un_componente_del_concepto_que_el_programa_no_coloca_es_un_defecto():
+    """F6.11 (biblioteca): sin `kit.componente` no hay dónde meter el sensor
+    para comprobar que cabe; el soporte del HC-SR04 dibujó el suyo con cajas."""
+    from orchestrator.medida import componentes_sin_colocar, sondas_de
+    colocado = {"nombre": "sensor", "tipo": "componente", "ficha": "hc-sr04",
+                "en": [0, 0, 0], "giros": [], "entra_por": "+y"}
+    [fallo] = componentes_sin_colocar(["hc-sr04", "raspberry-pi-4"], [colocado])
+    assert "raspberry-pi-4" in fallo and "kit.componente" in fallo
+    assert [s.tipo for s in sondas_de([], [colocado])] == [
+        "aristas_vivas", "componente_cabe", "componente_entra"]

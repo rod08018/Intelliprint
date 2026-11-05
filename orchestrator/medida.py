@@ -67,32 +67,53 @@ cuenta antes los de función. Una pieza bien acabada donde el servo no
 entra es peor que una con aristas vivas donde sí."""
 
 
-def sondas_de(requisitos) -> list:
+def sondas_de(requisitos, rasgos=()) -> list:
     """Las sondas del banco (F6.12 (techo)) que se pueden pedir desde los
     requisitos. Rejuzgada con ellas, la corrida del 62 % daba 81 %, y lo que
     fallaba eran aristas vivas y ventanas de servo que el diseñador nunca
     recibía como motivo: el bucle solo medía agujeros (2026-11-04).
 
     El acabado se mira siempre: que se vea como un producto no lo pide nadie
-    con esas palabras, pero lo espera todo el mundo."""
-    from orchestrator.banco import AristasVivas, Ventana
+    con esas palabras, pero lo espera todo el mundo.
+
+    Y cada componente que el programa coloca con `kit.componente` se mete en
+    la pieza con su ficha (F6.11 (biblioteca)): el soporte del HC-SR04 salió
+    «resuelto» con un sensor que no entraba, porque aquí solo se miraban
+    agujeros y aristas."""
+    from orchestrator.banco import AristasVivas, Ventana, sondas_del_rasgo
 
     sondas = [AristasVivas(tipo="aristas_vivas", max_fraccion=0.1)]
     for r in requisitos:
         if r.tipo == "encaje" and len(r.seccion_mm) == 2:
             sondas.append(Ventana(tipo="ventana", ancho_mm=r.seccion_mm[0],
                                   alto_mm=r.seccion_mm[1], porque=f"{r.id} («{r.texto}»)"))
+    for r in rasgos:
+        if r.get("tipo") == "componente":
+            sondas += sondas_del_rasgo(r)
     return sondas
 
 
+def componentes_sin_colocar(componentes, rasgos) -> list[str]:
+    """Los componentes que el concepto nombra y el programa no coloca: sin
+    colocarlos no se puede comprobar que quepan."""
+    colocados = {r.get("ficha") for r in rasgos if r.get("tipo") == "componente"}
+    return [f"no colocaste el {c}: ponlo con `kit.componente(\"{c}\", en=..., "
+            "entra_por=...)` y quita su `hueco()` a la pieza; sin eso no se puede "
+            "comprobar que quepa ni que entre"
+            for c in componentes if c not in colocados]
+
+
 def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
-                         material: dict) -> list[str]:
+                         material: dict, componentes=()) -> list[str]:
     """Lo que la pieza construida no cumple: agujeros (con los rasgos del
-    kit) y sondas sobre el STEP. Los de acabado van con su prefijo."""
-    from orchestrator.banco import AristasVivas, medir_sondas
+    kit), componentes que no caben o no entran, y sondas sobre el STEP. Los
+    de acabado van con su prefijo."""
+    from orchestrator.banco import (AristasVivas, ComponenteCabe, ComponenteEntra,
+                                    medir_sondas)
 
     fallos = defectos(requisitos, resultado.rasgos)
-    sondas = sondas_de(requisitos)
+    fallos += componentes_sin_colocar(componentes, resultado.rasgos)
+    sondas = sondas_de(requisitos, resultado.rasgos)
     for sonda, medida in zip(sondas, medir_sondas(step, sondas, freecadcmd, material)):
         if medida.estado != "no_cumple":
             continue   # «sin medir» (una sonda rota) no es culpa del diseñador
@@ -102,6 +123,13 @@ def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
             fallos.append(f"{ACABADO}: {medida.detalle}. Termina con `return pieza.acabar()`, "
                           "que redondea todas las esquinas sin rellenar los rincones; si "
                           "una pared es fina, `acabar(radio=0.5)`")
+        elif isinstance(sonda, ComponenteCabe):
+            fallos.append(f"{medida.detalle}. Resta a la pieza el `hueco()` del componente "
+                          "(`pieza.quitar(\"...\", componente.hueco())`), y si lo que choca "
+                          "es algo que la pieza necesita, muévelo o cambia por dónde entra")
+        elif isinstance(sonda, ComponenteEntra):
+            fallos.append(f"{medida.detalle}. El camino de entrada tiene que quedar abierto: "
+                          "el `hueco()` lo abre, o cambia `entra_por` a un lado sin pared")
         else:
             fallos.append(f"{sonda.porque}: {medida.detalle}. La abertura tiene que atravesar "
                           "la pieza entera, no ser un rebaje, y llevar holgura")

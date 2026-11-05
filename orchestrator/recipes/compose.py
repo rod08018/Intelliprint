@@ -42,7 +42,7 @@ import Part
 from mech_toolkit.kit import Kit, KitError, ejecutar
 
 doc = FreeCAD.newDocument({part!r})
-_kit = Kit(perfil=json.loads({perfil!r}))
+_kit = Kit(perfil=json.loads({perfil!r}), fichas=json.loads({fichas!r}))
 try:
     _cuerpo = ejecutar({codigo!r}, _kit)
 except KitError as _e:
@@ -116,6 +116,14 @@ print({prefix!r} + json.dumps({{
 '''
 
 
+def _fichas() -> dict:
+    """Toda la biblioteca de componentes (F6.11 (biblioteca)): son pocas
+    fichas y FreeCAD no puede leer `library/` por su cuenta."""
+    from orchestrator.componentes import cargar, ids
+
+    return {i: cargar(i).model_dump() for i in ids()}
+
+
 def compose_program_script(programa, output_dir: Path | str = ".",
                            perfil: dict | None = None) -> str:
     """El `build.py` de un programa del kit (F5.18 (kit)). El programa va como
@@ -127,6 +135,7 @@ def compose_program_script(programa, output_dir: Path | str = ".",
     return _PREAMBULO_PROGRAMA.format(
         toolkit=str(Path(mech_toolkit.__file__).resolve().parent.parent),
         part=programa.part, perfil=json.dumps(perfil or {}), codigo=programa.codigo,
+        fichas=json.dumps(_fichas(), ensure_ascii=False),
     ) + _EPILOGO.format(
         part=programa.part,
         stl=str(salida / f"{programa.part}.stl"),

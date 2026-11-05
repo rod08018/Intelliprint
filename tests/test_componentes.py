@@ -157,3 +157,40 @@ def test_perfil_2020_deja_libres_sus_ranuras():
 def test_608_es_un_anillo():
     r = _cuerpo("608zz", "rodamiento").cilindro
     assert (r.diametro, r.interior, r.alto) == (22, 8, 7)
+
+
+# --- el kit coloca componentes (F6.11 (biblioteca)) ----------------------------------------
+
+def _kit(*ids_):
+    from mech_toolkit.kit import Kit
+    return Kit(fichas={i: cargar(i).model_dump() for i in ids_})
+
+
+def test_el_kit_coloca_el_componente_con_su_ficha_y_lo_registra():
+    """El programa solo dice dónde va y por dónde entra; la forma y los
+    agujeros salen de la ficha (plano de Raspberry Pi: agujeros a 3.5 del
+    canto; los conectores asoman 2.5 por la derecha y el audio por abajo)."""
+    kit = _kit("raspberry-pi-4")
+    pi = kit.componente("raspberry-pi-4", en=(10, 20, 5))
+    assert pi.punto("agujero abajo izquierda") == pytest.approx((13.5, 23.5, 5))
+    assert len(pi.agujeros()) == 4 and {a["diametro"] for a in pi.agujeros()} == {2.7}
+    minimo, maximo = pi.envolvente()
+    assert minimo[1] == pytest.approx(17.5) and maximo[0] == pytest.approx(97.5)
+    assert kit.rasgos() == [{"nombre": "raspberry-pi-4", "tipo": "componente",
+                             "ficha": "raspberry-pi-4", "en": [10, 20, 5], "giros": [],
+                             "entra_por": "+z"}]
+
+
+def test_girado_un_cuarto_de_vuelta_sus_agujeros_giran_con_el():
+    sensor = _kit("hc-sr04").componente("hc-sr04", girar=[("z", 90)], entra_por="-x")
+    assert sensor.punto("agujero abajo derecha") == pytest.approx((0, 42.5, 2.5))
+
+
+def test_un_componente_que_no_esta_en_la_biblioteca_dice_cuales_hay():
+    from mech_toolkit.kit import KitError
+    with pytest.raises(KitError, match="hc-sr04"):
+        _kit("hc-sr04").componente("hc-sr05")
+    with pytest.raises(KitError, match="90"):
+        _kit("hc-sr04").componente("hc-sr04", girar=[("z", 45)])
+    with pytest.raises(KitError, match="entra_por"):
+        _kit("hc-sr04").componente("hc-sr04", entra_por="arriba")
