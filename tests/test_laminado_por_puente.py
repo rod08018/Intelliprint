@@ -144,3 +144,19 @@ def test_en_el_contenedor_manda_el_puente(puente):
         laminar(Path("/workspace/p/cubo.stl"), Path("/workspace/p/cubo.gcode"))
         assert puente.recibido["stl"] == HOST + r"\p\cubo.stl"
         puente.recibido.clear()
+
+
+def test_el_banco_con_su_propio_workspace_lamina_lo_que_hay_en_el_host(puente):
+    """El banco da a cada encargo su `INTELLIPRINT_WORKSPACE`
+    (`/workspace/banco/<corrida>/01`), pero lo compartido con el host sigue
+    siendo `/workspace` entero. Traduciendo desde el del encargo, el host
+    buscaba el STL en `workspace\projects\…` y las nueve piezas de la línea
+    base salieron «no construidas» (2026-11-05)."""
+    laminar = elegir_laminador(
+        Path("."),
+        {"PRUSASLICER_BRIDGE": puente, "INTELLIPRINT_WORKSPACE": "/workspace/banco/1105/01",
+         "HOST_WORKSPACE": HOST},
+    )
+    laminar(Path("/workspace/banco/1105/01/projects/x/cubo.stl"),
+            Path("/workspace/banco/1105/01/projects/x/cubo.gcode"))
+    assert puente.recibido["stl"] == HOST + r"\banco\1105\01\projects\x\cubo.stl"

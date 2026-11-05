@@ -140,7 +140,12 @@ def elegir_laminador(raiz: Path, env) -> "Callable[[Path, Path], SlicingReport]"
     from orchestrator.hostpaths import a_ruta_del_host
     from orchestrator.mcp.client import ClienteMCP
 
-    workspace = env.get("INTELLIPRINT_WORKSPACE") or "/workspace"
+    # La carpeta MONTADA, no el workspace lógico de esta ejecución: el banco
+    # da a cada encargo `/workspace/banco/<corrida>/01`, y traduciendo desde
+    # ahí el host buscaba el STL en `workspace\projects\…`; la línea base
+    # entera salió «no construida» (2026-11-05). HOST_WORKSPACE nombra el
+    # montaje, así que la raíz tiene que ser la del montaje.
+    workspace = env.get("CONTAINER_WORKSPACE") or "/workspace"
     host_workspace = env.get("HOST_WORKSPACE") or ""
     herramienta = env.get("PRUSASLICER_BRIDGE_TOOL") or "laminar"
     cliente = ClienteMCP(destino)
