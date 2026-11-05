@@ -8,10 +8,12 @@ la URL: es texto que escribe cualquiera, así que se trata como tal.
 
 import io
 import json
+import re
 import zipfile
 from pathlib import Path
 
 import pytest
+import yaml
 from fastapi.testclient import TestClient
 from mcp.server import MCPServer
 
@@ -711,6 +713,101 @@ def test_un_concepto_por_aprobar_se_lee_en_su_pagina_con_sus_botones(ws):
     assert "gancho en J con nervio" in html
     assert "¿cuánto pesa la mochila?" in html
     assert 'data-aprobar="2026-11-04-gancho"' in html
+
+
+URL_LARGA = ("https://thepihut.com/products/ultrasonic-distance-sensor-hcsr04?variant=1"
+             "&utm_medium=product_sync&gclid=CjwKCAjwtdeFBhBAEiwAKOIy59#1")
+
+
+def _concepto_completo(ws, preguntas=()):
+    """Como el del HC-SR04 (2026-11-05): idea, carga, impresión, cálculo,
+    descartes y catorce medidas con URLs de 250 caracteres, todo en un bloque.
+    «Totalmente ilegible: no se sabe qué está aprobando uno»."""
+    carpeta = ws / "projects" / "2026-11-05-sensor"
+    carpeta.mkdir(parents=True)
+    (carpeta / "request.md").write_text(
+        "Soporte para un HC-SR04 en un perfil 2020. Se atornilla al perfil con un "
+        "tornillo M5 y tuerca en T. Sin soportes de impresión.\n", encoding="utf-8")
+    (carpeta / "concepto.json").write_text(json.dumps({
+        "concepto": {"idea": "Una cuna que abraza el PCB por los bordes.",
+                     "camino_de_carga": "El empuje baja por el respaldo hasta el M5.",
+                     "orientacion": "Se apoya en la cama el labio inferior.",
+                     "fijaciones": ["1 tornillo M5 con tuerca en T"],
+                     "alternativas": ["Atornillar el PCB por sus agujeros de 1 mm."],
+                     "preguntas": list(preguntas)},
+        "comprobaciones": []}), encoding="utf-8")
+    (carpeta / "concepto.md").write_text("# Sensor: el concepto\n\n**Idea:** Una cuna\n",
+                                         encoding="utf-8")
+    requisito = {"cantidad": None, "seccion_mm": [], "separaciones_mm": [], "unidad": "mm"}
+    (carpeta / "spec.yaml").write_text(yaml.safe_dump({"requisitos": [
+        {**requisito, "id": "R1", "tipo": "encaje", "origen": "catalogo", "valor": 43.0,
+         "texto": "HC-SR04, longitud del PCB: 43 mm (fuente: thepihut.com)"},
+        {**requisito, "id": "R5", "tipo": "agujero", "origen": "catalogo", "valor": 8.0,
+         "cantidad": 2, "separaciones_mm": [26.0],
+         "texto": "HC-SR04, diámetro de los transductores: 8 mm (fuente: thepihut.com)"},
+        {**requisito, "id": "R8", "tipo": "fijacion", "origen": "usuario", "valor": 5.0,
+         "texto": "Se atornilla al perfil con un tornillo M5 y tuerca en T"},
+        {**requisito, "id": "R15", "tipo": "imprimibilidad", "origen": "usuario", "valor": None,
+         "texto": "Sin soportes de impresión"},
+        {**requisito, "id": "R16", "tipo": "cota", "origen": "estimado", "valor": 3.0,
+         "texto": "Pared de la cuna"},
+    ]}, allow_unicode=True), encoding="utf-8")
+    (carpeta / "investigacion.json").write_text(json.dumps({
+        "datos": [{"componente": "HC-SR04", "medida": "longitud del PCB", "valor": 43,
+                   "unidad": "mm", "fuente": URL_LARGA, "cita": "Length: 43mm"},
+                  {"componente": "HC-SR04", "medida": "diámetro de los transductores",
+                   "valor": 8, "unidad": "mm", "fuente": URL_LARGA,
+                   "cita": "Transmitter diameter: 8mm"}],
+        "sin_encontrar": ["posición de los agujeros respecto a los bordes"]}), encoding="utf-8")
+    return carpeta
+
+
+def _visible(html):
+    return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html))
+
+
+def test_el_concepto_dice_que_medidas_se_aprueban_y_de_donde_sale_cada_una(ws):
+    _concepto_completo(ws)
+    html = _ws_con_trabajos(ws).get("/p/2026-11-05-sensor").text
+    texto = _visible(html)
+
+    pediste = texto.index("Lo que pediste")
+    internet = texto.index("Buscado en internet")
+    sistema = texto.index("Lo decide el sistema")
+    assert pediste < texto.index("tornillo M5 y tuerca en T") < internet
+    assert internet < texto.index("longitud del PCB") < texto.index("43 mm") < sistema
+    assert internet < texto.index("diámetro de los transductores") < sistema
+    assert "2 × 8 mm" in texto and "a 26 mm" in texto
+    assert sistema < texto.index("Pared de la cuna")
+    # La fuente se ve por su dominio; la URL entera, solo en el enlace.
+    assert f'href="{URL_LARGA.replace("&", "&amp;")}"' in html
+    assert "thepihut.com" in texto and "utm_medium" not in texto
+    # La cita, para quien quiera comprobar de dónde salió el número.
+    assert "Transmitter diameter: 8mm" in html
+    assert "posición de los agujeros respecto a los bordes" in texto
+
+
+def test_la_idea_a_la_vista_y_el_razonamiento_plegado(ws):
+    _concepto_completo(ws)
+    html = _ws_con_trabajos(ws).get("/p/2026-11-05-sensor").text
+    plegado = html.index('<details class="razonamiento"')
+    assert html.index("Una cuna que abraza el PCB") < plegado
+    for detalle in ("baja por el respaldo", "labio inferior", "1 tornillo M5",
+                    "agujeros de 1 mm"):
+        assert html.index(detalle) > plegado, detalle
+
+
+def test_las_preguntas_van_antes_que_las_medidas(ws):
+    _concepto_completo(ws, preguntas=["¿Tu perfil es de ranura 6 u 8?"])
+    texto = _visible(_ws_con_trabajos(ws).get("/p/2026-11-05-sensor").text)
+    assert texto.index("¿Tu perfil es de ranura 6 u 8?") < texto.index("Lo que pediste")
+
+
+def test_un_concepto_sin_piezas_no_ofrece_imprimir_ni_descargar(ws):
+    _concepto_completo(ws)
+    html = _ws_con_trabajos(ws).get("/p/2026-11-05-sensor").text
+    assert "data-abrir=" not in html and ".zip\"" not in html
+    assert "Todavía no hay imagen" not in html
 
 
 def test_aprobar_desde_la_web_reanuda_el_diseno(ws):

@@ -16,6 +16,9 @@ import html
 import json
 import re
 from pathlib import Path
+from urllib.parse import urlparse
+
+import yaml
 
 from orchestrator.categorias import CATEGORIAS, OTROS, normalizar
 from orchestrator.web.documentos import a_html, documentos_de
@@ -205,6 +208,126 @@ def galeria(grupos: list[dict], workspace: Path, hay_puente: bool, puede_pedir: 
   <footer class="estado-puente">{_puente(hay_puente)}</footer>""", GUION_GALERIA)
 
 
+# --- El concepto por aprobar (F3.20 (concepto)) ----------------------------------------
+
+GRUPOS_DE_ORIGEN = (
+    ("usuario", "Lo que pediste", ""),
+    ("catalogo", "Buscado en internet",
+     "Compruébalo con un calibre: una hoja de datos puede no coincidir con tu unidad."),
+    ("estimado", "Lo decide el sistema", "Si alguna no te vale, corrígela abajo."),
+)
+"""El orden en que se leen las medidas: lo tuyo, lo que se buscó, lo supuesto."""
+
+
+def _medida(r: dict) -> str:
+    """«2 × 8 mm, a 26 mm entre centros»: lo que se va a medir en la pieza."""
+    valor, unidad = r.get("valor"), r.get("unidad") or ""
+    if valor is None:
+        return ""
+    texto = f"{valor:g} {unidad}".strip()
+    if (r.get("cantidad") or 0) > 1:
+        texto = f"{r['cantidad']} × {texto}"
+    if r.get("separaciones_mm"):
+        texto += ", a " + " × ".join(f"{s:g}" for s in r["separaciones_mm"]) + " mm entre centros"
+    if r.get("seccion_mm"):
+        texto += ", sección " + " × ".join(f"{s:g}" for s in r["seccion_mm"]) + " mm"
+    return texto
+
+
+def _dominio(url: str) -> str:
+    return (urlparse(url).hostname or url).removeprefix("www.")
+
+
+def _fila(r: dict, datos: list[dict]) -> str:
+    texto = r.get("texto") or ""
+    fuente = ""
+    if r.get("origen") == "catalogo":
+        # El texto trae «…: 43 mm (fuente: thepihut.com)»: la cifra ya va en
+        # su columna y la fuente en la suya, con el enlace y la cita.
+        texto = re.sub(r":\s*[-\d.,]+\s*[^\s(]*\s*\(fuente:[^)]*\)\s*$", "", texto)
+        texto = re.sub(r"\s*\(fuente:[^)]*\)\s*$", "", texto)
+        dato = next((d for d in datos if d.get("valor") == r.get("valor")
+                     and d.get("medida", "\0") in (r.get("texto") or "")), None)
+        if dato:
+            fuente = (f'<a href="{e(dato["fuente"])}" target="_blank" rel="noopener">'
+                      f'{e(_dominio(dato["fuente"]))}</a>')
+            texto_cita = f'<q>{e(dato.get("cita", ""))}</q>' if dato.get("cita") else ""
+            return (f'<tr><td>{e(texto)}{texto_cita}</td><td class="valor">{e(_medida(r))}</td>'
+                    f'<td class="fuente">{fuente}</td></tr>')
+    return (f'<tr><td>{e(texto)}</td><td class="valor">{e(_medida(r))}</td>'
+            f'<td class="fuente">{fuente}</td></tr>')
+
+
+def _concepto(carpeta: Path) -> str | None:
+    """Lo que se aprueba, para que se vea qué se aprueba.
+
+    Antes se pegaba `concepto.md` entero en una caja ámbar: idea, camino de
+    carga, orientación, cálculo, descartes y catorce medidas con URLs de 250
+    caracteres, todo con el mismo peso. El usuario (2026-11-05): «totalmente
+    ilegible, no se sabe qué está aprobando uno». Y lo que se aprueba es la
+    idea MÁS los requisitos de `spec.yaml`, que no salían como tales: ahí iba
+    un Ø8 mal sacado de una tienda para unos transductores de Ø16.
+
+    None si el concepto es de antes y no trae su JSON: se enseña el md."""
+    datos = (_leer(carpeta / "concepto.json") or {})
+    c = datos.get("concepto")
+    if not isinstance(c, dict) or not c.get("idea"):
+        return None
+    try:
+        spec = yaml.safe_load((carpeta / "spec.yaml").read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        spec = {}
+    investigacion = _leer(carpeta / "investigacion.json") or {}
+    encontrados = investigacion.get("datos") or []
+
+    partes = ['<p class="lead">Si lo apruebas, se dibuja <b>esta idea</b> con <b>estas '
+              'medidas</b>. Una medida mal aquí es una pieza mal: revísalas.</p>',
+              f'<h3>La idea</h3><p class="idea">{e(c["idea"])}</p>']
+    if c.get("preguntas"):
+        partes.append('<div class="preguntas"><b>Antes, contéstame</b><ol>'
+                      + "".join(f"<li>{e(p)}</li>" for p in c["preguntas"]) + "</ol></div>")
+
+    requisitos = spec.get("requisitos") or []
+    for origen, titulo, nota in GRUPOS_DE_ORIGEN:
+        filas = [_fila(r, encontrados) for r in requisitos if r.get("origen") == origen]
+        sin = (investigacion.get("sin_encontrar") or []) if origen == "catalogo" else []
+        if not filas and not sin:
+            continue
+        partes.append(f"<h3>{e(titulo)}</h3>")
+        if nota and filas:
+            partes.append(f'<p class="nota-grupo">{e(nota)}</p>')
+        if filas:
+            partes.append(f'<table class="medidas"><tbody>{"".join(filas)}</tbody></table>')
+        if sin:
+            partes.append('<p class="nota-grupo">No encontré: '
+                          + "; ".join(e(s) for s in sin) + ".</p>")
+
+    razonamiento = []
+    if c.get("camino_de_carga"):
+        razonamiento.append(f'<h4>Cómo trabaja</h4><p>{e(c["camino_de_carga"])}</p>')
+    if c.get("orientacion"):
+        razonamiento.append(f'<h4>Cómo se imprime</h4><p>{e(c["orientacion"])}</p>')
+    listas = [("Fijaciones", c.get("fijaciones") or []),
+              ("Cálculo", [_calculo(x) for x in datos.get("comprobaciones") or []]),
+              ("Otras formas, descartadas", c.get("alternativas") or [])]
+    for titulo, lista in listas:
+        if lista:
+            razonamiento.append(f"<h4>{titulo}</h4><ul>"
+                                + "".join(f"<li>{e(x)}</li>" for x in lista) + "</ul>")
+    if razonamiento:
+        partes.append('<details class="razonamiento"><summary>Cómo lo ha pensado: carga, '
+                      f'impresión, fijaciones y cálculo</summary>{"".join(razonamiento)}</details>')
+    return "".join(partes)
+
+
+def _calculo(x: dict) -> str:
+    from orchestrator.ingenieria import Comprobacion
+    try:
+        return Comprobacion(**x).texto()
+    except (TypeError, ValueError):
+        return str(x.get("que", ""))
+
+
 # --- La página de un proyecto -------------------------------------------------------
 
 
@@ -248,18 +371,24 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
         # F3.20 (concepto): lo primero que hay que ver es la idea, y con qué
         # aprobarla o contestar a sus preguntas. Sin botones, el proyecto se
         # quedaba parado sin que la página dijera por qué.
-        concepto = carpeta / "concepto.md"
-        # Sin su título: la página ya lleva el nombre del proyecto encima.
-        texto = (a_html(re.sub(r"\A#[^\n]*\n", "", concepto.read_text(encoding="utf-8", errors="ignore")))
-                 if concepto.is_file() else "")
         bloqueo = "" if puede_pedir and not ocupado else " disabled"
-        explicacion = (
-            f'<div class="aviso ambar concepto"><b>Así lo resolvería</b>{texto}'
+        formulario = (
             f'<form class="visto-bueno" data-aprobar="{vid}">'
-            '<textarea name="respuestas" rows="2" placeholder="Si quieres contestar o corregir algo, '
-            f'escríbelo aquí"{bloqueo}></textarea>'
+            '<label for="respuestas"><b>¿Algo mal o que contestar?</b> Escríbelo y pulsa '
+            '«Contestar»: propondrá otra vez con tu corrección.</label>'
+            '<textarea id="respuestas" name="respuestas" rows="2" placeholder="Por ejemplo: '
+            f'«los transductores miden 16 mm de diámetro»"{bloqueo}></textarea>'
             f'<div class="pie-cambiar"><button class="btn" data-contestar{bloqueo}>Contestar</button>'
-            f'<button class="btn pri" data-si{bloqueo}>Aprobar y diseñar</button></div></form></div>')
+            f'<button class="btn pri" data-si{bloqueo}>Aprobar y diseñar</button></div></form>')
+        revision = _concepto(carpeta)
+        if revision is None:
+            concepto = carpeta / "concepto.md"
+            # Sin su título: la página ya lleva el nombre del proyecto encima.
+            texto = (a_html(re.sub(r"\A#[^\n]*\n", "", concepto.read_text(encoding="utf-8", errors="ignore")))
+                     if concepto.is_file() else "")
+            explicacion = f'<div class="aviso ambar concepto"><b>Así lo resolvería</b>{texto}{formulario}</div>'
+        else:
+            explicacion = f'<div class="revision">{revision}{formulario}</div>'
     elif v["estado"] == "incompleto":
         explicacion = '<div class="aviso"><p>Este diseño se detuvo antes de terminar.</p></div>'
 
@@ -278,6 +407,15 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
     acciones = (f'<button class="btn pri" data-abrir="{vid}" title="{e(imprimir_titulo)}"'
                 f'{" disabled" if sin_piezas or not hay_puente else ""}>Imprimir en PrusaSlicer</button>'
                 f'<a class="btn" href="/proyectos/{vid}.zip" download>Descargar</a>')
+    # Un concepto por aprobar no tiene nada que imprimir ni que bajar, y una
+    # caja vacía de «Todavía no hay imagen» se comía media pantalla.
+    revisando = v["estado"] == "por aprobar" and sin_piezas
+    if revisando:
+        acciones = ""
+    nav_tira = f'<nav class="tira" aria-label="Versiones">{"".join(tira)}</nav>'
+    visor = (f'<div class="visor"><div class="foto grande">{foto}</div>{nav_tira}</div>'
+             if imagen or not revisando else
+             (f'<div class="visor">{nav_tira}</div>' if len(versiones) > 1 else ""))
 
     es_mecanismo = (carpeta / "mechanism.json").is_file()
     se_puede_cambiar = puede_pedir and not ocupado
@@ -320,15 +458,14 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
     cuerpo = f"""
   <header class="barra"><a class="volver" href="/">← Proyectos</a><span class="estado-puente">{_puente(hay_puente)}</span></header>
   <main class="proyecto" data-proyecto="{raiz}" data-version="{vid}">
-    <div class="cabeza">
-      <div class="visor"><div class="foto grande">{foto}</div>
-        <nav class="tira" aria-label="Versiones">{"".join(tira)}</nav></div>
+    <div class="cabeza{" sin-visor" if revisando and not imagen else ""}">
+      {visor}
       <div class="ficha">
         <select class="categoria" data-categoria="{raiz}" aria-label="Categoría">{opciones}</select>
         <h1>{e(nombre)}</h1>
         <div class="estado-grande {clase}">{e(frase)}</div>
         {vivo}{explicacion}
-        <div class="acciones">{acciones}</div>
+        {f'<div class="acciones">{acciones}</div>' if acciones else ""}
         <p class="suave meta">Versión {v["version"]} de {len(versiones)} · {e(_fecha(v["id"]))}</p>
       </div>
     </div>
@@ -446,6 +583,32 @@ ESTILO = """
   .aviso.ambar { background:var(--ambar-bg); border-color:transparent; } .aviso.mal { background:var(--mal-bg); border-color:transparent; }
   .aviso.vivo { background:var(--vivo-bg); border-color:transparent; }
   .acciones { display:flex; gap:10px; margin-top:20px; flex-wrap:wrap; }
+  .cabeza.sin-visor { grid-template-columns:minmax(0,860px); }
+  .revision { margin-top:18px; font-size:15px; line-height:1.5; }
+  .revision .lead { background:var(--ambar-bg); padding:10px 14px; border-radius:10px; margin:0; }
+  .revision h3 { font-size:12px; text-transform:uppercase; letter-spacing:.07em; color:var(--suave); margin:26px 0 8px; }
+  .revision .idea { font-size:17px; margin:0; }
+  .preguntas { border:1px solid var(--ambar); border-radius:12px; padding:10px 14px; margin-top:18px; }
+  .preguntas ol { margin:6px 0 0; padding-left:20px; }
+  .nota-grupo { font-size:13px; color:var(--suave); margin:-2px 0 6px; }
+  .medidas { width:100%; border-collapse:collapse; table-layout:fixed; }
+  .medidas td { padding:8px 12px 8px 0; border-bottom:1px solid var(--linea); vertical-align:top; }
+  .medidas td:last-child { padding-right:0; }
+  .medidas .valor { width:190px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .medidas .fuente { width:130px; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .medidas .fuente a { color:var(--acento); }
+  .medidas q { display:block; font-size:12.5px; color:var(--suave); margin-top:2px; overflow-wrap:anywhere; }
+  .razonamiento { margin-top:22px; }
+  .razonamiento summary { cursor:pointer; color:var(--acento); font-size:14px; }
+  .razonamiento h4 { margin:14px 0 4px; font-size:14px; }
+  .razonamiento p, .razonamiento ul { margin:0; font-size:14px; } .razonamiento ul { padding-left:18px; }
+  .revision .visto-bueno { margin-top:24px; padding:14px; border-radius:12px; background:var(--tarjeta); border:1px solid var(--linea); }
+  .revision .visto-bueno label { display:block; font-size:14px; margin-bottom:8px; }
+  @media (max-width:560px) {
+    .medidas tr { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,40%); border-bottom:1px solid var(--linea); padding:6px 0; }
+    .medidas .valor { text-align:right; }
+    .medidas td { border:0; padding:2px 8px 2px 0; width:auto !important; } .medidas .fuente { grid-column:1 / -1; }
+  }
   .meta { font-size:13px; margin-top:14px; }
   section { margin-top:40px; }
   section h2 { font-size:18px; margin:0 0 14px; }
