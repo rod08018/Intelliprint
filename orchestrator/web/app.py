@@ -335,7 +335,8 @@ def main() -> None:
         puente=os.environ.get("PRUSASLICER_BRIDGE") or None,
         host_workspace=os.environ.get("HOST_WORKSPACE", ""),
         # La misma orden que lanza Crafty (mcp_server._store).
-        trabajos=JobStore(workspace / "projects", ["intelliprint", "mecanismo"]),
+        trabajos=JobStore(workspace / "projects", ["intelliprint", "mecanismo"],
+                          comando_pieza=["intelliprint", "pieza"]),
         orden_pieza=["intelliprint", "pieza"],
     )
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("WEB_PORT", "8080")))

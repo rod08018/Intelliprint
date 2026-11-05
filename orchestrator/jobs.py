@@ -68,10 +68,12 @@ def entregar(proyecto: Path, buzon: Path | None = None) -> dict[str, str]:
 
 
 class JobStore:
-    def __init__(self, carpeta: Path, comando: list[str]) -> None:
+    def __init__(self, carpeta: Path, comando: list[str],
+                 comando_pieza: list[str] | None = None) -> None:
         self.carpeta = Path(carpeta)
         self.carpeta.mkdir(parents=True, exist_ok=True)
         self._comando = comando
+        self._comando_pieza = comando_pieza
         self._procesos: dict[str, subprocess.Popen] = {}
 
     # --- lanzar y parar -------------------------------------------------------
@@ -137,6 +139,12 @@ class JobStore:
         registro = (destino / "run.log").open("a", encoding="utf-8")
         from orchestrator.registry import _lee_json
         comando = (_lee_json(destino / "job.json") or {}).get("comando") or self._comando
+        if (destino / "concepto.json").exists() and self._comando_pieza:
+            # Concepto solo tiene una pieza. Sin job.json (se pidió con
+            # `intelliprint pieza`), aprobarlo lanzaba la orden por defecto, la
+            # de mecanismos, y esa dejaba escrito «mecanismo» en job.json para
+            # la siguiente vez (el soporte del HC-SR04, 2026-11-05).
+            comando = self._comando_pieza
         proceso = subprocess.Popen(
             [*comando, str(destino / "request.md"), "--archivo",
              "--carpeta", str(destino), "--continuar"],

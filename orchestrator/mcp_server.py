@@ -57,7 +57,7 @@ def _store() -> JobStore:
         raiz = _raiz()
         ejecutable = raiz / ".venv" / "bin" / "intelliprint"
         comando = [str(ejecutable) if ejecutable.exists() else "intelliprint", "mecanismo"]
-        _STORE = JobStore(_proyectos(), comando)
+        _STORE = JobStore(_proyectos(), comando, comando_pieza=_orden_pieza())
     return _STORE
 
 

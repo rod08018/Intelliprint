@@ -274,3 +274,24 @@ def test_no_se_aprueba_un_concepto_que_no_existe(tmp_path):
     _esperar(store, job, "terminado")
     with pytest.raises(ValueError, match="concepto"):
         store.aprobar(job, por="web")
+
+
+def test_un_concepto_lanzado_desde_la_consola_sigue_como_pieza(tmp_path):
+    """Sin `job.json` (la pieza se pidió con `intelliprint pieza`), aprobar
+    desde la web lanzaba la orden por defecto, la de MECANISMOS, sobre el
+    concepto de una pieza (2026-11-05, el soporte del HC-SR04). Un concepto
+    solo lo tiene una pieza."""
+    store = JobStore(tmp_path, comando=[sys.executable, "-c", "print('orden mecanismo')"],
+                     comando_pieza=[sys.executable, "-c", "print('orden pieza')"])
+    carpeta = tmp_path / "2026-11-05-202849-sensor"
+    carpeta.mkdir()
+    (carpeta / "request.md").write_text("soporte para un HC-SR04", encoding="utf-8")
+    (carpeta / "concepto.json").write_text("{}", encoding="utf-8")
+    # Lo que dejó la ejecución equivocada: no puede volver a mandar.
+    (carpeta / "job.json").write_text('{"comando": ["mecanismo"]}', encoding="utf-8")
+
+    store.aprobar(carpeta.name, por="web")
+    _esperar(store, carpeta.name, "terminado")
+
+    registro = (carpeta / "run.log").read_text()
+    assert "orden pieza" in registro and "orden mecanismo" not in registro
