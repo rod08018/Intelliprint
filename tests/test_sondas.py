@@ -417,6 +417,33 @@ def test_si_no_quita_el_hueco_el_bucle_le_dice_que_choca(tmp_path):
     assert any("integrados de atrás" in f and "hueco()" in f for f in fallos), fallos
 
 
+PI_EN_SEPARADORES = """
+def construir(kit):
+    pi = kit.componente("raspberry-pi-4", en=(5, 5, 8), entra_por="+z")
+    pieza = kit.caja(95, 66, 3)
+    for a in pi.agujeros():
+        x, y, z = a["en"]
+        pieza = pieza + kit.cilindro(6, 5.5, en=(x, y, 2.5))
+    return pieza.quitar("alojamiento_pi", pi.hueco())
+"""
+"""Lo que se espera del encargo 10: una base con cuatro separadores de Ø6
+en los agujeros de la Pi (la isla de cobre del plano mide 6)."""
+
+
+def test_la_pi_cabe_y_entra_sobre_cuatro_separadores(tmp_path):
+    """Si las zonas libres de debajo taparan los agujeros, ninguna base con
+    separadores pasaría y el encargo 10 sería imposible."""
+    import json
+    from orchestrator.banco import Componente, sondas_de_componente
+    step = _step(PI_EN_SEPARADORES, tmp_path)
+    rasgos = json.loads((tmp_path / "rasgos.json").read_text(encoding="utf-8"))
+    sondas = sondas_de_componente(Componente(tipo="componente", ficha="raspberry-pi-4"),
+                                  rasgos)
+    cabe, entra = medir_sondas(step, sondas, _freecadcmd(), MATERIAL)
+    assert cabe.estado == "cumple", cabe.detalle
+    assert entra.estado == "cumple", entra.detalle
+
+
 def test_un_booleano_que_falla_en_silencio_no_deja_pasar_nada():
     """El soporte del SG90 del banco (2026-11-04, copiado tal cual): `common`
     y `cut` devuelven vacío para una caja que atraviesa la base maciza, y la
