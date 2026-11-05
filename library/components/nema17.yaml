@@ -1,6 +1,7 @@
 # Motor paso a paso NEMA 17 de 40 mm (17HS4401 / 42HD4027-01) (F6.11 (biblioteca)).
 id: nema17
 nombre: Motor paso a paso NEMA 17 (17HS4401, 40 mm)
+alias: ["NEMA 17", "NEMA17", "17HS4401"]
 verificado: false
 fuentes:
   - url: https://make.epfl.ch/storage/media/1461/Nema17HS4401.pdf

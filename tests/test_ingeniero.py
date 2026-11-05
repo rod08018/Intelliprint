@@ -113,3 +113,57 @@ def test_el_disenador_recibe_el_concepto_y_las_secciones_minimas():
     assert "cartela" in brief
     assert "de lado sobre la cama" in brief
     assert "20 x 14" in brief
+
+
+# --- el componente como objeto de verdad (F6.11 (biblioteca)) --------------------------
+
+SENSOR = Spec(
+    title="soporte del HC-SR04", description="soporte para el sensor en el frente del robot",
+    product_class="static_part", printer="ankermake_m5_plamas", material="PLA+",
+    request="Soporte para montar un sensor ultrasónico HC-SR04 en el frente de un robot "
+            "hecho con perfil de aluminio 2020.")
+
+COMPONENTES = [
+    {"id": "hc-sr04", "como_entra": "por delante, deslizando hacia atrás entre dos guías",
+     "como_se_sujeta": "las guías abrazan los cantos del PCB"},
+    {"id": "perfil-2020", "como_entra": "la pieza apoya en su cara de delante",
+     "como_se_sujeta": "un tornillo M5 con tuerca en T"}]
+
+
+def test_el_ingeniero_recibe_la_ficha_de_lo_que_nombra_la_peticion():
+    """El soporte del HC-SR04 salió sin saber que el sensor lleva integrados
+    detrás y pines abajo: el ingeniero solo tenía cifras de una tienda."""
+    guion = Guion([_concepto(casos=False, componentes=COMPONENTES)])
+    IngenieroAgent(guion, ACTIVO).concebir(SENSOR)
+    assert "integrados de atrás" in guion.prompts[0]
+    assert "45 × 18 × 30.5 mm" in guion.prompts[0]
+
+
+def test_lo_que_nombra_la_peticion_tiene_que_ir_en_el_concepto():
+    guion = Guion([_concepto(casos=False, componentes=COMPONENTES[1:]),
+                   _concepto(casos=False, componentes=COMPONENTES)])
+    resultado = IngenieroAgent(guion, ACTIVO).concebir(SENSOR)
+    assert "hc-sr04" in guion.prompts[1] and "componentes" in guion.prompts[1]
+    assert [c.id for c in resultado.concepto.componentes] == ["hc-sr04", "perfil-2020"]
+
+
+def test_un_componente_sin_ficha_no_se_puede_poner_en_el_concepto():
+    otro = [*COMPONENTES, {"id": "hc-sr05", "como_entra": "x", "como_se_sujeta": "y"}]
+    guion = Guion([_concepto(casos=False, componentes=otro),
+                   _concepto(casos=False, componentes=COMPONENTES)])
+    IngenieroAgent(guion, ACTIVO).concebir(SENSOR)
+    assert "hc-sr05" in guion.prompts[1] and "raspberry-pi-4" in guion.prompts[1]
+
+
+def test_el_disenador_recibe_como_colocar_el_componente_y_su_ficha():
+    resultado = IngenieroAgent(Guion([_concepto(casos=False, componentes=COMPONENTES)]),
+                               ACTIVO).concebir(SENSOR)
+    brief = spec_to_task(SENSOR, resultado).brief
+    assert 'kit.componente("hc-sr04"' in brief and "hueco()" in brief
+    assert "integrados de atrás" in brief and "deslizando hacia atrás" in brief
+
+
+def test_la_persona_ve_los_componentes_y_que_no_estan_medidos():
+    texto = IngenieroAgent(Guion([_concepto(casos=False, componentes=COMPONENTES)]),
+                           ACTIVO).concebir(SENSOR).texto()
+    assert "Sensor ultrasónico HC-SR04" in texto and "sin verificar con calibre" in texto

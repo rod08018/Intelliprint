@@ -15,6 +15,7 @@ from pathlib import Path
 
 import yaml
 
+from orchestrator.componentes import cargar, ids, mencionados, resumen
 from orchestrator.ingenieria import Material, comprobar
 from orchestrator.llm.structured import LlmClient, structured
 from orchestrator.schemas.concepto import Concepto, ConceptoComprobado
@@ -47,6 +48,16 @@ class IngenieroAgent:
             for r in spec.requisitos) or "(ninguno estructurado)\n"
         prompt = (f"{self._instrucciones}\n## Encargo: {spec.title}\n\n{spec.description}\n\n"
                   f"Petición literal:\n> {spec.request}\n\n## Requisitos\n\n{requisitos}")
+        # F6.11 (biblioteca): lo que la petición nombra y tiene ficha va con su
+        # forma entera. El soporte del HC-SR04 se pensó con cifras de una
+        # tienda y sin saber que el sensor lleva integrados detrás.
+        nombrados = mencionados(f"{spec.request}\n{spec.title}")
+        prompt += (f"\n## Componentes con ficha en la biblioteca\n\nHay ficha de: "
+                   f"{', '.join(ids())}. Sus medidas son estas; no las supongas.\n")
+        if nombrados:
+            prompt += ("\nLa petición nombra estos; cada uno va en `componentes`, con "
+                       "cómo entra y cómo se sujeta:\n\n"
+                       + "\n\n".join(resumen(cargar(i)) for i in nombrados) + "\n")
 
         def validar(concepto: Concepto) -> None:
             errores = []
@@ -55,6 +66,15 @@ class IngenieroAgent:
                 errores.append(
                     f"se pide aguantar una carga ({', '.join(pide_carga) or 'payload_g'}) y no "
                     "hay ningún caso de carga: di qué sección trabaja y con cuánto.")
+            puestos = {c.id for c in concepto.componentes}
+            for c in concepto.componentes:
+                if c.id not in ids():
+                    errores.append(f"«{c.id}» no tiene ficha en la biblioteca; hay: "
+                                   f"{', '.join(ids())}. Usa uno de esos ids.")
+            for i in nombrados:
+                if i not in puestos:
+                    errores.append(f"la petición nombra «{i}» y no está en `componentes`: "
+                                   "di cómo entra y cómo se sujeta.")
             for caso in concepto.casos_de_carga:
                 c = comprobar(caso, self._material)
                 if not c.cumple:

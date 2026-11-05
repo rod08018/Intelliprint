@@ -65,6 +65,7 @@ def _disenar_con_kit(raiz: Path, env: dict, cliente):
     de generadores no sabía hacer una cartela, un hexágono ni un chaflán. Los
     mecanismos siguen con recetas hasta que el kit los cubra."""
     from orchestrator.agents.disenador_kit import DisenadorKitAgent
+    from orchestrator.componentes import mencionados
     from orchestrator.medida import defectos_de_la_pieza
 
     freecad = _freecadcmd(env)
@@ -80,10 +81,15 @@ def _disenar_con_kit(raiz: Path, env: dict, cliente):
         # F6.7 (lazo): lo que la pieza construida no cumple de los requisitos
         # vuelve al diseñador como cualquier fallo; F6.8 (mejor): si nunca
         # lo cumple todo, se entrega la que menos falla, con la lista.
+        # F6.11 (biblioteca): cada componente que aloja la pieza tiene que
+        # estar colocado con `kit.componente`, o no se puede ver si cabe.
+        componentes = ([c.id for c in concepto.concepto.componentes] if concepto
+                       else mencionados(spec.request))
+
         def requisitos_medidos(resultado):
             return "\n".join(defectos_de_la_pieza(
                 spec.requisitos, resultado, Path(carpeta) / f"{part}.step", freecad,
-                material)) or None
+                material, componentes)) or None
 
         return design_and_build(
             disenador, spec_to_task(spec, concepto).brief, None, carpeta,

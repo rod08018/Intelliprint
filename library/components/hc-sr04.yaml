@@ -7,6 +7,7 @@
 # «Ø8» de aquella tienda era el RADIO del plano de la UPV.
 id: hc-sr04
 nombre: Sensor ultrasónico HC-SR04
+alias: ["HC-SR04", "HC SR04", "HCSR04"]
 verificado: false
 fuentes:
   - url: https://handsontec.com/dataspecs/sensor/SR-04-Ultrasonic.pdf

@@ -2,6 +2,7 @@
 # más se pide en poleas, ruedas y spinners.
 id: 608zz
 nombre: Rodamiento 608ZZ (8 × 22 × 7)
+alias: ["608ZZ", "608-2Z", "608 2RS", "608RS", "rodamiento 608", "608 bearing"]
 verificado: false
 fuentes:
   - url: https://www.coolenbearings.com/skf/ball-bearings/deep-groove/608-2z

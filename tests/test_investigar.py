@@ -117,7 +117,7 @@ class BuscadorFalso:
 
 
 FALTA_LA_PI = json.dumps({"faltan": [{
-    "componente": "Raspberry Pi 4", "que_falta": ["agujeros de montaje"],
+    "componente": "Raspberry Pi 5", "que_falta": ["agujeros de montaje"],
     "consulta": "Raspberry Pi 4 mechanical drawing mounting holes"}]})
 
 
@@ -167,7 +167,7 @@ def test_sin_internet_sigue_sin_datos_y_lo_dice():
             raise OSError("sin red")
 
     r = Investigador(Guion([FALTA_LA_PI]), SinRed({})).investigar("soporte para una Pi 4")
-    assert r.datos == [] and "Raspberry Pi 4" in r.sin_encontrar[0]
+    assert r.datos == [] and "Raspberry Pi 5" in r.sin_encontrar[0]
     assert "sin red" in r.sin_encontrar[0]   # el porqué, no solo «no encontré»
 
 
@@ -284,7 +284,7 @@ def test_si_la_primera_busqueda_no_da_datos_prueba_las_otras():
     no salió ni una medida. Otra consulta da con páginas que sí las
     escriben."""
     falta = json.dumps({"faltan": [{
-        "componente": "Raspberry Pi 4", "que_falta": ["agujeros de montaje"],
+        "componente": "Raspberry Pi 5", "que_falta": ["agujeros de montaje"],
         "consulta": "Raspberry Pi 4 mechanical drawing",
         "otras_consultas": ["Raspberry Pi 4 mounting hole spacing mm"]}]})
     nada = json.dumps({"datos": [], "sin_encontrar": ["agujeros de montaje"]})
@@ -317,3 +317,19 @@ def test_deepseek_se_queda_con_las_fuentes_de_mas_autoridad():
 
     assert urls == ["https://raspberrypi.com", "https://wiki.example", "https://tienda.example"]
     assert vistas[0][1]["count"] > 3
+
+
+def test_lo_que_tiene_ficha_en_la_biblioteca_no_se_busca():
+    """F6.11 (biblioteca): el HC-SR04 se diseñó con el PCB de 43 y el Ø8 de una
+    tienda. Con ficha, sus medidas salen de ella y no se convierten en
+    requisitos sueltos; lo demás se sigue buscando."""
+    faltan = json.dumps({"faltan": [
+        {"componente": "HC-SR04", "que_falta": ["medidas del PCB"], "consulta": "HC-SR04 size"},
+        json.loads(FALTA_LA_PI)["faltan"][0]]})
+    datos = json.dumps({"datos": [_dato().model_dump()], "sin_encontrar": []})
+    buscador = BuscadorFalso({URL: PAGINA})
+    r = Investigador(Guion([faltan, datos]), buscador).investigar(
+        "soporte para un HC-SR04 y una Raspberry Pi 5")
+    assert buscador.consultas == ["Raspberry Pi 4 mechanical drawing mounting holes"]
+    assert r.de_la_biblioteca == ["hc-sr04"]
+    assert "HC-SR04" not in r.texto_para_peticion()

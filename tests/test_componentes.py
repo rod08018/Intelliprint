@@ -194,3 +194,27 @@ def test_un_componente_que_no_esta_en_la_biblioteca_dice_cuales_hay():
         _kit("hc-sr04").componente("hc-sr04", girar=[("z", 45)])
     with pytest.raises(KitError, match="entra_por"):
         _kit("hc-sr04").componente("hc-sr04", entra_por="arriba")
+
+
+# --- el ingeniero y el diseñador piensan con la ficha (F6.11 (biblioteca)) -------------
+
+def test_se_reconocen_los_componentes_que_nombra_una_peticion():
+    from orchestrator.componentes import mencionados
+    assert mencionados("Soporte para un sensor ultrasónico HC-SR04 en un perfil de "
+                       "aluminio 2020") == ["hc-sr04", "perfil-2020"]
+    assert mencionados("Caja para una Raspberry Pi 4 y un servo SG90") == [
+        "raspberry-pi-4", "sg90"]
+    assert mencionados("Escuadra para un motor NEMA 17 y un rodamiento 608ZZ") == [
+        "608zz", "nema17"]
+    assert mencionados("Un gancho para colgar la mochila de 2 kg") == []
+
+
+def test_el_resumen_dice_el_tamano_lo_que_hay_que_dejar_libre_y_que_no_esta_medido():
+    """La envolvente del HC-SR04, a mano: x de 0 a 45 (placa); y de -3
+    (integrados) a 15 (punta de los transductores, 1.6 + 13.4); z de -6
+    (pines) a 24.5 (cristal, 16 + 8.5)."""
+    from orchestrator.componentes import resumen
+    r = resumen(cargar("hc-sr04"))
+    assert "45 × 18 × 30.5 mm" in r
+    assert "integrados de atrás" in r and "conector y cable" in r
+    assert "sin verificar con calibre" in r and "handsontec.com" in r

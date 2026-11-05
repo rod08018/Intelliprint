@@ -258,6 +258,28 @@ def _fila(r: dict, datos: list[dict]) -> str:
             f'<td class="fuente">{fuente}</td></tr>')
 
 
+def _componente(x: dict) -> str:
+    """Un componente que aloja la pieza (F6.11 (biblioteca)): su tamaño, cómo
+    entra, cómo se sujeta y de qué planos salen sus medidas."""
+    from orchestrator.componentes import cargar, envolvente
+
+    como = (f'<q>entra {e(x.get("como_entra", ""))}; se sujeta: '
+            f'{e(x.get("como_se_sujeta", ""))}</q>')
+    try:
+        f = cargar(str(x.get("id")))
+    except (KeyError, ValueError):
+        return (f'<tr><td>{e(str(x.get("id")))} (no hay ficha){como}</td>'
+                '<td class="valor"></td><td class="fuente"></td></tr>')
+    a, b = envolvente(f)
+    tamano = " × ".join(f"{round(y - z, 3):g}" for z, y in zip(a, b)) + " mm"
+    urls = list(dict.fromkeys(fuente.url for fuente in f.fuentes))
+    fuentes = ", ".join(f'<a href="{e(u)}" target="_blank" rel="noopener">{e(_dominio(u))}</a>'
+                        for u in urls)
+    medido = "medido con calibre" if f.verificado else "sin verificar con calibre"
+    return (f'<tr><td><b>{e(f.nombre)}</b>{como}</td><td class="valor">{e(tamano)}</td>'
+            f'<td class="fuente">{fuentes}<br><small>{medido}</small></td></tr>')
+
+
 def _concepto(carpeta: Path) -> str | None:
     """Lo que se aprueba, para que se vea qué se aprueba.
 
@@ -286,6 +308,14 @@ def _concepto(carpeta: Path) -> str | None:
     if c.get("preguntas"):
         partes.append('<div class="preguntas"><b>Antes, contéstame</b><ol>'
                       + "".join(f"<li>{e(p)}</li>" for p in c["preguntas"]) + "</ol></div>")
+
+    componentes = [x for x in c.get("componentes") or [] if isinstance(x, dict)]
+    if componentes:
+        partes.append('<h3>Lo que aloja</h3><p class="nota-grupo">Su forma sale de la '
+                      'ficha de la biblioteca; al dibujar se mete en la pieza para ver si '
+                      'cabe y si entra. Mide el tuyo: las unidades varían.</p>'
+                      '<table class="medidas"><tbody>'
+                      + "".join(_componente(x) for x in componentes) + "</tbody></table>")
 
     requisitos = spec.get("requisitos") or []
     for origen, titulo, nota in GRUPOS_DE_ORIGEN:

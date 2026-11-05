@@ -5,6 +5,7 @@
 # sobre el mismo plano y lo dice su `porque`.
 id: raspberry-pi-4
 nombre: Raspberry Pi 4 Model B
+alias: ["Raspberry Pi 4", "RPi 4", "Raspberry Pi4"]
 verificado: false
 fuentes:
   - url: https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-mechanical-drawing.pdf

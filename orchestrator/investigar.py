@@ -27,6 +27,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from pydantic import BaseModel
 
+from orchestrator.componentes import mencionados
 from orchestrator.llm.structured import LlmClient, structured
 
 PROMPT_PATH = Path("config/agents/investigador.md")
@@ -82,6 +83,8 @@ class Datos(BaseModel):
 class Investigacion(BaseModel):
     datos: list[Dato] = []
     sin_encontrar: list[str] = []
+    de_la_biblioteca: list[str] = []
+    """Componentes que no se buscaron porque tienen ficha (F6.11 (biblioteca))."""
 
     def texto_para_peticion(self) -> str:
         """Lo que reciben los requisitos, aparte de la petición: entra como
@@ -294,6 +297,15 @@ class Investigador:
             extra_validation=_algo_que_buscar if obligatorio else None).faltan
         resultado = Investigacion()
         for f in faltan:
+            # F6.11 (biblioteca): con ficha, la forma entera sale de ella. Lo
+            # buscado se volvía requisitos sueltos, y así salieron el PCB de
+            # 43 y el Ø8 del HC-SR04 (2026-11-05). Si lo PREGUNTAN, se busca.
+            con_ficha = [] if obligatorio else mencionados(f.componente)
+            if con_ficha:
+                self._log(f"  investigación: {f.componente} tiene ficha; no lo busco")
+                resultado.de_la_biblioteca += [i for i in con_ficha
+                                               if i not in resultado.de_la_biblioteca]
+                continue
             # Con el porqué: «no encontré» de la Raspberry Pi 4 parecía que no
             # existiera, y era el buscador bloqueado (2026-11-05).
             pendiente = [f"{f.componente} ({', '.join(f.que_falta)})"]

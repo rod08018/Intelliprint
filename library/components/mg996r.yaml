@@ -1,6 +1,7 @@
 # Servo MG996R (F6.11 (biblioteca)).
 id: mg996r
 nombre: Servo MG996R (tamaño estándar)
+alias: ["MG996R", "MG996", "MG 996"]
 verificado: false
 fuentes:
   - url: https://people.ece.cornell.edu/land/courses/ece4760/FinalProjects/f2017/kmv48_rp625/kmv48_rp625/kmv48_rp625/MG996RTowerPro.pdf

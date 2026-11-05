@@ -5,6 +5,7 @@
 # cualquiera (la holgura sobrante se compensa con la de «slide»).
 id: sg90
 nombre: Micro servo SG90 (9 g)
+alias: ["SG90", "SG-90", "SG 90"]
 verificado: false
 fuentes:
   - url: https://tams.informatik.uni-hamburg.de/lehre/2023ss/vorlesung/es/doc/sg90.pdf

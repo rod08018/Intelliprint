@@ -7,8 +7,10 @@ dice qué es sólido (`cuerpos`), qué hay que dejar libre (`despejar`: cable,
 haz de sonido) y dónde se atornilla (`fijacion`).
 """
 
+import re
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 import yaml
 from pydantic import BaseModel, Field, model_validator
@@ -70,6 +72,9 @@ class Agujero(BaseModel):
 class Ficha(BaseModel):
     id: str
     nombre: str
+    alias: list[str] = []
+    """Cómo lo llama la gente en una petición («HC-SR04», «NEMA 17»): así se
+    sabe que la petición nombra un componente que ya tiene ficha."""
     verificado: bool = False
     """Solo si alguien lo midió con calibre: una hoja de datos puede no
     coincidir con la unidad que tiene la persona."""
@@ -95,3 +100,73 @@ def cargar(id_: str) -> Ficha:
 
 def primitivas(ficha: Ficha, en=(0, 0, 0), giros=(), de="cuerpos") -> list[dict]:
     return _primitivas(ficha, en, giros, de)
+
+
+def _plano(texto: str) -> str:
+    return re.sub(r"[\s\-_]+", "", texto.casefold())
+
+
+def mencionados(texto: str) -> list[str]:
+    """Los componentes de la biblioteca que nombra `texto`. Lo decide el
+    código, no el modelo: si el HC-SR04 tiene ficha, nadie lo busca en una
+    tienda (de ahí salieron el PCB de 43 y el Ø8, 2026-11-05)."""
+    plano = _plano(texto)
+    return [i for i in ids()
+            if any(_plano(a) in plano for a in [i, *cargar(i).alias] if _plano(a))]
+
+
+def envolvente(ficha: Ficha, de="cuerpos") -> tuple[list[float], list[float]]:
+    minimos, maximos = [], []
+    for p in primitivas(ficha, de=de):
+        if p["tipo"] == "caja":
+            minimos.append(p["min"])
+            maximos.append(p["max"])
+            continue
+        r = p["diametro"] / 2
+        fin = [b + e * p["alto"] for b, e in zip(p["base"], p["eje"])]
+        minimos.append([min(b, f) - (0 if e else r) for b, f, e in zip(p["base"], fin, p["eje"])])
+        maximos.append([max(b, f) + (0 if e else r) for b, f, e in zip(p["base"], fin, p["eje"])])
+    return ([min(m[n] for m in minimos) for n in range(3)],
+            [max(m[n] for m in maximos) for n in range(3)])
+
+
+def _g(v) -> str:
+    return f"{round(v, 3):g}"
+
+
+def _forma(c: Cuerpo) -> str:
+    if c.caja:
+        return f"caja {' × '.join(_g(v) for v in c.caja)} desde ({', '.join(_g(v) for v in c.en)})"
+    k = c.cilindro
+    anillo = f" con agujero de Ø{_g(k.interior)}" if k.interior else ""
+    return (f"cilindro Ø{_g(k.diametro)}{anillo} × {_g(k.alto)} hacia {k.eje} desde "
+            f"({', '.join(_g(v) for v in c.en)})")
+
+
+def resumen(ficha: Ficha) -> str:
+    """Lo que el ingeniero y el diseñador leen de un componente: su tamaño,
+    qué choca, qué hay que dejar libre y por qué, dónde se atornilla, y que
+    nadie lo ha medido con calibre."""
+    a, b = envolvente(ficha)
+    fuentes = sorted({urlparse(f.url).hostname.removeprefix("www.") for f in ficha.fuentes})
+    medido = "medido con calibre" if ficha.verificado else "sin verificar con calibre"
+    lineas = [
+        f"### `{ficha.id}`: {ficha.nombre} ({medido}; fuentes: {', '.join(fuentes)})",
+        f"Marco de la ficha: {ficha.marco.strip()}",
+        f"Mira hacia {ficha.mira}. Envolvente: "
+        f"{' × '.join(_g(y - x) for x, y in zip(a, b))} mm (x de {_g(a[0])} a {_g(b[0])}, "
+        f"y de {_g(a[1])} a {_g(b[1])}, z de {_g(a[2])} a {_g(b[2])}).",
+        "Lo que choca:",
+        *(f"- {c.nombre}: {_forma(c)}" + (f" ({c.porque})" if c.porque else "")
+          for c in ficha.cuerpos)]
+    if ficha.despejar:
+        lineas += ["Lo que hay que dejar libre:",
+                   *(f"- {c.nombre}: {_forma(c)}" + (f" ({c.porque})" if c.porque else "")
+                     for c in ficha.despejar)]
+    if ficha.fijacion:
+        lineas += ["Agujeros de fijación:",
+                   *(f"- {h.nombre}: Ø{_g(h.diametro)} en ({', '.join(_g(v) for v in h.en)}), "
+                     f"hacia {h.eje}" for h in ficha.fijacion)]
+    if ficha.notas:
+        lineas.append(f"Notas: {ficha.notas.strip()}")
+    return "\n".join(lineas)

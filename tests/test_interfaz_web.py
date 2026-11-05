@@ -874,3 +874,21 @@ def test_modificar_una_pieza_la_rehace_como_pieza(ws):
     assert r.status_code == 200, r.text
     registro = _esperar_registro(ws / "projects" / r.json()["id"])
     assert "PIEZA" in registro and "MECANISMO" not in registro
+
+
+def test_el_concepto_ensena_lo_que_aloja_con_su_ficha(ws):
+    """F6.11 (biblioteca): se aprueba también qué componente va dentro, cómo
+    entra y de dónde salen sus medidas, que nadie ha medido con calibre."""
+    carpeta = _concepto_completo(ws)
+    datos = json.loads((carpeta / "concepto.json").read_text(encoding="utf-8"))
+    datos["concepto"]["componentes"] = [{
+        "id": "hc-sr04", "como_entra": "por delante, deslizando hacia atrás",
+        "como_se_sujeta": "dos guías abrazan los cantos del PCB"}]
+    (carpeta / "concepto.json").write_text(json.dumps(datos), encoding="utf-8")
+    html = _ws_con_trabajos(ws).get("/p/2026-11-05-sensor").text
+    texto = _visible(html)
+    aloja = texto.index("Lo que aloja")
+    assert aloja < texto.index("Sensor ultrasónico HC-SR04") < texto.index("Lo que pediste")
+    assert "45 × 18 × 30.5 mm" in texto and "por delante, deslizando hacia atrás" in texto
+    assert "sin verificar con calibre" in texto
+    assert 'href="https://handsontec.com/dataspecs/sensor/SR-04-Ultrasonic.pdf"' in html
