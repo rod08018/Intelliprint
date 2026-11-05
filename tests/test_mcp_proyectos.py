@@ -158,3 +158,29 @@ def test_crafty_ve_el_concepto_y_lo_aprueba_o_contesta(ws):
 def test_crafty_no_aprueba_lo_que_no_tiene_concepto(ws):
     _ejecucion(ws, "2026-10-27-035747-sargento", "Un sargento de banco")
     assert "error" in servidor.aprobar_concepto("2026-10-27-035747-sargento")
+
+
+def test_crafty_busca_medidas_con_el_buscador_de_intelliprint(monkeypatch):
+    """F3.21 (investigar): Crafty buscaba con su propio DuckDuckGo y nadie
+    comprobaba lo que leía; con la Raspberry Pi 4 puso los USB en el borde
+    equivocado (2026-11-05). Con esta herramienta usa el mismo buscador que
+    la web: cada dato con su URL y una cita comprobada en la página."""
+    from orchestrator.investigar import Dato, Investigacion
+
+    dato = Dato(componente="tuerca M5", medida="entrecaras", valor=8,
+                fuente="https://tornillos.example/m5", cita="Width Across Flats | D | 8.00 mm")
+    pedido = {}
+
+    class Falso:
+        def investigar(self, peticion):
+            pedido["peticion"] = peticion
+            return Investigacion(datos=[dato], sin_encontrar=["diámetro exterior"])
+
+    monkeypatch.setattr(servidor, "_investigador", lambda: Falso())
+
+    r = servidor.buscar_medidas("tuerca M5")
+
+    assert "tuerca M5" in pedido["peticion"]
+    assert r["datos"] == [dato.model_dump()]
+    assert r["sin_encontrar"] == ["diámetro exterior"]
+    assert "https://tornillos.example/m5" in r["texto"] and "calibre" in r["texto"]

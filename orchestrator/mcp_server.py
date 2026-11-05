@@ -68,6 +68,39 @@ def _orden_pieza() -> list[str]:
     return [str(ejecutable) if ejecutable.exists() else "intelliprint", "pieza"]
 
 
+def _investigador():
+    """El mismo buscador que usa una pieza antes de los requisitos
+    (F3.21 (investigar)): la búsqueda de DeepSeek, con la clave de los agentes."""
+    from orchestrator.cli import _cliente
+    from orchestrator.investigar import BuscadorDeepSeek, Investigador
+    from orchestrator.llm.router import Router
+
+    env = dict(os.environ)
+    router = Router.from_config_file(_raiz() / "config" / "models.yaml", env=env)
+    return Investigador(_cliente(router, env), BuscadorDeepSeek(env["DEEPSEEK_API_KEY"]),
+                        prompt_path=_raiz() / "config" / "agents" / "investigador.md",
+                        log=lambda *_: None)
+
+
+@mcp.tool()
+def buscar_medidas(que: str) -> dict:
+    """Busca en internet las medidas de un componente o pieza comprada (una
+    placa, un motor, un servo, un perfil, una tuerca) y las devuelve con su
+    fuente y una cita literal de la página, comprobada por el código.
+
+    Úsalo cuando el usuario pregunte por medidas o nombre algo sin medirlo.
+    NO hace falta antes de `disenar_pieza`: la pieza busca sola lo que falte
+    y lo enseña en el concepto. Devuelve `texto`, listo para enseñar; dile
+    siempre que lo compruebe con un calibre.
+
+    Fallo que lo motivó (2026-11-05): con su propio buscador, Crafty puso los
+    USB de la Raspberry Pi 4 en el borde equivocado y nadie lo comprobó.
+    """
+    r = _investigador().investigar(f"Medidas de: {que}")
+    return {"datos": [d.model_dump() for d in r.datos], "sin_encontrar": r.sin_encontrar,
+            "texto": r.texto_para_concepto() or "No hizo falta buscar nada."}
+
+
 @mcp.tool()
 def disenar_pieza(peticion: str) -> dict:
     """Diseña UNA pieza que no se mueve —un soporte, un gancho, una escuadra,
