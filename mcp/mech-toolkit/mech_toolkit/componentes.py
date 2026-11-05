@@ -72,7 +72,8 @@ def primitivas(ficha, en=(0, 0, 0), giros=(), de="cuerpos") -> list[dict]:
             cil = c["cilindro"]
             salida.append({**base, "tipo": "cilindro", "base": colocar(c["en"], en, giros),
                            "eje": orientar(cil["eje"], giros),
-                           "diametro": float(cil["diametro"]), "alto": float(cil["alto"])})
+                           "diametro": float(cil["diametro"]), "alto": float(cil["alto"]),
+                           "interior": float(cil["interior"]) if cil.get("interior") else None})
     return salida
 
 
@@ -86,7 +87,14 @@ def solido(p):
     if p["tipo"] == "caja":
         a, b = p["min"], p["max"]
         return Part.makeBox(b[0] - a[0], b[1] - a[1], b[2] - a[2], V(*a))
-    return Part.makeCylinder(p["diametro"] / 2, p["alto"], V(*p["base"]), V(*p["eje"]))
+    cilindro = Part.makeCylinder(p["diametro"] / 2, p["alto"], V(*p["base"]), V(*p["eje"]))
+    if p.get("interior"):
+        # Un poco más largo por los dos lados: un corte a ras deja caras
+        # coincidentes, y ese es el booleano que falla en silencio.
+        b = [c - e * 0.1 for c, e in zip(p["base"], p["eje"])]
+        cilindro = cilindro.cut(Part.makeCylinder(p["interior"] / 2, p["alto"] + 0.2,
+                                                  V(*b), V(*p["eje"])))
+    return cilindro
 
 
 def barrido(p, d, largo):
@@ -111,6 +119,9 @@ def barrido(p, d, largo):
         base = p["base"] if paralelo > 0 else [b + c * largo for b, c in zip(p["base"], d)]
         return solido({**p, "base": base, "alto": p["alto"] + largo})
     # Perpendicular: el cilindro, su copia desplazada y la caja que los une.
+    # Un anillo que entra de lado barre como si fuera macizo: el eje que lo
+    # atraviesa no puede estar ahí mientras entra.
+    p = {**p, "interior": None}
     c0 = solido(p)
     c1 = solido({**p, "base": [b + c * largo for b, c in zip(p["base"], d)]})
     tercero = [abs(a) for a in (eje[1] * d[2] - eje[2] * d[1], eje[2] * d[0] - eje[0] * d[2],

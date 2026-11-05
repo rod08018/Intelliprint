@@ -352,6 +352,36 @@ def test_un_componente_que_no_toca_la_pieza_no_cuenta(tmp_path):
     assert cabe.estado == "no_cumple" and "no toca" in cabe.detalle
 
 
+RODAMIENTO_EN_SU_EJE = """
+def construir(kit):
+    base = kit.cilindro(30, 2, en=(0, 0, -2))
+    return base + kit.tubo(30, 22, 7) + kit.cilindro(7.6, 15, en=(0, 0, -1))
+"""
+"""Un alojamiento de Ø22 con un eje impreso de Ø7.6 que atraviesa el
+agujero del rodamiento: lo normal en una polea o una ruedita."""
+
+
+def test_el_eje_que_pasa_por_dentro_del_rodamiento_no_choca(tmp_path):
+    """El 608 es un anillo (SKF: d 8, D 22, B 7). Si la ficha lo tratara como
+    un cilindro macizo, cualquier eje que lo atraviese «chocaría», y el
+    diseñador quitaría el eje para contentar a la sonda."""
+    from orchestrator.componentes import cargar
+    ficha = cargar("608zz").model_dump()
+    cabe, entra = _medir(RODAMIENTO_EN_SU_EJE, [
+        ComponenteCabe(tipo="componente_cabe", ficha=ficha, en=[0, 0, 0]),
+        ComponenteEntra(tipo="componente_entra", ficha=ficha, en=[0, 0, 0], entra_por="+z")],
+        tmp_path)
+    assert cabe.estado == "cumple", cabe.detalle
+    assert entra.estado == "cumple", entra.detalle
+
+
+def test_un_eje_mas_gordo_que_el_agujero_del_rodamiento_si_choca(tmp_path):
+    from orchestrator.componentes import cargar
+    [cabe] = _medir(RODAMIENTO_EN_SU_EJE.replace("7.6", "9"), [ComponenteCabe(
+        tipo="componente_cabe", ficha=cargar("608zz").model_dump(), en=[0, 0, 0])], tmp_path)
+    assert cabe.estado == "no_cumple" and "rodamiento" in cabe.detalle
+
+
 def test_un_booleano_que_falla_en_silencio_no_deja_pasar_nada():
     """El soporte del SG90 del banco (2026-11-04, copiado tal cual): `common`
     y `cut` devuelven vacío para una caja que atraviesa la base maciza, y la

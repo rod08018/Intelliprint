@@ -1,0 +1,31 @@
+# Micro servo SG90 (F6.11 (biblioteca)).
+#
+# Hay SG90 de muchos fabricantes y no miden igual: TowerPro da 22.2 × 11.8 y
+# Luxorparts 22.8 × 12.4. La ficha toma lo mayor de los dos para que quepa
+# cualquiera (la holgura sobrante se compensa con la de «slide»).
+id: sg90
+nombre: Micro servo SG90 (9 g)
+verificado: false
+fuentes:
+  - url: https://tams.informatik.uni-hamburg.de/lehre/2023ss/vorlesung/es/doc/sg90.pdf
+    cita: "Dimension: 22.2 x 11.8 x 31 mm approx.; dibujo: 32.2 entre orejas, 16 del fondo a la oreja"
+  - url: https://www.kjell.com/globalassets/mediaassets/701916_87897_datasheet_en.pdf
+    cita: "dibujo de Luxorparts: 22.8, 12.4, 32.0 entre orejas, 15.6 del fondo a la oreja, 26.7 de alto"
+marco: >
+  Origen en la esquina del fondo del cuerpo: x a lo largo (22.8 mm), y a lo
+  ancho (12.4 mm) y z hacia arriba, hacia el eje de salida.
+mira: "+z"
+cuerpos:
+  - nombre: cuerpo
+    caja: [22.8, 12.4, 26.7]
+    en: [0, 0, 0]
+    porque: "envolvente de los dos planos; de alto, hasta la torre del eje (26.7, Luxorparts)"
+  - nombre: orejas
+    caja: [32.2, 12.4, 2.9]
+    en: [-4.7, 0, 15.6]
+    porque: "las orejas empiezan a 15.6 (Luxorparts) o a 16 (TowerPro): se cubren las dos; el grosor no viene acotado (unos 2.5 a escala)"
+notas: >
+  Ninguno de los dos planos acota dónde está el eje de salida ni los
+  agujeros de las orejas (los tornillos que trae son autorroscantes de unos
+  2 mm), ni por qué canto sale el cable: mídelo con calibre. El brazo gira
+  por encima del cuerpo; no pongas nada en ese círculo.

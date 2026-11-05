@@ -1,0 +1,104 @@
+# Raspberry Pi 4 Model B (F6.11 (biblioteca)).
+#
+# Las cotas acotadas salen del plano mecánico oficial. Lo que el plano dibuja
+# pero no acota (cuánto asoman los conectores, su ancho) está medido a escala
+# sobre el mismo plano y lo dice su `porque`.
+id: raspberry-pi-4
+nombre: Raspberry Pi 4 Model B
+verificado: false
+fuentes:
+  - url: https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-mechanical-drawing.pdf
+    cita: "85 x 56; agujeros a 3.5 del canto, 58 y 49 entre centros, 2.7; CORNER RADIUS = 3.0mm"
+  - url: https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-mechanical-drawing.pdf
+    cita: "Z=8.5 (GPIO), Z=13.5 (red), Z=16.0 (USB), Z=3.2 (USB-C), Z=3.0 (micro HDMI), Z=6.0 (audio), Z=5.5 (cámara y pantalla)"
+  - url: https://datasheets.raspberrypi.com/rpi4/raspberry-pi-4-mechanical-drawing.pdf
+    cita: "centros: USB a 9 y 27, red a 45.75; USB-C a 3.5 + 7.7, HDMI a +14.8 y +13.5"
+marco: >
+  Origen en la esquina de abajo a la izquierda de la cara INFERIOR de la placa,
+  mirándola desde arriba con los USB y la red a la derecha: x a lo largo
+  (85 mm), y a lo ancho (56 mm, el GPIO arriba) y z hacia arriba, hacia los
+  componentes.
+mira: "+z"
+cuerpos:
+  - nombre: placa
+    caja: [85, 56, 1.4]
+    en: [0, 0, 0]
+    porque: "el plano no acota el grosor; las Z de los conectores se miden desde la cara de arriba"
+  - nombre: conector GPIO
+    caja: [50.8, 5.1, 8.5]
+    en: [7.1, 49.95, 1.4]
+    porque: "2 × 20 pines a 2.54, centrado en x = 3.5 + 29 y en la línea de los agujeros de arriba"
+  - nombre: conector de red
+    caja: [22, 16, 13.5]
+    en: [65.5, 37.75, 1.4]
+    porque: "centrado en y = 45.75; asoma unos 2.5 mm por el canto (a escala)"
+  - nombre: USB de arriba
+    caja: [18, 14, 16]
+    en: [69.5, 20, 1.4]
+    porque: "centrado en y = 27; asoma unos 2.5 mm por el canto (a escala)"
+  - nombre: USB de abajo
+    caja: [18, 14, 16]
+    en: [69.5, 2, 1.4]
+    porque: "centrado en y = 9"
+  - nombre: USB-C
+    caja: [9, 7.5, 3.2]
+    en: [6.7, -1.5, 1.4]
+    porque: "centrado en x = 11.2; asoma 1.5 mm por el canto de abajo (a escala)"
+  - nombre: micro HDMI 0
+    caja: [7, 7.5, 3.0]
+    en: [22.5, -1.5, 1.4]
+    porque: "centrado en x = 26"
+  - nombre: micro HDMI 1
+    caja: [7, 7.5, 3.0]
+    en: [36, -1.5, 1.4]
+    porque: "centrado en x = 39.5"
+  - nombre: audio
+    caja: [7, 14.5, 6.0]
+    en: [50, -2.5, 1.4]
+    porque: "jack de 3.5 mm centrado en x = 53.5 (a escala); el cuello asoma 2.5 mm"
+  - nombre: conector de cámara
+    caja: [3, 22, 5.5]
+    en: [45.5, 1, 1.4]
+  - nombre: conector de pantalla
+    caja: [3, 22, 5.5]
+    en: [1.5, 17, 1.4]
+despejar:
+  - nombre: clavijas de USB y red
+    caja: [20, 52, 16]
+    en: [87.5, 2, 1.4]
+    porque: "hay que poder enchufar los cables USB y de red"
+  - nombre: clavijas de alimentación, HDMI y audio
+    caja: [52, 20, 8]
+    en: [5, -21.5, 1.4]
+    porque: "hay que poder enchufar la alimentación, las pantallas y el audio"
+  - nombre: por debajo, centro
+    caja: [52, 56, 3]
+    en: [6.5, 0, -3]
+    porque: "soldaduras de los conectores pasantes y la ranura de la SD: la placa se apoya solo en separadores en sus cuatro agujeros"
+  - nombre: por debajo, izquierda
+    caja: [6.5, 43, 3]
+    en: [0, 6.5, -3]
+    porque: "lo mismo, entre los dos agujeros de la izquierda"
+  - nombre: por debajo, entre agujeros de la derecha
+    caja: [6, 43, 3]
+    en: [58.5, 6.5, -3]
+    porque: "lo mismo, entre los dos agujeros de la derecha"
+  - nombre: por debajo, conectores
+    caja: [20.5, 56, 3]
+    en: [64.5, 0, -3]
+    porque: "las patas de los USB y la red"
+  - nombre: tarjeta SD
+    caja: [5, 12, 3]
+    en: [-5, 22, -3]
+    porque: "la tarjeta asoma por el canto izquierdo y hay que poder sacarla"
+fijacion:
+  - {nombre: agujero abajo izquierda, diametro: 2.7, en: [3.5, 3.5, 0], eje: "-z"}
+  - {nombre: agujero abajo derecha, diametro: 2.7, en: [61.5, 3.5, 0], eje: "-z"}
+  - {nombre: agujero arriba izquierda, diametro: 2.7, en: [3.5, 52.5, 0], eje: "-z"}
+  - {nombre: agujero arriba derecha, diametro: 2.7, en: [61.5, 52.5, 0], eje: "-z"}
+notas: >
+  Agujeros para M2.5. Los separadores no pueden pasar de Ø6 (la isla de cobre
+  que el plano dibuja alrededor de cada agujero). Si va con disipador o
+  ventilador, por encima del procesador hace falta más sitio del que dice esta
+  ficha. Lo que va «a escala» se midió sobre el plano: compruébalo con
+  calibre.

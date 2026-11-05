@@ -395,11 +395,30 @@ TOQUE_MAX_MM = 1.0
 def _choca(forma, s) -> float:
     """El volumen común, sin fiarse de un booleano vacío: con el SG90
     (2026-11-04) `common` devolvió nada para una caja que atravesaba la base
-    maciza. Si el centro del sólido cae dentro de la pieza, choca."""
+    maciza. Si un punto de dentro del sólido cae dentro de la pieza, choca."""
     v = forma.common(s).Volume
-    if v <= TOL_CHOQUE_MM3 and forma.isInside(s.CenterOfMass, 1e-6, False):
+    if v <= TOL_CHOQUE_MM3 and forma.isInside(_punto_dentro(s), 1e-6, False):
         return s.Volume
     return v
+
+
+def _punto_dentro(s):
+    """Un punto que es del sólido. El centro de masas no vale para un anillo
+    (el 608): cae en el agujero, justo donde va el eje, y el eje «chocaba»."""
+    s = s.Solids[0] if s.ShapeType == "Compound" and len(s.Solids) == 1 else s
+    c = s.CenterOfMass
+    if s.isInside(c, 1e-6, False):
+        return c
+    import FreeCAD
+    b = s.BoundBox
+    for i in range(1, 10):
+        for j in range(1, 10):
+            for k in range(1, 10):
+                p = FreeCAD.Vector(b.XMin + b.XLength * i / 10, b.YMin + b.YLength * j / 10,
+                                   b.ZMin + b.ZLength * k / 10)
+                if s.isInside(p, 1e-6, False):
+                    return p
+    return c
 
 
 def componente_cabe(forma, ficha, en, giros=()):

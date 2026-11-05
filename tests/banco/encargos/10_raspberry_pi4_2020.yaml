@@ -1,0 +1,18 @@
+# Una placa con conectores por tres cantos, separadores en sus agujeros y
+# soldaduras por debajo: lo que el HC-SR04 enseñó que el sistema no veía. El
+# oráculo es la ficha de la biblioteca, sacada del plano mecánico oficial de
+# Raspberry Pi; no lleva cotas sueltas.
+nombre: soporte_raspberry_pi4_2020
+categoria: robots
+peticion: >
+  Soporte para montar una Raspberry Pi 4 en un perfil de aluminio 2020. La
+  placa se atornilla al soporte por sus cuatro agujeros con tornillos M2.5, y
+  el soporte se atornilla al perfil con dos tornillos M5 y tuercas en T. Que
+  se puedan enchufar todos los cables. Sin soportes de impresión.
+oraculo:
+  - tipo: componente
+    ficha: raspberry-pi-4
+  - tipo: sin_soportes
+  - tipo: aristas_vivas
+    max_fraccion: 0.1
+    porque: se ve como un producto y no como un prototipo

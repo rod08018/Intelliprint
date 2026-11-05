@@ -1,0 +1,23 @@
+# Rodamiento 608ZZ / 608-2Z (F6.11 (biblioteca)): el de los patinetes, el que
+# más se pide en poleas, ruedas y spinners.
+id: 608zz
+nombre: Rodamiento 608ZZ (8 × 22 × 7)
+verificado: false
+fuentes:
+  - url: https://www.coolenbearings.com/skf/ball-bearings/deep-groove/608-2z
+    cita: "SKF 608-2Z: d 8 mm, D 22 mm, B 7 mm"
+  - url: https://uk.rubix.com/en/deep-groove-ball-bearing-608-series/p-G1321009950
+    cita: "Miniature ball bearing SKF 608-2Z, Outer diameter: 22 mm | Width: 7 mm | Inner diameter: 8 mm"
+marco: >
+  Origen en el centro de una de sus caras, con el eje del agujero en z: el
+  rodamiento ocupa de z=0 a z=7.
+mira: "+z"
+cuerpos:
+  - nombre: rodamiento
+    cilindro: {diametro: 22, interior: 8, alto: 7, eje: "+z"}
+    en: [0, 0, 0]
+    porque: "es un anillo: por el agujero de 8 pasa el eje"
+notas: >
+  El aro exterior va a presión en un alojamiento de Ø22 (con la holgura de
+  «press» del perfil) y el interior en un eje de 8. Si algo apoya en una cara,
+  que apoye solo en el aro que no gira.

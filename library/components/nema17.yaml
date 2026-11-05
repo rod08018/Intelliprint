@@ -1,0 +1,42 @@
+# Motor paso a paso NEMA 17 de 40 mm (17HS4401 / 42HD4027-01) (F6.11 (biblioteca)).
+id: nema17
+nombre: Motor paso a paso NEMA 17 (17HS4401, 40 mm)
+verificado: false
+fuentes:
+  - url: https://make.epfl.ch/storage/media/1461/Nema17HS4401.pdf
+    cita: "42HD4027-01: 42.3Max, 31 ± 0.2, 4-M3 Depth 4.5Min., 39.5Max, Ø22 (resalte de 2 ± 0.2), Ø5, 23 ± 1"
+  - url: https://make.epfl.ch/storage/media/1461/Nema17HS4401.pdf
+    cita: "conector S6B-PH-K: 16 de ancho, a 9.6 de la cara de atrás, 7 de saliente"
+marco: >
+  Origen en el centro de la cara de montaje (la del eje): el motor queda
+  detrás, hacia -z, y el eje sale hacia +z. El conector está en el lado -y.
+mira: "+z"
+cuerpos:
+  - nombre: cuerpo
+    caja: [42.3, 42.3, 39.5]
+    en: [-21.15, -21.15, -39.5]
+  - nombre: resalte
+    cilindro: {diametro: 22, alto: 2, eje: "+z"}
+    en: [0, 0, 0]
+    porque: "centra el motor: el agujero de la pieza tiene que dejarlo pasar"
+  - nombre: eje
+    cilindro: {diametro: 5, alto: 24, eje: "+z"}
+    en: [0, 0, 0]
+    porque: "23 ± 1 desde la cara: se toma 24"
+  - nombre: conector
+    caja: [16, 7, 9.6]
+    en: [-8, -28.15, -39.5]
+despejar:
+  - nombre: clavija y cable
+    caja: [16, 15, 12]
+    en: [-8, -43.15, -39.5]
+    porque: "la clavija JST PH de 6 pines y el cable que sale de ella"
+fijacion:
+  - {nombre: M3 1, diametro: 3, en: [-15.5, -15.5, 0], eje: "-z"}
+  - {nombre: M3 2, diametro: 3, en: [15.5, -15.5, 0], eje: "-z"}
+  - {nombre: M3 3, diametro: 3, en: [-15.5, 15.5, 0], eje: "-z"}
+  - {nombre: M3 4, diametro: 3, en: [15.5, 15.5, 0], eje: "-z"}
+notas: >
+  Agujeros roscados M3 de 4.5 mm de fondo como mínimo: el tornillo no puede
+  entrar más de eso en el motor. Hay NEMA 17 de otros largos (23 a 60 mm): si
+  el tuyo no es de 40, cambia el largo del cuerpo.

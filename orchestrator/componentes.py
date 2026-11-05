@@ -27,8 +27,17 @@ class Fuente(BaseModel):
 
 class Cilindro(BaseModel):
     diametro: float = Field(gt=0)
+    interior: float | None = Field(default=None, gt=0)
+    """Un anillo (un rodamiento): por dentro pasa un eje, y tratarlo como
+    macizo haría «chocar» cualquier eje que lo atraviese."""
     alto: float = Field(gt=0)
     eje: Eje
+
+    @model_validator(mode="after")
+    def _anillo(self):
+        if self.interior is not None and self.interior >= self.diametro:
+            raise ValueError("el diámetro interior tiene que ser menor que el exterior")
+        return self
 
 
 class Cuerpo(BaseModel):
