@@ -379,9 +379,81 @@ def retencion(forma, diametro_min_mm, diametro_max_mm, vuelta_min_grados=200.0):
                        f"{vuelta_min_grados:g}° para que retenga"}
 
 
+# --- el componente cabe y entra (F6.11 (biblioteca)) -------------------------------------
+#
+# El soporte del HC-SR04 (2026-11-05) salió «resuelto» y el sensor no entraba:
+# nada de lo que se medía era el sensor. Aquí se mete el componente de la
+# ficha en la pieza. El programa solo dice DÓNDE va y POR DÓNDE entra; la
+# forma sale de la ficha, así que no es preguntarle a la pieza qué cree ser.
+
+TOL_CHOQUE_MM3 = 0.05
+"""Apoyarse es tocar sin volumen común; algo más es meterse en la pieza."""
+TOQUE_MAX_MM = 1.0
+"""Un componente a más de esto de la pieza no está sujeto: está flotando."""
+
+
+def _choca(forma, s) -> float:
+    """El volumen común, sin fiarse de un booleano vacío: con el SG90
+    (2026-11-04) `common` devolvió nada para una caja que atravesaba la base
+    maciza. Si el centro del sólido cae dentro de la pieza, choca."""
+    v = forma.common(s).Volume
+    if v <= TOL_CHOQUE_MM3 and forma.isInside(s.CenterOfMass, 1e-6, False):
+        return s.Volume
+    return v
+
+
+def componente_cabe(forma, ficha, en, giros=()):
+    """En su sitio, ningún cuerpo del componente se mete en la pieza, las
+    zonas a despejar (cable, haz) quedan libres y el componente se apoya en
+    la pieza."""
+    from mech_toolkit.componentes import primitivas, solido
+
+    fallos = []
+    cuerpos = primitivas(ficha, en, giros, "cuerpos")
+    for de, que in (("cuerpos", "choca"), ("despejar", "tapa")):
+        for p in primitivas(ficha, en, giros, de):
+            v = _choca(forma, solido(p))
+            if v > TOL_CHOQUE_MM3:
+                porque = f" ({p['porque']})" if de == "despejar" and p["porque"] else ""
+                fallos.append(f"«{p['nombre']}» {que} {v:.1f} mm³{porque}")
+    if fallos:
+        return {"cumple": False, "detalle": f"{ficha.get('nombre', ficha['id'])} no cabe: "
+                                            + "; ".join(fallos)}
+    cerca = min(forma.distToShape(solido(p))[0] for p in cuerpos)
+    if cerca > TOQUE_MAX_MM:
+        return {"cumple": False,
+                "detalle": f"el componente no toca la pieza: queda a {cerca:.1f} mm; "
+                           "donde está colocado no lo sujeta nada"}
+    return {"cumple": True, "detalle": f"cabe, y se apoya a {cerca:.2f} mm de la pieza"}
+
+
+def componente_entra(forma, ficha, en, giros=(), entra_por="+z"):
+    """El componente se puede llevar hasta su sitio viniendo desde
+    `entra_por` («+z»: desde arriba, bajando), sin atravesar la pieza."""
+    from mech_toolkit.componentes import EJES, barrido, primitivas
+
+    d = EJES[entra_por]
+    largo = forma.BoundBox.DiagonalLength + 2
+    fallos = []
+    for p in primitivas(ficha, en, giros, "cuerpos"):
+        comun = forma.common(barrido(p, d, largo))
+        if comun.Volume > TOL_CHOQUE_MM3:
+            b = comun.BoundBox
+            n = [abs(c) for c in d].index(1)
+            eje = "xyz"[n]
+            desde, hasta = ((b.XMin, b.XMax), (b.YMin, b.YMax), (b.ZMin, b.ZMax))[n]
+            fallos.append(f"«{p['nombre']}» atraviesa {comun.Volume:.0f} mm³ de pieza "
+                          f"(entre {eje}={desde:.1f} y {eje}={hasta:.1f})")
+    if fallos:
+        return {"cumple": False,
+                "detalle": f"no se puede meter viniendo desde {entra_por}: " + "; ".join(fallos)}
+    return {"cumple": True, "detalle": f"entra viniendo desde {entra_por} sin tocar nada"}
+
+
 SONDAS = {"aristas_vivas": aristas_vivas, "resistencia": resistencia, "ventana": ventana,
           "coaxiales": coaxiales, "paso_libre": paso_libre, "pared_minima": pared_minima,
-          "ranura": ranura, "retencion": retencion}
+          "ranura": ranura, "retencion": retencion, "componente_cabe": componente_cabe,
+          "componente_entra": componente_entra}
 
 
 def medir(forma, especificaciones: list[dict], material: dict) -> list[dict]:

@@ -19,8 +19,9 @@ from pathlib import Path
 import pytest
 import yaml
 
-from orchestrator.banco import (AristasVivas, Coaxiales, ParedMinima, PasoLibre, Ranura,
-                                Resistencia, Retencion, Ventana, medir_sondas)
+from orchestrator.banco import (AristasVivas, ComponenteCabe, ComponenteEntra, Coaxiales,
+                                ParedMinima, PasoLibre, Ranura, Resistencia, Retencion, Ventana,
+                                medir_sondas)
 from orchestrator.build import build_part
 from orchestrator.schemas.programa import Programa
 from tests.test_generators import _freecadcmd
@@ -258,6 +259,87 @@ def construir(kit):
 """
     [r] = _medir(marco, [Ventana(tipo="ventana", ancho_mm=22.8, alto_mm=12.2)], tmp_path)
     assert r.estado == "cumple", r.detalle
+
+
+# --- el componente cabe y entra (F6.11 (biblioteca)) -------------------------------------
+
+HCSR04_NO_ENTRA = Path(__file__).parent / "sondas_regresiones" / "hcsr04_no_entra.step"
+"""El soporte que salió «resuelto» el 2026-11-05. En su programa el PCB va en
+un canal de 2 mm (y de 6 a 8), centrado en x, apoyado en z=14 y metido desde
+arriba; los transductores asoman por la pared de delante."""
+EN_EL_CANAL = [-22.5, 6.2, 14]
+
+CON_SUS_NUMEROS = {
+    "id": "hc-sr04-de-la-tienda", "nombre": "el HC-SR04 con que se diseñó", "mira": "+y",
+    "cuerpos": [
+        {"nombre": "placa", "caja": [43, 1.6, 20], "en": [0, 0, 0]},
+        {"nombre": "transductor izquierdo", "cilindro": {"diametro": 8, "alto": 12, "eje": "+y"},
+         "en": [9.5, 1.6, 10]},
+        {"nombre": "transductor derecho", "cilindro": {"diametro": 8, "alto": 12, "eje": "+y"},
+         "en": [35.5, 1.6, 10]}]}
+"""Lo que creía el sistema: 43 mm y Ø8, sin nada detrás ni pines."""
+
+
+def _real():
+    from orchestrator.componentes import cargar
+    return cargar("hc-sr04").model_dump()
+
+
+def test_el_soporte_que_se_entrego_no_deja_sitio_al_sensor_real():
+    """Medido a mano en FreeCAD el mismo día: los integrados de atrás chocan
+    552 mm³ (el canal deja 0.2 mm) y los transductores de Ø16 no pasan por
+    agujeros de Ø8."""
+    [r] = medir_sondas(HCSR04_NO_ENTRA, [ComponenteCabe(
+        tipo="componente_cabe", ficha=_real(), en=EN_EL_CANAL)], _freecadcmd(), MATERIAL)
+    assert r.estado == "no_cumple"
+    assert "integrados de atrás" in r.detalle and "transductor izquierdo" in r.detalle
+
+
+def test_ni_con_sus_propios_numeros_se_puede_meter():
+    """Con 43 mm y Ø8 el sensor cabe en su sitio... pero el canal se abre por
+    arriba y los transductores atraviesan la pared de delante: al bajar,
+    chocan (hasta 368 mm³ a medio camino, medido a mano)."""
+    cabe, entra = medir_sondas(HCSR04_NO_ENTRA, [
+        ComponenteCabe(tipo="componente_cabe", ficha=CON_SUS_NUMEROS, en=[-21.5, 6.2, 14]),
+        ComponenteEntra(tipo="componente_entra", ficha=CON_SUS_NUMEROS, en=[-21.5, 6.2, 14],
+                        entra_por="+z")], _freecadcmd(), MATERIAL)
+    assert cabe.estado == "cumple", cabe.detalle
+    assert entra.estado == "no_cumple" and "transductor" in entra.detalle
+
+
+CUNA = """
+def construir(kit):
+    respaldo = kit.caja(51, 3.8, 20, en=(-3, -7, 0))
+    izquierda = kit.caja(2.8, 5.3, 20, en=(-3, -3.7, 0))
+    derecha = kit.caja(2.8, 5.3, 20, en=(45.2, -3.7, 0))
+    return respaldo + izquierda + derecha
+"""
+"""Un respaldo a 0.2 mm de los integrados y dos guías a 0.2 mm de los cantos
+del PCB: el sensor entra por delante y no tapa nada."""
+
+
+def test_una_cuna_bien_hecha_deja_meter_el_sensor_por_delante(tmp_path):
+    cabe, entra = _medir(CUNA, [
+        ComponenteCabe(tipo="componente_cabe", ficha=_real(), en=[0, 0, 0]),
+        ComponenteEntra(tipo="componente_entra", ficha=_real(), en=[0, 0, 0], entra_por="+y")],
+        tmp_path)
+    assert cabe.estado == "cumple", cabe.detalle
+    assert entra.estado == "cumple", entra.detalle
+
+
+def test_por_detras_la_misma_cuna_no_deja_meterlo(tmp_path):
+    """La dirección importa: viniendo desde atrás, los integrados tendrían
+    que atravesar el respaldo."""
+    [entra] = _medir(CUNA, [ComponenteEntra(tipo="componente_entra", ficha=_real(),
+                                            en=[0, 0, 0], entra_por="-y")], tmp_path)
+    assert entra.estado == "no_cumple" and "integrados de atrás" in entra.detalle
+
+
+def test_un_componente_que_no_toca_la_pieza_no_cuenta(tmp_path):
+    """Si el programa lo coloca lejos, nada choca: tiene que estar apoyado."""
+    [cabe] = _medir(CUNA, [ComponenteCabe(tipo="componente_cabe", ficha=_real(),
+                                          en=[200, 0, 0])], tmp_path)
+    assert cabe.estado == "no_cumple" and "no toca" in cabe.detalle
 
 
 def test_un_booleano_que_falla_en_silencio_no_deja_pasar_nada():

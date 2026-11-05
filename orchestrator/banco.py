@@ -167,6 +167,24 @@ class Retencion(_Sonda):
     vuelta_min_grados: float = 200.0
 
 
+class ComponenteCabe(_Sonda):
+    """El componente de la ficha, en su sitio, no choca con la pieza, deja
+    libres sus zonas (cable, haz) y se apoya en ella (F6.11 (biblioteca))."""
+    tipo: Literal["componente_cabe"]
+    ficha: dict
+    en: list[float]
+    giros: list[list] = []
+
+
+class ComponenteEntra(_Sonda):
+    """El componente se puede llevar a su sitio viniendo desde `entra_por`."""
+    tipo: Literal["componente_entra"]
+    ficha: dict
+    en: list[float]
+    giros: list[list] = []
+    entra_por: Literal["+x", "-x", "+y", "-y", "+z", "-z"]
+
+
 class Pendiente(BaseModel):
     """Lo que el banco exige pero aún no sabe medir. Cuenta como sin medir."""
 
@@ -180,7 +198,8 @@ class Pendiente(BaseModel):
 
 Asercion = Annotated[Agujeros | Cilindro | Envolvente | SinSoportes | Pendiente | AristasVivas
                      | Resistencia | Ventana | Coaxiales | PasoLibre | ParedMinima | Ranura
-                     | Retencion, Field(discriminator="tipo")]
+                     | Retencion | ComponenteCabe | ComponenteEntra,
+                     Field(discriminator="tipo")]
 
 
 class Encargo(BaseModel):

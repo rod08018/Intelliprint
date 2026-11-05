@@ -1,0 +1,76 @@
+# Sensor ultrasónico HC-SR04 (F6.11 (biblioteca)).
+#
+# Por qué existe esta ficha: el 2026-11-05 el sistema diseñó un soporte con
+# los números de una tienda (PCB de 43 mm, transductores de Ø8) y sin saber
+# que el sensor lleva integrados detrás y pines abajo. Salió «resuelto» y el
+# sensor no entraba. Las medidas de aquí salen de las fuentes citadas; el
+# «Ø8» de aquella tienda era el RADIO del plano de la UPV.
+id: hc-sr04
+nombre: Sensor ultrasónico HC-SR04
+verificado: false
+fuentes:
+  - url: https://handsontec.com/dataspecs/sensor/SR-04-Ultrasonic.pdf
+    cita: "Dimension: 45mm x 20mm x 15mm"
+  - url: https://handsontec.com/dataspecs/sensor/SR-04-Ultrasonic.pdf
+    cita: "Connector: 4-pins header with 2.54mm pitch."
+  - url: https://handsontec.com/dataspecs/sensor/SR-04-Ultrasonic.pdf
+    cita: "4.2 Mechanical Dimension: 40mm entre agujeros (cota del dibujo)"
+  - url: https://dyor.webs.upv.es/qcad-hc-sr04/
+    cita: "dos agujeros de radio 8mm; circle 9.5,10 8; circle 35.5,10 8"
+  - url: https://dyor.webs.upv.es/qcad-hc-sr04/
+    cita: "polyline 0,0 @45,0 @0,20 @-17.5,0 @0,4.5 @-10,0 @0,-4.5 @-17.5,0 @0,-20"
+  - url: https://thepihut.com/products/ultrasonic-distance-sensor-hcsr04
+    cita: "Centre screw hole distance: 40mm x 15mm"
+marco: >
+  Origen en la esquina inferior izquierda de la cara TRASERA del PCB, con el
+  sensor mirándote. x a lo largo del PCB (45 mm), z hacia arriba (20 mm) e y
+  hacia delante, hacia donde miran los transductores.
+mira: "+y"
+cuerpos:
+  - nombre: placa
+    caja: [45, 1.6, 20]
+    en: [0, 0, 0]
+  - nombre: transductor izquierdo
+    cilindro: {diametro: 16, alto: 13.4, eje: "+y"}
+    en: [9.5, 1.6, 10]
+    porque: "15 mm de alto total menos 1.6 de PCB"
+  - nombre: transductor derecho
+    cilindro: {diametro: 16, alto: 13.4, eje: "+y"}
+    en: [35.5, 1.6, 10]
+  - nombre: cristal
+    caja: [10, 4, 8.5]
+    en: [17.5, 1.6, 16]
+    porque: "el plano de la UPV deja un saliente de 10 x 4.5 mm sobre el borde de arriba"
+  - nombre: cabezal de pines
+    caja: [10.16, 2.54, 2.54]
+    en: [17.42, 1.6, 0]
+  - nombre: pines
+    caja: [10.16, 2.54, 6]
+    en: [17.42, 1.6, -6]
+    porque: "los 4 pines salen hacia abajo, en el plano del PCB"
+  - nombre: integrados de atrás
+    caja: [39, 3, 14]
+    en: [3, -3, 3]
+    porque: "el PCB lleva los integrados y sus componentes por detrás"
+despejar:
+  - nombre: conector y cable
+    caja: [14, 10, 20]
+    en: [15.5, -3, -26]
+    porque: "el conector Dupont hembra (unos 14 mm) y su cable salen por abajo"
+  - nombre: haz del transductor izquierdo
+    cilindro: {diametro: 16, alto: 30, eje: "+y"}
+    en: [9.5, 15, 10]
+    porque: "delante de un transductor no puede haber nada: el sonido sale en un cono de 15°"
+  - nombre: haz del transductor derecho
+    cilindro: {diametro: 16, alto: 30, eje: "+y"}
+    en: [35.5, 15, 10]
+    porque: "delante de un transductor no puede haber nada: el sonido sale en un cono de 15°"
+fijacion:
+  - {nombre: agujero abajo izquierda, diametro: 1.0, en: [2.5, 0, 2.5], eje: "+y"}
+  - {nombre: agujero abajo derecha, diametro: 1.0, en: [42.5, 0, 2.5], eje: "+y"}
+  - {nombre: agujero arriba izquierda, diametro: 1.0, en: [2.5, 0, 17.5], eje: "+y"}
+  - {nombre: agujero arriba derecha, diametro: 1.0, en: [42.5, 0, 17.5], eje: "+y"}
+notas: >
+  El diámetro de los agujeros (1 mm) solo lo da una tienda que se equivocó en
+  otras dos medidas: compruébalo con calibre antes de atornillar. Agarrarlo
+  por los bordes del PCB no depende de él.
