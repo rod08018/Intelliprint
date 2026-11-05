@@ -156,3 +156,36 @@ def test_una_pieza_con_defectos_sale_pero_no_aprobada(tmp_path):
     assert not informe.resuelto and informe.gramos == 3.0
     assert falta in informe.motivo
     assert falta in (tmp_path / "blocked.md").read_text(encoding="utf-8")
+
+
+def test_lo_buscado_en_internet_llega_a_los_requisitos_y_al_concepto(tmp_path):
+    """F3.21 (investigar): la petición nombra una Raspberry Pi 4 sin medidas.
+    Lo encontrado va a los requisitos aparte de la petición (como catálogo,
+    no como palabra del usuario), y quien aprueba ve el dato con su fuente.
+    La petición que queda escrita es la del usuario, tal cual."""
+    from orchestrator.investigar import Dato, Investigacion
+
+    url = "https://www.raspberrypi.com/pi4"
+    dato = Dato(componente="Raspberry Pi 4", medida="agujeros de montaje", valor=2.7,
+                fuente=url, cita="hole diameter 2.7 mm")
+
+    class Investigador:
+        def investigar(self, peticion):
+            return Investigacion(datos=[dato], sin_encontrar=["alto de los USB"])
+
+    recibido = {}
+
+    class ConExternos(Requisitos):
+        def draft(self, peticion, externos=""):
+            recibido["externos"] = externos
+            return super().draft(peticion)
+
+    peticion = "soporte para una Raspberry Pi 4 en un perfil 2020"
+    concebir_pieza(peticion, tmp_path, requisitos=ConExternos(), ingeniero=Ingeniero(),
+                   investigador=Investigador(), log=_nada)
+
+    assert "2.7 mm" in recibido["externos"] and url in recibido["externos"]
+    assert (tmp_path / "request.md").read_text(encoding="utf-8") == peticion + "\n"
+    concepto = (tmp_path / "concepto.md").read_text(encoding="utf-8")
+    assert "hole diameter 2.7 mm" in concepto and url in concepto
+    assert "alto de los USB" in concepto

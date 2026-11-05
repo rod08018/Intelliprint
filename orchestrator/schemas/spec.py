@@ -61,11 +61,16 @@ def _normal(texto: str) -> str:
     return re.sub(r"\s+", " ", texto).strip().casefold()
 
 
-def errores_de_requisitos(requisitos: list[Requisito], peticion: str) -> list[str]:
+def errores_de_requisitos(requisitos: list[Requisito], peticion: str,
+                          externos: str = "") -> list[str]:
     """Lo que el modelo no puede saltarse, comprobado por el código.
 
     Una cita inventada pasaría por requisito del usuario algo que nunca
-    dijo, y una cota sin requisito es una cota que nadie va a medir."""
+    dijo, y una cota sin requisito es una cota que nadie va a medir.
+
+    `externos`: lo buscado en internet (F3.21 (investigar)). Sus cotas hay
+    que cubrirlas igual, pero NO cuentan como dichas por el usuario: van
+    como `catalogo`, y quien aprueba el concepto ve de dónde salen."""
     errores = []
     peticion_normal = _normal(peticion)
     for r in requisitos:
@@ -75,7 +80,7 @@ def errores_de_requisitos(requisitos: list[Requisito], peticion: str) -> list[st
                 "Cita el fragmento tal cual, o márcalo como `estimado`.")
     cubiertas = [r.valor for r in requisitos if r.valor is not None and r.unidad == "mm"]
     cubiertas += [s for r in requisitos for s in r.separaciones_mm + r.seccion_mm]
-    for cota in requested_dimensions(peticion):
+    for cota in requested_dimensions(peticion) + requested_dimensions(externos):
         if not any(abs(v - cota) < 1e-6 for v in cubiertas):
             errores.append(
                 f"la petición dice {cota:g} mm y ningún requisito lleva ese valor "

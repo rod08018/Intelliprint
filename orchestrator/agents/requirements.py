@@ -13,11 +13,11 @@ from orchestrator.schemas.spec import Spec, errores_de_requisitos
 PROMPT_PATH = Path("config/agents/requirements.md")
 
 
-def _citas_y_cotas(spec: Spec, peticion: str) -> None:
+def _citas_y_cotas(spec: Spec, peticion: str, externos: str = "") -> None:
     """Dentro del bucle de reintento: el modelo recibe el error exacto
     («la petición dice 60 mm y ningún requisito lleva ese valor») y lo
     corrige, en vez de que el fallo aparezca después, al medir."""
-    errores = errores_de_requisitos(spec.requisitos, peticion)
+    errores = errores_de_requisitos(spec.requisitos, peticion, externos)
     if errores:
         raise ValueError("requisitos incompletos:\n- " + "\n- ".join(errores))
 
@@ -34,7 +34,8 @@ class RequirementsAgent:
                 f"\n\n## Perfil activo\n\n- printer: `{activo.impresora.id}`\n"
                 f"- material: `{activo.material}`\n")
 
-    def draft(self, peticion: str, adjuntos: list[str] | None = None) -> Spec:
+    def draft(self, peticion: str, adjuntos: list[str] | None = None,
+              externos: str = "") -> Spec:
         """Redacta la spec a partir de la petición.
 
         Si el modelo clasifica como `robot` u omite un dato obligatorio de
@@ -46,8 +47,15 @@ class RequirementsAgent:
         if adjuntos:
             partes.append("\n\n## Adjuntos\n")
             partes.extend(f"- {a}\n" for a in adjuntos)
+        if externos:
+            # F3.21 (investigar): lo que la petición no decía y se buscó. Cada
+            # cota es un requisito más, con `origen: catalogo`: no lo dijo
+            # el usuario, y quien aprueba el concepto ve de dónde sale.
+            partes.append("\n\n## Datos buscados en internet\n\nNo los dijo el usuario: "
+                          "cada cota es un requisito con `origen: catalogo`, y su `texto` "
+                          "dice de dónde sale.\n\n" + externos)
         spec = structured(self._client, "".join(partes), Spec,
-                          extra_validation=lambda s: _citas_y_cotas(s, peticion))
+                          extra_validation=lambda s: _citas_y_cotas(s, peticion, externos))
         # La petición literal la fija el código después de la llamada: el
         # modelo no puede perderla ni reescribirla al resumir.
         return spec.model_copy(update={"request": peticion})

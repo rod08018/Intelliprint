@@ -45,6 +45,7 @@ class InformePieza(BaseModel):
 
 
 CONCEPTO = "concepto.json"
+INVESTIGACION = "investigacion.json"
 APROBADO = "concepto_aprobado"
 
 
@@ -64,11 +65,12 @@ def aprobar_concepto(carpeta: Path, por: str) -> None:
         encoding="utf-8")
 
 
-def _redactar(peticion: str, carpeta: Path, requisitos, log) -> Spec:
+def _redactar(peticion: str, carpeta: Path, requisitos, log, externos: str = "") -> Spec:
     carpeta.mkdir(parents=True, exist_ok=True)
     (carpeta / "request.md").write_text(peticion.strip() + "\n", encoding="utf-8")
     log("  admisión: el Requirements Agent redacta la especificación…")
-    spec: Spec = requisitos.draft(peticion)
+    spec: Spec = (requisitos.draft(peticion, externos=externos) if externos
+                  else requisitos.draft(peticion))
     (carpeta / "spec.yaml").write_text(
         yaml.safe_dump(spec.model_dump(), allow_unicode=True, sort_keys=False), encoding="utf-8")
     (carpeta / "pieza.json").write_text(
@@ -84,9 +86,13 @@ def _titulo(carpeta: Path) -> str:
 
 
 def concebir_pieza(peticion: str, carpeta: Path, *, requisitos, ingeniero,
-                   log=print) -> ConceptoComprobado | None:
+                   investigador=None, log=print) -> ConceptoComprobado | None:
     """Redacta la especificación y el concepto, y PARA a esperar el visto
-    bueno. Devuelve None si el concepto no sale (queda `blocked.md`)."""
+    bueno. Devuelve None si el concepto no sale (queda `blocked.md`).
+
+    `investigador` (F3.21 (investigar)): antes de redactar, busca en internet
+    las medidas de lo que la petición nombra sin medir. Lo encontrado entra
+    en los requisitos como `catalogo` y sale en el concepto con su fuente."""
     carpeta = Path(carpeta)
     # Un concepto nuevo (p. ej. tras contestar a sus preguntas) necesita un
     # visto bueno nuevo: el anterior era de otra cosa.
@@ -96,8 +102,19 @@ def concebir_pieza(peticion: str, carpeta: Path, *, requisitos, ingeniero,
     # o blocked.md viejos, el registro lo daría por fallido o aprobado.
     for viejo in ("rounds.json", "blocked.md", "pieza_report.json"):
         (carpeta / viejo).unlink(missing_ok=True)
+    investigacion = None
+    if investigador is not None:
+        try:
+            investigacion = investigador.investigar(peticion)
+        except ValueError as e:   # el modelo no dio datos citables: se sigue sin ellos
+            log(f"  investigación: no salió ({e})")
+        if investigacion is not None:
+            carpeta.mkdir(parents=True, exist_ok=True)
+            (carpeta / INVESTIGACION).write_text(investigacion.model_dump_json(indent=2),
+                                                 encoding="utf-8")
     try:
-        spec = _redactar(peticion, carpeta, requisitos, log)
+        spec = _redactar(peticion, carpeta, requisitos, log,
+                         investigacion.texto_para_peticion() if investigacion else "")
         log(f"  «{spec.title}»: el ingeniero piensa cómo resolverlo…")
         concepto = ingeniero.concebir(spec)
     except ValueError as e:   # SalidaInvalida: el modelo no dio un concepto que se sostenga
@@ -106,8 +123,10 @@ def concebir_pieza(peticion: str, carpeta: Path, *, requisitos, ingeniero,
                                               motivo=f"el concepto no salió: {e}"), peticion)
         return None
     (carpeta / CONCEPTO).write_text(concepto.model_dump_json(indent=2), encoding="utf-8")
+    buscado = investigacion.texto_para_concepto() if investigacion else ""
     (carpeta / "concepto.md").write_text(
-        f"# {spec.title}: el concepto\n\n{concepto.texto()}\n", encoding="utf-8")
+        f"# {spec.title}: el concepto\n\n{concepto.texto()}\n"
+        + (f"\n{buscado}\n" if buscado else ""), encoding="utf-8")
     log(concepto.texto())
     return concepto
 
