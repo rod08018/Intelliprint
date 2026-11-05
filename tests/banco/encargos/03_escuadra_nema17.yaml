@@ -7,6 +7,8 @@ peticion: >
   con 2 tornillos M4, agujeros de 4.5 mm separados 30 mm. El motor tira de
   una correa con unos 20 N.
 oraculo:
+  - tipo: componente
+    ficha: nema17
   - tipo: cilindro
     interior: true
     nominal_mm: 22.4

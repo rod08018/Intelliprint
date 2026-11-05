@@ -7,6 +7,8 @@ peticion: >
   agujeros M3 en cuadro de 20 mm: el soporte lleva 4 agujeros de 3.3 mm en
   cuadro de 20 mm para fijarlo.
 oraculo:
+  - tipo: componente
+    ficha: sg90
   - tipo: agujeros
     diametro_mm: 2
     patron_mm: [[0, 0], [27.8, 0]]

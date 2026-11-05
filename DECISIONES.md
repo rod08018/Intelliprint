@@ -449,3 +449,49 @@ Contestar a las preguntas **no aprueba**. Las respuestas se añaden literales a 
 - La resistencia del material es una estimación conservadora **sin ensayar**, como las holguras (F2.18).
 - Los mecanismos todavía no pasan por el ingeniero.
 - Nadie **mide** aún que la pieza cumpla cada requisito. Eso es F2.6 y F2.12: ahora tienen por dónde agarrarlo.
+
+---
+
+## ADR-016 · El componente es geometría con ficha; el programa solo dice dónde va
+
+**Estado:** aceptada · **Afecta a:** § 4.2, § 7.1; F2.2, F6.11, F6.7, F3.21
+
+**Problema.** El soporte del HC-SR04 (2026-11-05) salió «resuelto, listo para imprimir» y el sensor no entraba. Medido en FreeCAD:
+- con el sensor real (PCB de 45, transductores de Ø16) el PCB no cabía, los transductores chocaban contra agujeros de Ø8 y los integrados de atrás, contra un canal de 0.2 mm;
+- **ni con sus propios números** (43 y Ø8) se podía meter: el canal se abría por arriba y los transductores atravesaban la pared de delante.
+
+Faltaban tres cosas:
+- **No existía el componente.** Había trece cifras de internet convertidas en requisitos sueltos: de ahí salieron cuatro agujeros de Ø1 que el concepto decía que no habría, y el «Ø8», que en el plano de la UPV era el radio. Nada decía que el sensor lleva integrados detrás, pines abajo y un cable.
+- **Nada lo comprobaba.** El bucle medía agujeros contra los rasgos que declaraba el propio programa, y aristas.
+- **El banco no lo veía.** Pedía por el flujo viejo, sin investigador ni ingeniero, y ninguno de sus encargos llevaba un PCB.
+
+**Decisión.** Un componente comprado es **geometría con ficha y fuente** (`library/components/*.yaml`):
+- `cuerpos`: lo que choca;
+- `despejar`: lo que hay que dejar libre, cada zona con su porqué (cable, haz, enchufes);
+- `fijacion`: dónde se atornilla;
+- las fuentes citadas, y `verificado: false` hasta que alguien lo mida con calibre.
+
+Lo que el plano dibuja sin acotar lo dice su `porque` («a escala»). Si dos fabricantes no coinciden, la ficha toma lo mayor.
+
+El programa del diseñador **solo dice dónde va y por dónde entra** (`kit.componente(id, en, girar, entra_por)`). La forma no la dibuja él. Así se concilia con ADR-011: el rasgo del componente es una declaración de *posición*, no de *forma*. La sonda mete en la pieza la forma de la ficha, que el programa no puede tocar:
+- `componente_cabe`: ningún cuerpo ni zona libre se mete en la pieza, y la pieza lo toca;
+- `componente_entra`: el barrido exacto desde `entra_por` hasta su sitio no atraviesa nada.
+
+Las dos corren **dentro del bucle**, y el choque vuelve al diseñador con nombre: «"integrados de atrás" choca 552 mm³».
+
+Un programa que no coloca un componente que el concepto nombra no queda «sin comprobar»: es un defecto.
+
+**Quién decide qué es un componente.** El código, por los alias de la ficha, no el modelo. Lo que tiene ficha:
+- no se busca en internet;
+- no se convierte en requisitos sueltos;
+- llega al ingeniero con su resumen, y el concepto tiene que decir cómo entra y cómo se sujeta.
+
+Si la persona PREGUNTA por unas medidas, se sigue buscando.
+
+**Alternativa descartada: ventanas con medidas.** La sonda `ventana` ya existía y comprueba que una sección pase por una abertura. No ve lo que sobresale por detrás, ni los pines, ni por dónde entra, y el soporte del HC-SR04 la habría pasado con sus números.
+
+**Lo que no cubre.**
+- Las fichas son cajas y cilindros alineados con los ejes, y los giros, de 90 en 90°: es lo que hace exacto el barrido.
+- Ninguna ficha está medida con calibre.
+- Un clip elástico que se monta forzando choca a propósito y la sonda no lo distingue de un choque de verdad.
+- Un componente sin ficha sigue por el camino de antes, con cifras sueltas. El borrador de ficha que la persona revisa y aprueba (plan, fase 6) está pendiente.

@@ -7,6 +7,8 @@ peticion: >
   Al perfil va con 2 tornillos M5, agujeros de 5.5 mm separados 20 mm.
   Que se imprima sin soportes.
 oraculo:
+  - tipo: componente
+    ficha: mg996r
   - tipo: agujeros
     diametro_mm: 3.3
     patron_mm: [[0, 0], [49.5, 0], [0, 10], [49.5, 10]]
