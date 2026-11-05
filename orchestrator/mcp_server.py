@@ -96,9 +96,9 @@ def buscar_medidas(que: str) -> dict:
     Fallo que lo motivó (2026-11-05): con su propio buscador, Crafty puso los
     USB de la Raspberry Pi 4 en el borde equivocado y nadie lo comprobó.
     """
-    r = _investigador().investigar(f"Medidas de: {que}")
+    r = _investigador().medidas_de(que)
     return {"datos": [d.model_dump() for d in r.datos], "sin_encontrar": r.sin_encontrar,
-            "texto": r.texto_para_concepto() or "No hizo falta buscar nada."}
+            "texto": r.texto_para_concepto() or "No encontré esas medidas."}
 
 
 @mcp.tool()

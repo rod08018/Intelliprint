@@ -172,7 +172,7 @@ def test_crafty_busca_medidas_con_el_buscador_de_intelliprint(monkeypatch):
     pedido = {}
 
     class Falso:
-        def investigar(self, peticion):
+        def medidas_de(self, peticion):
             pedido["peticion"] = peticion
             return Investigacion(datos=[dato], sin_encontrar=["diámetro exterior"])
 

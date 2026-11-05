@@ -148,6 +148,19 @@ def test_si_no_falta_nada_no_busca():
     assert buscador.consultas == [] and r.datos == [] and r.texto_para_peticion() == ""
 
 
+def test_si_preguntan_por_unas_medidas_no_vale_decir_que_no_falta_nada():
+    # Crafty preguntó «¿cuánto mide una tuerca M5?» y el modelo contestó
+    # `faltan: []`, como si fuera una petición que ya trae sus medidas
+    # (2026-11-04): la herramienta devolvió «No hizo falta buscar nada».
+    datos = json.dumps({"datos": [_dato().model_dump()], "sin_encontrar": []})
+    guion = Guion([json.dumps({"faltan": []}), FALTA_LA_PI, datos])
+    buscador = BuscadorFalso({URL: PAGINA})
+    r = Investigador(guion, buscador).medidas_de("Raspberry Pi 4")
+    assert "pregunta" in guion.prompts[1]
+    assert buscador.consultas == ["Raspberry Pi 4 mechanical drawing mounting holes"]
+    assert [d.valor for d in r.datos] == [2.7]
+
+
 def test_sin_internet_sigue_sin_datos_y_lo_dice():
     class SinRed(BuscadorFalso):
         def buscar(self, consulta, n=3):

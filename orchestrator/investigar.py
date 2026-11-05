@@ -282,9 +282,16 @@ class Investigador:
         self._que_falta, _, self._extraer = texto.partition(SEPARADOR)
         self._log = log
 
-    def investigar(self, peticion: str) -> Investigacion:
-        faltan = structured(self._client, f"{self._que_falta}\n## Petición\n\n{peticion}",
-                            Faltantes).faltan
+    def medidas_de(self, que: str) -> Investigacion:
+        """Cuando alguien PREGUNTA por unas medidas, «no falta nada» no es
+        respuesta: con «Medidas de: tuerca M5» el modelo contestó `faltan: []`,
+        como a una petición que ya las trae (2026-11-04)."""
+        return self.investigar(f"Medidas de: {que}", obligatorio=True)
+
+    def investigar(self, peticion: str, obligatorio: bool = False) -> Investigacion:
+        faltan = structured(
+            self._client, f"{self._que_falta}\n## Petición\n\n{peticion}", Faltantes,
+            extra_validation=_algo_que_buscar if obligatorio else None).faltan
         resultado = Investigacion()
         for f in faltan:
             # Con el porqué: «no encontré» de la Raspberry Pi 4 parecía que no
@@ -334,6 +341,13 @@ class Investigador:
             if texto.strip():
                 paginas[r.url] = texto
         return paginas
+
+
+def _algo_que_buscar(f: Faltantes) -> None:
+    if not f.faltan:
+        raise ValueError("La persona pregunta expresamente por estas medidas: no las "
+                         "da, así que faltan todas. Devuelve el componente con lo que "
+                         "pregunta y las consultas para buscarlo.")
 
 
 def _rechazar(errores: list[str]) -> None:
