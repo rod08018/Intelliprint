@@ -266,3 +266,24 @@ def test_rejuzgar_no_puntua_una_pieza_que_no_se_construyo(tmp_path):
     resultados, fallos = rejuzgar([e], tmp_path, freecadcmd="no-se-llama")
     assert [r.estado for r in resultados["x"]] == ["no_cumple"]
     assert "x" in fallos
+
+
+def test_rejuzgar_reconoce_una_pieza_guardada_aunque_el_proceso_muriera_despues(tmp_path,
+                                                                               monkeypatch):
+    """La línea base del 2026-11-05 dio 0 % sin que nada estuviera mal en las
+    piezas: el laminado reventó DESPUÉS de construirlas y de guardar su
+    diseño, y el informe no llegó a escribirse. `recipe.json` solo se guarda
+    cuando la construcción salió; un intento fallido no lo deja."""
+    from orchestrator import banco
+    monkeypatch.setattr(banco, "juzgar_pieza",
+                        lambda e, c, f, m=None: [banco.Resultado(estado="cumple", detalle="ok")])
+    e = banco.Encargo(nombre="x", categoria="casa", peticion="un gancho",
+                      oraculo=[{"tipo": "sin_soportes"}])
+    pieza = tmp_path / "01" / "projects" / "p" / "parts" / "p"
+    pieza.mkdir(parents=True)
+    (pieza / "p.step").write_text("x", encoding="utf-8")
+    (pieza / "recipe.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "01" / "salida.txt").write_text(
+        "Traceback ...\nLaminadoFallido: no encuentro el STL", encoding="utf-8")
+    resultados, fallos = banco.rejuzgar([e], tmp_path, freecadcmd="x")
+    assert [r.estado for r in resultados["x"]] == ["cumple"] and not fallos

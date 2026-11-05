@@ -552,6 +552,11 @@ def construida(carpeta: Path, codigo: int | None, salida: str) -> bool:
             return json.loads(informe.read_text(encoding="utf-8")).get("volumen_mm3") is not None
         except ValueError:
             return False
+    # `recipe.json` se guarda solo cuando la construcción salió (un intento
+    # fallido no lo deja). Sin él, la línea base del 2026-11-05 dio 0 %: el
+    # laminado reventó después de construir y el informe no se escribió.
+    if next(Path(carpeta).glob("projects/*/parts/*/recipe.json"), None) is not None:
+        return True
     return codigo == 0 or "] Listo:" in salida
 
 

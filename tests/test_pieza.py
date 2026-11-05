@@ -79,6 +79,24 @@ def test_una_cota_pedida_que_no_esta_en_la_pieza_no_sale_aprobada(tmp_path):
     assert estado_de(tmp_path)["estado"] == "fallido"
 
 
+def test_un_laminado_que_falla_no_pierde_la_pieza_construida(tmp_path):
+    """El 2026-11-05 el puente del host no encontró el STL y la excepción
+    tumbó el proceso: nueve piezas construidas quedaron sin informe y el
+    banco las contó como no hechas. La pieza existe; lo que falta es su
+    laminado, y eso se dice."""
+    from orchestrator.slicing import LaminadoFallido
+
+    def revienta(stl, gcode):
+        raise LaminadoFallido("no encuentro el STL")
+
+    informe = disenar_pieza(PETICION, tmp_path, requisitos=Requisitos(),
+                            disenar=_disenar(), laminar=revienta, log=lambda *_: None)
+
+    assert informe.volumen_mm3 == 1234.0 and informe.gramos is None
+    assert not informe.resuelto and "no encuentro el STL" in informe.motivo
+    assert json.loads((tmp_path / "pieza_report.json").read_text())["volumen_mm3"] == 1234.0
+
+
 def test_sin_laminador_la_pieza_sale_igual(tmp_path):
     informe = disenar_pieza(PETICION, tmp_path, requisitos=Requisitos(),
                             disenar=_disenar(), laminar=None, log=lambda *_: None)

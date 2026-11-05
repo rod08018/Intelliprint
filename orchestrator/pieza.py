@@ -28,6 +28,7 @@ from pydantic import BaseModel
 from orchestrator.build import ConstruccionFallida, guardar_diseno
 from orchestrator.schemas.concepto import ConceptoComprobado
 from orchestrator.schemas.spec import Spec
+from orchestrator.slicing import LaminadoFallido
 from orchestrator.tasks import spec_to_task
 
 
@@ -177,10 +178,17 @@ def disenar_pieza(peticion: str, carpeta: Path, *, requisitos,
         fabricacion = carpeta / "fabrication"
         fabricacion.mkdir(exist_ok=True)
         stl = carpeta / "parts" / tarea.part / f"{tarea.part}.stl"
-        lamina = laminar(stl, fabricacion / f"{tarea.part}.gcode")
-        (fabricacion / "slicing_report.json").write_text(
-            json.dumps(lamina.model_dump(), indent=2), encoding="utf-8")
-        informe.gramos, informe.soportes = lamina.grams, lamina.needs_supports
+        # Un laminado que falla no borra la pieza: el 2026-11-05 la excepción
+        # tumbó el proceso y nueve piezas construidas quedaron sin informe.
+        try:
+            lamina = laminar(stl, fabricacion / f"{tarea.part}.gcode")
+        except LaminadoFallido as e:
+            informe.motivo = "\n".join(filter(None, [
+                informe.motivo, f"no se pudo laminar: {e}"]))
+        else:
+            (fabricacion / "slicing_report.json").write_text(
+                json.dumps(lamina.model_dump(), indent=2), encoding="utf-8")
+            informe.gramos, informe.soportes = lamina.grams, lamina.needs_supports
 
     informe.resuelto = not informe.motivo
     _cerrar(carpeta, spec.title, informe, peticion)
