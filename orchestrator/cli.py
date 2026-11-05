@@ -450,11 +450,14 @@ def _pieza(args, raiz: Path, env: dict, nombre: str) -> None:
     # contestar al ingeniero) se propone el concepto y se para; la web o
     # Crafty dejan la marca y reanudan, y entonces se modela ESE concepto.
     if not (carpeta / APROBADO).exists():
-        from orchestrator.investigar import BuscadorWeb, Investigador
+        from orchestrator.investigar import BuscadorDeepSeek, Investigador
 
+        # La búsqueda de DeepSeek, con la misma clave: DuckDuckGo bloquea las
+        # búsquedas del contenedor y no se quiere pagar otro servicio.
         concepto = concebir_pieza(peticion, carpeta, requisitos=requisitos,
                                   ingeniero=_ingeniero(raiz, router, env, cliente),
-                                  investigador=Investigador(cliente, BuscadorWeb()))
+                                  investigador=Investigador(
+                                      cliente, BuscadorDeepSeek(env["DEEPSEEK_API_KEY"])))
         if concepto is None:
             sys.exit(f"[{nombre}] ✗ el concepto no salió: mira {carpeta / 'blocked.md'}")
         print(f"[{nombre}] ✋ concepto listo: espera tu visto bueno ({carpeta / 'concepto.md'})")

@@ -33,6 +33,8 @@ PROMPT_PATH = Path("config/agents/investigador.md")
 SEPARADOR = "<!-- extraer -->"
 
 MAX_RESULTADOS = 3
+MAX_OTRAS = 2
+"""Consultas de repuesto por componente, si la primera no da datos."""
 MAX_CARACTERES = 12_000
 """Por página: un plano o una hoja de datos dice lo que importa al
 principio, y tres páginas por componente caben en el contexto."""
@@ -49,6 +51,10 @@ class Faltante(BaseModel):
     consulta: str
     """Lo que se escribe en el buscador, en inglés si la fuente buena es
     del fabricante («Raspberry Pi 4 mechanical drawing»)."""
+    otras_consultas: list[str] = []
+    """Por si la primera no da datos: con «Raspberry Pi 4 mechanical drawing»
+    las páginas solo enlazaban al plano en PDF, una imagen sin texto, y no
+    salió ni una medida (2026-11-05)."""
 
 
 class Faltantes(BaseModel):
@@ -175,6 +181,61 @@ class BuscadorBloqueado(RuntimeError):
     hace falta un buscador con API."""
 
 
+class BuscadorDeepSeek:
+    """La búsqueda de la API de DeepSeek (api-docs.deepseek.com/guides/search),
+    con la clave que ya usan los agentes: ningún servicio ni cuenta más, y
+    0.75 USD por cada 1000 búsquedas que devuelven algo. La propuso el
+    usuario cuando DuckDuckGo nos bloqueó y no quería pagar otro servicio
+    (2026-11-05).
+
+    Con `need_content` cada resultado trae el texto de su página: leer lo
+    encontrado no cuesta otra llamada. Lo que no lo trae se lee con su API
+    de lectura, que devuelve Markdown."""
+
+    BASE = "https://api.deepseek.com/v1/tools"
+    MAX_CONSULTA = 128
+    """Lo más larga que la API admite una consulta."""
+
+    def __init__(self, api_key: str, cliente=None) -> None:
+        import httpx
+
+        self._http = cliente or httpx.Client(timeout=60.0)
+        self._cabeceras = {"Authorization": f"Bearer {api_key}"}
+        self._contenido: dict[str, str] = {}
+
+    def _pedir(self, ruta: str, cuerpo: dict) -> dict:
+        r = self._http.post(f"{self.BASE}/{ruta}", json=cuerpo, headers=self._cabeceras)
+        if r.status_code == 402:
+            raise BuscadorBloqueado("la cuenta de DeepSeek no tiene saldo")
+        r.raise_for_status()
+        return r.json()
+
+    def buscar(self, consulta: str, n: int = MAX_RESULTADOS) -> list[Resultado]:
+        # Se piden de más y se leen los de más autoridad: las cotas de la
+        # Raspberry Pi 4 salieron de una oferta de Upwork (2026-11-05). La API
+        # puntúa la fuente de 0 a 4 (-1 si no lo sabe). El orden es estable:
+        # a igual autoridad, el de la API.
+        datos = self._pedir("search", {"query": consulta[:self.MAX_CONSULTA], "count": 2 * n,
+                                       "need_content": True})
+        crudos = sorted(datos.get("results") or [],
+                        key=lambda x: -(x.get("authority") if x.get("authority") is not None
+                                        else -1))
+        resultados = []
+        for x in crudos:
+            if len(resultados) == n:
+                break
+            if not x.get("url"):
+                continue
+            if x.get("content"):
+                self._contenido[x["url"]] = x["content"]
+            resultados.append(Resultado(titulo=x.get("title") or "", url=x["url"]))
+        return resultados
+
+    def leer(self, url: str) -> str:
+        texto = self._contenido.get(url) or self._pedir("fetch", {"url": url}).get("content", "")
+        return texto[:MAX_CARACTERES]
+
+
 class BuscadorWeb:
     """DuckDuckGo en su versión HTML, sin clave: la misma elección que Crafty
     (OpenClaw no trae otro buscador sin cuenta en la versión fijada).
@@ -226,25 +287,32 @@ class Investigador:
                             Faltantes).faltan
         resultado = Investigacion()
         for f in faltan:
-            self._log(f"  investigación: busco «{f.consulta}»…")
-            self._motivo = "ninguna página se dejó leer"
-            paginas = self._leer(f.consulta)
-            if not paginas:
-                # Con el porqué: «no encontré» de la Raspberry Pi 4 parecía que
-                # no existiera, y era el buscador bloqueado (2026-11-05).
-                resultado.sin_encontrar.append(
-                    f"{f.componente} ({', '.join(f.que_falta)}): {self._motivo}")
-                continue
-            fuentes = "\n\n".join(f"### {url}\n\n{texto}" for url, texto in paginas.items())
-            datos = structured(
-                self._client,
-                f"{self._extraer}\n## Componente\n\n{f.componente}: {', '.join(f.que_falta)}"
-                f"\n\n## Páginas\n\n{fuentes}",
-                Datos,
-                extra_validation=lambda d, p=paginas: _rechazar(errores_de_datos(d.datos, p)))
-            resultado.datos += datos.datos
-            resultado.sin_encontrar += datos.sin_encontrar
+            # Con el porqué: «no encontré» de la Raspberry Pi 4 parecía que no
+            # existiera, y era el buscador bloqueado (2026-11-05).
+            pendiente = [f"{f.componente} ({', '.join(f.que_falta)})"]
+            for consulta in [f.consulta, *f.otras_consultas[:MAX_OTRAS]]:
+                self._log(f"  investigación: busco «{consulta}»…")
+                self._motivo = "ninguna página se dejó leer"
+                paginas = self._leer(consulta)
+                if not paginas:
+                    pendiente = [f"{f.componente} ({', '.join(f.que_falta)}): {self._motivo}"]
+                    continue
+                datos = self._extraer_de(f, paginas)
+                pendiente = datos.sin_encontrar
+                if datos.datos:
+                    resultado.datos += datos.datos
+                    break
+            resultado.sin_encontrar += pendiente
         return resultado
+
+    def _extraer_de(self, f: Faltante, paginas: dict[str, str]) -> Datos:
+        fuentes = "\n\n".join(f"### {url}\n\n{texto}" for url, texto in paginas.items())
+        return structured(
+            self._client,
+            f"{self._extraer}\n## Componente\n\n{f.componente}: {', '.join(f.que_falta)}"
+            f"\n\n## Páginas\n\n{fuentes}",
+            Datos,
+            extra_validation=lambda d: _rechazar(errores_de_datos(d.datos, paginas)))
 
     def _leer(self, consulta: str) -> dict[str, str]:
         """Las páginas que se dejan leer; una caída o un 403 no paran nada."""

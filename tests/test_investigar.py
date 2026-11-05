@@ -188,3 +188,119 @@ def test_si_el_buscador_nos_bloquea_se_dice_y_no_parece_que_no_haya_nada():
         lambda request: httpx.Response(202, text=antibots)))
     with pytest.raises(BuscadorBloqueado):
         BuscadorWeb(cliente).buscar("Raspberry Pi 4 mechanical drawing")
+
+
+# --- el buscador de DeepSeek -----------------------------------------------------------
+
+def _deepseek(respuestas, vistas):
+    """Un DeepSeek de mentira con la forma de su API de búsqueda
+    (api-docs.deepseek.com/guides/search)."""
+    import httpx
+
+    from orchestrator.investigar import BuscadorDeepSeek
+
+    def responder(request):
+        vistas.append((request.url.path, json.loads(request.content),
+                       request.headers.get("authorization")))
+        return respuestas[request.url.path](request)
+
+    return BuscadorDeepSeek("sk-prueba", httpx.Client(transport=httpx.MockTransport(responder)))
+
+
+def test_deepseek_busca_con_contenido_y_lo_lee_sin_otra_llamada():
+    """DeepSeek busca desde su API con la clave que ya tenemos y devuelve el
+    texto de cada página (`need_content`): leer lo encontrado no cuesta otra
+    llamada. Lo propuso el usuario cuando DuckDuckGo nos bloqueó y no quería
+    pagar otro servicio (2026-11-05)."""
+    import httpx
+
+    vistas = []
+    resultados = {"results": [
+        {"title": "Raspberry Pi 4 mechanical", "url": URL, "content": PAGINA, "summary": "s"},
+        {"title": "Otra", "url": "https://otra.example/pi", "content": "", "summary": "resumen"}]}
+    b = _deepseek({"/v1/tools/search": lambda r: httpx.Response(200, json=resultados)}, vistas)
+
+    r = b.buscar("Raspberry Pi 4 mechanical drawing", n=3)
+
+    assert [x.url for x in r] == [URL, "https://otra.example/pi"]
+    ruta, cuerpo, clave = vistas[0]
+    assert ruta == "/v1/tools/search" and clave == "Bearer sk-prueba"
+    assert cuerpo["query"] == "Raspberry Pi 4 mechanical drawing"
+    assert cuerpo["need_content"] is True
+    assert b.leer(URL) == PAGINA and len(vistas) == 1
+
+
+def test_deepseek_lee_con_su_api_lo_que_la_busqueda_no_trajo():
+    import httpx
+
+    vistas = []
+    b = _deepseek({
+        "/v1/tools/search": lambda r: httpx.Response(200, json={"results": [
+            {"title": "t", "url": URL, "content": "", "summary": ""}]}),
+        "/v1/tools/fetch": lambda r: httpx.Response(200, json={"title": "t", "content": PAGINA}),
+    }, vistas)
+    b.buscar("pi 4")
+    assert b.leer(URL) == PAGINA
+    assert vistas[-1][:2] == ("/v1/tools/fetch", {"url": URL})
+
+
+def test_deepseek_sin_saldo_se_dice():
+    import httpx
+
+    from orchestrator.investigar import BuscadorBloqueado
+
+    b = _deepseek({"/v1/tools/search": lambda r: httpx.Response(402, json={})}, [])
+    with pytest.raises(BuscadorBloqueado, match="saldo"):
+        b.buscar("pi 4")
+
+
+def test_la_consulta_no_pasa_de_128_caracteres():
+    """El límite de la API: más larga, la rechaza."""
+    import httpx
+
+    vistas = []
+    b = _deepseek({"/v1/tools/search": lambda r: httpx.Response(200, json={"results": []})},
+                  vistas)
+    b.buscar("x" * 300)
+    assert len(vistas[0][1]["query"]) == 128
+
+
+def test_si_la_primera_busqueda_no_da_datos_prueba_las_otras():
+    """Fallo real (2026-11-05): con «Raspberry Pi 4 mechanical drawing» las
+    páginas solo enlazaban al plano en PDF, que es una imagen sin texto, y
+    no salió ni una medida. Otra consulta da con páginas que sí las
+    escriben."""
+    falta = json.dumps({"faltan": [{
+        "componente": "Raspberry Pi 4", "que_falta": ["agujeros de montaje"],
+        "consulta": "Raspberry Pi 4 mechanical drawing",
+        "otras_consultas": ["Raspberry Pi 4 mounting hole spacing mm"]}]})
+    nada = json.dumps({"datos": [], "sin_encontrar": ["agujeros de montaje"]})
+    algo = json.dumps({"datos": [_dato().model_dump()], "sin_encontrar": []})
+    buscador = BuscadorFalso({URL: PAGINA})
+
+    r = Investigador(Guion([falta, nada, algo]), buscador).investigar("soporte para una Pi 4")
+
+    assert buscador.consultas == ["Raspberry Pi 4 mechanical drawing",
+                                  "Raspberry Pi 4 mounting hole spacing mm"]
+    assert [d.valor for d in r.datos] == [2.7] and r.sin_encontrar == []
+
+
+def test_deepseek_se_queda_con_las_fuentes_de_mas_autoridad():
+    """Fallo real (2026-11-05): las cotas de la Raspberry Pi 4 salieron de una
+    oferta de trabajo de Upwork. La API puntúa la autoridad de cada fuente
+    (0-4, -1 si no la sabe): se piden más resultados y se leen los mejores."""
+    import httpx
+
+    def r(url, autoridad):
+        return {"title": url, "url": url, "content": "x", "authority": autoridad}
+
+    vistas = []
+    b = _deepseek({"/v1/tools/search": lambda q: httpx.Response(200, json={"results": [
+        r("https://upwork.example", 1), r("https://foro.example", -1),
+        r("https://raspberrypi.com", 4), r("https://tienda.example", 2),
+        r("https://wiki.example", 3)]})}, vistas)
+
+    urls = [x.url for x in b.buscar("pi 4", n=3)]
+
+    assert urls == ["https://raspberrypi.com", "https://wiki.example", "https://tienda.example"]
+    assert vistas[0][1]["count"] > 3

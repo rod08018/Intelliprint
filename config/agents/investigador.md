@@ -20,6 +20,10 @@ Reglas:
 - `consulta`: lo que escribirías en un buscador para dar con el plano
   mecánico o la hoja de datos del fabricante, en inglés si el fabricante
   publica en inglés («Raspberry Pi 4 mechanical drawing mounting holes»).
+- `otras_consultas`: una o dos búsquedas distintas por si la primera no da
+  datos. Que busquen páginas que ESCRIBEN las medidas, no planos en imagen:
+  «Raspberry Pi 4 mounting hole spacing mm», «Raspberry Pi 4 dimensions
+  hole positions».
 - Si no falta nada, devuelve `faltan: []`. Es lo normal cuando la petición
   trae sus medidas.
 
@@ -29,7 +33,8 @@ Devuelve JSON:
 {"faltan": [{"componente": "Raspberry Pi 4",
              "que_falta": ["tamaño de la placa", "agujeros de montaje y su posición",
                            "borde de los conectores USB y Ethernet"],
-             "consulta": "Raspberry Pi 4 mechanical drawing mounting holes"}]}
+             "consulta": "Raspberry Pi 4 mechanical drawing mounting holes",
+             "otras_consultas": ["Raspberry Pi 4 mounting hole spacing mm"]}]}
 ```
 
 <!-- extraer -->
