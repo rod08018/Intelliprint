@@ -336,6 +336,15 @@ Orden, de más a menos puntos por esfuerzo: F6.7 (lazo) → F6.8 (mejor) → F6.
 
 Y uno del kit: `acabar()` redondeaba también los rincones, que **añade** material: la ventana de 23.2 × 12.6 del SG90 ya no dejaba pasar el cuerpo de 22.8 × 12.2. Ahora redondea solo las esquinas. Lo que falla, los dos en el SG90, es real: esa ventana estrechada y un 38 % de aristas vivas. Es una sola corrida (F6.13 (ruido)), y el aviso de F6.10 (ejemplos) sigue: el ejemplo del prompt se parece a la escuadra de repisa del banco, así que el banco necesita piezas que el diseñador no haya visto.
 
+**El banco por el flujo de pieza, con los componentes en el oráculo (corrida `1105-1958`, 2026-11-05): 63 % (33 de 52).** Es la línea base de F6.11 (biblioteca), con el código anterior a las fichas. El 95 % de arriba no veía lo que importa: ningún encargo llevaba un PCB ni una dirección de montaje, y el banco pedía por `new`, sin investigador ni ingeniero. Los encargos 01–03 ahora se juzgan metiendo el servo o el motor real en la pieza, y entran el 09 (HC-SR04) y el 10 (Raspberry Pi 4). El 10 no llegó a correr en esa tanda, así que sobre nueve encargos es 33 de 49 (67 %). Las «sin medir» son los soportes: el laminado falló por una ruta mal traducida en el puente del host, y la corrida salió primero con 0 % porque esa excepción tumbaba el proceso con la pieza ya construida. Las dos cosas están arregladas.
+
+**Con las fichas, `kit.componente` y las sondas en el bucle (corrida `1105-2120`, 2026-11-05): 88 % (46 de 52)**, frente al 63 % de la línea base, con los diez encargos laminados y nada sin medir. Los cinco encargos con componente lo colocan con `kit.componente`, y en los cinco el componente real cabe y entra: el HC-SR04 y la Pi 4 pasan de 0 a 2 de 3. Lo que falla ya no es el componente:
+
+- **aristas vivas** en cinco piezas (18–43 %): `acabar()` no consigue redondear las de los canales y rebajes que deja `hueco()`;
+- **una pared de 0.15 mm** en el soporte del MG996R: la pared mínima se mide en el banco, pero no dentro del bucle, así que el diseñador no se entera.
+
+Es una sola corrida (F6.13 (ruido)); la subida, 25 puntos, supera los ±10 de dispersión medidos.
+
 **Objetivo:** 60 % de media en tres corridas con el techo de hoy, y 75 % cuando F6.12 (techo) lo suba. Las fases 7 y 8 (revisión visual y estética) van después: con piezas que no se construyen no hay nada que mirar.
 
 **Visión.** DeepSeek Flash acepta imágenes (`image_url` en base64; ver api-docs.deepseek.com/guides/vision). El cliente de este repo ya las manda desde F5.2 (adjuntos) —comprobado el 2026-09-21: una imagen roja, «Rojo»—, así que F6.9 (vistas) y las fases 7 y 8 **no esperan** a los modelos locales de F0.11 (migrar).
