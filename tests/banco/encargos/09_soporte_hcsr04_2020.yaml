@@ -1,0 +1,18 @@
+# La petición literal del 2026-11-05: salió «resuelta» y el sensor no
+# entraba (PCB de 43 y transductores de Ø8 sacados de una tienda; sin
+# integrados detrás ni pines abajo). El oráculo no lleva cotas: el sensor es
+# la ficha de la biblioteca, sacada de Handson y del plano de la UPV.
+nombre: soporte_hcsr04_2020
+categoria: robots
+peticion: >
+  Soporte para montar un sensor ultrasónico HC-SR04 en el frente de un robot
+  hecho con perfil de aluminio 2020. Se atornilla al perfil con un tornillo M5
+  y tuerca en T. Los dos transductores tienen que quedar libres mirando al
+  frente. Sin soportes de impresión.
+oraculo:
+  - tipo: componente
+    ficha: hc-sr04
+  - tipo: sin_soportes
+  - tipo: aristas_vivas
+    max_fraccion: 0.1
+    porque: se ve como un producto y no como un prototipo

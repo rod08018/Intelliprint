@@ -335,6 +335,16 @@ def test_por_detras_la_misma_cuna_no_deja_meterlo(tmp_path):
     assert entra.estado == "no_cumple" and "integrados de atrás" in entra.detalle
 
 
+def test_los_rasgos_quedan_al_lado_del_step(tmp_path):
+    """El banco juzga después, en otro proceso: necesita saber dónde dijo el
+    programa que va cada componente."""
+    import json
+    _step(CAJA.replace("return kit.caja(20, 10, 5)",
+                       "return kit.caja(20, 10, 5).taladrar('a', 3, en=(10, 5, 5))"), tmp_path)
+    rasgos = json.loads((tmp_path / "rasgos.json").read_text(encoding="utf-8"))
+    assert [r["nombre"] for r in rasgos] == ["a"]
+
+
 def test_un_componente_que_no_toca_la_pieza_no_cuenta(tmp_path):
     """Si el programa lo coloca lejos, nada choca: tiene que estar apoyado."""
     [cabe] = _medir(CUNA, [ComponenteCabe(tipo="componente_cabe", ficha=_real(),

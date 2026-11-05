@@ -185,6 +185,21 @@ class ComponenteEntra(_Sonda):
     entra_por: Literal["+x", "-x", "+y", "-y", "+z", "-z"]
 
 
+class Componente(BaseModel):
+    """El componente de la biblioteca cabe en la pieza y se puede meter
+    (F6.11 (biblioteca)). La forma sale de la ficha; dónde va y por dónde
+    entra, de lo que el programa declaró con `kit.componente`. Si no lo
+    declaró, no hay cómo comprobarlo, y no se aprueba."""
+    tipo: Literal["componente"]
+    ficha: str
+
+    def clave(self) -> str:
+        return self.model_dump_json()
+
+    def cotas_de_la_peticion(self) -> list[float]:
+        return []
+
+
 class Pendiente(BaseModel):
     """Lo que el banco exige pero aún no sabe medir. Cuenta como sin medir."""
 
@@ -198,7 +213,7 @@ class Pendiente(BaseModel):
 
 Asercion = Annotated[Agujeros | Cilindro | Envolvente | SinSoportes | Pendiente | AristasVivas
                      | Resistencia | Ventana | Coaxiales | PasoLibre | ParedMinima | Ranura
-                     | Retencion | ComponenteCabe | ComponenteEntra,
+                     | Retencion | ComponenteCabe | ComponenteEntra | Componente,
                      Field(discriminator="tipo")]
 
 
@@ -354,6 +369,35 @@ def juzgar(a, h: Hechos) -> Resultado:
     return Resultado(estado="sin_medir", detalle=f"{a.que} — se medirá con {a.fase}")
 
 
+def sondas_de_componente(a: Componente, rasgos: list[dict]) -> list[_Sonda]:
+    """Las dos sondas de un componente, con la ficha de la biblioteca y la
+    colocación que declaró el programa. Vacío si no lo colocó."""
+    from orchestrator.componentes import cargar
+
+    colocado = next((r for r in rasgos if r.get("tipo") == "componente"
+                     and r.get("ficha") == a.ficha), None)
+    if colocado is None:
+        return []
+    ficha = cargar(a.ficha).model_dump()
+    donde = {"ficha": ficha, "en": colocado["en"], "giros": colocado.get("giros") or []}
+    return [ComponenteCabe(tipo="componente_cabe", **donde),
+            ComponenteEntra(tipo="componente_entra", entra_por=colocado["entra_por"], **donde)]
+
+
+def juzgar_componente(a: Componente, sondas: list[_Sonda], h: Hechos) -> Resultado:
+    if not sondas:
+        return Resultado(estado="no_cumple", detalle=(
+            f"la pieza no dice dónde va el {a.ficha} (no usa `kit.componente`): no se "
+            "puede comprobar que quepa ni que entre"))
+    medidas = [h.sondas.get(s.clave()) or Resultado(estado="sin_medir", detalle="sin medir")
+               for s in sondas]
+    for estado in ("no_cumple", "sin_medir"):
+        malas = [m.detalle for m in medidas if m.estado == estado]
+        if malas:
+            return Resultado(estado=estado, detalle="; ".join(malas))
+    return Resultado(estado="cumple", detalle="; ".join(m.detalle for m in medidas))
+
+
 def nota(resultados: list[Resultado]) -> float:
     """Lo que cumple entre TODO lo exigido: lo no medido cuenta en el
     denominador, o una pieza de la que no se mide nada sacaría un 100 %."""
@@ -485,18 +529,38 @@ def correr(encargo: Encargo, carpeta: Path, orden: list[str], freecadcmd: str,
     # Que exista el STEP no basta: queda el de un intento fallido. En la
     # primera corrida (2026-11-03) el banco midió los restos de dos piezas
     # que no llegaron a construirse y les dio puntos.
-    if proceso.returncode != 0 or step is None:
+    if not construida(carpeta, proceso.returncode, proceso.stdout) or step is None:
         sin = [Resultado(estado="no_cumple", detalle="no hay pieza") for _ in encargo.oraculo]
         return sin, motivo_del_fallo(proceso.stdout + "\n" + proceso.stderr)
     return juzgar_pieza(encargo, carpeta, freecadcmd, material), None
+
+
+def construida(carpeta: Path, codigo: int | None, salida: str) -> bool:
+    """`intelliprint pieza` sale con 1 cuando la pieza no cumple, pero la
+    entrega igual (F6.8 (mejor)) y deja su informe con el volumen: esa pieza
+    se juzga. Una que no se construyó deja informe sin volumen. `new` (las
+    corridas viejas) decía «Listo»."""
+    informe = next(Path(carpeta).glob("projects/*/pieza_report.json"), None)
+    if informe is not None:
+        try:
+            return json.loads(informe.read_text(encoding="utf-8")).get("volumen_mm3") is not None
+        except ValueError:
+            return False
+    return codigo == 0 or "] Listo:" in salida
 
 
 def juzgar_pieza(encargo: Encargo, carpeta: Path, freecadcmd: str,
                  material: dict | None = None) -> list[Resultado]:
     step = next(carpeta.glob("projects/*/parts/*/*.step"))
     laminado = next(carpeta.glob("projects/*/fabrication/slicing_report.json"), None)
-    hechos = extraer_hechos(step, freecadcmd, laminado, encargo.oraculo, material)
-    return [juzgar(a, hechos) for a in encargo.oraculo]
+    rasgos_json = step.parent / "rasgos.json"
+    rasgos = json.loads(rasgos_json.read_text(encoding="utf-8")) if rasgos_json.exists() else []
+    de_componente = {a.clave(): sondas_de_componente(a, rasgos)
+                     for a in encargo.oraculo if isinstance(a, Componente)}
+    medir = [*encargo.oraculo, *(s for ss in de_componente.values() for s in ss)]
+    hechos = extraer_hechos(step, freecadcmd, laminado, medir, material)
+    return [juzgar_componente(a, de_componente[a.clave()], hechos) if isinstance(a, Componente)
+            else juzgar(a, hechos) for a in encargo.oraculo]
 
 
 def rejuzgar(encargos: list[Encargo], corrida: Path, freecadcmd: str,
@@ -509,9 +573,9 @@ def rejuzgar(encargos: list[Encargo], corrida: Path, freecadcmd: str,
     for i, e in enumerate(encargos, 1):
         carpeta = Path(corrida) / f"{i:02d}"
         salida = carpeta / "salida.txt"
-        construida = salida.exists() and "] Listo:" in salida.read_text(encoding="utf-8",
-                                                                        errors="ignore")
-        if not construida or next(carpeta.glob("projects/*/parts/*/*.step"), None) is None:
+        texto = salida.read_text(encoding="utf-8", errors="ignore") if salida.exists() else ""
+        if (not texto or not construida(carpeta, None, texto)
+                or next(carpeta.glob("projects/*/parts/*/*.step"), None) is None):
             resultados[e.nombre] = [Resultado(estado="no_cumple", detalle="no hay pieza")
                                     for _ in e.oraculo]
             fallos[e.nombre] = "no se construyó en esa corrida"

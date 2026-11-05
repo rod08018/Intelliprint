@@ -460,8 +460,13 @@ def _pieza(args, raiz: Path, env: dict, nombre: str) -> None:
                                       cliente, BuscadorDeepSeek(env["DEEPSEEK_API_KEY"])))
         if concepto is None:
             sys.exit(f"[{nombre}] ✗ el concepto no salió: mira {carpeta / 'blocked.md'}")
-        print(f"[{nombre}] ✋ concepto listo: espera tu visto bueno ({carpeta / 'concepto.md'})")
-        return
+        if not args.aprobar_concepto:
+            print(f"[{nombre}] ✋ concepto listo: espera tu visto bueno ({carpeta / 'concepto.md'})")
+            return
+        # Solo el banco: no hay nadie para dar el visto bueno, y lo que se
+        # mide es lo que sale del concepto tal como lo propuso el ingeniero.
+        from orchestrator.pieza import aprobar_concepto
+        aprobar_concepto(carpeta, por="banco")
 
     informe = disenar_pieza(peticion, carpeta, requisitos=requisitos,
                             disenar=_disenar_con_kit(raiz, env, cliente),
@@ -473,6 +478,13 @@ def _pieza(args, raiz: Path, env: dict, nombre: str) -> None:
     else:
         print(f"[{nombre}] ✗ {informe.titulo}: {informe.motivo}")
         sys.exit(1)
+
+
+def orden_del_banco() -> list[str]:
+    """El banco pide como la web: por el flujo de pieza (investigador,
+    ingeniero, kit), con el concepto aprobado tal cual. Hasta el 2026-11-05
+    pedía con `new`, el grafo viejo, y su nota no medía lo que se usa."""
+    return [sys.executable, "-m", "orchestrator.cli", "pieza", "--aprobar-concepto"]
 
 
 def _banco(args, raiz: Path, env: dict, nombre: str) -> None:
@@ -498,7 +510,7 @@ def _banco(args, raiz: Path, env: dict, nombre: str) -> None:
     # y FreeCAD en Windows no abre rutas de más de 260 caracteres. Con el
     # nombre del encargo, dos piezas de la primera corrida no se construyeron.
     salida = _workspace(raiz, env) / "banco" / f"{dt.datetime.now():%m%d-%H%M}"
-    orden = [sys.executable, "-m", "orchestrator.cli", "new"]
+    orden = orden_del_banco()
     resultados, fallos = {}, {}
     for i, e in enumerate(encargos, 1):
         print(f"[{nombre}] banco: {e.nombre} (carpeta {i:02d})…", flush=True)
@@ -563,6 +575,8 @@ def _parser() -> argparse.ArgumentParser:
     # Lo que pasa JobStore a cualquier orden. Reanudar una pieza es volver a
     # hacerla en su carpeta; los adjuntos aún no los usa el flujo de piezas.
     pieza.add_argument("--continuar", action="store_true", help=argparse.SUPPRESS)
+    pieza.add_argument("--aprobar-concepto", action="store_true",
+                       help="dar por bueno el concepto y modelar sin parar (el banco)")
     pieza.add_argument("--adjunto", action="append", default=[], help=argparse.SUPPRESS)
     banco = sub.add_parser("banco", help="pedir las piezas del banco y medir si salen usables "
                                          "(F6.1 (evaluación)); cuesta dinero")

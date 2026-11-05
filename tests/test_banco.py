@@ -165,6 +165,72 @@ def test_los_restos_de_un_intento_fallido_no_puntuan(tmp_path):
     assert "3 construcciones fallidas" in fallo
 
 
+# --- el banco pide por el flujo de verdad (F6.11 (biblioteca)) -----------------------------
+
+def test_el_banco_pide_por_el_flujo_de_pieza_con_el_concepto_aprobado():
+    """Hasta el 2026-11-05 el banco pedía con `intelliprint new` (el grafo
+    viejo): sin investigador, sin ingeniero y sin concepto. Su 95 % no decía
+    nada del flujo que usa la web, y el soporte del HC-SR04 salió de ahí."""
+    from orchestrator.cli import _parser, orden_del_banco
+    orden = orden_del_banco()
+    assert orden[-3:] == ["orchestrator.cli", "pieza", "--aprobar-concepto"]
+    assert _parser().parse_args(["pieza", "--aprobar-concepto", "un gancho"]).aprobar_concepto
+
+
+def test_una_pieza_con_defectos_tambien_se_juzga(tmp_path, monkeypatch):
+    """`intelliprint pieza` sale con 1 si la pieza no cumple, pero la entrega
+    (F6.8 (mejor)): el juez del banco tiene que medirla, no darle un cero."""
+    import sys
+    from orchestrator import banco
+    monkeypatch.setattr(banco, "juzgar_pieza",
+                        lambda e, c, f, m=None: [banco.Resultado(estado="cumple", detalle="medida")])
+    entrega_con_defectos = (
+        "import json, os, pathlib, sys; "
+        "c = pathlib.Path(os.environ['INTELLIPRINT_WORKSPACE']) / 'projects/a'; "
+        "(c / 'parts/b').mkdir(parents=True); (c / 'parts/b/b.step').write_text('x'); "
+        "(c / 'pieza_report.json').write_text(json.dumps({'volumen_mm3': 1000.0})); "
+        "print('✗ no cumple'); sys.exit(1)")
+    encargo = cargar_encargos(ENCARGOS)[0]
+    resultados, fallo = banco.correr(encargo, tmp_path,
+                                     [sys.executable, "-c", entrega_con_defectos], "x", {})
+    assert [r.detalle for r in resultados] == ["medida"] and fallo is None
+
+
+def test_un_componente_que_la_pieza_no_coloca_no_se_da_por_bueno():
+    """Sin decir dónde va el sensor no hay forma de comprobar que quepa: y lo
+    que no se puede comprobar no se aprueba."""
+    from orchestrator.banco import Componente, Hechos, juzgar_componente, sondas_de_componente
+    a = Componente(tipo="componente", ficha="hc-sr04")
+    assert sondas_de_componente(a, rasgos=[]) == []
+    r = juzgar_componente(a, [], Hechos(cilindros=[], bbox_mm=[1, 1, 1], volumen_mm3=1))
+    assert r.estado == "no_cumple" and "no dice dónde va" in r.detalle
+
+
+def test_un_componente_colocado_se_mide_con_su_ficha():
+    from orchestrator.banco import Componente, sondas_de_componente
+    rasgos = [{"nombre": "sensor", "tipo": "componente", "ficha": "hc-sr04",
+               "en": [1, 2, 3], "giros": [["z", 90]], "entra_por": "+y"}]
+    cabe, entra = sondas_de_componente(Componente(tipo="componente", ficha="hc-sr04"), rasgos)
+    assert cabe.tipo == "componente_cabe" and cabe.ficha["id"] == "hc-sr04"
+    assert cabe.en == [1, 2, 3] and cabe.giros == [["z", 90]]
+    assert entra.tipo == "componente_entra" and entra.entra_por == "+y"
+
+
+def test_rejuzgar_reconoce_una_pieza_del_flujo_nuevo(tmp_path, monkeypatch):
+    from orchestrator import banco
+    monkeypatch.setattr(banco, "juzgar_pieza",
+                        lambda e, c, f, m=None: [banco.Resultado(estado="cumple", detalle="ok")])
+    e = banco.Encargo(nombre="x", categoria="casa", peticion="un gancho",
+                      oraculo=[{"tipo": "sin_soportes"}])
+    proyecto = tmp_path / "01" / "projects" / "p"
+    (proyecto / "parts" / "p").mkdir(parents=True)
+    (proyecto / "parts" / "p" / "p.step").write_text("x", encoding="utf-8")
+    (proyecto / "pieza_report.json").write_text('{"volumen_mm3": 10.0}', encoding="utf-8")
+    (tmp_path / "01" / "salida.txt").write_text("✗ no cumple", encoding="utf-8")
+    resultados, fallos = banco.rejuzgar([e], tmp_path, freecadcmd="x")
+    assert [r.estado for r in resultados["x"]] == ["cumple"] and not fallos
+
+
 # --- los encargos ---------------------------------------------------------------
 
 def test_los_encargos_del_banco_son_validos_y_cubren_robots_y_casa():

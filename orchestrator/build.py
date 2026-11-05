@@ -6,6 +6,7 @@ que FreeCAD rechaza al construir —un taladro que parte la pieza, un sólido
 degenerado— devuelve el motivo al Part Designer para que la corrija.
 """
 
+import json
 import re
 import shutil
 import subprocess
@@ -100,6 +101,10 @@ def build_part(
         raise ConstruccionFallida(motivo_del_fallo(proceso.stdout + "\n" + proceso.stderr))
     # Sin esto FreeCAD abre el .FCStd con todo oculto (ver orchestrator/fcstd.py).
     mostrar_solo(carpeta / f"{receta.part}.FCStd", resultado.fcstd_object)
+    # Al lado del STEP: el banco juzga después, en otro proceso, y necesita
+    # saber dónde dijo el programa que va cada componente (F6.11 (biblioteca)).
+    (carpeta / "rasgos.json").write_text(json.dumps(resultado.rasgos, ensure_ascii=False,
+                                                    indent=1), encoding="utf-8")
     return resultado
 
 
