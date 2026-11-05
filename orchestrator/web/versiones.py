@@ -214,7 +214,7 @@ def proyectos(workspace: Path) -> list[dict]:
 
 
 def lanzar_modificacion(trabajos, workspace: Path, base: Path, cambio: str,
-                        pieza: str = "") -> dict:
+                        pieza: str = "", orden_pieza: list[str] | None = None) -> dict:
     """Una versión nueva del proyecto de `base`, partiendo de `base`. La usan
     la web y Crafty: antes Crafty solo podía pedir un diseño NUEVO, y una
     corrección del sargento salió como otro proyecto (2026-10-26).
@@ -234,9 +234,17 @@ def lanzar_modificacion(trabajos, workspace: Path, base: Path, cambio: str,
     # Sin mechanism.json el cargador de referencias rechaza el id y el
     # trabajo moriría al arrancar; la petición ya lleva lo que se pidió.
     referencias = [base.name] if (base / "mechanism.json").is_file() else []
+    # Una pieza se rehace como pieza. Sin esto salía la orden por omisión del
+    # gestor, `intelliprint mecanismo`: el gancho, al cambiarlo, habría ido
+    # al flujo viejo de recetas (2026-11-04).
+    es_pieza = (base / "pieza.json").is_file() or "pieza" in (
+        (_leer(base / "job.json") or {}).get("comando") or [])
+    if es_pieza and not orden_pieza:
+        raise RuntimeError("esto no tiene con qué rehacer una pieza suelta")
     nueva = trabajos.start(
         componer_modificacion(original, base.name, texto),
         referencias=referencias,
+        comando=orden_pieza if es_pieza else None,
         # `cambio` y `pieza` por separado: la CLI los lee (`edicion_de`) para
         # editar la base en vez de diseñar desde cero.
         proyecto={"proyecto": raiz, "basado_en": base.name, "modificacion": texto,

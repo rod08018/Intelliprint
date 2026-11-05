@@ -102,9 +102,11 @@ class VistoBueno(BaseModel):
 
 class Pedido(Modificacion):
     basado_en: str | None = None
-    tipo: Literal["pieza", "mecanismo"] = "mecanismo"
+    tipo: Literal["pieza", "mecanismo"]
     """F5.17 (pieza): una pieza suelta no pasa por el flujo de mecanismos,
-    que exige dos piezas como mínimo."""
+    que exige dos piezas como mínimo. Obligatorio: con «mecanismo» por
+    omisión, una página abierta antes del selector mandó el soporte de la
+    Raspberry al flujo viejo de recetas (2026-11-04)."""
 
 
 def crear_app(workspace: Path, puente=None, host_workspace: str = "",
@@ -158,7 +160,7 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
                 409, f"ya hay un proyecto en marcha ({otro}); espera a que termine")
         try:
             return lanzar_modificacion(trabajos, workspace, base, pedido.peticion,
-                                       pieza=pedido.pieza)
+                                       pieza=pedido.pieza, orden_pieza=orden_pieza)
         except RuntimeError as e:
             raise HTTPException(409, str(e))
         except ValueError as e:   # una pieza que no existe

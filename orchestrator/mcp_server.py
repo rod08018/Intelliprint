@@ -241,7 +241,8 @@ def modificar_proyecto(proyecto: str, cambio: str, pieza: str = "") -> dict:
         base = resolver_proyecto(grupo["mejor"], workspace)
     store = _store()
     try:
-        r = lanzar_modificacion(store, workspace, base, cambio, pieza=pieza)
+        r = lanzar_modificacion(store, workspace, base, cambio, pieza=pieza,
+                                orden_pieza=_orden_pieza())
     except RuntimeError as e:
         return {"error": str(e), "en_marcha": store.current()}
     except ValueError as e:   # una pieza que no existe

@@ -330,7 +330,7 @@ def test_pedir_un_diseno_crea_el_proyecto_con_la_peticion_literal(ws):
     web = _ws_con_trabajos(ws)
     peticion = "Una bisagra de 40 mm\ncon pasador de 3 mm que gire 180°"
 
-    r = web.post("/api/disenar", json={"peticion": peticion})
+    r = web.post("/api/disenar", json={"tipo": "mecanismo", "peticion": peticion})
 
     assert r.status_code == 200, r.text
     carpeta = ws / "projects" / r.json()["id"]
@@ -342,7 +342,7 @@ def test_pedir_un_diseno_crea_el_proyecto_con_la_peticion_literal(ws):
 def test_partir_de_un_proyecto_lo_pasa_como_referencia(ws):
     web = _ws_con_trabajos(ws)
 
-    r = web.post("/api/disenar", json={"peticion": "como el trinquete, pero con 12 dientes",
+    r = web.post("/api/disenar", json={"tipo": "mecanismo", "peticion": "como el trinquete, pero con 12 dientes",
                                        "basado_en": "2026-09-20-trinquete"})
 
     assert r.status_code == 200, r.text
@@ -355,7 +355,7 @@ def test_una_peticion_vacia_no_lanza_nada(ws, vacia):
     web = _ws_con_trabajos(ws)
     antes = sorted(p.name for p in (ws / "projects").iterdir())
 
-    r = web.post("/api/disenar", json={"peticion": vacia})
+    r = web.post("/api/disenar", json={"tipo": "mecanismo", "peticion": vacia})
 
     assert r.status_code == 422
     assert sorted(p.name for p in (ws / "projects").iterdir()) == antes
@@ -366,7 +366,7 @@ def test_partir_de_algo_que_no_es_un_proyecto_no_lanza_nada(ws, malo):
     web = _ws_con_trabajos(ws)
     antes = sorted(p.name for p in (ws / "projects").iterdir())
 
-    r = web.post("/api/disenar", json={"peticion": "una leva", "basado_en": malo})
+    r = web.post("/api/disenar", json={"tipo": "mecanismo", "peticion": "una leva", "basado_en": malo})
 
     assert r.status_code == 404
     assert sorted(p.name for p in (ws / "projects").iterdir()) == antes
@@ -384,7 +384,7 @@ def test_con_otro_proyecto_en_marcha_no_se_lanza_un_segundo(ws):
     (otro / "job.json").write_text(json.dumps({"pid": os.getpid()}), encoding="utf-8")
     web = _ws_con_trabajos(ws)
 
-    r = web.post("/api/disenar", json={"peticion": "una leva"})
+    r = web.post("/api/disenar", json={"tipo": "mecanismo", "peticion": "una leva"})
 
     assert r.status_code == 409
     assert "2026-10-23-de-crafty" in r.json()["detail"]
@@ -393,7 +393,7 @@ def test_con_otro_proyecto_en_marcha_no_se_lanza_un_segundo(ws):
 
 
 def test_sin_lanzador_configurado_pedir_explica_que_falta(web):
-    r = web.post("/api/disenar", json={"peticion": "una leva"})
+    r = web.post("/api/disenar", json={"tipo": "mecanismo", "peticion": "una leva"})
     assert r.status_code == 503
 
 
@@ -738,3 +738,42 @@ def test_contestar_desde_la_web_anade_la_respuesta_literal(ws):
 def test_no_se_aprueba_lo_que_no_tiene_concepto(ws):
     r = _ws_con_trabajos(ws).post("/api/proyectos/2026-09-20-trinquete/aprobar", json={})
     assert r.status_code == 409
+
+
+def test_sin_decir_si_es_pieza_o_mecanismo_no_se_lanza_nada(ws):
+    """Fallo real (2026-11-04): el soporte de la Raspberry se pidió desde una
+    página abierta antes de que existiera el selector; no mandó `tipo`, la
+    API supuso «mecanismo» y salió por el flujo viejo de recetas, sin
+    ingeniero ni medidas. Sin tipo no se adivina."""
+    web = _ws_con_trabajos(ws)
+    antes = sorted(p.name for p in (ws / "projects").iterdir())
+
+    r = web.post("/api/disenar", json={"peticion": "un soporte para una Raspberry"})
+
+    assert r.status_code == 422
+    assert sorted(p.name for p in (ws / "projects").iterdir()) == antes
+
+
+def test_modificar_una_pieza_la_rehace_como_pieza(ws):
+    """Fallo real (2026-11-04): cambiar algo del gancho (una pieza) lanzaba
+    `intelliprint mecanismo`, la orden por omisión: el flujo viejo."""
+    import sys
+
+    from orchestrator.jobs import JobStore
+
+    base = ws / "projects" / "2026-11-04-gancho"
+    base.mkdir()
+    (base / "request.md").write_text("un gancho de pared\n", encoding="utf-8")
+    (base / "pieza.json").write_text('{"title": "Gancho"}', encoding="utf-8")
+    (base / "rounds.json").write_text('[{"number": 1, "title": "t", "feedback": ""}]',
+                                      encoding="utf-8")
+    trabajos = JobStore(ws / "projects", comando=[
+        sys.executable, "-c", "import sys; print('MECANISMO', sys.argv)"])
+    web = TestClient(crear_app(ws, host_workspace=HOST, trabajos=trabajos, orden_pieza=[
+        sys.executable, "-c", "import sys; print('PIEZA', sys.argv)"]))
+
+    r = web.post("/api/proyectos/2026-11-04-gancho/modificar", json={"peticion": "más largo"})
+
+    assert r.status_code == 200, r.text
+    registro = _esperar_registro(ws / "projects" / r.json()["id"])
+    assert "PIEZA" in registro and "MECANISMO" not in registro
