@@ -57,10 +57,14 @@ antes de cerrar una tarea que toque FreeCAD, el laminado o un agente:
 
 ```powershell
 $env:FREECADCMD = "C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe"
+$env:FREECAD_GUI = "C:\Program Files\FreeCAD 1.1\bin\freecad.exe"
 $env:PRUSASLICER = "C:\Program Files\Prusa3D\PrusaSlicer\prusa-slicer-console.exe"
 $env:PYTHONUTF8 = "1"
 .venv\Scripts\python.exe -m pytest -m "gui or llm" -q
 ```
+
+**Sin `FREECAD_GUI` los dos tests `gui` se saltan en silencio** (buscan el
+FreeCAD de Mac por defecto): el código de salida sale 0 sin haberlos corrido.
 
 **En Windows hace falta `PYTHONUTF8=1`.** Sin él, Python lee los archivos como
 cp1252 y cualquier acento del repo revienta: son 10 tests de diferencia.
