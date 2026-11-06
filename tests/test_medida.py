@@ -99,3 +99,11 @@ def test_un_componente_del_concepto_que_el_programa_no_coloca_es_un_defecto():
     assert "raspberry-pi-4" in fallo and "kit.componente" in fallo
     assert [s.tipo for s in sondas_de([], [colocado])] == [
         "aristas_vivas", "componente_cabe", "componente_entra"]
+
+
+def test_con_el_minimo_del_perfil_el_bucle_mide_la_pared_mas_fina():
+    """Banco `1105-2120`: una pared de 0.15 mm que solo vio el banco."""
+    from orchestrator.banco import ParedMinima
+    from orchestrator.medida import sondas_de
+    [p] = [s for s in sondas_de([], [], pared_min_mm=0.8) if isinstance(s, ParedMinima)]
+    assert p.min_mm == 0.8

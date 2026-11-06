@@ -59,6 +59,45 @@ def convexa(forma, arista) -> bool:
     return not forma.isInside(p + d.normalize() * 0.05, 1e-6, True)
 
 
+def prisma_de_chaflan(forma, arista, lado):
+    """El chaflán de 45° de una arista recta y convexa entre dos caras planas,
+    como el prisma que hay que RESTAR: un triángulo con un cateto de `lado`
+    sobre cada cara, a lo largo de toda la arista. None si la arista no es
+    de esas o es casi plana (la sonda solo cuenta las de 60° o más).
+
+    Es el respaldo de `acabar()`: un corte booleano sale donde el redondeo
+    de OCC no. En el banco `1105-2120` (2026-11-05) cinco piezas quedaron
+    con entre un 18 % y un 43 % de aristas vivas: OCC no redondea junto a
+    escalones de 0.1 mm ni el cuadrado del NEMA 17 sobre la cama."""
+    if arista.Curve.TypeId != "Part::GeomLine" or len(arista.Vertexes) != 2:
+        return None
+    caras = forma.ancestorsOfType(arista, Part.Face)
+    if len(caras) != 2 or any(c.Surface.TypeId != "Part::GeomPlane" for c in caras):
+        return None
+    if not convexa(forma, arista):
+        return None
+    a, b = (v.Point for v in arista.Vertexes)
+    if (b - a).Length < TOL:
+        return None
+    u = (b - a).normalize()
+    medio = arista.valueAt((arista.FirstParameter + arista.LastParameter) / 2)
+    n1, n2 = (c.normalAt(*c.Surface.parameter(medio)) for c in caras)
+    if n1.dot(n2) > 0.5:
+        return None
+    # Sobre cada cara, la dirección que se aleja de la arista: perpendicular
+    # a ella, dentro del plano, y hacia el lado contrario a la otra normal.
+    t1, t2 = u.cross(n1), u.cross(n2)
+    if t1.dot(n2) > 0:
+        t1 = t1 * -1
+    if t2.dot(n1) > 0:
+        t2 = t2 * -1
+    # Una centésima por fuera de cada cara: un corte con caras coplanarias
+    # es justo lo que OCC resuelve mal.
+    e = 0.01
+    triangulo = [a + (n1 + n2) * e, a + t1 * lado + n1 * e, a + t2 * lado + n2 * e]
+    return Part.Face(Part.makePolygon([*triangulo, triangulo[0]])).extrude(b - a)
+
+
 class KitError(ValueError):
     """Un error en el uso del kit, escrito para que el diseñador lo corrija."""
 
@@ -156,7 +195,8 @@ class Cuerpo:
         return self._nuevo(self._forma.fuse(otro._forma).removeSplitter(), "la unión (+)")
 
     def __sub__(self, otro: "Cuerpo") -> "Cuerpo":
-        return self._nuevo(self._forma.cut(otro._forma).removeSplitter(), "la resta (-)")
+        return self._nuevo(self._forma.cut(_herramienta(otro, self)).removeSplitter(),
+                           "la resta (-)")
 
     def __and__(self, otro: "Cuerpo") -> "Cuerpo":
         return self._nuevo(self._forma.common(otro._forma).removeSplitter(),
@@ -225,7 +265,7 @@ class Cuerpo:
             raise KitError(f"ninguna arista «{aristas}»{donde}: no hay nada que redondear")
         return elegidas
 
-    def _acabar(self, operacion, medida, elegidas, aristas) -> "Cuerpo":
+    def _acabar(self, operacion, medida, elegidas, aristas, respaldo=False) -> "Cuerpo":
         """Redondeo o chaflán, y si no cabe en todas las aristas a la vez, en
         las que se pueda: las demás quedan vivas, con un aviso.
 
@@ -280,16 +320,65 @@ class Cuerpo:
         # salió válido durante la búsqueda ya no lo era al terminarla, tras
         # más intentos sobre la misma forma (2026-11-04). El acabado nunca
         # rompe la pieza: si no queda válido, no se aplica.
-        for candidata in (forma, hacer(caben) if caben else None):
-            if candidata is not None and candidata.isValid():
-                self._kit._avisos.append(
-                    f"{operacion} {medida:g} mm: {len(elegidas) - len(caben)} de "
-                    f"{len(elegidas)} aristas «{aristas}» no lo admitían y quedaron vivas")
-                return Cuerpo(candidata, self._kit)
+        hecha = next((c for c in (forma, hacer(caben) if caben else None)
+                      if c is not None and c.isValid()), None)
+        if hecha is None:
+            caben = []
+        faltan = [i for i in elegidas if i not in set(caben)]
+        cortadas = []
+        if respaldo and faltan:
+            hecha, cortadas = self._chaflan_por_corte(hecha or self._forma, faltan, medida)
+        if hecha is None:
+            self._kit._avisos.append(
+                f"{operacion} {medida:g} mm en las aristas «{aristas}»: no se pudo aplicar sin "
+                "romper la pieza, y se omite")
+            return self
+        vivas = len(faltan) - len(cortadas)
+        en_su_lugar = (f"{len(cortadas)} llevan en su lugar un chaflán de {medida:g} mm, "
+                       if cortadas else "")
         self._kit._avisos.append(
-            f"{operacion} {medida:g} mm en las aristas «{aristas}»: no se pudo aplicar sin "
-            "romper la pieza, y se omite")
-        return self
+            f"{operacion} {medida:g} mm: {len(faltan)} de {len(elegidas)} aristas «{aristas}» "
+            f"no lo admitían; {en_su_lugar}{vivas} quedaron vivas")
+        return Cuerpo(hecha, self._kit)
+
+    def _chaflan_por_corte(self, sobre, indices, lado):
+        """Resta de `sobre` el prisma del chaflán de cada arista `indices` de
+        ESTA forma (ver `prisma_de_chaflan`): todos a la vez y, si eso no
+        sale, de uno en uno. Devuelve (forma, índices que se cortaron); la
+        forma es None si `sobre` lo era y no salió ninguno."""
+        prismas = {}
+        for i in indices:
+            prisma = prisma_de_chaflan(self._forma, self._forma.Edges[i], float(lado))
+            if prisma is not None:
+                prismas[i] = prisma
+
+        def cortar(forma, ps):
+            try:
+                herramienta = ps[0] if len(ps) == 1 else ps[0].multiFuse(ps[1:])
+                r = _un_solido(forma.cut(herramienta).removeSplitter())
+            except Exception:
+                return None
+            if r.ShapeType != "Solid" or not r.isValid():
+                return None
+            # Un corte que se lleva más que sus prismas ha partido la pieza.
+            if forma.Volume - r.Volume > sum(p.Volume for p in ps) + 1e-6:
+                return None
+            return r
+
+        if sobre is None or not prismas:
+            return sobre, []
+        todas = cortar(sobre, list(prismas.values()))
+        if todas is not None:
+            return todas, list(prismas)
+        limite = time.monotonic() + ACABADO_MAX_S
+        hechas = []
+        for i, prisma in prismas.items():
+            if time.monotonic() > limite:
+                break
+            r = cortar(sobre, [prisma])
+            if r is not None:
+                sobre, hechas = r, [*hechas, i]
+        return sobre, hechas
 
     def redondear(self, radio, aristas="verticales", dentro=None) -> "Cuerpo":
         """Redondea con `radio` las aristas elegidas: «todas», «verticales»,
@@ -307,10 +396,15 @@ class Cuerpo:
         """El acabado de producto, en una llamada, AL FINAL: chaflán de
         `chaflan_base` en las aristas que tocan la cama (contra la pata de
         elefante; un redondeo abajo sería un voladizo) y redondeo de `radio`
-        en todas las demás. Donde el radio no cabe, la arista queda viva con
-        un aviso. En el banco (2026-11-04) entre el 36 % y el 63 % de las
+        en todas las demás. Donde OCC no puede, la arista recta lleva un
+        chaflán por corte del mismo tamaño, y si tampoco, queda viva; todo
+        con un aviso. En el banco (2026-11-04) entre el 36 % y el 63 % de las
         aristas quedaban vivas: se redondeaban las verticales y nada más."""
-        pieza = self.achaflanar(chaflan_base, aristas="base") if chaflan_base else self
+        # Con respaldo: lo que OCC no acaba se achaflana con un corte (ver
+        # `prisma_de_chaflan`). Solo aquí: `redondear` y `achaflanar` hacen
+        # lo que se les pide o avisan, sin cambiar un redondeo por otra cosa.
+        pieza = (self._acabar("achaflanar", chaflan_base, self._aristas("base", None), "base",
+                              respaldo=True) if chaflan_base else self)
         z0 = pieza._forma.BoundBox.ZMin
         # Todas menos las que quedan ENTERAS en la franja del chaflán. Con una
         # caja «por encima del chaflán» se quedaban fuera las verticales, que
@@ -323,7 +417,8 @@ class Cuerpo:
                     if e.BoundBox.ZMax > franja and convexa(forma, e)]
         if not elegidas:
             return pieza
-        return pieza._acabar("redondear", radio, elegidas, "todas menos la base")
+        return pieza._acabar("redondear", radio, elegidas, "todas menos la base",
+                             respaldo=True)
 
     def _cortar(self, nombre, herramienta) -> "Cuerpo":
         """Quita un rasgo con nombre, comprobando que de verdad quita algo.
@@ -434,10 +529,35 @@ class Cuerpo:
     def quitar(self, nombre, herramienta: "Cuerpo") -> "Cuerpo":
         """Resta `herramienta` y lo registra como un hueco con nombre (una
         ventana para un servo, una cajera): así se puede medir después."""
-        b = herramienta._forma.BoundBox
+        forma = _herramienta(herramienta, self)
+        b = forma.BoundBox
         self._kit._registrar(nombre, "hueco", desde=[b.XMin, b.YMin, b.ZMin],
                              hasta=[b.XMax, b.YMax, b.ZMax])
-        return self._cortar(nombre, herramienta._forma)
+        # Un componente que solo se apoya en la pieza (la Pi sobre sus
+        # separadores) no le quita nada, y está bien. Uno que ni la toca sí
+        # es un error de posición, como cualquier rasgo.
+        if isinstance(herramienta, Hueco) and herramienta._componente._toca(self._forma):
+            resultado = self._forma.cut(forma).removeSplitter()
+            if self._forma.Volume - resultado.Volume < 1e-6:
+                return self
+        return self._cortar(nombre, forma)
+
+
+class Hueco(Cuerpo):
+    """El hueco de un componente (`Componente.hueco`). Restado de una pieza
+    con `quitar` o `-`, se rehace contra ELLA: sin holgura en las caras con
+    que el componente solo se apoya en la pieza (ver `Componente._lados`).
+    Movido o combinado, es un cuerpo como cualquier otro."""
+
+    def __init__(self, forma, kit, componente, holgura) -> None:
+        super().__init__(forma, kit)
+        self._componente, self._holgura = componente, holgura
+
+
+def _herramienta(cuerpo, pieza):
+    if isinstance(cuerpo, Hueco):
+        return cuerpo._componente._forma_hueco(cuerpo._holgura, pieza._forma)
+    return cuerpo._forma
 
 
 class Componente:
@@ -459,26 +579,84 @@ class Componente:
         (del perfil, en diámetro) o un número en mm. Úsalo con
         `pieza.quitar("nombre", componente.hueco())`. Un rodamiento sale
         macizo: si lleva eje impreso, añádelo después de quitar el hueco."""
+        h = float(holgura) if isinstance(holgura, (int, float)) else self._kit.holgura(holgura)
+        return Hueco(self._forma_hueco(h), self._kit, self, h)
+
+    def _forma_hueco(self, h, pieza=None):
+        """El hueco con holgura `h` (en diámetro). Con `pieza`, sin holgura
+        en las caras de apoyo (`_lados`)."""
         from mech_toolkit.componentes import EJES, barrido, primitivas, solido
 
-        h = float(holgura) if isinstance(holgura, (int, float)) else self._kit.holgura(holgura)
         d = EJES[self._entra_por]
         formas = []
         for c in primitivas(self._ficha, self._en, self._giros, "cuerpos"):
+            lados = self._lados(c, h, pieza)
             if c["tipo"] == "caja":
-                c = {**c, "min": [a - h / 2 for a in c["min"]],
-                     "max": [b + h / 2 for b in c["max"]]}
+                c = {**c, "min": [a - lo for a, (lo, _) in zip(c["min"], lados)],
+                     "max": [b + hi for b, (_, hi) in zip(c["max"], lados)]}
             else:
+                (lo, hi), = lados
                 c = {**c, "interior": None, "diametro": c["diametro"] + h,
-                     "alto": c["alto"] + h,
-                     "base": [b - e * h / 2 for b, e in zip(c["base"], c["eje"])]}
+                     "alto": c["alto"] + lo + hi,
+                     "base": [b - e * lo for b, e in zip(c["base"], c["eje"])]}
             formas.append(barrido(c, d, LARGO))
         formas += [solido({**c, "interior": None})
                    for c in primitivas(self._ficha, self._en, self._giros, "despejar")]
         forma = formas[0]
         for f in formas[1:]:
             forma = forma.fuse(f)
-        return Cuerpo(forma.removeSplitter(), self._kit)
+        return forma.removeSplitter()
+
+    def _toca(self, pieza) -> bool:
+        """Si algún cuerpo del componente toca la pieza o se mete en ella."""
+        from mech_toolkit.componentes import primitivas, solido
+
+        return any(pieza.distToShape(solido({**c, "interior": None}))[0] < 1e-3
+                   for c in primitivas(self._ficha, self._en, self._giros, "cuerpos"))
+
+    @staticmethod
+    def _lados(c, h, pieza):
+        """La holgura de cada cara de la primitiva `c`: [(menos, más)] por eje
+        de la caja, o [(base, punta)] a lo largo del eje del cilindro (en el
+        radio siempre lleva). h/2 en todas, salvo en las caras de APOYO: la
+        primitiva queda entera fuera de la pieza y la toca por ese lado.
+
+        Ahí la holgura no ajusta nada: talla un rebaje de h/2 que no se
+        imprime y cuyas aristas OCC no sabe redondear. Banco `1105-2120`
+        (2026-11-05): 0.1 mm bajo el NEMA 17, en la cara de la cama, y en el
+        respaldo contra el perfil 2020 del HC-SR04. Una primitiva que se mete
+        en la pieza (el resalte del motor en su alojamiento, un PCB entre
+        guías) talla su propio hueco y lleva holgura en todas sus caras."""
+        from mech_toolkit.componentes import solido
+
+        mitad = h / 2
+        caja = c["tipo"] == "caja"
+        todas = [(mitad, mitad)] * (3 if caja else 1)
+        if pieza is None or h <= 0:
+            return todas
+        if pieza.common(solido({**c, "interior": None})).Volume > 1e-3:
+            return todas
+
+        def toca(lamina):
+            return pieza.common(solido(lamina)).Volume > 1e-4
+
+        if caja:
+            lados = []
+            for n in range(3):
+                bajo = {**c, "max": [c["min"][k] if k == n else c["max"][k] for k in range(3)],
+                        "min": [c["min"][k] - mitad if k == n else c["min"][k]
+                                for k in range(3)]}
+                alto = {**c, "min": [c["max"][k] if k == n else c["min"][k] for k in range(3)],
+                        "max": [c["max"][k] + mitad if k == n else c["max"][k]
+                                for k in range(3)]}
+                lados.append((0.0 if toca(bajo) else mitad, 0.0 if toca(alto) else mitad))
+            return lados
+        e = c["eje"]
+        base = {**c, "interior": None, "alto": mitad,
+                "base": [b - k * mitad for b, k in zip(c["base"], e)]}
+        punta = {**c, "interior": None, "alto": mitad,
+                 "base": [b + k * c["alto"] for b, k in zip(c["base"], e)]}
+        return [(0.0 if toca(base) else mitad, 0.0 if toca(punta) else mitad)]
 
     def agujeros(self) -> list:
         """Los agujeros de fijación de la ficha, ya colocados en la pieza:

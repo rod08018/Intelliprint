@@ -67,7 +67,7 @@ cuenta antes los de función. Una pieza bien acabada donde el servo no
 entra es peor que una con aristas vivas donde sí."""
 
 
-def sondas_de(requisitos, rasgos=()) -> list:
+def sondas_de(requisitos, rasgos=(), pared_min_mm=None) -> list:
     """Las sondas del banco (F6.12 (techo)) que se pueden pedir desde los
     requisitos. Rejuzgada con ellas, la corrida del 62 % daba 81 %, y lo que
     fallaba eran aristas vivas y ventanas de servo que el diseñador nunca
@@ -79,10 +79,17 @@ def sondas_de(requisitos, rasgos=()) -> list:
     Y cada componente que el programa coloca con `kit.componente` se mete en
     la pieza con su ficha (F6.11 (biblioteca)): el soporte del HC-SR04 salió
     «resuelto» con un sensor que no entraba, porque aquí solo se miraban
-    agujeros y aristas."""
-    from orchestrator.banco import AristasVivas, Ventana, sondas_del_rasgo
+    agujeros y aristas.
+
+    Con `pared_min_mm` (el `walls.min_mm` del perfil), también la pared más
+    fina: el soporte del MG996R del banco `1105-2120` salió con 0.15 mm y
+    solo lo vio el banco."""
+    from orchestrator.banco import AristasVivas, ParedMinima, Ventana, sondas_del_rasgo
 
     sondas = [AristasVivas(tipo="aristas_vivas", max_fraccion=0.1)]
+    if pared_min_mm:
+        sondas.append(ParedMinima(tipo="pared_minima", min_mm=float(pared_min_mm),
+                                  porque="el perfil de la impresora"))
     for r in requisitos:
         if r.tipo == "encaje" and len(r.seccion_mm) == 2:
             sondas.append(Ventana(tipo="ventana", ancho_mm=r.seccion_mm[0],
@@ -104,16 +111,16 @@ def componentes_sin_colocar(componentes, rasgos) -> list[str]:
 
 
 def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
-                         material: dict, componentes=()) -> list[str]:
+                         material: dict, componentes=(), pared_min_mm=None) -> list[str]:
     """Lo que la pieza construida no cumple: agujeros (con los rasgos del
     kit), componentes que no caben o no entran, y sondas sobre el STEP. Los
     de acabado van con su prefijo."""
     from orchestrator.banco import (AristasVivas, ComponenteCabe, ComponenteEntra,
-                                    medir_sondas)
+                                    ParedMinima, medir_sondas)
 
     fallos = defectos(requisitos, resultado.rasgos)
     fallos += componentes_sin_colocar(componentes, resultado.rasgos)
-    sondas = sondas_de(requisitos, resultado.rasgos)
+    sondas = sondas_de(requisitos, resultado.rasgos, pared_min_mm)
     for sonda, medida in zip(sondas, medir_sondas(step, sondas, freecadcmd, material)):
         if medida.estado != "no_cumple":
             continue   # «sin medir» (una sonda rota) no es culpa del diseñador
@@ -127,6 +134,10 @@ def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
             fallos.append(f"{medida.detalle}. Resta a la pieza el `hueco()` del componente "
                           "(`pieza.quitar(\"...\", componente.hueco())`), y si lo que choca "
                           "es algo que la pieza necesita, muévelo o cambia por dónde entra")
+        elif isinstance(sonda, ParedMinima):
+            fallos.append(f"pared: {medida.detalle} (el mínimo que imprime la impresora). "
+                          "Engrosa esa pared o aparta lo que la adelgaza; suele ser un hueco "
+                          "o un agujero demasiado cerca de una cara")
         elif isinstance(sonda, ComponenteEntra):
             fallos.append(f"{medida.detalle}. El camino de entrada tiene que quedar abierto: "
                           "el `hueco()` lo abre, o cambia `entra_por` a un lado sin pared")

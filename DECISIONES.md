@@ -495,3 +495,11 @@ Si la persona PREGUNTA por unas medidas, se sigue buscando.
 - Ninguna ficha está medida con calibre.
 - Un clip elástico que se monta forzando choca a propósito y la sonda no lo distingue de un choque de verdad.
 - Un componente sin ficha sigue por el camino de antes, con cifras sueltas. El borrador de ficha que la persona revisa y aprueba (plan, fase 6) está pendiente.
+
+**Enmienda (2026-11-06): sin holgura donde el componente solo se apoya.** El banco `1105-2120` sacó cinco piezas con entre un 18 % y un 43 % de aristas vivas. Gran parte venía del propio `hueco()`: sumaba la holgura en todas las caras, también en las que el componente solo se apoya en la pieza. Así tallaba rebajes de 0.1 mm: bajo el NEMA 17, en la cara de la cama, y en el respaldo contra el perfil 2020. No se imprimen (la capa es de 0.2), y OCC no sabe redondear sus aristas.
+
+Ahora `quitar` rehace el hueco contra la pieza:
+- una primitiva que queda entera fuera de la pieza y la toca por un lado no lleva holgura en ese lado;
+- la que se mete en la pieza (el resalte del motor, un PCB entre guías) talla su propio alojamiento y la lleva en todas sus caras.
+
+Un componente que solo se apoya no quita nada, y no es error; uno que ni toca la pieza sí lo es. Y `acabar()` achaflana con un corte booleano las aristas rectas que OCC no redondea: el chaflán de 45° no cuenta como arista viva.

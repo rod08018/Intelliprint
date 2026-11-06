@@ -454,3 +454,76 @@ def test_un_booleano_que_falla_en_silencio_no_deja_pasar_nada():
     [r] = medir_sondas(step, [Ventana(tipo="ventana", ancho_mm=22.8, alto_mm=12.2)],
                        _freecadcmd(), MATERIAL)
     assert r.estado == "no_cumple", r.detalle
+
+
+@pytest.mark.parametrize("programa", sorted(Path("tests/acabado_regresiones").glob("*.py")),
+                         ids=lambda p: p.stem)
+def test_programas_reales_que_el_acabado_dejaba_con_aristas_vivas(programa, tmp_path):
+    """Programas tal cual los escribió el diseñador en el banco `1105-2120`
+    (2026-11-05). Los cinco terminan en `acabar()` y salieron con entre un
+    18 % y un 43 % de aristas vivas: OCC no admite el redondeo junto a
+    escalones de 0.1 mm ni en el cuadrado del NEMA 17 sobre la cama, y la
+    búsqueda se quedaba con la mitad de las aristas que sí lo admitían."""
+    [r] = _medir(programa.read_text(encoding="utf-8"),
+                 [AristasVivas(tipo="aristas_vivas", max_fraccion=0.1)], tmp_path)
+    assert r.estado == "cumple", r.detalle
+
+
+def _dentro(step: Path, puntos, tmp_path) -> list[bool]:
+    """Si cada punto cae dentro del sólido del STEP, preguntado a FreeCAD."""
+    import json
+    import subprocess
+
+    script = tmp_path / "dentro.py"
+    script.write_text(
+        "import json, FreeCAD, Part\n"
+        f"s = Part.read({str(step)!r})\n"
+        f"print('DENTRO:' + json.dumps([s.isInside(FreeCAD.Vector(*p), 1e-6, True) "
+        f"for p in {list(map(list, puntos))!r}]))\n", encoding="utf-8")
+    salida = subprocess.run([_freecadcmd(), str(script)], capture_output=True, text=True,
+                            timeout=120).stdout
+    return json.loads(next(l for l in salida.splitlines() if l.startswith("DENTRO:"))[7:])
+
+
+def test_el_hueco_no_talla_holgura_donde_el_componente_solo_se_apoya(tmp_path):
+    """Banco `1105-2120` (2026-11-05): el NEMA 17 cuelga bajo la placa y su
+    cara de montaje se apoya en la de abajo de la placa. El hueco sumaba la
+    holgura también ahí y tallaba un rebaje de 0.1 mm en la cara de la cama
+    (42.5 × 42.5), que no se imprime (la capa es de 0.2) y cuyas aristas
+    OCC no sabe redondear. Lo mismo hacía el perfil 2020 contra el respaldo
+    del soporte del HC-SR04.
+
+    A mano, con la ficha (resalte Ø22 × 2 en el origen, cuerpo de 42.3 de
+    lado bajo z = 0) y «slide» = 0.2 en diámetro:
+    - (45, 25, 0.05), a 15 y −5 del eje del motor: dentro de su huella y
+      fuera del resalte (radio 15.8 > 11.1). Es placa: no hay rebaje.
+    - (41.05, 30, 1), a 11.05 del eje y a media altura del resalte: entre
+      su radio (11) y el del alojamiento con holgura (11.1). Vacío: donde el
+      componente se mete en la pieza, la holgura sigue."""
+    step = _step("""
+def construir(kit):
+    placa = kit.caja(60, 60, 5)
+    motor = kit.componente("nema17", en=(30, 30, 0), entra_por="-z")
+    return placa.quitar("motor", motor.hueco())
+""", tmp_path)
+    assert _dentro(step, [(45, 25, 0.05), (41.05, 30, 1)], tmp_path) == [True, False]
+
+
+def test_una_pared_mas_fina_que_el_perfil_vuelve_al_disenador(tmp_path):
+    """Banco `1105-2120` (2026-11-05): el soporte del MG996R salió con una
+    pared de 0.15 mm. El banco la medía; el bucle no, y el diseñador nunca
+    se enteró. El mínimo sale del perfil de la impresora (`walls.min_mm`,
+    dos anchos de línea): por debajo no se imprime, sea cual sea la pieza.
+
+    A mano: una caja de 20 × 20 × 10 con un vaciado que deja 0.3 mm de
+    pared en x = 0."""
+    from orchestrator.medida import defectos_de_la_pieza
+    codigo = """
+def construir(kit):
+    return kit.caja(20, 20, 10) - kit.caja(18, 16, 8, en=(0.3, 2, 1))
+"""
+    resultado = build_part(Programa(part="p", codigo=codigo), None, tmp_path, _freecadcmd(),
+                           perfil=PERFIL)
+    fallos = defectos_de_la_pieza([], resultado, tmp_path / "p.step", _freecadcmd(), MATERIAL,
+                                  pared_min_mm=PERFIL["walls"]["min_mm"])
+    assert any("0.30 mm" in f and "0.8" in f for f in fallos), fallos
