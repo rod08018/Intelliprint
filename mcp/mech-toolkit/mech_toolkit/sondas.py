@@ -325,7 +325,9 @@ def pared_minima(forma, min_mm, por_cara=5, area_min_mm2=4.0):
                 if fino is None or grosor < fino[0]:
                     fino = (grosor, p)
     if fino is None:
-        return {"cumple": False, "detalle": "no se pudo medir ninguna pared"}
+        # «Sin medir», no «no cumple»: el adaptador de tubo del banco
+        # `1106-1630`, todo de revolución, salió «no resuelto» por esto.
+        return {"cumple": None, "detalle": "no se pudo medir ninguna pared"}
     g, p = fino
     return {"cumple": g >= min_mm - 1e-3,
             "detalle": f"la pared más fina mide {g:.2f} mm (en {p.x:.1f}, {p.y:.1f}, {p.z:.1f}); "

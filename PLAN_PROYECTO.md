@@ -345,6 +345,10 @@ Y uno del kit: `acabar()` redondeaba también los rincones, que **añade** mater
 
 Es una sola corrida (F6.13 (ruido)); la subida, 25 puntos, supera los ±10 de dispersión medidos.
 
+**Sin rebajes de holgura en los apoyos, con chaflán de respaldo y la pared mínima en el bucle (corrida `1106-1630`, 2026-11-06): 100 % (52 de 52).** Las diez piezas se construyen, se laminan sin soportes, y en los cinco encargos con componente el componente real cabe y entra. Hicieron falta dos arreglos del banco por el camino: un encargo que pasaba de 30 minutos tumbaba la corrida entera (ahora cuenta como no construido y el límite es de una hora, porque el concepto y cinco vueltas del razonador ya no caben en 30). Y uno del bucle: el adaptador de tubo salió «no resuelto» porque la pared de una pieza sin caras planas no se puede medir, y la sonda lo daba por fallo; ahora es «sin medir».
+
+Que el banco esté al 100 % no quiere decir que el sistema esté terminado: quiere decir que este banco ya no distingue. Sigue siendo una sola corrida, los diez encargos son conocidos, y el siguiente paso es F6.13 (ruido): repeticiones y encargos nuevos que el diseñador no haya visto, como el soporte del 608ZZ.
+
 **Objetivo:** 60 % de media en tres corridas con el techo de hoy, y 75 % cuando F6.12 (techo) lo suba. Las fases 7 y 8 (revisión visual y estética) van después: con piezas que no se construyen no hay nada que mirar.
 
 **Visión.** DeepSeek Flash acepta imágenes (`image_url` en base64; ver api-docs.deepseek.com/guides/vision). El cliente de este repo ya las manda desde F5.2 (adjuntos) —comprobado el 2026-09-21: una imagen roja, «Rojo»—, así que F6.9 (vistas) y las fases 7 y 8 **no esperan** a los modelos locales de F0.11 (migrar).

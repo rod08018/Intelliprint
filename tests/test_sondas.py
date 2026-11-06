@@ -527,3 +527,14 @@ def construir(kit):
     fallos = defectos_de_la_pieza([], resultado, tmp_path / "p.step", _freecadcmd(), MATERIAL,
                                   pared_min_mm=PERFIL["walls"]["min_mm"])
     assert any("0.30 mm" in f and "0.8" in f for f in fallos), fallos
+
+
+def test_una_pieza_sin_caras_planas_deja_la_pared_sin_medir(tmp_path):
+    """Banco `1106-1630` (2026-11-06): el adaptador de tubo, una pieza de
+    revolución, salió «no resuelto» con «no se pudo medir ninguna pared»:
+    la sonda lo daba por fallo y el bucle se lo cobraba al diseñador. Lo que
+    no se puede medir es «sin medir», como en las demás sondas. Una esfera no
+    tiene ninguna cara plana."""
+    [r] = _medir("def construir(kit):\n    return kit.esfera(20)\n",
+                 [ParedMinima(tipo="pared_minima", min_mm=0.8)], tmp_path)
+    assert r.estado == "sin_medir", r.detalle
