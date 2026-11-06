@@ -521,14 +521,35 @@ def motivo_del_fallo(salida: str) -> str:
     return (lineas[-1] if lineas else "sin salida")[:400]
 
 
+LIMITE_S = 3600
+"""Lo más que espera el banco a un encargo. Es una guarda contra cuelgues,
+no una exigencia: la web no tiene límite. Con 30 minutos, el MG996R del
+banco `1106-1554` no llegó: concepto y cinco vueltas del razonador, a unos
+cinco minutos cada una."""
+
+
+def _texto(salida) -> str:
+    if salida is None:
+        return ""
+    return salida.decode("utf-8", errors="replace") if isinstance(salida, bytes) else salida
+
+
 def correr(encargo: Encargo, carpeta: Path, orden: list[str], freecadcmd: str,
            env: dict, material: dict | None = None) -> tuple[list[Resultado], str | None]:
     """Pide la pieza como la pediría una persona y la juzga. Devuelve los
     resultados y, si no llegó a construirse, el porqué."""
     carpeta.mkdir(parents=True, exist_ok=True)
-    proceso = subprocess.run(
-        [*orden, encargo.peticion], input="sí\n", capture_output=True, text=True,
-        timeout=1800, env={**env, "INTELLIPRINT_WORKSPACE": str(carpeta)})
+    try:
+        proceso = subprocess.run(
+            [*orden, encargo.peticion], input="sí\n", capture_output=True, text=True,
+            timeout=LIMITE_S, env={**env, "INTELLIPRINT_WORKSPACE": str(carpeta)})
+    except subprocess.TimeoutExpired as e:
+        # Banco `1106-1554` (2026-11-06): esto salía de aquí y la corrida
+        # entera murió en el primer encargo. Se pierde el encargo, no el banco.
+        texto = _texto(e.output) + "\n--- stderr ---\n" + _texto(e.stderr)
+        (carpeta / "salida.txt").write_text(texto, encoding="utf-8")
+        sin = [Resultado(estado="no_cumple", detalle="no hay pieza") for _ in encargo.oraculo]
+        return sin, f"tardó más de {LIMITE_S // 60} minutos"
     (carpeta / "salida.txt").write_text(proceso.stdout + "\n--- stderr ---\n" + proceso.stderr,
                                         encoding="utf-8")
     step = next(carpeta.glob("projects/*/parts/*/*.step"), None)

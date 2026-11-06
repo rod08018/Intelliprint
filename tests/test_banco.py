@@ -287,3 +287,24 @@ def test_rejuzgar_reconoce_una_pieza_guardada_aunque_el_proceso_muriera_despues(
         "Traceback ...\nLaminadoFallido: no encuentro el STL", encoding="utf-8")
     resultados, fallos = banco.rejuzgar([e], tmp_path, freecadcmd="x")
     assert [r.estado for r in resultados["x"]] == ["cumple"] and not fallos
+
+
+def test_un_encargo_que_se_pasa_de_tiempo_no_tumba_el_banco(tmp_path, monkeypatch):
+    """Banco `1106-1554` (2026-11-06): el soporte del MG996R pasó de los 30
+    minutos, el TimeoutExpired salió de `correr` y la corrida entera murió
+    en el primer encargo, sin juzgar los otros nueve. Se pierde ese
+    encargo, no el banco."""
+    import subprocess
+
+    from orchestrator import banco
+
+    def tarda(orden, **k):
+        raise subprocess.TimeoutExpired(orden, k.get("timeout"), output=b"[Crafty] Pieza")
+
+    monkeypatch.setattr(banco.subprocess, "run", tarda)
+    e = banco.Encargo(nombre="x", categoria="casa", peticion="un gancho",
+                      oraculo=[{"tipo": "sin_soportes"}])
+    resultados, motivo = banco.correr(e, tmp_path / "01", ["intelliprint", "pieza"], "x", {})
+    assert [r.estado for r in resultados] == ["no_cumple"]
+    assert "tardó" in motivo
+    assert "[Crafty] Pieza" in (tmp_path / "01" / "salida.txt").read_text(encoding="utf-8")
