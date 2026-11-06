@@ -263,8 +263,14 @@ def _componente(x: dict) -> str:
     entra, cómo se sujeta y de qué planos salen sus medidas."""
     from orchestrator.componentes import cargar, envolvente
 
-    como = (f'<q>entra {e(x.get("como_entra", ""))}; se sujeta: '
-            f'{e(x.get("como_se_sujeta", ""))}</q>')
+    from orchestrator.schemas.concepto import AJUSTES
+
+    # Antes iba en una línea: «entra Se introduce a presión… .; se sujeta:
+    # A presión…» (proyecto del 608ZZ, 2026-11-06).
+    ajuste = AJUSTES.get(x.get("ajuste") or "slide", "")
+    como = (f'<br>Cómo entra: {e(x.get("como_entra", ""))}'
+            f'<br>Cómo se sujeta: {e(x.get("como_se_sujeta", ""))}'
+            f'<br>Ajuste: {e(ajuste)} <small>(la holgura sale del perfil de la impresora)</small>')
     try:
         f = cargar(str(x.get("id")))
     except (KeyError, ValueError):

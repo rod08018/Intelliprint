@@ -1,5 +1,7 @@
 """El concepto del ingeniero: cómo se resuelve, antes de dibujar (F3.18 (ingeniero))."""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from orchestrator.ingenieria import CasoDeCarga, Comprobacion
@@ -14,6 +16,15 @@ class ComponenteDelConcepto(BaseModel):
     """Por dónde se mete y en qué dirección: el soporte del HC-SR04 abría el
     canal por arriba y los transductores atravesaban la pared de delante."""
     como_se_sujeta: str
+    ajuste: Literal["press", "slide", "clearance"] = "slide"
+    """El ajuste por su nombre; el diámetro lo pone `hueco()` con la holgura
+    del perfil. En el proyecto del 608ZZ (2026-11-06) el concepto pedía un
+    alojamiento de Ø21.9 «con 0.1 de interferencia», contra el perfil, que
+    pone +0.10 sobre el nominal para «press» porque los agujeros FDM salen
+    pequeños: habría salido de 21.7 y el rodamiento no entraba."""
+
+
+AJUSTES = {"press": "a presión", "slide": "deslizante", "clearance": "con holgura"}
 
 
 class Concepto(BaseModel):
@@ -47,7 +58,7 @@ class ConceptoComprobado(BaseModel):
         if c.fijaciones:
             lineas += ["", "**Fijaciones:**", *(f"- {f}" for f in c.fijaciones)]
         if c.componentes:
-            lineas += ["", "**Lo que aloja:**", *(f"- {_presentar(x)}" for x in c.componentes)]
+            lineas += ["", "**Lo que aloja:**", *(_presentar(x) for x in c.componentes)]
         if self.comprobaciones:
             lineas += ["", "**Cálculo:**", *(f"- {x.texto()}" for x in self.comprobaciones)]
         if c.alternativas:
@@ -68,10 +79,14 @@ class ConceptoComprobado(BaseModel):
         for x in c.componentes:
             # Con la ficha entera: sin ella, el soporte del HC-SR04 dibujó el
             # sensor con cajas y cifras de una tienda (2026-11-05).
+            hueco = "hueco()" if x.ajuste == "slide" else f'hueco(holgura="{x.ajuste}")'
             partes.append(
-                f"- Componente `{x.id}`: entra {x.como_entra}; se sujeta: {x.como_se_sujeta}. "
+                f"- Componente `{x.id}`. Cómo entra: {x.como_entra} Cómo se sujeta: "
+                f"{x.como_se_sujeta} Ajuste: {AJUSTES[x.ajuste]}. "
                 f"Colócalo con `kit.componente(\"{x.id}\", en=..., girar=..., entra_por=...)` "
-                "y quita su `hueco()` a la pieza. NUNCA lo dibujes con cajas: su forma es "
+                f"y quita su `{hueco}` a la pieza: el diámetro del alojamiento lo pone "
+                "el ajuste con la holgura del perfil, no lo dibujes a mano. NUNCA lo "
+                "dibujes con cajas: su forma es "
                 "la de la ficha, y al construir se mete en la pieza para ver si cabe y si "
                 "entra.\n\n" + _resumen(x.id) + "\n")
         for caso in c.casos_de_carga:
@@ -94,11 +109,12 @@ def _presentar(x: ComponenteDelConcepto) -> str:
     from urllib.parse import urlparse
 
     from orchestrator.componentes import cargar
+    detalle = (f"  - Cómo entra: {x.como_entra}\n  - Cómo se sujeta: {x.como_se_sujeta}\n"
+               f"  - Ajuste: {AJUSTES[x.ajuste]} (la holgura sale del perfil de la impresora)")
     try:
         f = cargar(x.id)
     except KeyError:
-        return f"{x.id} (sin ficha): entra {x.como_entra}; se sujeta: {x.como_se_sujeta}"
+        return f"- {x.id} (sin ficha)\n{detalle}"
     medido = "medido con calibre" if f.verificado else "sin verificar con calibre"
     fuente = urlparse(f.fuentes[0].url).hostname.removeprefix("www.")
-    return (f"{f.nombre} (ficha de {fuente}, {medido}): entra {x.como_entra}; "
-            f"se sujeta: {x.como_se_sujeta}")
+    return f"- {f.nombre} (ficha de {fuente}, {medido})\n{detalle}"

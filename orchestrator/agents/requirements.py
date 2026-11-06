@@ -22,6 +22,17 @@ def _citas_y_cotas(spec: Spec, peticion: str, externos: str = "") -> None:
         raise ValueError("requisitos incompletos:\n- " + "\n- ".join(errores))
 
 
+def _sin_lo_de_la_ficha(requisitos):
+    """Fuera los requisitos que NO dijo el usuario y hablan de un componente
+    con ficha o de su tornillería: su forma entera sale de la ficha. En el
+    proyecto del 608ZZ (2026-11-06) el modelo añadió «rodamiento 608ZZ →
+    22 mm» como catálogo, y la web lo enseñaba como buscado en internet. Lo
+    que dijo el usuario se queda siempre."""
+    from orchestrator.componentes import de_la_ficha
+
+    return [r for r in requisitos if r.origen == "usuario" or not de_la_ficha(r.texto)]
+
+
 class RequirementsAgent:
     def __init__(self, client: LlmClient, prompt_path: Path = PROMPT_PATH, activo=None) -> None:
         """`activo`: el perfil activo (`orchestrator.impresion`). Sus valores
@@ -58,4 +69,5 @@ class RequirementsAgent:
                           extra_validation=lambda s: _citas_y_cotas(s, peticion, externos))
         # La petición literal la fija el código después de la llamada: el
         # modelo no puede perderla ni reescribirla al resumir.
-        return spec.model_copy(update={"request": peticion})
+        return spec.model_copy(update={"request": peticion,
+                                       "requisitos": _sin_lo_de_la_ficha(spec.requisitos)})

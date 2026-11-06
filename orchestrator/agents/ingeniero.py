@@ -29,6 +29,32 @@ _DEL_PERFIL = ("printer", "material", "layer_height_mm", "bed_mm", "fits", "hole
 lo recibía: las cotas de tornillería salían de memoria."""
 
 
+def _alojamiento_inventado(c, ficha, ajustes) -> list[str]:
+    """Un Ø a menos de 1 mm de un diámetro de la ficha, sin ser él: es el
+    alojamiento escrito a mano. Proyecto del 608ZZ (2026-11-06): «Ø21.9 con
+    0.1 de interferencia», contra el perfil («press» es +0.10 sobre el
+    nominal); habría salido de 21.7 y el rodamiento no entraba."""
+    import re
+
+    from orchestrator.componentes import primitivas
+
+    diametros = [d for p in primitivas(ficha) if p["tipo"] == "cilindro"
+                 for d in (p["diametro"], p.get("interior")) if d]
+    texto = f"{c.como_entra} {c.como_se_sujeta}"
+    errores = []
+    for n in re.findall(r"(?:[Øø]|di[áa]metro(?: de)?)\s*(\d+(?:[.,]\d+)?)", texto):
+        n = float(n.replace(",", "."))
+        cerca = [d for d in diametros if 0 < abs(n - d) <= 1.0]
+        if cerca:
+            tabla = ", ".join(f"{k.removesuffix('_mm')} +{v:g}" for k, v in ajustes.items()
+                              if k.endswith("_mm"))
+            errores.append(
+                f"«Ø{n:g}» para {c.id}: el alojamiento no lo escribes tú. Di el ajuste en "
+                f"`ajuste` (press, slide o clearance) y `hueco()` suma al Ø{cerca[0]:g} de la "
+                f"ficha la holgura del perfil ({tabla}): los agujeros FDM salen pequeños.")
+    return errores
+
+
 class IngenieroAgent:
     def __init__(self, client: LlmClient, activo, prompt_path: Path = PROMPT_PATH,
                  reserva: LlmClient | None = None) -> None:
@@ -36,6 +62,7 @@ class IngenieroAgent:
         self._reserva = reserva
         self._material = Material.del_perfil(activo.datos)
         perfil = {k: activo.datos[k] for k in _DEL_PERFIL if k in activo.datos}
+        self._ajustes = activo.datos.get("fits") or {}
         self._instrucciones = (
             prompt_path.read_text(encoding="utf-8")
             + "\n\n## Perfil activo (impresora y material)\n\n```yaml\n"
@@ -71,6 +98,9 @@ class IngenieroAgent:
                 if c.id not in ids():
                     errores.append(f"«{c.id}» no tiene ficha en la biblioteca; hay: "
                                    f"{', '.join(ids())}. Usa uno de esos ids.")
+            for c in concepto.componentes:
+                if c.id in ids():
+                    errores += _alojamiento_inventado(c, cargar(c.id), self._ajustes)
             for i in nombrados:
                 if i not in puestos:
                     errores.append(f"la petición nombra «{i}» y no está en `componentes`: "

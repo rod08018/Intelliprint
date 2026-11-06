@@ -167,3 +167,29 @@ def test_la_persona_ve_los_componentes_y_que_no_estan_medidos():
     texto = IngenieroAgent(Guion([_concepto(casos=False, componentes=COMPONENTES)]),
                            ACTIVO).concebir(SENSOR).texto()
     assert "Sensor ultrasónico HC-SR04" in texto and "sin verificar con calibre" in texto
+
+
+RODAMIENTO = Spec(
+    title="soporte del 608ZZ", description="soporte de rodamiento",
+    product_class="static_part", printer="ankermake_m5_plamas", material="PLA+",
+    request="Soporte para un rodamiento 608ZZ que sujete un eje de 8 mm.")
+
+
+def test_el_ajuste_de_un_componente_se_nombra_y_no_se_inventa_su_diametro():
+    """Proyecto del 608ZZ (2026-11-06): el concepto pedía «interferencia de
+    0.1 en un alojamiento Ø21.9», contra el perfil, que pone «press» = +0.10
+    sobre el nominal (los agujeros FDM salen pequeños): saldría de 21.7 y el
+    rodamiento no entraría. El ajuste se dice por su nombre y el diámetro lo
+    pone `hueco()` con el perfil."""
+    mal = [{"id": "608zz", "como_entra": "a presión por delante",
+            "como_se_sujeta": "a presión en un alojamiento Ø21.9 mm, con reborde detrás"}]
+    bien = [{"id": "608zz", "como_entra": "a presión por delante",
+             "como_se_sujeta": "reborde detrás de Ø18.5 que toca solo el aro exterior",
+             "ajuste": "press"}]
+    guion = Guion([_concepto(casos=False, componentes=mal),
+                   _concepto(casos=False, componentes=bien)])
+    resultado = IngenieroAgent(guion, ACTIVO).concebir(RODAMIENTO)
+    assert "21.9" in guion.prompts[1] and "press" in guion.prompts[1]
+    brief = spec_to_task(RODAMIENTO, resultado).brief
+    assert 'hueco(holgura="press")' in brief
+    assert "Ajuste: a presión" in resultado.texto()

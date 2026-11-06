@@ -6,6 +6,8 @@
 id: perfil-2020
 nombre: Perfil de aluminio 2020 (ranura de 6, M5)
 alias: ["perfil 2020", "aluminio 2020", "extrusión 2020", "2020 profile", "V-slot 2020"]
+# La tornillería que va en la ranura: a la pieza solo le toca el agujero del M5.
+accesorios: ["tuerca en T", "tuerca T", "T-nut", "tuerca martillo", "hammer nut"]
 verificado: false
 fuentes:
   - url: https://download.lulzbot.com/TAZ/1.0/hardware/mechanical/spec_sheets/p2239.pdf

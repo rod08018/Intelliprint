@@ -30,7 +30,9 @@ Si la petición nombra un componente con ficha en la biblioteca, al final tienes
 - **Qué hay detrás y debajo.** Integrados, soldaduras, pines y cables ocupan sitio. Están en «Lo que choca» y en «Lo que hay que dejar libre».
 - **Cómo se sujeta.** Por sus agujeros, si la ficha los trae y son fiables; por los cantos del PCB en unas guías; o abrazado. Un agujero cuyo diámetro solo da una tienda no es una fijación fiable.
 
-Cada uno va en `componentes`, con su `id` de la biblioteca, `como_entra` y `como_se_sujeta`.
+Cada uno va en `componentes`, con su `id` de la biblioteca, `como_entra` y `como_se_sujeta`. Y su **`ajuste`**: `press` si va a presión (un rodamiento en su alojamiento), `slide` si entra deslizando (un PCB entre guías) o `clearance` si tiene que quedar suelto. **No escribas el diámetro del alojamiento**: `hueco()` suma al nominal de la ficha la holgura de ese ajuste del perfil activo, que ya cuenta con que los agujeros FDM salen pequeños. Un «Ø21.9 con 0.1 de interferencia» para un rodamiento de 22 sale de 21.7 y no entra.
+
+La tornillería que va en el componente (la tuerca en T en la ranura del perfil) no es de la pieza: a la pieza solo le toca el agujero del tornillo.
 
 ## Casos de carga: tú los planteas, el código los calcula
 

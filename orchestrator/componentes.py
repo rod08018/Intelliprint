@@ -75,6 +75,10 @@ class Ficha(BaseModel):
     alias: list[str] = []
     """Cómo lo llama la gente en una petición («HC-SR04», «NEMA 17»): así se
     sabe que la petición nombra un componente que ya tiene ficha."""
+    accesorios: list[str] = []
+    """Lo que va EN el componente y no en la pieza: la tuerca en T del perfil
+    2020. No se busca ni se convierte en requisitos: en el proyecto del 608ZZ
+    (2026-11-06) sus 9.5, 4.5 y 6 mm de una tienda acabaron de requisitos."""
     verificado: bool = False
     """Solo si alguien lo midió con calibre: una hoja de datos puede no
     coincidir con la unidad que tiene la persona."""
@@ -113,6 +117,16 @@ def mencionados(texto: str) -> list[str]:
     plano = _plano(texto)
     return [i for i in ids()
             if any(_plano(a) in plano for a in [i, *cargar(i).alias] if _plano(a))]
+
+
+def de_la_ficha(texto: str) -> list[str]:
+    """Los componentes de los que habla `texto`, por su nombre o por un
+    accesorio suyo («tuerca en T de 2020» → perfil-2020). Lo que sale aquí
+    tiene sus medidas en la ficha: no se busca ni da requisitos sueltos."""
+    plano = _plano(texto)
+    return [i for i in ids()
+            if any(_plano(a) in plano
+                   for a in [i, *cargar(i).alias, *cargar(i).accesorios] if _plano(a))]
 
 
 def envolvente(ficha: Ficha, de="cuerpos") -> tuple[list[float], list[float]]:

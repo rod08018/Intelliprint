@@ -218,3 +218,15 @@ def test_el_resumen_dice_el_tamano_lo_que_hay_que_dejar_libre_y_que_no_esta_medi
     assert "45 × 18 × 30.5 mm" in r
     assert "integrados de atrás" in r and "conector y cable" in r
     assert "sin verificar con calibre" in r and "handsontec.com" in r
+
+
+def test_la_tuerca_en_t_es_del_perfil_y_no_algo_que_buscar():
+    """Proyecto del 608ZZ (2026-11-06): el investigador buscó la «tuerca en T
+    de 2020 para M5» en una tienda y sus 9.5, 4.5 y 6 mm acabaron de
+    requisitos de la pieza. La tuerca va dentro de la ranura del perfil; a
+    la pieza solo le toca el agujero del tornillo."""
+    from orchestrator.componentes import de_la_ficha
+    assert de_la_ficha("Tuerca en T de 2020 para M5") == ["perfil-2020"]
+    assert de_la_ficha("T-nut M5 for 2020 extrusion") == ["perfil-2020"]
+    assert de_la_ficha("rodamiento 608ZZ") == ["608zz"]
+    assert de_la_ficha("tornillo M5 de 10 mm") == []

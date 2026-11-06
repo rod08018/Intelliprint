@@ -27,7 +27,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from pydantic import BaseModel
 
-from orchestrator.componentes import mencionados
+from orchestrator.componentes import de_la_ficha
 from orchestrator.llm.structured import LlmClient, structured
 
 PROMPT_PATH = Path("config/agents/investigador.md")
@@ -300,7 +300,8 @@ class Investigador:
             # F6.11 (biblioteca): con ficha, la forma entera sale de ella. Lo
             # buscado se volvía requisitos sueltos, y así salieron el PCB de
             # 43 y el Ø8 del HC-SR04 (2026-11-05). Si lo PREGUNTAN, se busca.
-            con_ficha = [] if obligatorio else mencionados(f.componente)
+            # Y su tornillería (la tuerca en T del perfil): proyecto del 608ZZ.
+            con_ficha = [] if obligatorio else de_la_ficha(f.componente)
             if con_ficha:
                 self._log(f"  investigación: {f.componente} tiene ficha; no lo busco")
                 resultado.de_la_biblioteca += [i for i in con_ficha

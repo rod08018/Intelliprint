@@ -892,3 +892,19 @@ def test_el_concepto_ensena_lo_que_aloja_con_su_ficha(ws):
     assert "45 × 18 × 30.5 mm" in texto and "por delante, deslizando hacia atrás" in texto
     assert "sin verificar con calibre" in texto
     assert 'href="https://handsontec.com/dataspecs/sensor/SR-04-Ultrasonic.pdf"' in html
+
+
+def test_como_entra_y_como_se_sujeta_se_leen_por_separado(ws):
+    """Proyecto del 608ZZ (2026-11-06): salía «entra Se introduce a presión…
+    .; se sujeta: A presión…», todo pegado en una línea."""
+    carpeta = _concepto_completo(ws)
+    datos = json.loads((carpeta / "concepto.json").read_text(encoding="utf-8"))
+    datos["concepto"]["componentes"] = [{
+        "id": "608zz", "como_entra": "Se introduce a presión por la cara de arriba.",
+        "como_se_sujeta": "Reborde de Ø18.5 abajo.", "ajuste": "press"}]
+    (carpeta / "concepto.json").write_text(json.dumps(datos), encoding="utf-8")
+    texto = _visible(_ws_con_trabajos(ws).get("/p/2026-11-05-sensor").text)
+    assert "Cómo entra: Se introduce a presión por la cara de arriba." in texto
+    assert "Cómo se sujeta: Reborde de Ø18.5 abajo." in texto
+    assert "Ajuste: a presión" in texto
+    assert ".;" not in texto

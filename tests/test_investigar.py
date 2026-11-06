@@ -333,3 +333,16 @@ def test_lo_que_tiene_ficha_en_la_biblioteca_no_se_busca():
     assert buscador.consultas == ["Raspberry Pi 4 mechanical drawing mounting holes"]
     assert r.de_la_biblioteca == ["hc-sr04"]
     assert "HC-SR04" not in r.texto_para_peticion()
+
+
+def test_la_tornilleria_de_un_componente_con_ficha_no_se_busca():
+    """Proyecto del 608ZZ (2026-11-06): la tuerca en T se buscó y sus cifras
+    acabaron de requisitos de la pieza."""
+    faltan = json.dumps({"faltan": [
+        {"componente": "Tuerca en T de 2020 para M5", "que_falta": ["ancho", "espesor"],
+         "consulta": "M5 T-nut 2020 dimensions"}]})
+    buscador = BuscadorFalso({URL: PAGINA})
+    r = Investigador(Guion([faltan]), buscador).investigar(
+        "soporte atornillado a un perfil 2020 con tornillos M5")
+    assert buscador.consultas == []
+    assert r.de_la_biblioteca == ["perfil-2020"]

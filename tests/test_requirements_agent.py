@@ -125,3 +125,23 @@ def test_la_peticion_literal_se_conserva_aunque_el_resumen_pierda_las_cotas():
     spec = RequirementsAgent(ClienteGuionizado([resumen_sin_cotas])).draft(peticion)
 
     assert spec.request == peticion
+
+
+def test_un_requisito_que_no_dijo_el_usuario_sobre_un_componente_con_ficha_sobra():
+    """Proyecto del 608ZZ (2026-11-06): el agente añadió «rodamiento 608ZZ →
+    22 mm» como catálogo, y la web lo enseñaba como buscado en internet. Con
+    ficha, la forma entera sale de ella; lo que dijo el usuario se queda."""
+    spec = json.dumps({
+        "title": "soporte de rodamiento", "description": "d", "product_class": "static_part",
+        "printer": "ankermake_m5_plamas", "material": "PLA+",
+        "requisitos": [
+            {"id": "R1", "tipo": "encaje", "texto": "rodamiento 608ZZ", "valor": 22,
+             "unidad": "mm", "origen": "catalogo"},
+            {"id": "R2", "tipo": "cota", "texto": "espesor de la tuerca en T de 2020",
+             "valor": 4.5, "unidad": "mm", "origen": "estimado"},
+            {"id": "R3", "tipo": "encaje", "texto": "eje horizontal de 8 mm", "valor": 8,
+             "unidad": "mm", "origen": "usuario"},
+            {"id": "R4", "tipo": "funcion", "texto": "un rodamiento 608ZZ", "origen": "usuario"}]})
+    r = RequirementsAgent(ClienteGuionizado([spec])).draft(
+        "soporte para un rodamiento 608ZZ y un eje horizontal de 8 mm")
+    assert [x.id for x in r.requisitos] == ["R3", "R4"]
