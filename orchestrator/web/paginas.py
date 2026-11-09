@@ -423,6 +423,19 @@ def _legible(nombre: str) -> str:
     return texto[:1].upper() + texto[1:]
 
 
+def _fallos_legibles(motivo: str) -> list[str]:
+    """Qué falla, uno por línea y solo su primera frase: lo que sigue son
+    instrucciones para el diseñador («Hazlos con `taladrar`…»). El soporte de
+    giro del pan-tilt (2026-11-09) se las enseñaba a la persona en un párrafo."""
+    fallos = []
+    for linea in motivo.splitlines():
+        linea = linea.strip().removeprefix("- ").strip()
+        if not linea or linea.casefold().startswith("la pieza entregada no cumple"):
+            continue
+        fallos.append(re.split(r"(?<=\.)\s+(?=[A-ZÁÉÍÓÚÑ¿`])", linea, maxsplit=1)[0])
+    return fallos
+
+
 def _lleva(carpeta: Path) -> str:
     """Cuánto lleva trabajando, de la hora en que se lanzó (job.json)."""
     inicio = (_leer(carpeta / "job.json") or {}).get("inicio")
@@ -538,8 +551,8 @@ def _arbol(carpeta: Path, vid: str, bloqueo: str, hay_puente: bool) -> tuple[str
             partes.append(_revision_del_concepto(dir_nodo, _visto_bueno(vid, bloqueo)))
         if estado == "con fallos":
             motivo = (_leer(dir_nodo / "pieza_report.json") or {}).get("motivo", "")
-            partes.append(f'<div class="aviso mal"><b>Qué falla</b>'
-                          f'<p>{e(_recortar(motivo, 400))}</p></div>')
+            fallos = "".join(f"<li>{e(f)}</li>" for f in _fallos_legibles(motivo))
+            partes.append(f'<div class="aviso mal"><b>Qué falla</b><ul>{fallos}</ul></div>')
         if estado in ("diseñada", "con fallos"):
             partes.append(_impresion(dir_nodo))
             sin_puente = "" if hay_puente else " disabled"

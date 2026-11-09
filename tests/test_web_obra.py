@@ -179,6 +179,29 @@ def test_el_concepto_ve_la_ficha_de_la_pieza_terminada(tmp_path):
     assert "pieza de este proyecto" in _visible(html)
 
 
+def test_lo_que_falla_se_lee_sin_las_instrucciones_del_disenador(tmp_path):
+    """El soporte de giro del pan-tilt (2026-11-09) enseñaba a la persona un
+    párrafo con «Hazlos con `taladrar` o `tornillo`» y «`componente.hueco()`»:
+    eso es para el diseñador. A la persona, qué falla, uno por línea."""
+    carpeta = _empezar(tmp_path, aprobada=True)
+    _disenar_nodo(carpeta, "base")
+    informe = carpeta / "nodos" / "base" / "pieza_report.json"
+    datos = json.loads(informe.read_text(encoding="utf-8"))
+    datos.update(resuelto=False, motivo=(
+        "la pieza entregada no cumple:\nR7 («cubo de Ø6.9»): pide 1 agujero(s) de Ø6.9 y hay "
+        "0. Diámetros de agujero en la pieza: Ø2.2, Ø8. Hazlos con `taladrar` o `tornillo`, "
+        "con nombre, y con el diámetro exacto\nBase no toca la pieza: queda a 7.5 mm; donde "
+        "está colocado no lo sujeta nada. Resta a la pieza el `hueco()` del componente"))
+    informe.write_text(json.dumps(datos), encoding="utf-8")
+    assert O.estados(carpeta)["base"] == "con fallos"
+
+    html = _ws_con_trabajos(tmp_path).get(f"/p/{ID}").text
+    assert "<li>R7 («cubo de Ø6.9»): pide 1 agujero(s) de Ø6.9 y hay 0.</li>" in html
+    assert "<li>Base no toca la pieza: queda a 7.5 mm; donde está colocado no lo sujeta nada.</li>" \
+        in html
+    assert "taladrar" not in html and "hueco()" not in html
+
+
 def test_una_obra_sin_piezas_hechas_no_abre_con_una_caja_vacia(tmp_path):
     """Corrigiendo la base (2026-11-09), su pieza se archiva mientras se
     rehace y la página abría con «Todavía no hay imagen» a media pantalla;
