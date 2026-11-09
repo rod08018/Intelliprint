@@ -168,6 +168,19 @@ def test_el_brazo_que_choca_con_el_poste_al_girar_se_ve_en_que_angulos(tmp_path)
                       .read_text(encoding="utf-8"))["ok"] is False
 
 
+def test_los_angulos_de_un_choque_salen_por_tramos_y_no_de_punta_a_punta():
+    """El pan-tilt (2026-11-09) chocaba con la inclinación en ±40–50°, y el
+    resumen decía «girada de -50° a 50°»: parecía que chocaba también en
+    reposo. Con paso 10, {-50, -40, 40, 50} son dos tramos."""
+    from orchestrator.conjunto import Pieza, _resumen
+    piezas = {i: Pieza(i, n, None, ([0, 0, 0], [1, 1, 1])) for i, n in
+              (("base", "Base"), ("plataforma", "Plataforma"))}
+    choques = [{"solido_a": "base", "solido_b": "plataforma", "a": "base", "b": "plataforma",
+                "angulos": {"plataforma": a}, "hueco_mm": -1.0} for a in (-50, -40, 40, 50)]
+    [linea] = _resumen(piezas, choques, paso=10)
+    assert "«Plataforma» girada de -50° a -40° y de 40° a 50°" in linea
+
+
 def test_el_brazo_que_no_llega_al_poste_se_mueve_libre(tmp_path):
     """Con el poste a 60 del eje, el brazo (50 de largo) no lo alcanza en
     ningún ángulo; la carcasa del servo queda 2.9 por debajo del brazo."""

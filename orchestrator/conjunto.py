@@ -297,7 +297,7 @@ def verificar_conjunto(carpeta: Path, conjunto: str, freecadcmd: str, min_gap_mm
          "articulaciones": [{"pieza": a.pieza, "padre": a.padre, "de": a.de,
                              "punto": a.punto, "eje": a.eje, "recorrido": list(a.recorrido)}
                             for a in arts.values()],
-         "choques": choques, "resumen": _resumen(piezas, choques)}
+         "choques": choques, "resumen": _resumen(piezas, choques, paso)}
     dir_nodo = carpeta / O.NODOS / conjunto
     dir_nodo.mkdir(parents=True, exist_ok=True)
     reposo = poses(piezas, arts, {})
@@ -315,8 +315,21 @@ def _que(piezas, solido: str) -> str:
     return f"lo comprado que monta «{piezas[dueno].nombre}»"
 
 
-def _resumen(piezas, choques) -> list[str]:
-    """Una línea por par que choca, con el tramo de cada articulación en que
+def _tramos(valores, paso) -> str:
+    """{-50, -40, 40, 50} con paso 10 -> «de -50° a -40° y de 40° a 50°». De
+    punta a punta («de -50° a 50°») parecía que el pan-tilt chocaba también
+    en reposo (2026-11-09)."""
+    vals = sorted(set(valores))
+    tramos, inicio = [], vals[0]
+    for a, b in zip(vals, vals[1:] + [None]):
+        if b is None or b - a > paso + 1e-6:
+            tramos.append(f"{inicio:g}°" if inicio == a else f"de {inicio:g}° a {a:g}°")
+            inicio = b
+    return " y ".join(tramos)
+
+
+def _resumen(piezas, choques, paso: float = PASO) -> list[str]:
+    """Una línea por par que choca, con los tramos de cada articulación en que
     pasa: es lo que la persona lee en la tarjeta del conjunto."""
     por_par: dict[tuple, list] = {}
     for c in choques:
@@ -325,9 +338,8 @@ def _resumen(piezas, choques) -> list[str]:
     for (x, y), cs in por_par.items():
         tramos = []
         for j in cs[0]["angulos"]:
-            vals = sorted({c["angulos"][j] for c in cs})
-            tramo = f"{vals[0]:g}°" if vals[0] == vals[-1] else f"de {vals[0]:g}° a {vals[-1]:g}°"
-            tramos.append(f"«{piezas[j].nombre}» girada {tramo}")
+            tramos.append(f"«{piezas[j].nombre}» girada "
+                          f"{_tramos([c['angulos'][j] for c in cs], paso)}")
         peor = min(c["hueco_mm"] for c in cs)
         como = (f"se meten {-peor:.1f} mm³ una en otra" if peor < 0
                 else f"quedan a {peor:.2f} mm")
