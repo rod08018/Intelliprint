@@ -441,6 +441,70 @@ def test_la_orden_obra_mueve_el_conjunto_con_la_holgura_de_la_impresora(
     assert "se mueve sin chocar" in capsys.readouterr().out
 
 
+def test_el_banco_recorre_la_obra_entera_sin_nadie_que_de_el_visto_bueno(
+        tmp_path, monkeypatch):
+    """F7.5 (obras): en el banco no hay persona. El desglose, cada concepto y
+    cada «está bien» los da el banco, como con `pieza --aprobar-concepto`, y
+    una pieza con fallos también sigue: se entrega y se juzga (F6.8 (mejor)).
+    Lo que se mide es lo que sale tal como lo propuso el sistema."""
+    from types import SimpleNamespace
+
+    from orchestrator import cli, conjunto
+    from orchestrator import obra as O
+    from orchestrator.agents import desglosador
+    from orchestrator.pieza import APROBADO, CONCEPTO
+
+    conjunto_ = {"id": "pan-tilt", "nombre": "Conjunto", "tipo": "conjunto",
+                 "que_hace": "gira e inclina", "depende_de": ["base", "giro", "inclinacion"]}
+
+    class Desglosador:
+        def __init__(self, *a, **k):
+            pass
+
+        def desglosar(self, peticion):
+            return _obra(nodos=[*PANTILT["nodos"], conjunto_])
+
+    disenadas = []
+
+    def pieza(args, raiz, env, nombre):
+        nodo = tmp_path / "nodos" / args.carpeta.rsplit("nodos", 1)[1].strip("/\\")
+        if not (nodo / CONCEPTO).is_file():
+            (nodo / CONCEPTO).write_text("{}", encoding="utf-8")
+            return
+        assert (nodo / APROBADO).is_file()
+        disenadas.append(nodo.name)
+        parte = nodo / "parts" / nodo.name
+        parte.mkdir(parents=True)
+        (parte / "envolvente.json").write_text('{"min": [0,0,0], "max": [1,1,1]}')
+        resuelto = nodo.name != "giro"   # una con fallos: el banco sigue igual
+        (nodo / "pieza_report.json").write_text(json.dumps({"resuelto": resuelto}))
+        if not resuelto:
+            sys.exit(1)
+
+    def verificar(carpeta, nodo, freecadcmd, min_gap_mm):
+        (carpeta / "nodos" / nodo).mkdir(parents=True, exist_ok=True)
+        (carpeta / "nodos" / nodo / "verificacion.json").write_text('{"ok": true}')
+        return {"ok": True, "articulaciones": [], "resumen": []}
+
+    monkeypatch.setattr(desglosador, "DesglosadorAgent", Desglosador)
+    monkeypatch.setattr(cli, "_pieza", pieza)
+    monkeypatch.setattr(cli, "_cliente", lambda *a, **k: None)
+    monkeypatch.setattr(cli.Router, "from_config_file", lambda *a, **k: None)
+    monkeypatch.setattr(O, "fichar", lambda *a, **k: None)
+    monkeypatch.setattr(conjunto, "verificar_conjunto", verificar)
+    monkeypatch.setattr(cli, "_freecadcmd", lambda env: "freecadcmd")
+    monkeypatch.setenv("INTELLIPRINT_FICHAS", "")
+    args = SimpleNamespace(peticion=["un pan-tilt"], archivo=False, carpeta=str(tmp_path),
+                           banco=True)
+
+    cli._obra(args, cli._raiz(), {}, "prueba")
+
+    assert disenadas == ["base", "giro", "inclinacion"]
+    assert O.estados(tmp_path) == {"base": "lista", "giro": "lista", "inclinacion": "lista",
+                                   "pan-tilt": "verificado"}
+    assert O.lista(tmp_path, "giro")["por"] == "banco"
+
+
 # --- el gestor de trabajos ----------------------------------------------------------------
 
 def _esperar(store, job):

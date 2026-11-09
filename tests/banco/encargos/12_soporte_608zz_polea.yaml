@@ -1,0 +1,17 @@
+nombre: soporte_608zz_polea
+categoria: robots
+obra: true
+peticion: >
+  Un soporte para un rodamiento 608ZZ que se atornilla con dos M5 a un perfil
+  2020, y una polea impresa que gira en ese rodamiento sobre un eje de 8 mm.
+oraculo:
+  - tipo: componente
+    ficha: 608zz
+  - tipo: encaje
+  - tipo: conjunto_libre
+  - tipo: sin_soportes
+  - tipo: pendiente
+    que: >
+      la polea gira con el anillo interior del 608ZZ: la ficha del rodamiento
+      aún no tiene salida, así que el conjunto solo se comprueba en reposo
+    fase: F7.4 (conjunto) con salidas de rodamientos

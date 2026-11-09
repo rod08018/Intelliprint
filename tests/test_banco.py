@@ -308,3 +308,147 @@ def test_un_encargo_que_se_pasa_de_tiempo_no_tumba_el_banco(tmp_path, monkeypatc
     assert [r.estado for r in resultados] == ["no_cumple"]
     assert "tardó" in motivo
     assert "[Crafty] Pieza" in (tmp_path / "01" / "salida.txt").read_text(encoding="utf-8")
+
+
+# --- obras: varias piezas y su conjunto (F7.5 (obras)) -------------------------------------
+
+def _sg90(en, giros=()):
+    return {"nombre": "sg90", "tipo": "componente", "ficha": "sg90", "en": list(en),
+            "giros": [list(g) for g in giros], "entra_por": "+z"}
+
+
+FICHA_BASE = """\
+id: obra-base
+nombre: Base
+origen: impreso
+fuentes: [{url: proyecto p, cita: construida por Intelliprint}]
+marco: el de la pieza
+mira: +z
+cuerpos:
+- {nombre: Base, en: [0, 0, 0], caja: [70, 34, 18.5], porque: la pieza}
+"""
+
+
+def _obra_construida(tmp_path, *, soportes=("base",), sg90s=2, verificacion=None,
+                     encaje=True):
+    """El pan-tilt hecho a mano: la base y el soporte de giro, cada uno con su
+    SG90, el soporte colocado sobre la base, y el conjunto movido."""
+    import json
+    p = tmp_path / "projects" / "a"
+    nodos = [{"id": "base", "nombre": "Base", "tipo": "pieza", "que_hace": "x"},
+             {"id": "giro", "nombre": "Soporte de giro", "tipo": "pieza", "que_hace": "x",
+              "depende_de": ["base"]},
+             {"id": "pan-tilt", "nombre": "Conjunto", "tipo": "conjunto", "que_hace": "x",
+              "depende_de": ["base", "giro"]}]
+    p.mkdir(parents=True)
+    (p / "obra.json").write_text(json.dumps({"titulo": "t", "nodos": nodos}), encoding="utf-8")
+    (p / "fichas").mkdir()
+    (p / "fichas" / "obra-base.yaml").write_text(FICHA_BASE, encoding="utf-8")
+    rasgos = {"base": [_sg90((23.6, 6, 0))],
+              "giro": ([_sg90((-5.8, 27.1, 18.8), [("x", 90)])] if sg90s == 2 else [])
+              + ([{"nombre": "obra-base", "tipo": "componente", "ficha": "obra-base",
+                   "en": [-29.4, -12.2, -27.6], "giros": [], "entra_por": "-z"}]
+                 if encaje else [])}
+    for i, r in rasgos.items():
+        parte = p / "nodos" / i / "parts" / i
+        parte.mkdir(parents=True)
+        (parte / f"{i}.step").write_text("STEP", encoding="utf-8")
+        (parte / "envolvente.json").write_text('{"min": [0,0,0], "max": [1,1,1]}')
+        (parte / "rasgos.json").write_text(json.dumps(r), encoding="utf-8")
+        (p / "nodos" / i / "fabrication").mkdir()
+        (p / "nodos" / i / "fabrication" / "slicing_report.json").write_text(
+            json.dumps({"needs_supports": i in soportes}))
+    if verificacion is not None:
+        (p / "nodos" / "pan-tilt").mkdir()
+        (p / "nodos" / "pan-tilt" / "verificacion.json").write_text(json.dumps(verificacion))
+    return tmp_path
+
+
+GIRA_E_INCLINA = {"ok": True, "resumen": [], "choques": [], "articulaciones": [
+    {"pieza": "giro", "eje_mundo": [0, 0, 1], "recorrido": [-90, 90]},
+    {"pieza": "plataforma", "eje_mundo": [0, -1, 0], "recorrido": [-90, 90]}]}
+
+
+def _juzgar_obra(carpeta, oraculo):
+    """Los hechos de cada pieza, sintéticos: lo que diga su laminado, y todas
+    las sondas cumplen. Devuelve los resultados y lo que se midió en cada STEP."""
+    from orchestrator import banco
+    medido = {}
+
+    def hechos_de(step, freecadcmd, laminado, aserciones, material):
+        import json
+        medido[step.parent.name] = aserciones
+        return Hechos(cilindros=[], bbox_mm=[1, 1, 1], volumen_mm3=1,
+                      soportes=json.loads(laminado.read_text())["needs_supports"],
+                      sondas={a.clave(): banco.Resultado(estado="cumple", detalle=a.tipo)
+                              for a in aserciones if isinstance(a, banco._Sonda)})
+
+    e = Encargo(nombre="pan-tilt", categoria="robots", obra=True,
+                peticion="un pan-tilt que gira 180°", oraculo=oraculo)
+    return banco.juzgar_obra(e, carpeta, "freecadcmd", hechos_de=hechos_de), medido
+
+
+def test_lo_que_se_pide_a_una_pieza_se_mide_en_cada_pieza_de_la_obra(tmp_path):
+    """Hasta ahora el banco juzgaba el primer STEP que encontraba: en una obra
+    habría medido la base y dado por buena la obra entera."""
+    carpeta = _obra_construida(tmp_path, soportes=("giro",))
+    [r], medido = _juzgar_obra(carpeta, [{"tipo": "sin_soportes"}])
+    assert set(medido) == {"base", "giro"}
+    assert r.estado == "no_cumple" and "«Soporte de giro»" in r.detalle
+    assert "«Base»" not in r.detalle
+
+
+def test_los_componentes_de_una_obra_se_cuentan_en_todas_sus_piezas(tmp_path):
+    """El pan-tilt lleva dos SG90, uno en la base y otro en el soporte: cada
+    uno se mide en la pieza que lo aloja. Con uno solo, no cumple."""
+    [r], _ = _juzgar_obra(_obra_construida(tmp_path),
+                          [{"tipo": "componente", "ficha": "sg90", "cuantos": 2}])
+    assert r.estado == "cumple", r.detalle
+    [r], _ = _juzgar_obra(_obra_construida(tmp_path / "uno", sg90s=1),
+                          [{"tipo": "componente", "ficha": "sg90", "cuantos": 2}])
+    assert r.estado == "no_cumple" and "1" in r.detalle and "2" in r.detalle
+
+
+def test_cada_pieza_cabe_y_entra_en_la_que_se_diseno_contra_ella(tmp_path):
+    """El encaje entre nodos: la base construida (su ficha, la forma real)
+    se sondea dentro del soporte de giro, donde él la colocó."""
+    from orchestrator.banco import ComponenteCabe, ComponenteEntra
+    [r], medido = _juzgar_obra(_obra_construida(tmp_path), [{"tipo": "encaje"}])
+    sondas = [a for a in medido["giro"] if isinstance(a, (ComponenteCabe, ComponenteEntra))]
+    assert {a.ficha["id"] for a in sondas} == {"obra-base"} and len(sondas) == 2
+    assert r.estado == "cumple", r.detalle
+    [r], _ = _juzgar_obra(_obra_construida(tmp_path / "suelta", encaje=False),
+                          [{"tipo": "encaje"}])
+    assert r.estado == "no_cumple"
+
+
+@pytest.mark.parametrize("verificacion, estado, dice", [
+    (GIRA_E_INCLINA, "cumple", "sin chocar"),
+    ({**GIRA_E_INCLINA, "ok": False, "resumen": ["«Base» y «Plataforma» chocan si …"]},
+     "no_cumple", "«Base» y «Plataforma» chocan"),
+    (None, "no_cumple", "no se movió")])
+def test_el_conjunto_de_la_obra_se_mueve_sin_chocar(tmp_path, verificacion, estado, dice):
+    [r], _ = _juzgar_obra(_obra_construida(tmp_path, verificacion=verificacion),
+                          [{"tipo": "conjunto_libre"}])
+    assert r.estado == estado and dice in r.detalle, r.detalle
+
+
+@pytest.mark.parametrize("articulaciones, estado", [
+    (GIRA_E_INCLINA["articulaciones"], "cumple"),
+    ([{**GIRA_E_INCLINA["articulaciones"][0], "recorrido": [-45, 45]},
+      GIRA_E_INCLINA["articulaciones"][1]], "no_cumple"),
+    (GIRA_E_INCLINA["articulaciones"][:1], "no_cumple")])
+def test_la_obra_gira_e_inclina_lo_que_dice_la_peticion(tmp_path, articulaciones, estado):
+    """«Gira 180°»: un eje vertical y uno horizontal, de 180° cada uno.
+    Cuentan los ejes en el mundo, en reposo, no en el marco de cada pieza."""
+    verificacion = {**GIRA_E_INCLINA, "articulaciones": articulaciones}
+    [r], _ = _juzgar_obra(_obra_construida(tmp_path, verificacion=verificacion),
+                          [{"tipo": "articulaciones", "ejes": ["vertical", "horizontal"],
+                            "recorrido_grados": 180}])
+    assert r.estado == estado, r.detalle
+
+
+def test_el_banco_pide_una_obra_entera_sin_visto_bueno_de_nadie():
+    from orchestrator.cli import _parser, orden_del_banco
+    assert orden_del_banco(obra=True)[-3:] == ["orchestrator.cli", "obra", "--banco"]
+    assert _parser().parse_args(["obra", "--banco", "un pan-tilt"]).banco

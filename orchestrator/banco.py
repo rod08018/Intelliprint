@@ -204,6 +204,8 @@ class Componente(BaseModel):
     declaró, no hay cómo comprobarlo, y no se aprueba."""
     tipo: Literal["componente"]
     ficha: str
+    cuantos: int = 1
+    """En una obra, cuántos hay entre todas sus piezas (el pan-tilt, dos SG90)."""
 
     def clave(self) -> str:
         return self.model_dump_json()
@@ -223,10 +225,44 @@ class Pendiente(BaseModel):
         return []
 
 
+class Encaje(BaseModel):
+    """Obras (F7.5 (obras)): cada pieza cabe y entra en la que se diseñó
+    contra ella. Se sondea su forma construida (la ficha que dejó «está bien,
+    la siguiente»), donde la colocó la otra, no lo que su programa dijo."""
+
+    tipo: Literal["encaje"]
+
+    def cotas_de_la_peticion(self) -> list[float]:
+        return []
+
+
+class ConjuntoLibre(BaseModel):
+    """Obras: el conjunto se mueve por todo su recorrido sin que nada choque
+    (F7.4 (conjunto)), con las piezas construidas y lo comprado que montan."""
+
+    tipo: Literal["conjunto_libre"]
+
+    def cotas_de_la_peticion(self) -> list[float]:
+        return []
+
+
+class Articulaciones(BaseModel):
+    """Obras: los giros que pide la petición, por su eje en el mundo (en
+    reposo) y su recorrido. La cinemática sale de la geometría, no la dice un
+    modelo: si el soporte no queda en el eje del servo, aquí no aparece."""
+
+    tipo: Literal["articulaciones"]
+    ejes: list[Literal["vertical", "horizontal"]]
+    recorrido_grados: float
+
+    def cotas_de_la_peticion(self) -> list[float]:
+        return [self.recorrido_grados]
+
+
 Asercion = Annotated[Agujeros | Cilindro | Envolvente | SinSoportes | Pendiente | AristasVivas
                      | Resistencia | Ventana | Coaxiales | PasoLibre | ParedMinima | Ranura
                      | Retencion | ComponenteCabe | ComponenteEntra | AccesoTornillo
-                     | Componente,
+                     | Componente | Encaje | ConjuntoLibre | Articulaciones,
                      Field(discriminator="tipo")]
 
 
@@ -235,6 +271,8 @@ class Encargo(BaseModel):
     categoria: Literal["robots", "casa"]
     peticion: str
     oraculo: list[Asercion]
+    obra: bool = False
+    """Se pide como obra, por partes (F7.5 (obras)), y se juzga pieza a pieza."""
 
 
 def cargar_encargos(carpeta: Path) -> list[Encargo]:
@@ -392,12 +430,13 @@ def sondas_de_componente(a: Componente, rasgos: list[dict]) -> list[_Sonda]:
     return [] if colocado is None else sondas_del_rasgo(colocado)
 
 
-def sondas_del_rasgo(colocado: dict) -> list[_Sonda]:
+def sondas_del_rasgo(colocado: dict, extra=()) -> list[_Sonda]:
     """Cabe y entra, para un componente que el programa colocó con
-    `kit.componente`: lo usan el banco y el bucle de diseño (F6.7 (lazo))."""
+    `kit.componente`: lo usan el banco y el bucle de diseño (F6.7 (lazo)).
+    `extra`: más carpetas de fichas (las de una obra)."""
     from orchestrator.componentes import cargar
 
-    ficha = cargar(colocado["ficha"]).model_dump()
+    ficha = cargar(colocado["ficha"], extra).model_dump()
     donde = {"ficha": ficha, "en": colocado["en"], "giros": colocado.get("giros") or []}
     return [ComponenteCabe(tipo="componente_cabe", **donde),
             ComponenteEntra(tipo="componente_entra", entra_por=colocado["entra_por"], **donde)]
@@ -565,6 +604,9 @@ def correr(encargo: Encargo, carpeta: Path, orden: list[str], freecadcmd: str,
         return sin, f"tardó más de {LIMITE_S // 60} minutos"
     (carpeta / "salida.txt").write_text(proceso.stdout + "\n--- stderr ---\n" + proceso.stderr,
                                         encoding="utf-8")
+    if encargo.obra:
+        return _juzgar_si_hay_obra(encargo, carpeta, freecadcmd, material,
+                                   proceso.stdout + "\n" + proceso.stderr)
     step = next(carpeta.glob("projects/*/parts/*/*.step"), None)
     # Que exista el STEP no basta: queda el de un intento fallido. En la
     # primera corrida (2026-11-03) el banco midió los restos de dos piezas
@@ -573,6 +615,17 @@ def correr(encargo: Encargo, carpeta: Path, orden: list[str], freecadcmd: str,
         sin = [Resultado(estado="no_cumple", detalle="no hay pieza") for _ in encargo.oraculo]
         return sin, motivo_del_fallo(proceso.stdout + "\n" + proceso.stderr)
     return juzgar_pieza(encargo, carpeta, freecadcmd, material), None
+
+
+def _juzgar_si_hay_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
+                        material: dict | None, salida: str) -> tuple[list[Resultado], str | None]:
+    """Una obra se juzga con lo que tenga construido: las piezas que falten
+    no cumplen, con su nombre. Sin desglose no hay nada que juzgar."""
+    from orchestrator.obra import OBRA
+    if next(Path(carpeta).glob(f"projects/*/{OBRA}"), None) is None:
+        sin = [Resultado(estado="no_cumple", detalle="no hay obra") for _ in encargo.oraculo]
+        return sin, motivo_del_fallo(salida)
+    return juzgar_obra(encargo, carpeta, freecadcmd, material), None
 
 
 def construida(carpeta: Path, codigo: int | None, salida: str) -> bool:
@@ -608,6 +661,119 @@ def juzgar_pieza(encargo: Encargo, carpeta: Path, freecadcmd: str,
             else juzgar(a, hechos) for a in encargo.oraculo]
 
 
+def _junta(resultados: list[tuple[str, Resultado]], todas: str) -> Resultado:
+    """Un resultado de varios, cada uno de una pieza: cumple si cumplen todos;
+    si no, dice en cuáles falla."""
+    for estado in ("no_cumple", "sin_medir"):
+        malos = [f"«{n}»: {r.detalle}" for n, r in resultados if r.estado == estado]
+        if malos:
+            return Resultado(estado=estado, detalle="; ".join(malos))
+    return Resultado(estado="cumple", detalle=todas)
+
+
+def _articulaciones(a: Articulaciones, v: list[dict]) -> Resultado:
+    def cual(eje):
+        z = abs(eje[2]) / math.sqrt(sum(x * x for x in eje))
+        return "vertical" if z > 0.99 else "horizontal" if z < 0.01 else "inclinado"
+
+    hay = [(cual(j.get("eje_mundo") or j["eje"]), j["recorrido"][1] - j["recorrido"][0])
+           for j in v]
+    texto = ", ".join(f"{c} de {r:g}°" for c, r in hay) or "ninguna"
+    faltan = list(a.ejes)
+    for c, r in hay:
+        if c in faltan and r >= a.recorrido_grados - 1e-6:
+            faltan.remove(c)
+    if faltan:
+        return Resultado(estado="no_cumple", detalle=(
+            f"falta un giro {' y uno '.join(faltan)} de {a.recorrido_grados:g}°; hay: {texto}"))
+    return Resultado(estado="cumple", detalle=f"articulaciones: {texto}")
+
+
+def _sondeado(h: Hechos, sondas: list) -> Resultado:
+    return _junta([(s.tipo, h.sondas.get(s.clave())
+                    or Resultado(estado="sin_medir", detalle="sin medir")) for s in sondas],
+                  "cabe y entra")
+
+
+def juzgar_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
+                material: dict | None = None, hechos_de=None) -> list[Resultado]:
+    """F7.5 (obras). Lo que se pide a una pieza se mide en CADA pieza de la
+    obra; los componentes, en la que los aloja; y además el encaje entre
+    piezas, el conjunto moviéndose y sus articulaciones. Antes el banco medía
+    el primer STEP que encontraba: en una obra habría juzgado solo la base."""
+    from orchestrator import obra as O
+    from orchestrator.conjunto import VERIFICACION, leer_piezas
+
+    hechos_de = hechos_de or extraer_hechos
+    proyecto = next(Path(carpeta).glob(f"projects/*/{O.OBRA}")).parent
+    ob = O.cargar_obra(proyecto)
+    fichas = O.carpeta_de_fichas(proyecto)
+    piezas = leer_piezas(proyecto, solo_construidas=True)
+    sin_construir = [n.nombre for n in ob.nodos if n.tipo == "pieza" and n.id not in piezas]
+
+    de_pieza = [a for a in encargo.oraculo
+                if not isinstance(a, (Componente, Encaje, ConjuntoLibre, Articulaciones))]
+    # Solo se sondea lo que el oráculo pregunta: cada sonda es FreeCAD.
+    pedidos = {a.ficha for a in encargo.oraculo if isinstance(a, Componente)}
+    encaje = any(isinstance(a, Encaje) for a in encargo.oraculo)
+    medidas: dict[str, tuple] = {}
+    for p in piezas.values():
+        rasgos = json.loads((p.step.parent / "rasgos.json").read_text(encoding="utf-8"))
+        propias = [(r, sondas_del_rasgo(r)) for r in p.propios if r["ficha"] in pedidos]
+        encajes = [(r, sondas_del_rasgo(r, [fichas])) for r in rasgos if encaje
+                   and r.get("tipo") == "componente" and str(r.get("ficha")).startswith("obra-")]
+        laminado = p.step.parent.parent.parent / "fabrication" / "slicing_report.json"
+        medir = [*de_pieza, *(s for _, ss in propias + encajes for s in ss)]
+        medidas[p.id] = (hechos_de(p.step, freecadcmd, laminado, medir, material),
+                         propias, encajes)
+
+    conjuntos = [n for n in ob.nodos if n.tipo == "conjunto"]
+    verificaciones = [json.loads(f.read_text(encoding="utf-8")) for n in conjuntos
+                      if (f := proyecto / O.NODOS / n.id / VERIFICACION).is_file()]
+    salida = []
+    for a in encargo.oraculo:
+        if sin_construir and not isinstance(a, (ConjuntoLibre, Articulaciones)):
+            salida.append(Resultado(estado="no_cumple", detalle=(
+                "no se construyó: " + ", ".join(f"«{n}»" for n in sin_construir))))
+        elif isinstance(a, Componente):
+            hay = [(piezas[i].nombre, juzgar_componente(a, ss, h))
+                   for i, (h, propias, _) in medidas.items()
+                   for r, ss in propias if r["ficha"] == a.ficha]
+            if len(hay) != a.cuantos:
+                salida.append(Resultado(estado="no_cumple", detalle=(
+                    f"hay {len(hay)} {a.ficha} en las piezas y se piden {a.cuantos}")))
+            else:
+                salida.append(_junta(hay, f"los {a.cuantos} {a.ficha} caben y entran"))
+        elif isinstance(a, Encaje):
+            hay = [(f"{piezas[i].nombre}» con «{r['ficha']}", _sondeado(h, ss))
+                   for i, (h, _, encajes) in medidas.items() for r, ss in encajes]
+            if not hay:
+                salida.append(Resultado(estado="no_cumple", detalle=(
+                    "ninguna pieza se colocó contra otra con `kit.componente`")))
+            else:
+                salida.append(_junta(hay, f"{len(hay)} uniones entre piezas caben y entran"))
+        elif isinstance(a, ConjuntoLibre):
+            if not conjuntos:
+                salida.append(Resultado(estado="no_cumple", detalle="la obra no tiene conjunto"))
+            elif len(verificaciones) < len(conjuntos):
+                salida.append(Resultado(estado="no_cumple",
+                                        detalle="el conjunto no se movió (no hay verificación)"))
+            elif all(v["ok"] for v in verificaciones):
+                salida.append(Resultado(estado="cumple",
+                                        detalle="se mueve por todo su recorrido sin chocar"))
+            else:
+                salida.append(Resultado(estado="no_cumple", detalle="; ".join(
+                    r for v in verificaciones for r in v.get("resumen", []))))
+        elif isinstance(a, Articulaciones):
+            salida.append(_articulaciones(a, [j for v in verificaciones
+                                              for j in v.get("articulaciones", [])]))
+        else:
+            salida.append(_junta([(piezas[i].nombre, juzgar(a, h))
+                                  for i, (h, _, _) in medidas.items()],
+                                 f"en las {len(medidas)} piezas"))
+    return salida
+
+
 def rejuzgar(encargos: list[Encargo], corrida: Path, freecadcmd: str,
              material: dict | None = None) -> tuple[dict, dict]:
     """Vuelve a juzgar las piezas de una corrida ya hecha, sin pedirlas otra
@@ -619,6 +785,12 @@ def rejuzgar(encargos: list[Encargo], corrida: Path, freecadcmd: str,
         carpeta = Path(corrida) / f"{i:02d}"
         salida = carpeta / "salida.txt"
         texto = salida.read_text(encoding="utf-8", errors="ignore") if salida.exists() else ""
+        if e.obra:
+            resultados[e.nombre], fallo = _juzgar_si_hay_obra(e, carpeta, freecadcmd, material,
+                                                              texto)
+            if fallo:
+                fallos[e.nombre] = fallo
+            continue
         if (not texto or not construida(carpeta, None, texto)
                 or next(carpeta.glob("projects/*/parts/*/*.step"), None) is None):
             resultados[e.nombre] = [Resultado(estado="no_cumple", detalle="no hay pieza")

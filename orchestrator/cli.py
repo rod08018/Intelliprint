@@ -507,12 +507,8 @@ def _obra(args, raiz: Path, env: dict, nombre: str) -> None:
     """Un proyecto por partes (F7.2 (desglose)). Cada vez que se lanza da UN
     paso y para donde haga falta la persona: el desglose, el concepto de un
     nodo o su «está bien, la siguiente». La web o Crafty dejan la marca y
-    vuelven a lanzarlo."""
-    from types import SimpleNamespace
-
+    vuelven a lanzarlo. Con `--banco`, la obra entera de una vez."""
     from orchestrator import obra
-    from orchestrator.agents.desglosador import DesglosadorAgent
-    from orchestrator.registry import latir
 
     texto = " ".join(args.peticion)
     peticion = Path(texto).read_text(encoding="utf-8") if args.archivo else texto
@@ -522,6 +518,50 @@ def _obra(args, raiz: Path, env: dict, nombre: str) -> None:
     if not (carpeta / "request.md").exists():
         (carpeta / "request.md").write_text(peticion.strip() + "\n", encoding="utf-8")
     print(f"[{nombre}] Obra → {carpeta}", flush=True)
+    if not getattr(args, "banco", False):
+        _paso_de_obra(carpeta, peticion, raiz, env, nombre)
+        return
+
+    # F7.5 (obras): en el banco no hay nadie para el visto bueno. Lo da el
+    # banco, como `pieza --aprobar-concepto`, y lo que se mide es lo que sale
+    # tal como lo propuso el sistema. Cada vuelta da un paso o una marca; el
+    # tope solo evita girar sin fin si un estado no se reconoce.
+    for _ in range(4 * 20):
+        try:
+            _paso_de_obra(carpeta, peticion, raiz, env, nombre)
+        except SystemExit:
+            # Una pieza con fallos se entrega igual (F6.8 (mejor)) y se juzga.
+            i = obra.siguiente(carpeta) if obra.es_obra(carpeta) else None
+            if i is None or obra.estados(carpeta)[i] != "con fallos":
+                raise
+        if not obra.es_obra(carpeta):
+            return
+        if not obra.aprobada(carpeta):
+            obra.aprobar(carpeta, por="banco")
+            continue
+        i = obra.siguiente(carpeta)
+        estado = obra.estados(carpeta).get(i)
+        if i is None or estado == "con choques":
+            return
+        if estado == "concepto por aprobar":
+            obra.aprobar(carpeta, por="banco")
+        elif estado in ("diseñada", "con fallos"):
+            try:
+                obra.dar_por_lista(carpeta, i, por="banco")
+            except ValueError as e:   # no llegó a construirse: no hay qué fichar
+                print(f"[{nombre}] ✗ {e}", flush=True)
+                return
+        elif estado not in obra.SE_LANZAN:
+            print(f"[{nombre}] ✗ «{i}» se quedó «{estado}»", flush=True)
+            return
+
+
+def _paso_de_obra(carpeta: Path, peticion: str, raiz: Path, env: dict, nombre: str) -> None:
+    from types import SimpleNamespace
+
+    from orchestrator import obra
+    from orchestrator.agents.desglosador import DesglosadorAgent
+    from orchestrator.registry import latir
 
     if not obra.es_obra(carpeta):
         router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
@@ -598,10 +638,13 @@ def _obra(args, raiz: Path, env: dict, nombre: str) -> None:
               "para seguir con la siguiente")
 
 
-def orden_del_banco() -> list[str]:
+def orden_del_banco(obra: bool = False) -> list[str]:
     """El banco pide como la web: por el flujo de pieza (investigador,
     ingeniero, kit), con el concepto aprobado tal cual. Hasta el 2026-11-05
-    pedía con `new`, el grafo viejo, y su nota no medía lo que se usa."""
+    pedía con `new`, el grafo viejo, y su nota no medía lo que se usa. Una
+    obra (F7.5 (obras)), entera y con el visto bueno dado por el banco."""
+    if obra:
+        return [sys.executable, "-m", "orchestrator.cli", "obra", "--banco"]
     return [sys.executable, "-m", "orchestrator.cli", "pieza", "--aprobar-concepto"]
 
 
@@ -628,11 +671,11 @@ def _banco(args, raiz: Path, env: dict, nombre: str) -> None:
     # y FreeCAD en Windows no abre rutas de más de 260 caracteres. Con el
     # nombre del encargo, dos piezas de la primera corrida no se construyeron.
     salida = _workspace(raiz, env) / "banco" / f"{dt.datetime.now():%m%d-%H%M}"
-    orden = orden_del_banco()
     resultados, fallos = {}, {}
     for i, e in enumerate(encargos, 1):
         print(f"[{nombre}] banco: {e.nombre} (carpeta {i:02d})…", flush=True)
-        resultados[e.nombre], fallo = correr(e, salida / f"{i:02d}", orden, _freecadcmd(env),
+        resultados[e.nombre], fallo = correr(e, salida / f"{i:02d}", orden_del_banco(e.obra),
+                                             _freecadcmd(env),
                                              dict(os.environ), material)
         if fallo:
             fallos[e.nombre] = fallo
@@ -705,6 +748,8 @@ def _parser() -> argparse.ArgumentParser:
     ob.add_argument("--carpeta", help="carpeta del proyecto (por defecto, una nueva)")
     ob.add_argument("--continuar", action="store_true", help=argparse.SUPPRESS)
     ob.add_argument("--adjunto", action="append", default=[], help=argparse.SUPPRESS)
+    ob.add_argument("--banco", action="store_true",
+                    help="solo el banco: la obra entera, con el visto bueno dado por él")
     banco = sub.add_parser("banco", help="pedir las piezas del banco y medir si salen usables "
                                          "(F6.1 (evaluación)); cuesta dinero")
     banco.add_argument("--solo", action="append", default=[], metavar="ENCARGO",

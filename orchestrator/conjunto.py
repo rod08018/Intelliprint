@@ -115,6 +115,9 @@ class Pieza:
     montados: list[dict] = field(default_factory=list)
     """Cajas y cilindros de lo comprado que monta, en su marco, con «de»."""
     salidas: list[dict] = field(default_factory=list)
+    propios: list[dict] = field(default_factory=list)
+    """Los rasgos de lo comprado que aloja ella, sin lo que coloca solo para
+    dejar hueco a lo de otra: el banco cuenta los SG90 de la obra con esto."""
 
 
 @dataclass
@@ -127,21 +130,29 @@ class Articulacion:
     recorrido: tuple
 
 
-def leer_piezas(carpeta: Path, conjunto: str) -> dict[str, Pieza]:
-    """Las piezas del conjunto, en el orden de la obra (lo de abajo antes)."""
+def leer_piezas(carpeta: Path, conjunto: str | None = None,
+                solo_construidas: bool = False) -> dict[str, Pieza]:
+    """Las piezas del conjunto (sin conjunto, todas las de la obra), en el
+    orden de la obra: lo de abajo antes. `solo_construidas` salta las que no
+    llegaron a construirse, para que el banco juzgue lo que haya."""
     from orchestrator import obra as O
     from orchestrator.componentes import cargar
 
     carpeta = Path(carpeta)
     ob = O.cargar_obra(carpeta)
-    ids = [i for i in ob.orden()
-           if i in ob.nodo(conjunto).depende_de and ob.nodo(i).tipo == "pieza"]
+    ids = [i for i in ob.orden() if ob.nodo(i).tipo == "pieza"
+           and (conjunto is None or i in ob.nodo(conjunto).depende_de)]
     fichas = O.carpeta_de_fichas(carpeta)
     piezas: dict[str, Pieza] = {}
     en_el_mundo: dict[str, tuple] = {}
     vistos: list[tuple] = []
     for i in ids:
-        parte = O._pieza_construida(carpeta / O.NODOS / i)
+        try:
+            parte = O._pieza_construida(carpeta / O.NODOS / i)
+        except ValueError:
+            if solo_construidas:
+                continue
+            raise
         env = json.loads((parte / "envolvente.json").read_text(encoding="utf-8"))
         rasgos = (json.loads((parte / "rasgos.json").read_text(encoding="utf-8"))
                   if (parte / "rasgos.json").is_file() else [])
@@ -159,10 +170,10 @@ def leer_piezas(carpeta: Path, conjunto: str) -> dict[str, Pieza]:
                 continue
             ficha = cargar(r["ficha"], [fichas])
             if ficha.origen != "impreso":
-                comprados.append((r["nombre"], ficha, list(r["en"]), giros))
+                comprados.append((r["nombre"], ficha, list(r["en"]), giros, r))
         en_el_mundo[i] = (_componer(en_el_mundo[p.padre], p.al_padre) if p.padre
                           else (I3, [0.0, 0.0, 0.0]))
-        for de, ficha, en, giros in comprados:
+        for de, ficha, en, giros, rasgo in comprados:
             # La plataforma del pan-tilt coloca también el SG90 del soporte, en
             # su mismo sitio, para dejarle hueco: es del soporte, no suyo. Si
             # fuera suyo giraría con ella y «chocaría» con su alojamiento.
@@ -172,6 +183,7 @@ def leer_piezas(carpeta: Path, conjunto: str) -> dict[str, Pieza]:
             if clave in vistos:
                 continue
             vistos.append(clave)
+            p.propios.append(rasgo)
             p.montados += [{**x, "de": de} for x in primitivas(ficha, en, giros, "cuerpos")]
             p.salidas += [{"de": de, "nombre": s.nombre, "punto": colocar(s.en, en, giros),
                            "eje": orientar(s.eje, giros), "recorrido": tuple(s.recorrido)}
@@ -293,14 +305,18 @@ def verificar_conjunto(carpeta: Path, conjunto: str, freecadcmd: str, min_gap_mm
                             "solido_b": c.b, "angulos": rejilla[int(c.angle)],
                             "hueco_mm": round(c.gap_mm, 3)})
 
+    reposo = poses(piezas, arts, {})
+    # «eje» va en el marco de la pieza de abajo; el banco pregunta si el giro
+    # es vertical u horizontal en el mundo, y eso solo lo dice el reposo.
     v = {"ok": not choques, "paso": paso, "min_gap_mm": min_gap_mm,
          "articulaciones": [{"pieza": a.pieza, "padre": a.padre, "de": a.de,
-                             "punto": a.punto, "eje": a.eje, "recorrido": list(a.recorrido)}
+                             "punto": a.punto, "eje": a.eje,
+                             "eje_mundo": _mv(reposo[a.padre][0], a.eje),
+                             "recorrido": list(a.recorrido)}
                             for a in arts.values()],
          "choques": choques, "resumen": _resumen(piezas, choques, paso)}
     dir_nodo = carpeta / O.NODOS / conjunto
     dir_nodo.mkdir(parents=True, exist_ok=True)
-    reposo = poses(piezas, arts, {})
     build_assembly(steps, {}, {s: _placement(reposo[duenos[s]]) for s in duenos},
                    dir_nodo / "assembly.FCStd", freecadcmd, solidos)
     (dir_nodo / VERIFICACION).write_text(json.dumps(v, ensure_ascii=False, indent=1),

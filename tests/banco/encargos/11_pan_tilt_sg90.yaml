@@ -1,0 +1,17 @@
+nombre: pan_tilt_sg90
+categoria: robots
+obra: true
+peticion: >
+  Un pan-tilt con dos servos SG90: el de abajo gira y el de arriba inclina una
+  plataforma para una cámara pequeña. Cada uno recorre 180° (90° a cada lado)
+  sin que nada choque.
+oraculo:
+  - tipo: componente
+    ficha: sg90
+    cuantos: 2
+  - tipo: encaje
+  - tipo: conjunto_libre
+  - tipo: articulaciones
+    ejes: [vertical, horizontal]
+    recorrido_grados: 180
+  - tipo: sin_soportes
