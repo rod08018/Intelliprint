@@ -68,7 +68,7 @@ def _como_cuerpo(p: dict, de: str) -> dict:
     raise ValueError(f"«{nombre}»: una pieza impresa dentro de otra no se ficha todavía")
 
 
-def _montados(rasgos: list[dict]) -> tuple[list[dict], list[dict]]:
+def _montados(rasgos: list[dict], fichas: Path) -> tuple[list[dict], list[dict]]:
     """Lo comprado que la pieza aloja (los `componente` de sus rasgos), en el
     marco de la pieza: la siguiente se diseña contra la pieza MONTADA. La base
     del pan-tilt (2026-11-09) se fichó vacía, y el soporte de giro, que se
@@ -80,7 +80,10 @@ def _montados(rasgos: list[dict]) -> tuple[list[dict], list[dict]]:
     for r in rasgos:
         if r.get("tipo") != "componente" or not r.get("ficha"):
             continue
-        ficha = cargar(r["ficha"])
+        # Con las fichas de la obra a mano: la web no tiene
+        # `INTELLIPRINT_FICHAS`, y «Está bien» al soporte de giro, que coloca
+        # la base, reventó buscándola (2026-11-09).
+        ficha = cargar(r["ficha"], [fichas])
         if ficha.origen == "impreso":
             continue   # su forma ya está en su propia ficha
         giros = [tuple(g) for g in r.get("giros") or []]
@@ -103,7 +106,7 @@ def fichar(carpeta: Path, id_: str, nombre: str, destino: Path, proyecto: str = 
               if (carpeta / "rasgos.json").is_file() else [])
     destino.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(_step_de(carpeta), destino / f"{id_}.step")
-    montados, despejar = _montados(rasgos)
+    montados, despejar = _montados(rasgos, destino)
     datos = {
         "id": id_, "nombre": nombre, "origen": "impreso", "proyecto": proyecto,
         "verificado": False,

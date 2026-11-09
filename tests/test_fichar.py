@@ -107,6 +107,31 @@ def test_la_ficha_lleva_montado_lo_que_la_pieza_aloja(tmp_path, monkeypatch):
     assert eje.cilindro.eje == "+z" and eje.cilindro.diametro == 6.9
 
 
+def test_fichar_una_pieza_que_coloca_otra_de_la_obra_no_necesita_el_entorno(tmp_path, monkeypatch):
+    """«Está bien» al soporte de giro (2026-11-09) reventó en la web: el
+    soporte coloca la base debajo, y la web, sin `INTELLIPRINT_FICHAS`, no
+    encontraba la ficha de la base. La de la obra está donde se ficha."""
+    import json
+
+    from orchestrator.obra import fichar
+    monkeypatch.delenv("INTELLIPRINT_FICHAS", raising=False)
+    fichas = tmp_path / "fichas"
+    fichas.mkdir()
+    (fichas / "obra-base.yaml").write_text(
+        "id: obra-base\nnombre: Base\norigen: impreso\nfuentes: [{url: p, cita: construida}]\n"
+        "marco: el suyo\nmira: '+z'\ncuerpos: [{nombre: base, caja: [70, 34, 18.5], "
+        "en: [0, 0, 0]}]\n", encoding="utf-8")
+    carpeta = tmp_path / "giro"
+    carpeta.mkdir()
+    (carpeta / "giro.step").write_text("STEP", encoding="utf-8")
+    (carpeta / "envolvente.json").write_text(json.dumps({"min": [0, 0, 0], "max": [56, 34, 31]}),
+                                             encoding="utf-8")
+    (carpeta / "rasgos.json").write_text(json.dumps([
+        {"nombre": "base", "tipo": "componente", "ficha": "obra-base", "en": [-29.4, -12.2, -27.6],
+         "giros": [], "entra_por": "-z"}]), encoding="utf-8")
+    assert fichar(carpeta, "obra-giro", "Giro", fichas, proyecto="prueba").is_file()
+
+
 @pytest.mark.parametrize("z, cabe", [(0, True), (1, False)])
 def test_la_pieza_siguiente_se_disena_contra_la_ficha(tmp_path, monkeypatch, z, cabe):
     f = _fichar(tmp_path, monkeypatch, SOPORTE, "soporte-impreso", "Soporte impreso")
