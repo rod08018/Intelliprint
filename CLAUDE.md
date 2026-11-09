@@ -143,6 +143,11 @@ fórmula. **Esa regla sigue sin ejercitarse en una ejecución real.**
    (`docker compose --profile ollama up -d ollama`), que ya lo trae en 2 a costa
    de una segunda copia de los modelos.
 6. **Los botones de gate** de la interfaz web, que es lo que cierra F5.5 (web).
+7. **Kits que imprime otro** (Fase 8, ADR-019): el usuario diseña kits de
+   robótica infantil y sus clientes los imprimen en sus impresoras; la
+   programación va después. Se empieza por F8.1 (cliente): las preguntas
+   abiertas de la ADR las decide el usuario, no el asistente. Requiere antes
+   el pan-tilt de F7.3 (arbol) hecho con DeepSeek.
 
 Cada proyecto deja su coste desglosado en `design_cost.md`, y si se detiene sin
 resolver, un parte en `blocked.md` con la imagen de la pose donde falla.

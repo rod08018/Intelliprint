@@ -572,3 +572,62 @@ Y una realidad del punto de partida: la clase `robot` solo existe en `spec.py`. 
 **Límites conocidos.**
 - **El hueco de una pieza impresa es su envolvente.** Barrer de forma exacta una forma cualquiera no sale barato: con el soporte del 608ZZ, extruir sus caras falló en 2 de 3 ejes, y unir copias desplazadas tardó 4 minutos por eje. Así que `hueco()` talla la caja envolvente con holgura. Para casar dos piezas impresas se usan sus agujeros y `punto()`. Si una entra de verdad lo mide `componente_entra`, con la forma real cada 0,5 mm.
 - **Solo los agujeros de eje alineado** pasan a la ficha: son los que una ficha sabe girar en cuartos de vuelta.
+
+---
+
+## ADR-019 · Lo que se entrega es un kit que imprime otro
+
+**Estado:** aceptada (2026-11-09) · **Afecta a:** Fase 8 (F8.1–F8.10), F5.15 (movida a F8.6 (montaje)), ADR-016, ADR-018
+
+**Problema.** Intelliprint diseñaba para **una** impresora: la M5 del usuario, con su perfil de holguras y su laminado. La salida era «una pieza lista para imprimir aquí». El usuario va a montar una empresa de robótica infantil, y el modelo es otro:
+
+- **él diseña los kits** con Intelliprint;
+- **sus clientes los imprimen** en sus impresoras;
+- la programación de los robots se mira **después**.
+
+Un kit no sabe en qué impresora va a salir, y lo monta alguien que no ha visto el diseño. Faltan cuatro cosas:
+
+- holguras que funcionen sin calibrar;
+- saber si cada pieza se imprime bien en otras máquinas;
+- la lista de lo que hay que comprar;
+- unas instrucciones de montaje.
+
+Lo que descarga hoy la web es la carpeta del proyecto en un zip, con rondas, registros y especificación: es el historial del sistema, no un producto.
+
+**Decisión.** Decidida con el usuario el 2026-11-09.
+
+1. **Un kit sale de una obra terminada** (ADR-018). El árbol de la obra ya tiene lo que el kit necesita:
+   - las piezas, con su STEP construido;
+   - lo comprado, en la `compra` de cada nodo;
+   - el orden de montaje, en las dependencias.
+
+   No se empaqueta nada que no haya salido entero como obra.
+2. **El kit se diseña con un perfil propio**, `kit_generico`, separado del de la M5. Sus agujeros son la ISO 273 serie media, citada. Sus holguras son las que aguantan una impresora sin calibrar. El perfil de la M5 sigue para lo que el usuario imprime él, y su `M3_through_mm: 3.3` no se toca (deuda de F2.18 (calibración)).
+3. **«Se imprime bien en otras impresoras» se comprueba laminando**, no imprimiendo. Cada pieza se lamina con los perfiles de sistema que trae PrusaSlicer para las impresoras elegidas. Lo que necesita soportes en alguna se marca. Es lo mismo que hace F1.13 con la M5, repetido.
+4. **El paquete lleva lo que hace falta para imprimir y montar, y nada más:**
+   - las piezas en STL y 3MF, orientadas como se laminaron;
+   - `imprimir.md` con material, capa, relleno y orientación por pieza;
+   - `compras.csv`;
+   - las instrucciones de montaje;
+   - la versión del kit.
+
+   El STL y el `imprimir.md` sirven en cualquier laminador; el 3MF de PrusaSlicer es una comodidad.
+5. **Las reglas de montaje infantil son avisos, no una certificación.** El cilindro de piezas pequeñas (16 CFR 1501), los tipos de tornillo, las aristas vivas y el pegamento se revisan con el código y se avisan. La seguridad de un juguete se certifica con EN 71 o ASTM F963 en un laboratorio. Intelliprint no lo sustituye, y el kit no debe decir que cumple nada que no se haya certificado.
+6. **La programación queda fuera de esta fase**, por decisión del usuario. Lo de ADR-017 (Gazebo) sigue siendo para probar el código del usuario. Un entorno para que programen los niños es otro producto, sin diseñar.
+
+**Preguntas abiertas**, que decide el usuario en F8.1 (cliente) y no el asistente por defecto:
+
+- **Qué impresoras.** Las más comunes entre sus clientes (colegios, familias, makerspaces), y la cama más pequeña que el kit tiene que respetar.
+- **Qué material.** PLA es lo más común y lo más fácil; PETG aguanta más pero se imprime peor.
+- **Lo comprado.** Si va en la caja del kit (servos, tornillos) o lo compra el cliente con la lista.
+- **Quién monta.** La edad de quien monta, y qué herramientas se permiten (destornillador sí o no, insertos térmicos no).
+- **Las instrucciones.** El formato: PDF para imprimir, página web o las dos.
+
+**Alternativas descartadas.**
+- **Calibrar el kit contra la M5 del usuario.** Saldría bien en su impresora y no se sabría en las demás, justo el caso que importa.
+- **Entregar el G-code.** El G-code es de una máquina concreta; en otra puede no imprimir o dañarla.
+- **Imprimir con varias impresoras de prueba antes de cada kit.** Es la comprobación buena, pero cara. Se hace una vez, en F8.10 (prueba). El día a día lo cubren el laminado con otros perfiles y los reportes de los clientes (F8.9 (reportes)).
+
+**Lo que no cubre.**
+- Laminar con el perfil de otra impresora dice si la pieza **se puede** imprimir sin soportes, no si saldrá bien. La calidad real de una máquina mal calibrada no se simula.
+- Las holguras genéricas son un compromiso: en una impresora muy precisa los encajes quedarán flojos. Lo corrigen los reportes, con el tiempo.
