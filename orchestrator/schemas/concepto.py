@@ -106,9 +106,7 @@ def _resumen(id_: str) -> str:
 
 
 def _presentar(x: ComponenteDelConcepto) -> str:
-    from urllib.parse import urlparse
-
-    from orchestrator.componentes import cargar
+    from orchestrator.componentes import cargar, fuente as sitio
     detalle = (f"  - Cómo entra: {x.como_entra}\n  - Cómo se sujeta: {x.como_se_sujeta}\n"
                f"  - Ajuste: {AJUSTES[x.ajuste]} (la holgura sale del perfil de la impresora)")
     try:
@@ -116,5 +114,5 @@ def _presentar(x: ComponenteDelConcepto) -> str:
     except KeyError:
         return f"- {x.id} (sin ficha)\n{detalle}"
     medido = "medido con calibre" if f.verificado else "sin verificar con calibre"
-    fuente = urlparse(f.fuentes[0].url).hostname.removeprefix("www.")
+    fuente = sitio(f.fuentes[0].url)
     return f"- {f.nombre} (ficha de {fuente}, {medido})\n{detalle}"

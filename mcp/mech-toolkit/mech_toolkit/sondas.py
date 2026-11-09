@@ -460,6 +460,30 @@ def componente_cabe(forma, ficha, en, giros=()):
     return {"cumple": True, "detalle": f"cabe, y se apoya a {cerca:.2f} mm de la pieza"}
 
 
+PASO_ENTRA_MM = 0.5
+
+
+def _entra_paso_a_paso(forma, p, d, largo):
+    """La forma real de una pieza impresa, en posiciones cada
+    `PASO_ENTRA_MM` desde su sitio hacia fuera por `d`, hasta que su caja ya
+    no toca la de la pieza. Su barrido exacto no sale barato (ver `barrido`)."""
+    from mech_toolkit.componentes import solido
+
+    s = solido(p)
+    caja = forma.BoundBox
+    t = PASO_ENTRA_MM   # en t=0 está en su sitio: eso lo mide `componente_cabe`
+    while t <= largo:
+        movida = s.translated(FreeCAD.Vector(*d) * t)
+        if not movida.BoundBox.intersect(caja):
+            return None
+        v = forma.common(movida).Volume
+        if v > TOL_CHOQUE_MM3:
+            return (f"«{p['nombre']}» choca con {v:.0f} mm³ de pieza cuando le faltan "
+                    f"{t:.1f} mm para llegar a su sitio")
+        t += PASO_ENTRA_MM
+    return None
+
+
 def componente_entra(forma, ficha, en, giros=(), entra_por="+z"):
     """El componente se puede llevar hasta su sitio viniendo desde
     `entra_por` («+z»: desde arriba, bajando), sin atravesar la pieza."""
@@ -469,6 +493,11 @@ def componente_entra(forma, ficha, en, giros=(), entra_por="+z"):
     largo = forma.BoundBox.DiagonalLength + 2
     fallos = []
     for p in primitivas(ficha, en, giros, "cuerpos"):
+        if p["tipo"] == "step":
+            choque = _entra_paso_a_paso(forma, p, d, largo)
+            if choque:
+                fallos.append(choque)
+            continue
         comun = forma.common(barrido(p, d, largo))
         if comun.Volume > TOL_CHOQUE_MM3:
             b = comun.BoundBox

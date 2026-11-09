@@ -593,6 +593,10 @@ class Componente:
         d = EJES[self._entra_por]
         formas = []
         for c in primitivas(self._ficha, self._en, self._giros, "cuerpos"):
+            if c["tipo"] == "step":
+                # Una pieza impresa deja el hueco de su envolvente (ver
+                # `barrido`): para casarla, sus agujeros y `punto()`.
+                c = {"tipo": "caja", "nombre": c["nombre"], "min": c["min"], "max": c["max"]}
             lados = self._lados(c, h, pieza)
             if c["tipo"] == "caja":
                 c = {**c, "min": [a - lo for a, (lo, _) in zip(c["min"], lados)],
@@ -691,7 +695,7 @@ class Componente:
 
         mins, maxs = [], []
         for c in primitivas(self._ficha, self._en, self._giros, "cuerpos"):
-            if c["tipo"] == "caja":
+            if c["tipo"] in ("caja", "step"):
                 mins.append(c["min"])
                 maxs.append(c["max"])
             else:

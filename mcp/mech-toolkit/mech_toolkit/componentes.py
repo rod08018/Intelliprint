@@ -61,7 +61,19 @@ def primitivas(ficha, en=(0, 0, 0), giros=(), de="cuerpos") -> list[dict]:
     for c in _ficha(ficha).get(de) or []:
         base = {"nombre": c["nombre"], "porque": c.get("porque") or "",
                 "gira_con": c.get("gira_con") or ""}
-        if c.get("caja"):
+        if c.get("step"):
+            st = c["step"]
+            o = c["en"]
+            esquinas = [colocar([o[0] + (st["max"] if i else st["min"])[0],
+                                 o[1] + (st["max"] if j else st["min"])[1],
+                                 o[2] + (st["max"] if k else st["min"])[2]], en, giros)
+                        for i in (0, 1) for j in (0, 1) for k in (0, 1)]
+            salida.append({**base, "tipo": "step", "ruta": st["ruta"],
+                           "desplazar": list(o), "en": list(en),
+                           "giros": [list(g) for g in giros],
+                           "min": [min(p[n] for p in esquinas) for n in range(3)],
+                           "max": [max(p[n] for p in esquinas) for n in range(3)]})
+        elif c.get("caja"):
             x, y, z = c["caja"]
             o = c["en"]
             esquinas = [colocar([o[0] + i * x, o[1] + j * y, o[2] + k * z], en, giros)
@@ -80,11 +92,26 @@ def primitivas(ficha, en=(0, 0, 0), giros=(), de="cuerpos") -> list[dict]:
 
 # --- con FreeCAD ------------------------------------------------------------------------
 
+_LEIDOS: dict = {}
+
+
 def solido(p):
     import FreeCAD
     import Part
 
     V = FreeCAD.Vector
+    if p["tipo"] == "step":
+        # La forma real de una pieza impresa (F7.1 (fichar)), colocada igual
+        # que un punto de la ficha: desplazada en su marco, girada en
+        # cuartos de vuelta alrededor del origen y llevada a `en`.
+        if p["ruta"] not in _LEIDOS:
+            _LEIDOS[p["ruta"]] = Part.read(p["ruta"])
+        forma = _LEIDOS[p["ruta"]].copy()
+        forma.translate(V(*p["desplazar"]))
+        for eje, grados in p["giros"]:
+            forma.rotate(V(0, 0, 0), V(*EJES[f"+{eje}"]), float(grados))
+        forma.translate(V(*p["en"]))
+        return forma
     if p["tipo"] == "caja":
         a, b = p["min"], p["max"]
         return Part.makeBox(b[0] - a[0], b[1] - a[1], b[2] - a[2], V(*a))
@@ -106,6 +133,13 @@ def barrido(p, d, largo):
     import Part
 
     V = FreeCAD.Vector
+    if p["tipo"] == "step":
+        # Una forma cualquiera no tiene barrido exacto barato (extruir sus
+        # caras falló en dos de tres ejes con el soporte del 608ZZ, y unir
+        # copias desplazadas tardó 4 min por eje, 2026-11-09): el hueco que
+        # deja una pieza impresa es su envolvente. Si entra de verdad lo
+        # mide `componente_entra`, con la forma real paso a paso.
+        p = {"tipo": "caja", "min": p["min"], "max": p["max"]}
     if p["tipo"] == "caja":
         a, b = list(p["min"]), list(p["max"])
         for n in range(3):

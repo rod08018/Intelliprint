@@ -105,6 +105,10 @@ def build_part(
     # saber dónde dijo el programa que va cada componente (F6.11 (biblioteca)).
     (carpeta / "rasgos.json").write_text(json.dumps(resultado.rasgos, ensure_ascii=False,
                                                     indent=1), encoding="utf-8")
+    # Y su envolvente en su propio marco: con ella se ficha la pieza sin
+    # abrir FreeCAD (F7.1 (fichar)).
+    (carpeta / "envolvente.json").write_text(json.dumps(
+        {"min": resultado.bbox_min, "max": resultado.bbox_max}), encoding="utf-8")
     return resultado
 
 

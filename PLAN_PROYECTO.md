@@ -357,9 +357,21 @@ Es una sola corrida (F6.13 (ruido)); la subida, 25 puntos, supera los ±10 de di
 
 Que el banco esté al 100 % no quiere decir que el sistema esté terminado: quiere decir que este banco ya no distingue. Sigue siendo una sola corrida, los diez encargos son conocidos, y el siguiente paso es F6.13 (ruido): repeticiones y encargos nuevos que el diseñador no haya visto, como el soporte del 608ZZ.
 
-**Objetivo:** 60 % de media en tres corridas con el techo de hoy, y 75 % cuando F6.12 (techo) lo suba. Las fases 7 y 8 (revisión visual y estética) van después: con piezas que no se construyen no hay nada que mirar.
+**Objetivo:** 60 % de media en tres corridas con el techo de hoy, y 75 % cuando F6.12 (techo) lo suba. Las fases 8 y 9 (revisión visual y estética) van después: con piezas que no se construyen no hay nada que mirar.
 
-**Visión.** DeepSeek Flash acepta imágenes (`image_url` en base64; ver api-docs.deepseek.com/guides/vision). El cliente de este repo ya las manda desde F5.2 (adjuntos) —comprobado el 2026-09-21: una imagen roja, «Rojo»—, así que F6.9 (vistas) y las fases 7 y 8 **no esperan** a los modelos locales de F0.11 (migrar).
+**Visión.** DeepSeek Flash acepta imágenes (`image_url` en base64; ver api-docs.deepseek.com/guides/vision). El cliente de este repo ya las manda desde F5.2 (adjuntos) —comprobado el 2026-09-21: una imagen roja, «Rojo»—, así que F6.9 (vistas) y las fases 8 y 9 **no esperan** a los modelos locales de F0.11 (migrar).
+
+### Fase 7 — Proyectos por partes («obras»)
+
+Un proyecto grande se diseña **pieza a pieza**, con el visto bueno de la persona en cada paso. Las piezas sueltas ya salen (el banco al 100 %, el soporte del 608ZZ útil al tercer intento, 2026-11-09), pero los mecanismos se piensan de una sola vez: `MechanismDesignerAgent.design` saca en una llamada todo el `MechanismSpec`, y la Ginebra murió ahí. El principio: **una pieza terminada es una ficha**, y la siguiente se diseña contra ella con la maquinaria de F6.11 (biblioteca). Fuera de los mecanismos no hay simulación: una pieza sola solo se mide.
+
+| ID | Tarea | Criterio de aceptación |
+|----|-------|------------------------|
+| F7.1 | **Una pieza terminada es una ficha** (fichar): `fichar()` guarda su STEP construido y sus agujeros con nombre; el `Cuerpo` de una ficha puede ser un `step`; `componente_cabe` lo mide con la forma real y `componente_entra` paso a paso; su `hueco()` es la envolvente con holgura | Una tapa diseñada contra un soporte fichado casa sus agujeros y cabe; desplazada 1 mm, falla nombrando el soporte; un pasador impreso entra por donde hay camino y no por el otro lado. **Hecho (2026-11-09).** El barrido exacto de una forma cualquiera no sale barato (extruir caras falló en 2 de 3 ejes; unir copias, 4 min por eje), por eso el hueco es la envolvente |
+| F7.2 | **El desglose** (desglose): un agente propone el árbol del proyecto (nodos pieza o conjunto, con lo que cada uno ofrece y necesita); la persona lo aprueba; cada nodo corre el flujo de pieza con las fichas de los nodos de los que depende | Una petición pequeña da un solo nodo y se comporta como hoy; una grande da hojas del tamaño de un encargo del banco |
+| F7.3 | **El árbol en la web y en Crafty** (arbol): estado por nodo, «Siguiente», «Está bien, la siguiente» (congela y ficha), «impresa y probada», rehacer con aviso a los dependientes, imprimir un nodo suelto | El pan-tilt de dos SG90 se hace de punta a punta desde la web |
+| F7.4 | **Los mecanismos como conjuntos** (conjunto): el nodo lleva solo la cinemática; se verifica con los STEP congelados de sus hijos (barrido, apoyos, bloqueos) y el defecto vuelve al nodo que lo causa | El trinquete rehecho como obra sigue saliendo; la Ginebra se relanza |
+| F7.5 | **Obras en el banco** (obras): encargos de varias piezas con oráculo por nodo y aserciones de encaje entre nodos | El pan-tilt y el soporte del 608ZZ con su polea, en el banco; los diez encargos de pieza no bajan |
 
 ---
 

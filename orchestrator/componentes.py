@@ -7,6 +7,7 @@ dice qué es sólido (`cuerpos`), qué hay que dejar libre (`despejar`: cable,
 haz de sonido) y dónde se atornilla (`fijacion`).
 """
 
+import os
 import re
 from pathlib import Path
 from typing import Literal
@@ -42,12 +43,22 @@ class Cilindro(BaseModel):
         return self
 
 
+class Step(BaseModel):
+    """La forma real de una pieza impresa (F7.1 (fichar)): su STEP construido
+    y la envolvente en su propio marco, que el orquestador lee sin FreeCAD."""
+    ruta: str
+    min: list[float]
+    max: list[float]
+
+
 class Cuerpo(BaseModel):
-    """Una caja (`caja` = tamaño, `en` = esquina mínima) o un cilindro (`en` =
-    centro de la base, creciendo en `eje`), en el marco del componente."""
+    """Una caja (`caja` = tamaño, `en` = esquina mínima), un cilindro (`en` =
+    centro de la base, creciendo en `eje`) o la forma de una pieza impresa
+    (`step`, desplazada `en`), en el marco del componente."""
     nombre: str
     caja: list[float] | None = None
     cilindro: Cilindro | None = None
+    step: Step | None = None
     en: list[float]
     porque: str = ""
     gira_con: str = ""
@@ -58,8 +69,8 @@ class Cuerpo(BaseModel):
 
     @model_validator(mode="after")
     def _una_forma(self):
-        if (self.caja is None) == (self.cilindro is None):
-            raise ValueError(f"«{self.nombre}» tiene que ser una caja o un cilindro")
+        if [self.caja, self.cilindro, self.step].count(None) != 2:
+            raise ValueError(f"«{self.nombre}» tiene que ser una caja, un cilindro o un step")
         if self.caja is not None and (len(self.caja) != 3 or min(self.caja) <= 0):
             raise ValueError(f"«{self.nombre}»: una caja son tres medidas positivas")
         if len(self.en) != 3:
@@ -87,6 +98,11 @@ class Ficha(BaseModel):
     verificado: bool = False
     """Solo si alguien lo midió con calibre: una hoja de datos puede no
     coincidir con la unidad que tiene la persona."""
+    origen: Literal["comprado", "impreso"] = "comprado"
+    """«impreso»: una pieza que diseñó este sistema y se congeló para diseñar
+    las siguientes contra ella (F7.1 (fichar))."""
+    proyecto: str = ""
+    """De qué proyecto sale una pieza impresa."""
     fuentes: list[Fuente] = Field(min_length=1)
     marco: str
     mira: Eje
@@ -96,15 +112,36 @@ class Ficha(BaseModel):
     notas: str = ""
 
 
+def bibliotecas() -> list[Path]:
+    """La biblioteca de lo comprado y, con `INTELLIPRINT_FICHAS` (carpetas
+    separadas por `os.pathsep`), las fichas de piezas impresas de una obra
+    (F7.1 (fichar)): son de ese proyecto, no de `library/`."""
+    extra = [Path(p) for p in os.environ.get("INTELLIPRINT_FICHAS", "").split(os.pathsep) if p]
+    return [BIBLIOTECA, *extra]
+
+
+def _ruta(id_: str) -> Path | None:
+    for carpeta in bibliotecas():
+        if (carpeta / f"{id_}.yaml").is_file():
+            return carpeta / f"{id_}.yaml"
+    return None
+
+
 def ids() -> list[str]:
-    return sorted(p.stem for p in BIBLIOTECA.glob("*.yaml"))
+    return sorted({p.stem for c in bibliotecas() for p in c.glob("*.yaml")})
 
 
 def cargar(id_: str) -> Ficha:
-    ruta = BIBLIOTECA / f"{id_}.yaml"
-    if not ruta.is_file():
+    ruta = _ruta(id_)
+    if ruta is None:
         raise KeyError(f"no hay ficha de «{id_}»; hay: {', '.join(ids()) or 'ninguna'}")
-    return Ficha(**yaml.safe_load(ruta.read_text(encoding="utf-8")))
+    ficha = Ficha(**yaml.safe_load(ruta.read_text(encoding="utf-8")))
+    # La ruta del STEP va relativa a la ficha: la obra se puede mover o
+    # montar en otra carpeta (el contenedor) y la ficha sigue valiendo.
+    for c in ficha.cuerpos:
+        if c.step and not Path(c.step.ruta).is_absolute():
+            c.step.ruta = str((ruta.parent / c.step.ruta).resolve())
+    return ficha
 
 
 def primitivas(ficha: Ficha, en=(0, 0, 0), giros=(), de="cuerpos") -> list[dict]:
@@ -137,7 +174,7 @@ def de_la_ficha(texto: str) -> list[str]:
 def envolvente(ficha: Ficha, de="cuerpos") -> tuple[list[float], list[float]]:
     minimos, maximos = [], []
     for p in primitivas(ficha, de=de):
-        if p["tipo"] == "caja":
+        if p["tipo"] in ("caja", "step"):
             minimos.append(p["min"])
             maximos.append(p["max"])
             continue
@@ -154,6 +191,12 @@ def _g(v) -> str:
 
 
 def _forma(c: Cuerpo) -> str:
+    if c.step:
+        a, b = c.step.min, c.step.max
+        return (f"la forma real de la pieza (STEP), envolvente "
+                f"{' × '.join(_g(y - x) for x, y in zip(a, b))} de "
+                f"({', '.join(_g(v + o) for v, o in zip(a, c.en))}) a "
+                f"({', '.join(_g(v + o) for v, o in zip(b, c.en))})")
     if c.caja:
         return f"caja {' × '.join(_g(v) for v in c.caja)} desde ({', '.join(_g(v) for v in c.en)})"
     k = c.cilindro
@@ -162,13 +205,21 @@ def _forma(c: Cuerpo) -> str:
             f"({', '.join(_g(v) for v in c.en)})")
 
 
+def fuente(url: str) -> str:
+    """El sitio de una fuente, o la fuente tal cual si no es una URL (una
+    pieza impresa cita su proyecto)."""
+    return (urlparse(url).hostname or url).removeprefix("www.")
+
+
 def resumen(ficha: Ficha) -> str:
     """Lo que el ingeniero y el diseñador leen de un componente: su tamaño,
     qué choca, qué hay que dejar libre y por qué, dónde se atornilla, y que
     nadie lo ha medido con calibre."""
     a, b = envolvente(ficha)
-    fuentes = sorted({urlparse(f.url).hostname.removeprefix("www.") for f in ficha.fuentes})
+    fuentes = sorted({fuente(f.url) for f in ficha.fuentes})
     medido = "medido con calibre" if ficha.verificado else "sin verificar con calibre"
+    if ficha.origen == "impreso":
+        medido = f"pieza impresa en este proyecto, {medido}"
     lineas = [
         f"### `{ficha.id}`: {ficha.nombre} ({medido}; fuentes: {', '.join(fuentes)})",
         f"Marco de la ficha: {ficha.marco.strip()}",

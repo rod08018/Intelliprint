@@ -551,3 +551,24 @@ Y una realidad del punto de partida: la clase `robot` solo existe en `spec.py`. 
 - **El plástico no flexa**: los eslabones son rígidos. Un brazo largo de PLA que cede no se ve aquí; es lo que mide la sección (F6.12) con su factor de seguridad.
 - **Sin sensores** (cámaras, lidar) de momento: el robot de referencia (H4) solo tiene servos.
 - Que el límite de esfuerzo del URDF frene de verdad a una articulación mandada **en posición** depende de cómo `gz_ros2_control` lo traslade al motor de física. Por eso F4.13 lo comprueba con un servo sembrado demasiado débil, que tiene que quedarse corto; si no se queda, la articulación se manda en esfuerzo con un PID.
+
+---
+
+## ADR-018 · Una pieza terminada es una ficha: los proyectos se diseñan por partes
+
+**Estado:** aceptada (2026-11-09) · **Afecta a:** Fase 7 (F7.1–F7.5), ADR-011, ADR-013, ADR-016
+
+**Problema.** Las piezas sueltas salen: el banco va al 100 % y el soporte del 608ZZ fue útil al tercer intento. Los mecanismos no. `MechanismDesignerAgent.design` pide en **una sola llamada** todo el mecanismo (piezas, juntas, apoyos y bloqueos). La Ginebra murió ahí: el razonador se cortó tres veces. Y las piezas de un mecanismo se dibujan **a ciegas**: ninguna se diseña contra la forma real de otra, y ninguna pasa por las sondas del kit.
+
+**Decisión.** Decidida con el usuario el 2026-11-09.
+
+1. **Un proyecto grande se parte en un árbol** de nodos (pieza o conjunto), y se diseña **un nodo cada vez**, con el visto bueno de la persona en cada paso. Cada hoja es del tamaño de un encargo del banco, que es lo que ya sale.
+2. **Una pieza terminada es una ficha** (`orchestrator/obra.py:fichar`). Guarda su STEP construido y sus agujeros con nombre. La siguiente pieza la coloca con `kit.componente` y se mide con `componente_cabe` y `componente_entra`, igual que un 608ZZ comprado.
+3. **Sin simulación fuera de los mecanismos.** Una pieza sola solo se **mide** (cabe, entra, tornillo accesible, pared). El barrido de posiciones, los apoyos y los bloqueos son de los nodos `conjunto`.
+4. **«Lista» la decide la persona** con su visto bueno en la web. «Impresa y probada» es otra marca, que no frena el avance.
+
+**Por qué no es el etiquetado circular de ADR-011.** La ficha de una pieza impresa es su **geometría construida**, el STEP que salió de FreeCAD, no lo que el programa dijo haber hecho. Medir la pieza B contra esa forma es medir contra algo que existe. Lo único que viene del programa son los **nombres** de sus agujeros, igual que en ADR-016: el programa declara *dónde*, y la forma se mide.
+
+**Límites conocidos.**
+- **El hueco de una pieza impresa es su envolvente.** Barrer de forma exacta una forma cualquiera no sale barato: con el soporte del 608ZZ, extruir sus caras falló en 2 de 3 ejes, y unir copias desplazadas tardó 4 minutos por eje. Así que `hueco()` talla la caja envolvente con holgura. Para casar dos piezas impresas se usan sus agujeros y `punto()`. Si una entra de verdad lo mide `componente_entra`, con la forma real cada 0,5 mm.
+- **Solo los agujeros de eje alineado** pasan a la ficha: son los que una ficha sabe girar en cuartos de vuelta.
