@@ -191,3 +191,71 @@ def test_cada_tornillo_lleva_su_sonda_de_acceso_con_la_cabeza_iso_4762():
     acceso = {s.nombre: s.diametro_mm for s in sondas_de([], rasgos)
               if isinstance(s, AccesoTornillo)}
     assert acceso == {"m5": 8.5, "m3": 6.5}
+
+
+# --- una brida tiene que apretar algo ----------------------------------------------------
+# Las dos bases del pan-tilt (2026-11-09) salieron «resueltas» con una brida
+# que no apretaba el servo, y ninguna sonda lo veía. Rasgos copiados de sus
+# rasgos.json; la cabeza del M3 entra por y = 34 hacia -y y la tuerca está
+# en y = 21.8–24.2, en x = 35, z = 10. El alojamiento del servo llega a y = 18.5.
+_SERVO = {"nombre": "alojamiento_sg90", "tipo": "hueco", "desde": [18.8, 5.9, -0.1],
+          "hasta": [51.2, 18.5, 2026.8]}
+_TUERCA = {"nombre": "tuerca_brida_m3", "tipo": "tuerca", "entrecaras_mm": 5.9,
+           "entrada": [35.0, 21.8, 10.0], "eje": [0.0, 1.0, 0.0], "profundidad_mm": 2.4}
+_RANURA_TUERCA = {"nombre": "ranura_tuerca_m3", "tipo": "hueco", "desde": [31.5, 21.8, 10.0],
+                  "hasta": [38.5, 24.2, 19.5]}
+_ALIVIO = {"nombre": "alivio_cable_atras", "tipo": "hueco", "desde": [28.0, 17.0, -1.0],
+           "hasta": [36.0, 35.0, 4.5]}
+
+
+def _tornillo(profundidad):
+    return {"nombre": "pasante_brida_m3", "tipo": "agujero", "diametro_mm": 3.3,
+            "entrada": [35.0, 34.0, 10.0], "eje": [0.0, -1.0, 0.0],
+            "profundidad_mm": profundidad, "tornillo": "M3"}
+
+
+def _ranura(y0):
+    return {"nombre": "ranura_brida", "tipo": "hueco", "desde": [24.0, y0, 6.0],
+            "hasta": [46.0, y0 + 2.0, 19.5]}
+
+
+def test_una_brida_cuya_ranura_no_da_al_servo_no_aprieta():
+    """La segunda base: el tornillo (y 34 → 19.8) cruza la ranura (26.8–28.8),
+    pero entre la ranura y el servo (18.5) quedan 8.3 mm de bloque macizo."""
+    from orchestrator.medida import bridas_que_no_aprietan
+    [d] = bridas_que_no_aprietan([_SERVO, _TUERCA, _RANURA_TUERCA, _tornillo(14.2),
+                                  _ranura(26.8), _ALIVIO])
+    assert "«ranura_brida»" in d and "no da a ningún hueco" in d
+
+
+def test_una_brida_cuyo_tornillo_no_cruza_la_ranura_no_aprieta():
+    """La base corregida: la ranura (17.6–19.6) da al servo, pero el
+    tornillo acaba en y = 20.4; cabeza y tuerca quedan del mismo lado."""
+    from orchestrator.medida import bridas_que_no_aprietan
+    [d] = bridas_que_no_aprietan([_SERVO, _TUERCA, _RANURA_TUERCA, _tornillo(13.6),
+                                  _ranura(17.6), _ALIVIO])
+    assert "«pasante_brida_m3»" in d and "cruzar" in d.casefold()
+
+
+def test_una_brida_que_corta_la_pared_y_cruza_el_tornillo_si_aprieta():
+    """Una brida de verdad: la ranura corta la pared de detrás del servo en
+    x = 39–41, de y = 18.5 (el alojamiento) a 34; el tornillo va en x, con
+    la cabeza en x = 46 y la tuerca en x = 34, y la cruza."""
+    from orchestrator.medida import bridas_que_no_aprietan
+    ranura = {"nombre": "corte", "tipo": "hueco", "desde": [39.0, 18.5, 6.0],
+              "hasta": [41.0, 34.0, 19.5]}
+    tornillo = {"nombre": "apriete", "tipo": "agujero", "diametro_mm": 3.3,
+                "entrada": [46.0, 26.0, 10.0], "eje": [-1.0, 0.0, 0.0],
+                "profundidad_mm": 14.0, "tornillo": "M3"}
+    tuerca = {"nombre": "tuerca", "tipo": "tuerca", "entrecaras_mm": 5.9,
+              "entrada": [34.0, 26.0, 10.0], "eje": [-1.0, 0.0, 0.0], "profundidad_mm": 2.4}
+    assert bridas_que_no_aprietan([_SERVO, ranura, tornillo, tuerca]) == []
+
+
+def test_un_tornillo_sin_tuerca_en_la_pieza_no_es_una_brida():
+    """Los M4 que fijan la base a la mesa no aprietan nada de la pieza."""
+    from orchestrator.medida import bridas_que_no_aprietan
+    m4 = {"nombre": "fijacion", "tipo": "agujero", "diametro_mm": 4.5,
+          "entrada": [8.0, 28.0, 18.5], "eje": [0.0, 0.0, -1.0], "profundidad_mm": None,
+          "tornillo": "M4"}
+    assert bridas_que_no_aprietan([_SERVO, m4]) == []

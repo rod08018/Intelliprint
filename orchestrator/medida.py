@@ -196,6 +196,88 @@ def mensaje_de_pared(detalle: str, rasgos, pared_min_mm) -> str:
     return texto + "; suele ser un hueco o un agujero demasiado cerca de una cara"
 
 
+def _unitario(v):
+    n = math.sqrt(sum(c * c for c in v)) or 1.0
+    return [c / n for c in v]
+
+
+def _en_caja(p, caja, margen=1e-6) -> bool:
+    return all(lo + margen < x < hi - margen
+               for x, lo, hi in zip(p, caja["desde"], caja["hasta"]))
+
+
+def _de_caja_a_caja(a, b) -> float:
+    huecos = [max(0.0, a["desde"][i] - b["hasta"][i], b["desde"][i] - a["hasta"][i])
+              for i in range(3)]
+    return math.sqrt(sum(h * h for h in huecos))
+
+
+def _de_caja_a_agujero(caja, ag) -> float:
+    """Del cilindro del agujero a la caja, muestreando su eje: basta para
+    saber si se tocan."""
+    e = _unitario(ag["eje"])
+    largo = ag.get("profundidad_mm") or 500.0
+    r = (ag.get("diametro_mm") or 0) / 2
+    pasos = max(int(largo / 0.25), 1)
+    mejor = math.inf
+    for k in range(pasos + 1):
+        p = [a + c * largo * k / pasos for a, c in zip(ag["entrada"], e)]
+        fuera = [max(lo - x, 0.0, x - hi) for x, lo, hi in zip(p, caja["desde"], caja["hasta"])]
+        mejor = min(mejor, math.sqrt(sum(f * f for f in fuera)))
+    return max(mejor - r, 0.0)
+
+
+def bridas_que_no_aprietan(rasgos) -> list[str]:
+    """Un tornillo con su tuerca dentro de la misma pieza es una brida: al
+    apretarlo tiene que cerrarse una ranura, y esa ranura tiene que dar a lo
+    que se sujeta. Las dos bases del pan-tilt (2026-11-09) salieron
+    «resueltas» sin apretar el servo: en una, la ranura quedaba a 8 mm de él
+    tras un bloque macizo; en la otra, la ranura daba al servo pero cabeza y
+    tuerca quedaban del mismo lado. Se mide con los rasgos del kit, sin
+    FreeCAD. Que el labio sea bastante fino para doblarse NO se mide."""
+    agujeros = [r for r in rasgos if r.get("tipo") == "agujero"]
+    tuercas = [r for r in rasgos if r.get("tipo") == "tuerca"]
+    huecos = [r for r in rasgos if r.get("tipo") == "hueco"]
+    fallos = []
+    for tu in tuercas:
+        et = _unitario(tu["eje"])
+        for ag in agujeros:
+            ea = _unitario(ag["eje"])
+            if abs(sum(x * y for x, y in zip(ea, et))) < 0.99:
+                continue
+            d = [t - a for t, a in zip(tu["entrada"], ag["entrada"])]
+            t = sum(x * y for x, y in zip(d, ea))
+            if math.sqrt(max(sum(x * x for x in d) - t * t, 0.0)) > 0.5 or t <= 0:
+                continue   # no es su tuerca: no está en su eje, o está detrás de la cabeza
+            # De la cabeza a la cara de la tuerca más cercana, sin tocarla.
+            prof = tu.get("profundidad_mm") or 0.0
+            cara = min(t, t + prof * sum(x * y for x, y in zip(et, ea)))
+            fin = cara - 0.1
+            pasos = max(int(fin / 0.1), 1)
+            puntos = [[a + c * fin * k / pasos for a, c in zip(ag["entrada"], ea)]
+                      for k in range(pasos + 1)]
+            cruzadas = [h for h in huecos if any(_en_caja(p, h) for p in puntos)]
+            if not cruzadas:
+                fallos.append(
+                    f"brida: «{ag['nombre']}» y «{tu['nombre']}» aprietan material macizo; entre "
+                    "la cabeza del tornillo y la tuerca no hay ninguna ranura que se cierre. El "
+                    "tornillo tiene que CRUZAR la ranura de la brida, con la cabeza a un lado y "
+                    "la tuerca al otro")
+                continue
+            for r in cruzadas:
+                otros = [h for h in huecos if h is not r and _de_caja_a_caja(r, h) <= 0.2
+                         and not any(_en_caja(p, h) for p in puntos)]
+                otros += [a for a in agujeros if a is not ag and _de_caja_a_agujero(r, a) <= 0.2]
+                otros = [o for o in otros if o is not tu]
+                if not otros:
+                    fallos.append(
+                        f"brida: la ranura «{r['nombre']}», que cierra «{ag['nombre']}», no da a "
+                        "ningún hueco ni agujero: al apretar se cierra sobre sí misma y no sujeta "
+                        "nada. Tiene que abrirse al alojamiento de lo que sujeta, y dejar que la "
+                        "parte que se cierra se doble")
+    return fallos
+
+
 def componentes_sin_colocar(componentes, rasgos) -> list[str]:
     """Los componentes que el concepto nombra y el programa no coloca: sin
     colocarlos no se puede comprobar que quepan."""
@@ -217,6 +299,7 @@ def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
 
     fallos = defectos(requisitos, resultado.rasgos, agujeros_del_perfil)
     fallos += componentes_sin_colocar(componentes, resultado.rasgos)
+    fallos += bridas_que_no_aprietan(resultado.rasgos)
     sondas = sondas_de(requisitos, resultado.rasgos, pared_min_mm)
     for sonda, medida in zip(sondas, medir_sondas(step, sondas, freecadcmd, material)):
         if medida.estado != "no_cumple":
