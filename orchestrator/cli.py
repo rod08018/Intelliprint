@@ -554,6 +554,27 @@ def _obra(args, raiz: Path, env: dict, nombre: str) -> None:
     if estado == "concepto por aprobar":
         print(f"[{nombre}] ✋ «{nombre_nodo}»: el concepto espera tu visto bueno")
         return
+    if estado == "con choques":
+        print(f"[{nombre}] ✋ «{nombre_nodo}» choca al moverse: corrige la pieza que choca")
+        return
+    if estado == "por verificar":
+        # F7.4 (conjunto): con sus piezas listas, se mueve entero en FreeCAD.
+        from orchestrator.conjunto import verificar_conjunto
+        dir_nodo = carpeta / obra.NODOS / nodo
+        dir_nodo.mkdir(parents=True, exist_ok=True)
+        print(f"[{nombre}] «{nombre_nodo}»: se mueve por todo su recorrido…", flush=True)
+        with latir(carpeta), latir(dir_nodo):
+            v = verificar_conjunto(carpeta, nodo, _freecadcmd(env),
+                                   min_gap_mm=_perfil(raiz, env).fit_mm("slide") / 2)
+        for a in v["articulaciones"]:
+            print(f"  «{a['pieza']}» gira con el {a['de']} de «{a['padre']}», "
+                  f"de {a['recorrido'][0]:g}° a {a['recorrido'][1]:g}°", flush=True)
+        if v["ok"]:
+            print(f"[{nombre}] ✓ «{nombre_nodo}» se mueve sin chocar")
+        else:
+            print("\n".join(f"  - {r}" for r in v["resumen"]))
+            print(f"[{nombre}] ✋ «{nombre_nodo}» choca al moverse: corrige la pieza que choca")
+        return
     # Las piezas ya terminadas, como fichas: el nodo se diseña contra ellas
     # con `kit.componente`, igual que contra un 608ZZ comprado.
     fichas = str(obra.carpeta_de_fichas(carpeta))

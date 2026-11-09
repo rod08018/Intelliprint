@@ -231,3 +231,46 @@ def test_un_proyecto_de_varias_piezas_se_pide_desde_la_portada(tmp_path):
     r = web.post("/api/disenar", json={"peticion": "un pan-tilt", "tipo": "obra"})
     assert r.status_code == 200, r.text
     assert "'obra'" in _esperar_registro(tmp_path / "projects" / r.json()["id"])
+
+
+# --- el conjunto, moviéndolo (F7.4 (conjunto)) ---------------------------------------------
+
+def _conjunto_movido(ws, ok):
+    from orchestrator.schemas.obra import Obra
+    from tests.test_obra import PANTILT
+    carpeta = ws / "projects" / ID
+    carpeta.mkdir(parents=True)
+    (carpeta / "request.md").write_text("un pan-tilt\n", encoding="utf-8")
+    conjunto = {"id": "pan-tilt", "nombre": "Conjunto pan-tilt", "tipo": "conjunto",
+                "que_hace": "gira e inclina", "depende_de": ["base", "giro", "inclinacion"]}
+    O.guardar(carpeta, Obra(**{**PANTILT, "nodos": [*PANTILT["nodos"], conjunto]}), por="prueba")
+    O.aprobar(carpeta, por="prueba")
+    for i in ("base", "giro", "inclinacion"):
+        (carpeta / "nodos" / i).mkdir(parents=True)
+        (carpeta / "nodos" / i / "lista.json").write_text('{"por": "web"}', encoding="utf-8")
+    choque = ("«Soporte de inclinación» y «Soporte de giro» chocan con «Soporte de inclinación» "
+              "girada de -90° a -60° (se meten 41.0 mm³ una en otra)")
+    (carpeta / "nodos" / "pan-tilt").mkdir()
+    (carpeta / "nodos" / "pan-tilt" / "verificacion.json").write_text(json.dumps({
+        "ok": ok, "resumen": [] if ok else [choque], "choques": [],
+        "articulaciones": [
+            {"pieza": "giro", "padre": "base", "de": "sg90", "recorrido": [-90, 90]},
+            {"pieza": "inclinacion", "padre": "giro", "de": "sg90", "recorrido": [-90, 90]}]}),
+        encoding="utf-8")
+    return choque
+
+
+def test_el_conjunto_que_choca_dice_en_que_angulos_y_con_que(tmp_path):
+    choque = _conjunto_movido(tmp_path, ok=False)
+    texto = _visible(_ws_con_trabajos(tmp_path).get(f"/p/{ID}").text)
+    assert "Choca al moverse" in texto
+    assert choque in texto
+    assert "Soporte de giro gira con el sg90 de Base, de -90° a 90°" in texto
+
+
+def test_el_conjunto_que_se_mueve_libre_lo_dice_y_la_obra_esta_terminada(tmp_path):
+    _conjunto_movido(tmp_path, ok=True)
+    texto = _visible(_ws_con_trabajos(tmp_path).get(f"/p/{ID}").text)
+    assert "Se mueve entero sin chocar" in texto
+    assert "Todas las piezas están listas" in texto
+    assert "Espera a" not in texto

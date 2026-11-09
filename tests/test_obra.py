@@ -337,6 +337,37 @@ def test_contestar_al_concepto_no_crea_requisitos(tmp_path):
     assert "Ø6.9" in _de_la_vuelta_anterior(nodo)["cambios"]
 
 
+# --- el conjunto (F7.4 (conjunto)) ---------------------------------------------------------
+
+def _con_conjunto(tmp_path):
+    conjunto = {"id": "pan-tilt", "nombre": "Conjunto pan-tilt", "tipo": "conjunto",
+                "que_hace": "gira e inclina", "depende_de": ["base", "giro", "inclinacion"]}
+    O = _empezar(tmp_path, _obra(nodos=[*PANTILT["nodos"], conjunto]))
+    O.aprobar(tmp_path, por="web")
+    for i in ("base", "giro", "inclinacion"):
+        (tmp_path / "nodos" / i).mkdir(parents=True)
+        (tmp_path / "nodos" / i / "lista.json").write_text('{"por": "web"}', encoding="utf-8")
+    return O
+
+
+def test_con_sus_piezas_listas_el_conjunto_es_lo_siguiente_y_espera_verificarse(tmp_path):
+    """Antes se quedaba «sin verificar» para siempre y la obra salía terminada."""
+    O = _con_conjunto(tmp_path)
+    assert O.estados(tmp_path)["pan-tilt"] == "por verificar"
+    assert O.siguiente(tmp_path) == "pan-tilt"
+
+
+@pytest.mark.parametrize("ok, estado, siguiente", [(True, "verificado", None),
+                                                    (False, "con choques", "pan-tilt")])
+def test_el_conjunto_queda_como_dijo_su_verificacion(tmp_path, ok, estado, siguiente):
+    O = _con_conjunto(tmp_path)
+    (tmp_path / "nodos" / "pan-tilt").mkdir()
+    (tmp_path / "nodos" / "pan-tilt" / "verificacion.json").write_text(
+        json.dumps({"ok": ok, "choques": [], "resumen": []}), encoding="utf-8")
+    assert O.estados(tmp_path)["pan-tilt"] == estado
+    assert O.siguiente(tmp_path) == siguiente
+
+
 # --- la orden -----------------------------------------------------------------------------
 
 def test_la_orden_obra_para_en_el_desglose_y_luego_disena_el_nodo_que_toca(

@@ -33,6 +33,25 @@ datos = json.load(open({entrada!r}))
 formas = {{n: Part.read(p) for n, p in datos["parts"].items()}}
 for n, (d, largo) in datos["pins"].items():
     formas[n] = Part.makeCylinder(d / 2, largo)
+# Lo comprado que va montado en una pieza (el cuerpo de un servo), de cajas
+# y cilindros de su ficha ya colocados: se mueve con su pieza.
+for n, primitivas in (datos.get("solidos") or dict()).items():
+    trozos = []
+    for p in primitivas:
+        if p["tipo"] == "caja":
+            a, b = p["min"], p["max"]
+            trozos.append(Part.makeBox(b[0] - a[0], b[1] - a[1], b[2] - a[2],
+                                       FreeCAD.Vector(*a)))
+        else:
+            base, eje = FreeCAD.Vector(*p["base"]), FreeCAD.Vector(*p["eje"])
+            c = Part.makeCylinder(p["diametro"] / 2, p["alto"], base, eje)
+            if p.get("interior"):
+                c = c.cut(Part.makeCylinder(p["interior"] / 2, p["alto"], base, eje))
+            trozos.append(c)
+    forma = trozos[0]
+    for t in trozos[1:]:
+        forma = forma.fuse(t)
+    formas[n] = forma
 
 
 def colocar(forma, pose):
@@ -77,6 +96,9 @@ else:
     for frame in datos["frames"]:
         colocadas = {{n: colocar(f, frame["poses"][n]) for n, f in formas.items()}}
         for a, b in itertools.combinations(sorted(colocadas), 2):
+            minimo, maximo = datos["rules"].get(a + "|" + b, (datos["min_gap"], None))
+            if minimo < -1e8 and maximo is None:
+                continue   # un par que no se mide: no se gasta en medirlo
             fa, fb = colocadas[a], colocadas[b]
             dist = fa.distToShape(fb)[0]
             if dist < 1e-4:
@@ -84,7 +106,6 @@ else:
                 # el volumen común distingue un choque de verdad.
                 comun = fa.common(fb).Volume
                 dist = -comun if comun > 1e-3 else 0.0
-            minimo, maximo = datos["rules"].get(a + "|" + b, (datos["min_gap"], None))
             if dist < minimo - 1e-6:
                 choques.append({{"angle": frame["angle"], "a": a, "b": b, "gap_mm": dist,
                                  "min_gap_mm": minimo, "kind": "choque"}})
@@ -147,10 +168,11 @@ def _run(datos: dict, freecadcmd: str) -> dict:
     raise RuntimeError(f"el ensamble falló:\n{(proceso.stdout + proceso.stderr)[-800:]}")
 
 
-def _datos(parts, pins, frames: dict[float, dict[str, Placement]]) -> dict:
+def _datos(parts, pins, frames: dict[float, dict[str, Placement]], solidos=None) -> dict:
     return {
         "parts": {n: str(Path(p).resolve()) for n, p in parts.items()},
         "pins": {n: list(v) for n, v in pins.items()},
+        "solidos": solidos or {},
         "frames": [
             {"angle": a, "poses": {n: p.model_dump() for n, p in poses.items()}}
             for a, poses in frames.items()
@@ -164,11 +186,13 @@ def build_assembly(
     poses: dict[str, Placement],
     fcstd: Path,
     freecadcmd: str,
+    solidos: dict[str, list[dict]] | None = None,
 ) -> None:
-    """Guarda el ensamble en `fcstd`, con todo visible."""
+    """Guarda el ensamble en `fcstd`, con todo visible. `solidos`: piezas
+    hechas de cajas y cilindros ({min, max} o {base, eje, diametro, alto})."""
     fcstd = Path(fcstd)
     fcstd.parent.mkdir(parents=True, exist_ok=True)
-    datos = _datos(parts, pins, {0: poses})
+    datos = _datos(parts, pins, {0: poses}, solidos)
     datos["fcstd"] = str(fcstd.resolve())
     objetos = _run(datos, freecadcmd)["objects"]
     # Sin esto FreeCAD lo abre todo oculto (orchestrator/fcstd.py).
@@ -182,9 +206,10 @@ def sweep_collisions(
     min_gap_mm: float,
     freecadcmd: str,
     rules: dict[tuple[str, str], PairRule] | None = None,
+    solidos: dict[str, list[dict]] | None = None,
 ) -> list[Collision]:
     """Pares de piezas que incumplen su regla de hueco, en cada pose."""
-    datos = _datos(parts, pins, frames)
+    datos = _datos(parts, pins, frames, solidos)
     datos["min_gap"] = min_gap_mm
     # El script recorre los pares en orden alfabético: se registran las dos claves.
     datos["rules"] = {

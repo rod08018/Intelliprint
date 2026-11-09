@@ -85,6 +85,18 @@ class Agujero(BaseModel):
     eje: Eje
 
 
+class Salida(BaseModel):
+    """Lo que el componente mueve (el eje de un servo), para verificar un
+    conjunto moviéndolo (F7.4 (conjunto)): la pieza que lo toca gira
+    alrededor de la recta que pasa por `en` en la dirección `eje`."""
+    nombre: str
+    en: list[float]
+    eje: Eje
+    recorrido: tuple[float, float]
+    """En grados, desde el centro del recorrido. De la hoja de datos."""
+    porque: str = ""
+
+
 class Ficha(BaseModel):
     id: str
     nombre: str
@@ -109,6 +121,7 @@ class Ficha(BaseModel):
     cuerpos: list[Cuerpo] = Field(min_length=1)
     despejar: list[Cuerpo] = []
     fijacion: list[Agujero] = []
+    salidas: list[Salida] = []
     notas: str = ""
 
 

@@ -230,9 +230,10 @@ def _estado_pieza(nodo: Path) -> str:
 
 def estados(carpeta: Path) -> dict[str, str]:
     """El estado de cada nodo, en orden: «lista»; «bloqueado» si algo de lo
-    que depende no lo está; «sin verificar» para un conjunto, hasta
-    F7.4 (conjunto); o lo que diga su carpeta: pendiente, concepto por
-    aprobar, concepto aprobado, diseñando, diseñada, con fallos."""
+    que depende no lo está; para un conjunto, lo que dijo su verificación
+    (F7.4 (conjunto)): por verificar, verificando, verificado o con choques;
+    o lo que diga la carpeta de la pieza: pendiente, concepto por aprobar,
+    concepto aprobado, diseñando, diseñada, con fallos."""
     carpeta = Path(carpeta)
     obra = cargar_obra(carpeta)
     salida: dict[str, str] = {}
@@ -240,19 +241,36 @@ def estados(carpeta: Path) -> dict[str, str]:
         n = obra.nodo(i)
         if lista(carpeta, i):
             salida[i] = "lista"
-        elif any(salida[d] != "lista" for d in n.depende_de):
+        elif any(salida[d] not in HECHOS for d in n.depende_de):
             salida[i] = "bloqueado"
         elif n.tipo == "conjunto":
-            salida[i] = "sin verificar"
+            salida[i] = _estado_conjunto(carpeta / NODOS / i)
         else:
             salida[i] = _estado_pieza(carpeta / NODOS / i)
     return salida
 
 
+HECHOS = ("lista", "verificado")
+"""Lo que ya no hay que tocar: una pieza con su visto bueno, o un conjunto
+que se movió entero sin chocar."""
+
+
+def _estado_conjunto(nodo: Path) -> str:
+    from orchestrator.conjunto import VERIFICACION
+    from orchestrator.registry import LATIDO, LATIDO_VALE_S
+    latido = nodo / LATIDO
+    if latido.exists() and time.time() - latido.stat().st_mtime < LATIDO_VALE_S:
+        return "verificando"
+    if not (nodo / VERIFICACION).is_file():
+        return "por verificar"
+    v = json.loads((nodo / VERIFICACION).read_text(encoding="utf-8"))
+    return "verificado" if v.get("ok") else "con choques"
+
+
 def siguiente(carpeta: Path) -> str | None:
     """El nodo en el que se está: el primero, en orden, que se puede tocar."""
     for i, e in estados(carpeta).items():
-        if e not in ("lista", "bloqueado", "sin verificar"):
+        if e not in (*HECHOS, "bloqueado"):
             return i
     return None
 
@@ -266,8 +284,7 @@ def resumen_de_estado(carpeta: Path) -> tuple[str, str]:
     todos = estados(carpeta)
     i = siguiente(carpeta)
     if i is None:
-        sin = [obra.nodo(k).nombre for k, e in todos.items() if e == "sin verificar"]
-        return "aprobado", (f"conjuntos sin verificar: {', '.join(sin)}" if sin else "")
+        return "aprobado", ""
     nombre, e = obra.nodo(i).nombre, todos[i]
     if e == "concepto por aprobar":
         return "por aprobar", f"«{nombre}»: el concepto espera tu visto bueno"
@@ -275,6 +292,8 @@ def resumen_de_estado(carpeta: Path) -> tuple[str, str]:
         return "por aprobar", f"«{nombre}» está diseñada: revísala y da el visto bueno"
     if e == "con fallos":
         return "fallido", f"«{nombre}» no salió del todo: mira su informe"
+    if e == "con choques":
+        return "fallido", f"«{nombre}» choca al moverse: mira en qué ángulos"
     return "incompleto", f"falta «{nombre}» ({e})"
 
 

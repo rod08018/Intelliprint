@@ -39,6 +39,12 @@ despejar:
     cilindro: {diametro: 6.9, alto: 3.6, eje: "+z"}
     en: [5.8, 6.2, 27.1]
     porque: "el eje de salida (TA0233: a 8.75 de la muesca, 5.8 del extremo del cuerpo) sale de 27.1 a 30.7, y en él encaja el cubo del cuerno, de Ø6.9: lo que se acople al eje deja este sitio al cuerno"
+salidas:
+  - nombre: eje
+    en: [5.8, 6.2, 27.1]
+    eje: "+z"
+    recorrido: [-90, 90]
+    porque: "hoja de TowerPro (sg90.pdf): «Servo can rotate approximately 180 degrees (90 in each direction)»; el eje, a 5.8 del extremo y centrado, sale de la carcasa a 27.1 (TA0233)"
 fijacion:
   - nombre: muesca_oreja_eje
     diametro: 2.2

@@ -491,7 +491,10 @@ ESTADOS_DE_NODO = {
     "corrigiendo": ("Corrigiéndose…", "vivo"),
     "diseñada": ("Diseñada: revísala", "ambar"),
     "con fallos": ("No salió del todo", "mal"),
-    "sin verificar": ("Conjunto: su verificación aún no existe", "suave"),
+    "por verificar": ("Por mover entero con las piezas reales", "suave"),
+    "verificando": ("Moviéndose por todo su recorrido…", "vivo"),
+    "verificado": ("Se mueve entero sin chocar", "ok"),
+    "con choques": ("Choca al moverse", "mal"),
 }
 
 
@@ -530,7 +533,7 @@ def _arbol(carpeta: Path, vid: str, bloqueo: str, hay_puente: bool) -> tuple[str
         n, estado = ob.nodo(i), estados[i]
         dir_nodo = carpeta / O.NODOS / i
         if estado == "bloqueado":
-            espera = [ob.nodo(d).nombre for d in n.depende_de if estados[d] != "lista"]
+            espera = [ob.nodo(d).nombre for d in n.depende_de if estados[d] not in O.HECHOS]
             frase, clase = f"Espera a {', '.join(espera)}", "suave"
         else:
             frase, clase = ESTADOS_DE_NODO.get(estado, (estado, "suave"))
@@ -551,6 +554,8 @@ def _arbol(carpeta: Path, vid: str, bloqueo: str, hay_puente: bool) -> tuple[str
         for stl in piezas_de(dir_nodo):
             partes.insert(0, f'<div class="foto-pieza"><img src="/proyectos/{vid}/piezas/'
                              f'{e(stl.stem)}.png" alt="{e(n.nombre)}" loading="lazy"></div>')
+        if n.tipo == "conjunto" and estado in ("verificado", "con choques"):
+            partes.append(_movimiento(ob, _leer(dir_nodo / "verificacion.json") or {}))
         if estado == "concepto por aprobar":
             partes.append(_revision_del_concepto(dir_nodo, _visto_bueno(vid, bloqueo)))
         if estado == "con fallos":
@@ -595,6 +600,27 @@ def _arbol(carpeta: Path, vid: str, bloqueo: str, hay_puente: bool) -> tuple[str
         tarjetas.append(f'<div class="pieza nodo"{actual}>{"".join(partes)}</div>')
     return arriba, (f'<section><h2>Las piezas, una a una</h2>'
                     f'<div class="piezas arbol">{"".join(tarjetas)}</div></section>')
+
+
+def _movimiento(ob, v: dict) -> str:
+    """Qué gira con qué y, si choca, con qué y en qué ángulos: es lo que hay
+    que saber para corregir la pieza que choca (F7.4 (conjunto))."""
+    def nombre(i):
+        try:
+            return ob.nodo(i).nombre
+        except KeyError:
+            return i
+    giros = [f"{nombre(a['pieza'])} gira con el {a['de']} de {nombre(a['padre'])}, "
+             f"de {a['recorrido'][0]:g}° a {a['recorrido'][1]:g}°"
+             for a in v.get("articulaciones") or []]
+    partes = []
+    if giros:
+        partes.append('<ul class="interfaz">' + "".join(f"<li>{e(g)}</li>" for g in giros)
+                      + "</ul>")
+    if v.get("resumen"):
+        partes.append('<div class="aviso mal"><b>Qué choca</b><ul>'
+                      + "".join(f"<li>{e(r)}</li>" for r in v["resumen"]) + "</ul></div>")
+    return "".join(partes)
 
 
 # --- La página de un proyecto -------------------------------------------------------
