@@ -114,6 +114,29 @@ def test_rehacer_avisa_de_lo_que_se_rehace_con_el(tmp_path):
     r = web.post(f"/api/proyectos/{ID}/nodos/base/rehacer", json={"cambio": "más alta"})
     assert r.status_code == 200, r.text
     assert r.json()["rehechos"] == ["base", "giro"]
+    # Construida y con un cambio dicho: se corrige, sin volver al concepto.
+    assert O.estados(carpeta)["base"] == "concepto aprobado"
+
+
+def test_cambiar_una_pieza_disenada_la_corrige_sin_rehacer_el_concepto(tmp_path):
+    """Desde la web, pedir un cambio a una pieza que ya tiene diseño la
+    retoca: no vuelve a pasar por el concepto ni por su visto bueno."""
+    carpeta = _empezar(tmp_path, aprobada=True)
+    _disenar_nodo(carpeta, "base")
+    (carpeta / "nodos" / "base" / "parts" / "base" / "programa.py").write_text(
+        "CODIGO", encoding="utf-8")
+    web = _ws_con_trabajos(tmp_path)
+
+    r = web.post(f"/api/proyectos/{ID}/nodos/base/rehacer",
+                 json={"cambio": "la tuerca más adentro"})
+    assert r.status_code == 200, r.text
+    assert O.estados(carpeta)["base"] == "concepto aprobado"
+    _esperar_registro(carpeta)
+
+    # Y quien de verdad quiera empezar de cero lo pide.
+    r = web.post(f"/api/proyectos/{ID}/nodos/base/rehacer",
+                 json={"cambio": "otra idea", "desde_cero": True})
+    assert r.status_code == 200, r.text
     assert O.estados(carpeta)["base"] == "pendiente"
 
 

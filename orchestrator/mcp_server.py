@@ -186,16 +186,24 @@ def marcar_impresa(proyecto: str, nodo: str, nota: str = "") -> dict:
 
 
 @mcp.tool()
-def rehacer_pieza(proyecto: str, nodo: str, cambio: str = "") -> dict:
-    """Vuelve a diseñar una pieza de un proyecto por partes, con el `cambio`
-    que pida el usuario en sus palabras. Las piezas que se diseñaron contra
-    ella se rehacen también (`rehechos`): díselo ANTES de llamarlo."""
+def rehacer_pieza(proyecto: str, nodo: str, cambio: str = "", desde_cero: bool = False) -> dict:
+    """Cambia una pieza de un proyecto por partes, con el `cambio` que pida
+    el usuario en sus palabras. Si ya está diseñada, se CORRIGE partiendo de
+    ella: solo cambia lo pedido y no vuelve a pasar por el concepto.
+    `desde_cero` solo si el usuario pide expresamente rediseñarla entera.
+    Las piezas que se diseñaron contra ella se rehacen también
+    (`rehechos`): díselo ANTES de llamarlo."""
+    from orchestrator import obra
     try:
-        rehechos = _store().rehacer(proyecto, nodo, cambio=cambio)
+        corrige = (not desde_cero and cambio.strip()
+                   and obra.programa_construido(_store().carpeta / proyecto, nodo))
+        rehechos = _store().rehacer(proyecto, nodo, cambio=cambio, desde_cero=desde_cero)
     except (KeyError, ValueError, RuntimeError) as e:
         return {"error": str(e)}
     return {"proyecto": proyecto, "rehechos": rehechos,
-            "aviso": "Rehaciendo; su concepto volverá a esperar el visto bueno."}
+            "aviso": ("Corrigiendo la pieza que había; no vuelve a pasar por el concepto."
+                      if corrige else
+                      "Rehaciendo; su concepto volverá a esperar el visto bueno.")}
 
 
 @mcp.tool()

@@ -79,7 +79,7 @@ def _disenar_con_kit(raiz: Path, env: dict, cliente):
     pared_min = (perfil_activo(raiz).datos.get("walls") or {}).get("min_mm")
     agujeros = perfil_activo(raiz).datos.get("holes") or {}
 
-    def disenar(spec, carpeta, part, concepto=None):
+    def disenar(spec, carpeta, part, concepto=None, partida=None):
         # F6.7 (lazo): lo que la pieza construida no cumple de los requisitos
         # vuelve al diseñador como cualquier fallo; F6.8 (mejor): si nunca
         # lo cumple todo, se entrega la que menos falla, con la lista.
@@ -97,7 +97,7 @@ def _disenar_con_kit(raiz: Path, env: dict, cliente):
             disenador, spec_to_task(spec, concepto).brief, None, carpeta,
             freecadcmd=freecad, part=part, request=spec.request, perfil=disenador.perfil,
             max_construcciones=CONSTRUCCIONES_KIT, check=requisitos_medidos,
-            entregar_mejor=True,
+            entregar_mejor=True, partida=partida,
         )
     return disenar
 

@@ -37,9 +37,21 @@ class DisenadorKitAgent:
             + "\n## Perfil activo\n\n```yaml\n"
             + yaml.safe_dump(perfil, allow_unicode=True, sort_keys=False) + "```\n")
 
-    def design(self, tarea: str, rechazo: tuple[str, str] | None = None) -> Programa:
-        """`rechazo` = (programa anterior, motivo por el que no se pudo construir)."""
+    def design(self, tarea: str, rechazo: tuple[str, str] | None = None,
+               partida: tuple[str, str] | None = None) -> Programa:
+        """`rechazo` = (programa anterior, motivo por el que no se pudo construir).
+
+        `partida` = (programa de la pieza ya construida, cambio que pide la
+        persona). La base del pan-tilt (2026-11-09) tenía la tuerca 2 mm
+        demasiado cerca de una cara, y corregirlo era diseñar otra pieza
+        entera. Una persona abre el modelo que tiene y mueve la tuerca."""
         prompt = f"{self._instrucciones}\n## Tarea\n\n{tarea}\n"
+        if partida is not None:
+            programa, cambio = partida
+            prompt += ("\n## La pieza ya existe: este es su programa\n\n"
+                       f"```\n{programa}\n```\n\nLa persona pide este cambio:\n{cambio}\n\n"
+                       "Edita ESTE programa y cambia solo lo que pide: el resto de cotas, "
+                       "rasgos y nombres se quedan como están. No la diseñes de nuevo.\n")
         if rechazo is not None:
             anterior, motivo = rechazo
             prompt += ("\n## Tu programa anterior NO se pudo construir\n\n"

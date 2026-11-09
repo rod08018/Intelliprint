@@ -50,6 +50,19 @@ def test_un_fallo_de_construccion_vuelve_con_el_programa_anterior():
     assert "CODIGO_VIEJO" in guion.prompts[0] and "línea 4: radio" in guion.prompts[0]
 
 
+def test_un_retoque_parte_del_programa_construido_y_cambia_solo_lo_pedido():
+    """Base del pan-tilt (2026-11-09): para meter la tuerca 2 mm hacia dentro
+    se volvía a diseñar la pieza entera, y salía otra pieza. Una persona abre
+    el modelo que tiene y mueve la tuerca."""
+    guion = Guion([json.dumps({"part": "x", "codigo": BUENO})])
+    DisenadorKitAgent(guion, ACTIVO).design(
+        "t", partida=("CODIGO_CONSTRUIDO", "la tuerca, 2 mm más adentro"))
+    prompt = guion.prompts[0]
+    assert "CODIGO_CONSTRUIDO" in prompt and "la tuerca, 2 mm más adentro" in prompt
+    assert "NO se pudo construir" not in prompt   # no es un fallo: es un cambio
+    assert "solo lo que pide" in prompt
+
+
 def test_si_el_razonador_se_corta_contesta_el_de_reserva():
     """El diseñador del kit pasa al razonador (banco 2026-11-04: deepseek-chat
     no corregía en tres intentos un perfil con lados cruzados aunque se le

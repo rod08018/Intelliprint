@@ -207,11 +207,18 @@ class JobStore:
         obra.dar_por_lista(self.carpeta / job_id, nodo, por=por, impresa=impresa, nota=nota)
         return self._relanzar(job_id)
 
-    def rehacer(self, job_id: str, nodo: str, cambio: str = "") -> list[str]:
-        """Vuelve a diseñar un nodo y lo que se diseñó contra él, y sigue."""
+    def rehacer(self, job_id: str, nodo: str, cambio: str = "",
+                desde_cero: bool = False) -> list[str]:
+        """Cambia un nodo, y lo que se diseñó contra él, y sigue. Si la pieza
+        ya está construida y se dice qué cambiar, se CORRIGE partiendo de
+        ella (`obra.corregir`); empezar de cero hay que pedirlo."""
         from orchestrator import obra
         self._libre()
-        rehechos = obra.rehacer(self.carpeta / job_id, nodo, cambio=cambio)
+        destino = self.carpeta / job_id
+        if not desde_cero and cambio.strip() and obra.programa_construido(destino, nodo):
+            rehechos = obra.corregir(destino, nodo, cambio)
+        else:
+            rehechos = obra.rehacer(destino, nodo, cambio=cambio)
         self._relanzar(job_id)
         return rehechos
 

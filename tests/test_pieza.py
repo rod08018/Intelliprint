@@ -185,6 +185,29 @@ def test_un_concepto_nuevo_parte_del_anterior_y_de_los_cambios(tmp_path):
     assert "8 mm" not in recibido["peticion"]
 
 
+def test_con_un_retoque_el_disenador_parte_del_programa_construido(tmp_path):
+    """Corregir una pieza no vuelve a redactar ni a concebir: se modela con
+    la spec y el concepto aprobados, partiendo del programa que ya había."""
+    concebir_pieza(PETICION, tmp_path, requisitos=Requisitos(), ingeniero=Ingeniero(),
+                   log=_nada)
+    aprobar_concepto(tmp_path, por="web")
+    (tmp_path / "retoque.json").write_text(json.dumps(
+        {"programa": "CODIGO", "cambio": "la tuerca más adentro"}), encoding="utf-8")
+    recibido = {}
+
+    def disenar(spec, carpeta, parte, concepto=None, partida=None):
+        recibido["partida"] = partida
+        return _disenar()(spec, carpeta, parte)
+
+    class NoRedactes:
+        def draft(self, peticion):
+            raise AssertionError("ya había una especificación aprobada")
+
+    disenar_pieza(PETICION, tmp_path, requisitos=NoRedactes(), disenar=disenar,
+                  laminar=_laminar, log=_nada)
+    assert recibido["partida"] == ("CODIGO", "la tuerca más adentro")
+
+
 def test_un_concepto_que_no_sale_deja_el_porque(tmp_path):
     class NoSale:
         def concebir(self, spec):

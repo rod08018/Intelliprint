@@ -551,10 +551,10 @@ def _arbol(carpeta: Path, vid: str, bloqueo: str, hay_puente: bool) -> tuple[str
             aviso = f" (se rehace también {', '.join(arrastra)})" if arrastra else ""
             partes.append(
                 f'<form class="cambiar-pieza" data-rehacer="{e(i)}" data-proyecto-obra="{vid}">'
-                f'<input name="cambio" placeholder="Qué cambiar" '
-                f'aria-label="Qué cambiar de {e(n.nombre)}{e(aviso)}"{bloqueo}>'
-                f'<button class="btn"{bloqueo}>Rehacer</button></form>'
-                + (f'<p class="nota-grupo">Rehacerla deshace también {e(", ".join(arrastra))}: '
+                f'<input name="cambio" placeholder="Qué cambiar (se corrige esta pieza, '
+                f'no se rediseña)" aria-label="Qué cambiar de {e(n.nombre)}{e(aviso)}"{bloqueo}>'
+                f'<button class="btn"{bloqueo}>Corregir</button></form>'
+                + (f'<p class="nota-grupo">Cambiarla deshace también {e(", ".join(arrastra))}: '
                    'se diseñó contra esta.</p>' if arrastra else ""))
         actual = ' aria-current="step"' if i == siguiente else ""
         tarjetas.append(f'<div class="pieza nodo"{actual}>{"".join(partes)}</div>')
@@ -1026,7 +1026,7 @@ GUION_PROYECTO = r"""
     ev.preventDefault();
     const accion = f.dataset.impresa ? "impresa" : "rehacer";
     const caja = f.querySelector("input"), b = f.querySelector("button");
-    if (accion === "rehacer" && !caja.value.trim() && !confirm("¿Rehacerla sin decir qué cambiar?")) return;
+    if (accion === "rehacer" && !caja.value.trim() && !confirm("Sin decir qué cambiar, se rediseña desde cero. ¿Seguro?")) return;
     b.disabled = true;
     const [ok, d] = await enviar(obra(f, accion), accion === "impresa" ? {nota: caja.value} : {cambio: caja.value});
     if (ok) { location.reload(); return; }

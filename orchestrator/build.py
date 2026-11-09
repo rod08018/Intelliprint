@@ -126,6 +126,7 @@ def design_and_build(
     max_construcciones: int = MAX_CONSTRUCCIONES,
     perfil: dict | None = None,
     entregar_mejor: bool = False,
+    partida: tuple[str, str] | None = None,
 ) -> tuple[Recipe, PartResult]:
     """Diseña y construye, devolviendo al agente el motivo de cada fallo.
 
@@ -146,7 +147,12 @@ def design_and_build(
     motivo = ""
     mejor = None   # (número de defectos, receta, defectos, cotas perdidas)
     for intento in range(max_construcciones):
-        receta = agent.design(brief, rechazo=rechazo)
+        # `partida` (un retoque de una pieza construida) va en todos los
+        # intentos: si el primero no cuadra, el segundo sigue siendo un
+        # retoque, no una pieza nueva. Sin ella, la firma de siempre: los
+        # agentes de recetas no la conocen.
+        receta = (agent.design(brief, rechazo=rechazo, partida=partida) if partida
+                  else agent.design(brief, rechazo=rechazo))
         if part is not None:
             receta = receta.model_copy(update={"part": part})
 

@@ -106,6 +106,8 @@ class Lista(BaseModel):
 
 class Rehacer(BaseModel):
     cambio: str = Field(default="", max_length=2000)
+    desde_cero: bool = False
+    """Sin esto, una pieza ya construida se corrige partiendo de ella."""
 
 
 class Pedido(Modificacion):
@@ -237,7 +239,8 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
     def rehacer(id: str, nodo: str, pedido: Rehacer) -> dict:
         carpeta = _obra_en_curso(id)
         try:
-            rehechos = trabajos.rehacer(carpeta.name, _nodo(carpeta, nodo), cambio=pedido.cambio)
+            rehechos = trabajos.rehacer(carpeta.name, _nodo(carpeta, nodo), cambio=pedido.cambio,
+                                        desde_cero=pedido.desde_cero)
         except (ValueError, RuntimeError) as e:
             raise HTTPException(409, str(e))
         return {"id": carpeta.name, "rehechos": rehechos}

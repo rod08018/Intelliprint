@@ -130,3 +130,26 @@ def test_una_caja_que_no_cuadra_no_quema_los_tres_intentos(tmp_path):
                          check_es_de_la_caja=True)
 
     assert len(cliente.prompts) == 2      # un intento y una corrección, no tres
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_un_retoque_llega_al_disenador_en_cada_intento(tmp_path):
+    """El programa construido y el cambio pedido van en TODOS los intentos:
+    si el primero no cuadra, el segundo sigue siendo un retoque de la pieza
+    que había, no una pieza nueva (base del pan-tilt, 2026-11-09)."""
+    from orchestrator.schemas.programa import Programa
+    from tests.test_sondas import PERFIL
+
+    class Disenador:
+        llamadas = []
+
+        def design(self, tarea, rechazo=None, partida=None):
+            self.llamadas.append((rechazo, partida))
+            return Programa(part="p", codigo="def construir(kit):\n    return kit.caja(20, 10, 5)\n")
+
+    agente = Disenador()
+    design_and_build(agente, "t", None, tmp_path, freecadcmd=_freecadcmd(), perfil=PERFIL,
+                     partida=("CODIGO", "la tuerca más adentro"),
+                     check=lambda r: "falla" if len(agente.llamadas) < 2 else None)
+    assert [p for _, p in agente.llamadas] == [("CODIGO", "la tuerca más adentro")] * 2
+    assert agente.llamadas[1][0][1] == "falla"

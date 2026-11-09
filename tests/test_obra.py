@@ -264,6 +264,36 @@ def test_rehacer_parte_del_concepto_aprobado_y_acumula_los_cambios(tmp_path):
     assert "más adentro" not in peticion and "abierta al servo" not in peticion
 
 
+def test_corregir_una_pieza_disenada_parte_de_ella_y_no_de_cero(tmp_path):
+    """La base del pan-tilt (2026-11-09) tenía la tuerca 2 mm demasiado
+    cerca de una cara, y «rehacer» volvía a pedir especificación, concepto,
+    visto bueno y un diseño nuevo: salió otra pieza. Corregir guarda la spec
+    y el concepto aprobados y deja el programa construido como punto de
+    partida; lo construido se archiva, y lo que se diseñó contra su ficha
+    también, porque la ficha va a cambiar."""
+    O = _empezar(tmp_path)
+    O.aprobar(tmp_path, por="web")
+    _disenar_nodo(tmp_path, "base")
+    nodo = tmp_path / "nodos" / "base"
+    (nodo / "parts" / "base" / "programa.py").write_text(SOPORTE, encoding="utf-8")
+    (nodo / "spec.yaml").write_text("title: base\n", encoding="utf-8")
+    O.dar_por_lista(tmp_path, "base", por="web")
+    _disenar_nodo(tmp_path, "giro")
+
+    rehechos = O.corregir(tmp_path, "base", cambio="la tuerca, 2 mm más adentro")
+
+    assert rehechos == ["base", "giro"]
+    for queda in ("spec.yaml", "concepto.json", "concepto_aprobado"):
+        assert (nodo / queda).exists(), queda
+    assert not (nodo / "parts").exists() and not (nodo / "pieza_report.json").exists()
+    assert O.estados(tmp_path)["base"] == "concepto aprobado"
+    assert json.loads((nodo / "retoque.json").read_text(encoding="utf-8")) == {
+        "programa": SOPORTE, "cambio": "la tuerca, 2 mm más adentro"}
+    assert list((tmp_path / "archivo").rglob("base/parts/base/programa.py"))
+    assert not (tmp_path / "fichas" / "obra-base.yaml").exists()
+    assert O.estados(tmp_path)["giro"] == "bloqueado"
+
+
 def test_rehacer_conserva_las_respuestas_de_la_persona(tmp_path):
     """Que el cable del SG90 sale por un lado corto lo dijo la persona una
     vez; rehacer la pieza por otra cosa no lo vuelve falso."""

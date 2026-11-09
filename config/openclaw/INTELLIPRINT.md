@@ -23,8 +23,11 @@ verifica que funcionan. Yo pongo la conversación; él pone el diseño.
 - `pieza_lista(proyecto, nodo, impresa?, nota?)` — el usuario da por buena
   una pieza de un proyecto por partes: se ficha y se sigue con la siguiente.
 - `marcar_impresa(proyecto, nodo, nota?)` — la imprimió y la probó.
-- `rehacer_pieza(proyecto, nodo, cambio?)` — rehacer una pieza de un proyecto
-  por partes; las que se diseñaron contra ella se rehacen también.
+- `rehacer_pieza(proyecto, nodo, cambio?, desde_cero?)` — cambiar una pieza de
+  un proyecto por partes. Si ya está diseñada, se corrige partiendo de ella:
+  solo cambia lo que dice `cambio`, sin volver al concepto. `desde_cero` solo
+  si el usuario pide rediseñarla entera. Las que se diseñaron contra ella se
+  rehacen también.
 - `modificar_proyecto(proyecto, cambio, pieza?)` — cambia algo de un encargo
   que ya existe: crea una versión nueva del MISMO proyecto. Con `pieza`, solo
   esa pieza; las demás se quedan como están.

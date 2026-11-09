@@ -108,6 +108,8 @@ def disenar_pieza(peticion: str, carpeta: Path, **kw) -> "InformePieza":
 
 ANTERIOR = "concepto_anterior.json"
 CAMBIOS = "cambios.md"
+RETOQUE = "retoque.json"
+"""{programa, cambio}: corregir la pieza construida en vez de diseñarla otra vez."""
 
 
 def _de_la_vuelta_anterior(carpeta: Path) -> dict:
@@ -191,8 +193,15 @@ def _disenar(peticion: str, carpeta: Path, *, requisitos,
     log(f"  «{spec.title}»: el Part Designer dibuja «{tarea.part}»…")
 
     informe = InformePieza(titulo=spec.title, pieza=tarea.part, resuelto=False)
+    # Un retoque (ver `obra.corregir`) parte del programa que ya se construyó.
+    retoque = (json.loads((carpeta / RETOQUE).read_text(encoding="utf-8"))
+               if (carpeta / RETOQUE).is_file() else None)
+    kw = {"partida": (retoque["programa"], retoque["cambio"])} if retoque else {}
+    if retoque:
+        log(f"  se corrige la pieza que había: {retoque['cambio']}")
     try:
-        receta, resultado = disenar(spec, carpeta / "parts" / tarea.part, tarea.part, concepto)
+        receta, resultado = disenar(spec, carpeta / "parts" / tarea.part, tarea.part, concepto,
+                                    **kw)
     except ConstruccionFallida as e:
         informe.motivo = e.motivo
         _cerrar(carpeta, spec.title, informe, peticion)

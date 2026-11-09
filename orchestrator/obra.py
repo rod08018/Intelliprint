@@ -370,6 +370,63 @@ def rehacer(carpeta: Path, nodo: str, cambio: str = "") -> list[str]:
     return rehechos
 
 
+LO_CONSTRUIDO = ("parts", "fabrication", "pieza_report.json", "blocked.md", "rounds.json",
+                 "lista.json")
+"""Lo que deja el diseño de un nodo; la spec y el concepto aprobados son de
+antes y se quedan."""
+
+
+def programa_construido(carpeta: Path, nodo: str) -> str | None:
+    """El programa de la pieza de `nodo`, si está construida y su concepto
+    aprobado: entonces se puede corregir en vez de diseñarla otra vez."""
+    from orchestrator.pieza import APROBADO
+    dir_nodo = Path(carpeta) / NODOS / nodo
+    if not (dir_nodo / APROBADO).is_file():
+        return None
+    try:
+        programa = _pieza_construida(dir_nodo) / "programa.py"
+    except ValueError:
+        return None
+    return programa.read_text(encoding="utf-8") if programa.is_file() else None
+
+
+def corregir(carpeta: Path, nodo: str, cambio: str) -> list[str]:
+    """Corrige la pieza de `nodo` como lo haría una persona: abre la que hay
+    y cambia lo que se le pide. La base del pan-tilt (2026-11-09) tenía la
+    tuerca 2 mm demasiado cerca de una cara, y rehacerla volvía a pedir
+    especificación, concepto, visto bueno y un diseño desde cero; salía otra
+    pieza, y otras cosas cambiaban sin que nadie lo pidiera.
+
+    Se quedan la spec y el concepto aprobados; lo construido se archiva y su
+    programa queda como punto de partida (`retoque.json`). Lo que se diseñó
+    contra la ficha del nodo se archiva entero: la ficha va a cambiar.
+    Devuelve los nodos archivados."""
+    from orchestrator.pieza import CAMBIOS, RETOQUE
+    carpeta = Path(carpeta)
+    obra = cargar_obra(carpeta)
+    programa = programa_construido(carpeta, nodo)
+    if programa is None:
+        raise ValueError(f"«{nodo}» no tiene una pieza construida que corregir")
+    if not cambio.strip():
+        raise ValueError("para corregir una pieza hay que decir qué cambiar")
+    dir_nodo = carpeta / NODOS / nodo
+    fichas = carpeta_de_fichas(carpeta)
+    _archivar(carpeta, *(dir_nodo / n for n in (*LO_CONSTRUIDO, RETOQUE)),
+              fichas / f"{id_de_ficha(nodo)}.yaml", fichas / f"{id_de_ficha(nodo)}.step")
+    rehechos = [nodo]
+    for i in obra.dependientes(nodo):
+        rutas = [carpeta / NODOS / i, fichas / f"{id_de_ficha(i)}.yaml",
+                 fichas / f"{id_de_ficha(i)}.step"]
+        if any(r.exists() for r in rutas):
+            _archivar(carpeta, *rutas)
+            rehechos.append(i)
+    (dir_nodo / RETOQUE).write_text(json.dumps({"programa": programa, "cambio": cambio.strip()},
+                                               ensure_ascii=False, indent=1), encoding="utf-8")
+    with (dir_nodo / CAMBIOS).open("a", encoding="utf-8") as f:
+        f.write(cambio.strip() + "\n")
+    return rehechos
+
+
 def _ultimo_concepto(nodo: Path) -> str | None:
     """El último concepto que vio la persona en este nodo: el de ahora si lo
     hay y se sostiene, si no el anterior que ya traía."""
