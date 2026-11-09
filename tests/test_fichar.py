@@ -146,6 +146,32 @@ def test_la_pieza_siguiente_se_disena_contra_la_ficha(tmp_path, monkeypatch, z, 
         assert "Soporte impreso" in m.detalle
 
 
+ENCIMA = """
+def construir(kit):
+    soporte = kit.componente("soporte-impreso", en=(0, 0, 0), entra_por="+z")
+    bloque = kit.caja(40, 20, 20, en=(-20, -10, 5))
+    return bloque.quitar("soporte", soporte.hueco(holgura=0.4))
+"""
+"""Un bloque apoyado encima del soporte, que le resta su hueco."""
+
+
+def test_el_hueco_de_una_pieza_impresa_es_su_forma_y_no_su_envolvente_barrida(
+        tmp_path, monkeypatch):
+    """La plataforma del pan-tilt (2026-11-09) restó el hueco del soporte de
+    giro, y el hueco era la envolvente del soporte barrida hasta el infinito
+    por `entra_por`: le cortó el cuello a 17 mm del cuerno, que está dentro de
+    esa envolvente. Lo que ocupa una pieza vecina es su forma, con holgura.
+
+    A mano: la placa ocupa z 0..5 y su forma crecida 0.2 (la mitad de 0.4)
+    le quita al bloque 40 × 20 × 0.2 = 160 mm³ de abajo, menos los dos M3
+    de Ø3.3, que crecidos quedan de Ø2.9 y dejan 2 × π·1.45²·0.2 = 2.6 mm³.
+    Con la envolvente barrida no quedaba bloque."""
+    _fichar(tmp_path, monkeypatch, SOPORTE, "soporte-impreso", "Soporte impreso")
+    r = build_part(Programa(part="bloque", codigo=ENCIMA), None, tmp_path / "bloque",
+                   _freecadcmd(), perfil=PERFIL)
+    assert r.volume_mm3 == pytest.approx(16000 - 160 + 2.6, abs=5)
+
+
 @pytest.mark.parametrize("entra_por, entra", [("-z", True), ("+z", False)])
 def test_una_pieza_impresa_entra_solo_por_donde_hay_camino(tmp_path, monkeypatch,
                                                            entra_por, entra):

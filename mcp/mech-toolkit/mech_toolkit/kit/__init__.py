@@ -546,6 +546,28 @@ class Cuerpo:
         return self._cortar(nombre, forma)
 
 
+def _crecida(forma, d):
+    """La forma crecida `d` mm por todas partes. El desplazamiento de OCC
+    puede fallar en formas impresas cualesquiera; entonces, la unión de seis
+    copias movidas ±d por eje, que crece lo mismo en las caras alineadas."""
+    if d <= 0:
+        return forma
+    for union in (2, 0):   # aristas vivas, como las cajas; si no sale, redondas
+        try:
+            crecida = forma.makeOffsetShape(d, 0.01, join=union)
+            if crecida.isValid() and crecida.Volume > forma.Volume:
+                return crecida
+        except Exception:   # OCC lanza Part.OCCError o RuntimeError según la versión
+            pass
+    copias = []
+    for n in range(3):
+        for s in (-d, d):
+            copia = forma.copy()
+            copia.translate(_v([s if k == n else 0 for k in range(3)]))
+            copias.append(copia)
+    return forma.multiFuse(copias).removeSplitter()
+
+
 class Hueco(Cuerpo):
     """El hueco de un componente (`Componente.hueco`). Restado de una pieza
     con `quitar` o `-`, se rehace contra ELLA: sin holgura en las caras con
@@ -594,9 +616,14 @@ class Componente:
         formas = []
         for c in primitivas(self._ficha, self._en, self._giros, "cuerpos"):
             if c["tipo"] == "step":
-                # Una pieza impresa deja el hueco de su envolvente (ver
-                # `barrido`): para casarla, sus agujeros y `punto()`.
-                c = {"tipo": "caja", "nombre": c["nombre"], "min": c["min"], "max": c["max"]}
+                # Una pieza impresa deja el hueco de su FORMA con holgura, sin
+                # barrer. Era su envolvente barrida por `entra_por`, y a la
+                # plataforma del pan-tilt (2026-11-09) le cortó el cuello a
+                # 17 mm del cuerno, que está dentro de la envolvente del
+                # soporte. Si la pieza entra de verdad lo mide
+                # `componente_entra`, con la forma real paso a paso.
+                formas.append(_crecida(solido(c), h / 2))
+                continue
             lados = self._lados(c, h, pieza)
             if c["tipo"] == "caja":
                 c = {**c, "min": [a - lo for a, (lo, _) in zip(c["min"], lados)],
