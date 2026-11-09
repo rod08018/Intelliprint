@@ -61,6 +61,9 @@ class Cuerpo(BaseModel):
     step: Step | None = None
     en: list[float]
     porque: str = ""
+    monta: str = ""
+    """En la ficha de una pieza impresa: el id del componente comprado del
+    que viene este cuerpo (el SG90 que la pieza lleva montado)."""
     gira_con: str = ""
     """Solo en `despejar`: la cara de una parte que puede girar (un aro del
     rodamiento). La pieza puede tocar las zonas de una sola de esas partes,

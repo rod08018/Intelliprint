@@ -48,11 +48,13 @@ def _agujeros(rasgos: list[dict]) -> list[dict]:
     return salida
 
 
-def _como_cuerpo(p: dict, de: str) -> dict:
+def _como_cuerpo(p: dict, de: str, monta: str = "") -> dict:
     """Una primitiva ya colocada (`mech_toolkit.componentes.primitivas`) como
     cuerpo de ficha, con el nombre del componente delante."""
     nombre = f"{de}: {p['nombre']}"
     extra = {"porque": p["porque"]} if p.get("porque") else {}
+    if monta:
+        extra["monta"] = monta
     if p.get("gira_con"):
         extra["gira_con"] = p["gira_con"]
     if p["tipo"] == "caja":
@@ -88,7 +90,8 @@ def _montados(rasgos: list[dict], fichas: Path) -> tuple[list[dict], list[dict]]
             continue   # su forma ya está en su propia ficha
         giros = [tuple(g) for g in r.get("giros") or []]
         for de, lista in (("cuerpos", cuerpos), ("despejar", despejar)):
-            lista += [_como_cuerpo(p, r["nombre"]) for p in primitivas(ficha, r["en"], giros, de)]
+            lista += [_como_cuerpo(p, r["nombre"], ficha.id)
+                      for p in primitivas(ficha, r["en"], giros, de)]
     return cuerpos, despejar
 
 

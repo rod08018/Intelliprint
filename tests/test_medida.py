@@ -12,6 +12,9 @@ Las distancias esperadas están hechas a mano: dos agujeros con entrada en
 27.8, no la de los puntos de entrada.
 """
 
+import pytest
+import yaml
+
 from orchestrator.medida import defectos
 from orchestrator.schemas.spec import Requisito
 
@@ -99,6 +102,29 @@ def test_un_componente_del_concepto_que_el_programa_no_coloca_es_un_defecto():
     assert "raspberry-pi-4" in fallo and "kit.componente" in fallo
     assert [s.tipo for s in sondas_de([], [colocado])] == [
         "aristas_vivas", "componente_cabe", "componente_entra"]
+
+
+@pytest.mark.parametrize("cuerpo", [
+    {"nombre": "sg90: cuerpo", "monta": "sg90"},
+    # Las fichas de antes no dicen «monta»: su nombre lleva delante el componente.
+    {"nombre": "sg90: cuerpo"}])
+def test_lo_que_viene_montado_en_la_pieza_vecina_ya_esta_colocado(tmp_path, monkeypatch, cuerpo):
+    """La plataforma del pan-tilt (2026-11-09) iba y venía: colocaba el SG90
+    del soporte y le faltaba el soporte; colocaba el soporte y le faltaba el
+    SG90. El SG90 va montado en la ficha del soporte: colocar el soporte ya
+    lo coloca."""
+    from orchestrator.medida import componentes_sin_colocar
+    (tmp_path / "obra-soporte.yaml").write_text(yaml.safe_dump({
+        "id": "obra-soporte", "nombre": "Soporte", "origen": "impreso",
+        "fuentes": [{"url": "p", "cita": "construida"}], "marco": "el suyo", "mira": "+z",
+        "cuerpos": [{"nombre": "Soporte", "caja": [10, 10, 10], "en": [0, 0, 0]},
+                    {**cuerpo, "caja": [22.8, 27.1, 12.4], "en": [-5.8, 0, 18.8]}]}),
+        encoding="utf-8")
+    monkeypatch.setenv("INTELLIPRINT_FICHAS", str(tmp_path))
+    soporte = {"nombre": "soporte", "tipo": "componente", "ficha": "obra-soporte",
+               "en": [0, 0, 0], "giros": [], "entra_por": "+y"}
+    assert componentes_sin_colocar(["sg90", "obra-soporte"], [soporte]) == []
+    assert componentes_sin_colocar(["hc-sr04"], [soporte]) != []
 
 
 def test_con_el_minimo_del_perfil_el_bucle_mide_la_pared_mas_fina():

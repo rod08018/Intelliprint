@@ -322,8 +322,21 @@ def bridas_que_no_aprietan(rasgos) -> list[str]:
 
 def componentes_sin_colocar(componentes, rasgos) -> list[str]:
     """Los componentes que el concepto nombra y el programa no coloca: sin
-    colocarlos no se puede comprobar que quepan."""
+    colocarlos no se puede comprobar que quepan.
+
+    Lo que viene montado en una pieza de la obra ya colocada cuenta como
+    colocado: la plataforma del pan-tilt (2026-11-09) iba y venía entre
+    colocar el SG90 del soporte y colocar el soporte, que ya lo trae."""
+    from orchestrator.componentes import cargar
     colocados = {r.get("ficha") for r in rasgos if r.get("tipo") == "componente"}
+    for id_ in [c for c in colocados if c and c.startswith("obra-")]:
+        try:
+            vecina = cargar(id_)
+        except (KeyError, FileNotFoundError, ValueError):
+            continue
+        for cuerpo in vecina.cuerpos:
+            # Las fichas de antes de `monta` llevan el componente delante del nombre.
+            colocados.add(cuerpo.monta or cuerpo.nombre.split(": ", 1)[0])
     return [f"no colocaste el {c}: ponlo con `kit.componente(\"{c}\", en=..., "
             "entra_por=...)` y quita su `hueco()` a la pieza; sin eso no se puede "
             "comprobar que quepa ni que entre"
