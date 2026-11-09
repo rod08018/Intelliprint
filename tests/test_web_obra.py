@@ -160,6 +160,18 @@ def test_la_tarjeta_dice_que_se_corrige_y_que_se_corrigio(tmp_path):
     assert "Corregida: la tuerca, 2 mm más adentro" in texto
 
 
+def test_una_obra_sin_piezas_hechas_no_abre_con_una_caja_vacia(tmp_path):
+    """Corrigiendo la base (2026-11-09), su pieza se archiva mientras se
+    rehace y la página abría con «Todavía no hay imagen» a media pantalla;
+    en una obra, cada pieza enseña la suya en su tarjeta."""
+    carpeta = _empezar(tmp_path, aprobada=True)
+    _disenar_nodo(carpeta, "base")
+    (carpeta / "nodos" / "base" / "parts" / "base" / "programa.py").write_text(
+        "CODIGO", encoding="utf-8")
+    O.corregir(carpeta, "base", cambio="la tuerca más adentro")
+    assert "Todavía no hay imagen" not in _ws_con_trabajos(tmp_path).get(f"/p/{ID}").text
+
+
 def test_un_proyecto_de_varias_piezas_se_pide_desde_la_portada(tmp_path):
     import sys
 

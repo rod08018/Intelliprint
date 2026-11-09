@@ -654,7 +654,10 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
                 f'<a class="btn" href="/proyectos/{vid}.zip" download>Descargar</a>')
     # Un concepto por aprobar no tiene nada que imprimir ni que bajar, y una
     # caja vacía de «Todavía no hay imagen» se comía media pantalla.
-    revisando = v["estado"] == "por aprobar" and sin_piezas
+    # En una obra, igual mientras no haya ninguna pieza hecha (también
+    # mientras se corrige la única que había): cada pieza enseña la suya en
+    # su tarjeta.
+    revisando = (v["estado"] == "por aprobar" or es_obra) and sin_piezas
     # Lo que se está diseñando tampoco: «Descargar» bajaba un zip a medias de
     # 7 KB con la petición y el concepto (2026-11-08).
     if revisando or v["id"] == g.get("en_marcha"):
