@@ -830,6 +830,8 @@ def test_contestar_desde_la_web_anade_la_respuesta_literal(ws):
     assert r.status_code == 200, r.text
     assert "unos 3 kg" in (carpeta / "request.md").read_text(encoding="utf-8")
     assert not (carpeta / "concepto_aprobado").exists()
+    # El concepto contestado queda de punto de partida para el siguiente.
+    assert (carpeta / "concepto_anterior.json").exists()
 
 
 def test_no_se_aprueba_lo_que_no_tiene_concepto(ws):

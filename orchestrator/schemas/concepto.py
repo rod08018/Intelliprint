@@ -40,6 +40,10 @@ class Concepto(BaseModel):
     alternativas: list[str] = Field(default=[], max_length=2)
     preguntas: list[str] = Field(default=[], max_length=3)
     """Solo cotas críticas que faltan. Una o dos, no un interrogatorio."""
+    cambios: list[str] = []
+    """Con un concepto anterior: qué cambia respecto a él y por qué. La base
+    del pan-tilt (2026-11-09) perdió en silencio los tornillos que la fijaban
+    al rehacerla por otra cosa; lo que cambia tiene que verse al aprobar."""
 
 
 class ConceptoComprobado(BaseModel):
@@ -52,7 +56,11 @@ class ConceptoComprobado(BaseModel):
         """Lo que lee la persona antes de dar el visto bueno, por consola, web
         o Telegram: tiene que entenderse sin saber qué es un JSON."""
         c = self.concepto
-        lineas = [f"**Idea:** {c.idea}", "",
+        lineas = []
+        if c.cambios:
+            lineas += ["**Qué cambia respecto al concepto anterior:**",
+                       *(f"- {x}" for x in c.cambios), ""]
+        lineas += [f"**Idea:** {c.idea}", "",
                   f"**Cómo trabaja:** {c.camino_de_carga}", "",
                   f"**Cómo se imprime:** {c.orientacion}"]
         if c.fijaciones:
@@ -76,6 +84,7 @@ class ConceptoComprobado(BaseModel):
             f"- Orientación de impresión: {c.orientacion}",
         ]
         partes += [f"- Fijación: {f}" for f in c.fijaciones]
+        partes += [f"- Cambio que pidió la persona: {x}" for x in c.cambios]
         for x in c.componentes:
             # Con la ficha entera: sin ella, el soporte del HC-SR04 dibujó el
             # sensor con cajas y cifras de una tienda (2026-11-05).

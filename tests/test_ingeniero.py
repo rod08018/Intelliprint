@@ -105,6 +105,46 @@ def test_el_texto_para_la_persona_lleva_la_idea_el_calculo_y_las_preguntas():
     assert "¿la repisa es de 18 mm de grueso?" in texto
 
 
+# --- partir del concepto anterior ------------------------------------------------------
+# Base del pan-tilt (2026-11-09): rehecha para que la brida apretara el servo,
+# el concepto nuevo salió sin los tornillos que fijaban la base, y nadie lo
+# había pedido. Con el anterior delante, lo que no se pide cambiar se queda,
+# y lo que cambia se dice.
+
+def _anterior():
+    from orchestrator.schemas.concepto import ConceptoComprobado
+    return ConceptoComprobado.model_validate({"concepto": json.loads(_concepto(
+        fijaciones=["2 tornillos M4 avellanados para fijar la escuadra a la pared"]))})
+
+
+def test_con_concepto_anterior_el_ingeniero_lo_ve_con_los_cambios():
+    guion = Guion([_concepto(fijaciones=["2 tornillos M4 avellanados a la pared"],
+                             cambios=["la cartela, más ancha: lo pide la persona"])])
+    IngenieroAgent(guion, ACTIVO).concebir(SPEC, anterior=_anterior(),
+                                           cambios="la cartela, más ancha")
+    prompt = guion.prompts[0]
+    assert "2 tornillos M4 avellanados para fijar la escuadra" in prompt
+    assert "la cartela, más ancha" in prompt
+
+
+def test_con_concepto_anterior_hay_que_decir_que_cambia():
+    sin_decir = _concepto(fijaciones=["2 tornillos M4 avellanados a la pared"])
+    guion = Guion([sin_decir, _concepto(fijaciones=["2 tornillos M4 avellanados a la pared"],
+                                        cambios=["la cartela, más ancha"])])
+    r = IngenieroAgent(guion, ACTIVO).concebir(SPEC, anterior=_anterior(), cambios="más ancha")
+    assert "`cambios`" in guion.prompts[1]
+    assert "**Qué cambia respecto al concepto anterior:**" in r.texto()
+
+
+def test_quitar_una_fijacion_del_anterior_sin_decirlo_no_vale():
+    callada = _concepto(fijaciones=["1 tornillo M3 en la cartela"],
+                        cambios=["la cartela, más ancha"])
+    guion = Guion([callada, _concepto(fijaciones=["2 tornillos M4 avellanados a la pared"],
+                                      cambios=["la cartela, más ancha"])])
+    IngenieroAgent(guion, ACTIVO).concebir(SPEC, anterior=_anterior(), cambios="más ancha")
+    assert "M4" in guion.prompts[1] and "anterior" in guion.prompts[1]
+
+
 def test_el_disenador_recibe_el_concepto_y_las_secciones_minimas():
     """El diseñador tiene que dibujar ESTA idea, y no puede adelgazar la
     sección que el cálculo dio por buena."""

@@ -55,6 +55,28 @@ def _alojamiento_inventado(c, ficha, ajustes) -> list[str]:
     return errores
 
 
+def _metricas(textos) -> set[str]:
+    import re
+    return {f"M{m.replace(',', '.')}" for t in textos
+            for m in re.findall(r"\bM(\d+(?:[.,]\d+)?)\b", t)}
+
+
+def _lo_que_se_pierde(anterior: Concepto, nuevo: Concepto) -> list[str]:
+    """Lo que el concepto nuevo quita del anterior sin decirlo. Se mira lo
+    que se puede contar sin leer intenciones: que diga qué cambia, y que no
+    desaparezca una métrica de tornillo de las fijaciones sin nombrarla en
+    `cambios` (la base del pan-tilt perdió así sus M4 de fijación)."""
+    if not nuevo.cambios:
+        return ["partes de un concepto anterior: escribe en `cambios` qué cambias respecto "
+                "a él y por qué. Si no cambia nada más que lo pedido, dilo igualmente"]
+    dichas = _metricas(nuevo.cambios)
+    quitadas = sorted(_metricas(anterior.fijaciones) - _metricas(nuevo.fijaciones) - dichas)
+    return [f"el concepto anterior llevaba {m} en sus fijaciones "
+            f"({'; '.join(f for f in anterior.fijaciones if m in _metricas([f]))}) y este no. "
+            f"Si la persona no lo pidió, mantenlo; si hay que quitarlo, dilo en `cambios` "
+            "con el porqué" for m in quitadas]
+
+
 class IngenieroAgent:
     def __init__(self, client: LlmClient, activo, prompt_path: Path = PROMPT_PATH,
                  reserva: LlmClient | None = None) -> None:
@@ -68,7 +90,12 @@ class IngenieroAgent:
             + "\n\n## Perfil activo (impresora y material)\n\n```yaml\n"
             + yaml.safe_dump(perfil, allow_unicode=True, sort_keys=False) + "```\n")
 
-    def concebir(self, spec: Spec) -> ConceptoComprobado:
+    def concebir(self, spec: Spec, anterior: ConceptoComprobado | None = None,
+                 cambios: str = "") -> ConceptoComprobado:
+        """`anterior`: el último concepto que vio la persona (al rehacer o al
+        contestar sus preguntas). Se parte de él: la base del pan-tilt
+        (2026-11-09) salió de cero en cada vuelta y lo que nadie pidió —con
+        qué tornillos se fija— cambió cuatro veces, hasta desaparecer."""
         requisitos = "".join(
             f"- {r.id} ({r.tipo}, {r.origen}): {r.texto}"
             + (f" → {r.valor:g} {r.unidad}" if r.valor is not None else "") + "\n"
@@ -85,9 +112,22 @@ class IngenieroAgent:
             prompt += ("\nLa petición nombra estos; cada uno va en `componentes`, con "
                        "cómo entra y cómo se sujeta:\n\n"
                        + "\n\n".join(resumen(cargar(i)) for i in nombrados) + "\n")
+        if anterior is not None:
+            prompt += (
+                "\n## Concepto anterior: el que vio la persona\n\n"
+                f"{anterior.texto()}\n\n"
+                "Parte de él. Lo que la persona no pide cambiar se queda como está: las "
+                "fijaciones, cómo entra y cómo se sujeta cada componente, la orientación. "
+                "Cambia solo lo que piden los cambios y las respuestas, no añadas nada que "
+                "nadie haya pedido, y escribe en `cambios` cada cosa que cambias respecto a "
+                "este concepto y por qué.\n")
+        if cambios.strip():
+            prompt += f"\n## Cambios que pide la persona\n\n{cambios.strip()}\n"
 
         def validar(concepto: Concepto) -> None:
             errores = []
+            if anterior is not None:
+                errores += _lo_que_se_pierde(anterior.concepto, concepto)
             pide_carga = [r.id for r in spec.requisitos if r.tipo == "carga"]
             if (pide_carga or spec.payload_g) and not concepto.casos_de_carga:
                 errores.append(

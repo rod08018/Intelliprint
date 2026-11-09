@@ -227,7 +227,55 @@ def test_rehacer_un_nodo_archiva_tambien_lo_que_se_diseno_contra_el(tmp_path):
     assert not (tmp_path / "fichas" / "obra-base.yaml").exists()
     archivado = tmp_path / "archivo"
     assert list(archivado.rglob("obra-base.yaml")) and list(archivado.rglob("giro.step"))
-    assert "más alta" in O.peticion_del_nodo(tmp_path, "base")
+    assert "más alta" in (tmp_path / "nodos" / "base" / "cambios.md").read_text(encoding="utf-8")
+
+
+# --- de una vuelta a otra no se pierde nada ----------------------------------------------
+# La base del pan-tilt (2026-11-09) se rehízo dos veces y cada concepto salió
+# de cero: cuatro M3 para fijarla, luego dos M4, luego dos M3, luego ninguno,
+# sin que nadie lo pidiera. El segundo «rehacer» borró el primer cambio, y el
+# agente de requisitos leyó «separada por un bloque macizo de unos 8 mm» —la
+# descripción del defecto— como una cota de 8 mm que había que cumplir.
+
+def _concepto_visto(nodo, idea):
+    nodo.mkdir(parents=True, exist_ok=True)
+    (nodo / "concepto.json").write_text(json.dumps({"concepto": {
+        "idea": idea, "camino_de_carga": "c", "orientacion": "o",
+        "fijaciones": ["2 tornillos M4 avellanados para fijar la base"]}}), encoding="utf-8")
+
+
+def test_rehacer_parte_del_concepto_aprobado_y_acumula_los_cambios(tmp_path):
+    O = _empezar(tmp_path)
+    O.aprobar(tmp_path, por="web")
+    nodo = tmp_path / "nodos" / "base"
+    _concepto_visto(nodo, "brida con tuerca cautiva")
+    (nodo / "concepto_aprobado").write_text("{}", encoding="utf-8")
+
+    O.rehacer(tmp_path, "base", cambio="la tuerca, más adentro")
+    _concepto_visto(nodo, "brida con la tuerca más adentro")
+    O.rehacer(tmp_path, "base", cambio="la ranura de la brida, abierta al servo")
+
+    anterior = json.loads((nodo / "concepto_anterior.json").read_text(encoding="utf-8"))
+    assert anterior["concepto"]["idea"] == "brida con la tuerca más adentro"
+    cambios = (nodo / "cambios.md").read_text(encoding="utf-8")
+    assert "la tuerca, más adentro" in cambios and "abierta al servo" in cambios
+    # Los cambios no van a la petición: de ella salen los requisitos.
+    peticion = O.peticion_del_nodo(tmp_path, "base")
+    assert "más adentro" not in peticion and "abierta al servo" not in peticion
+
+
+def test_contestar_al_concepto_guarda_el_contestado_como_anterior(tmp_path):
+    O = _empezar(tmp_path)
+    O.aprobar(tmp_path, por="web")
+    nodo = tmp_path / "nodos" / "base"
+    _concepto_visto(nodo, "brida en U")
+
+    O.aprobar(tmp_path, respuestas="el cable sale por un lado corto, abajo", por="web")
+
+    anterior = json.loads((nodo / "concepto_anterior.json").read_text(encoding="utf-8"))
+    assert anterior["concepto"]["idea"] == "brida en U"
+    # La respuesta sí es un dato de la pieza: va a la petición.
+    assert "lado corto" in O.peticion_del_nodo(tmp_path, "base")
 
 
 # --- la orden -----------------------------------------------------------------------------

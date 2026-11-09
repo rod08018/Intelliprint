@@ -106,6 +106,24 @@ def disenar_pieza(peticion: str, carpeta: Path, **kw) -> "InformePieza":
         return _disenar(peticion, Path(carpeta), **kw)
 
 
+ANTERIOR = "concepto_anterior.json"
+CAMBIOS = "cambios.md"
+
+
+def _de_la_vuelta_anterior(carpeta: Path) -> dict:
+    """El último concepto que vio la persona y los cambios que pidió sobre
+    él. Los cambios van al ingeniero y NO a la petición: el agente de
+    requisitos leyó «un bloque macizo de unos 8 mm» —el defecto que había
+    que quitar— como una cota de 8 mm que cumplir (pan-tilt, 2026-11-09)."""
+    kw = {}
+    if (carpeta / ANTERIOR).is_file():
+        kw["anterior"] = ConceptoComprobado.model_validate_json(
+            (carpeta / ANTERIOR).read_text(encoding="utf-8"))
+    if (carpeta / CAMBIOS).is_file():
+        kw["cambios"] = (carpeta / CAMBIOS).read_text(encoding="utf-8")
+    return kw
+
+
 def _concebir(peticion: str, carpeta: Path, *, requisitos, ingeniero,
               investigador=None, log=print) -> ConceptoComprobado | None:
     """Redacta la especificación y el concepto, y PARA a esperar el visto
@@ -137,7 +155,7 @@ def _concebir(peticion: str, carpeta: Path, *, requisitos, ingeniero,
         spec = _redactar(peticion, carpeta, requisitos, log,
                          investigacion.texto_para_peticion() if investigacion else "")
         log(f"  «{spec.title}»: el ingeniero piensa cómo resolverlo…")
-        concepto = ingeniero.concebir(spec)
+        concepto = ingeniero.concebir(spec, **_de_la_vuelta_anterior(carpeta))
     except ValueError as e:   # SalidaInvalida: el modelo no dio un concepto que se sostenga
         titulo = _titulo(carpeta)
         _cerrar(carpeta, titulo, InformePieza(titulo=titulo, resuelto=False,

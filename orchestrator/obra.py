@@ -248,7 +248,13 @@ def aprobar(carpeta: Path, respuestas: str = "", por: str = "") -> str:
     if respuestas.strip():
         with (nodo / "respuestas.md").open("a", encoding="utf-8") as f:
             f.write(respuestas.strip() + "\n")
+        # El concepto contestado es el punto de partida del siguiente: con
+        # el cable del SG90 por respuesta, el pan-tilt (2026-11-09) recibió
+        # un concepto entero nuevo, sin los tornillos de fijar la base.
+        visto = _ultimo_concepto(nodo)
         _archivar(carpeta, nodo / CONCEPTO, nodo / "concepto.md")
+        if visto:
+            _guardar_anterior(nodo, visto)
     else:
         aprobar_concepto(nodo, por=por)
     return i
@@ -330,8 +336,16 @@ def rehacer(carpeta: Path, nodo: str, cambio: str = "") -> list[str]:
     """Vuelve a diseñar `nodo`, y con él lo que se diseñó contra su ficha,
     que ya no será la misma. Todo se archiva, nada se borra. Devuelve los
     nodos archivados."""
+    from orchestrator.pieza import CAMBIOS
     carpeta = Path(carpeta)
     obra = cargar_obra(carpeta)
+    # Lo que se lleva a la vuelta nueva, leído antes de archivar. Sin esto
+    # la base del pan-tilt (2026-11-09) salió de cero cada vez, y el segundo
+    # cambio borró el primero.
+    dir_nodo = carpeta / NODOS / nodo
+    anterior = _ultimo_concepto(dir_nodo)
+    previos = (dir_nodo / CAMBIOS).read_text(encoding="utf-8").strip() \
+        if (dir_nodo / CAMBIOS).is_file() else ""
     rehechos = []
     for i in [nodo, *obra.dependientes(nodo)]:
         fichas = carpeta_de_fichas(carpeta)
@@ -340,8 +354,31 @@ def rehacer(carpeta: Path, nodo: str, cambio: str = "") -> list[str]:
         if any(r.exists() for r in rutas):
             _archivar(carpeta, *rutas)
             rehechos.append(i)
-    if cambio.strip():
-        (carpeta / NODOS / nodo).mkdir(parents=True, exist_ok=True)
-        (carpeta / NODOS / nodo / "respuestas.md").write_text(cambio.strip() + "\n",
-                                                              encoding="utf-8")
+    todos = "\n".join(c for c in (previos, cambio.strip()) if c)
+    if todos or anterior:
+        dir_nodo.mkdir(parents=True, exist_ok=True)
+    if todos:
+        (dir_nodo / CAMBIOS).write_text(todos + "\n", encoding="utf-8")
+    if anterior:
+        _guardar_anterior(dir_nodo, anterior)
     return rehechos
+
+
+def _ultimo_concepto(nodo: Path) -> str | None:
+    """El último concepto que vio la persona en este nodo: el de ahora si lo
+    hay y se sostiene, si no el anterior que ya traía."""
+    from orchestrator.pieza import ANTERIOR, CONCEPTO
+    from orchestrator.schemas.concepto import ConceptoComprobado
+    for nombre in (CONCEPTO, ANTERIOR):
+        try:
+            texto = (nodo / nombre).read_text(encoding="utf-8")
+            ConceptoComprobado.model_validate_json(texto)
+            return texto
+        except (OSError, ValueError):
+            continue
+    return None
+
+
+def _guardar_anterior(nodo: Path, texto: str) -> None:
+    from orchestrator.pieza import ANTERIOR
+    (nodo / ANTERIOR).write_text(texto, encoding="utf-8")

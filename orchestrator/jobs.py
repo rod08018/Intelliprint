@@ -168,7 +168,7 @@ class JobStore:
         a esperar. Contestar puede cambiar la idea, y lo que se modela tiene
         que ser algo que la persona haya visto."""
         from orchestrator import obra
-        from orchestrator.pieza import CONCEPTO, aprobar_concepto
+        from orchestrator.pieza import ANTERIOR, CONCEPTO, aprobar_concepto
         destino = self.carpeta / job_id
         if obra.es_obra(destino):
             # F7.2 (desglose): lo que espera es el desglose o el concepto del
@@ -186,7 +186,9 @@ class JobStore:
         if respuestas.strip():
             with (destino / "request.md").open("a", encoding="utf-8") as f:
                 f.write(f"\nRespuestas a las preguntas del ingeniero: {respuestas.strip()}\n")
-            (destino / CONCEPTO).unlink()
+            # El contestado es el punto de partida del siguiente concepto:
+            # sin él el ingeniero empezaba de cero (pan-tilt, 2026-11-09).
+            (destino / CONCEPTO).replace(destino / ANTERIOR)
         else:
             aprobar_concepto(destino, por=por)
         return self._relanzar(job_id)

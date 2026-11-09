@@ -154,6 +154,37 @@ def test_aprobado_se_modela_ese_concepto_sin_volver_a_redactar_nada(tmp_path):
     assert estado_de(tmp_path)["estado"] == "aprobado"
 
 
+def test_un_concepto_nuevo_parte_del_anterior_y_de_los_cambios(tmp_path):
+    """La base del pan-tilt (2026-11-09): cada vuelta el ingeniero partía de
+    cero y decidía otra vez lo que nadie había pedido. Con un concepto
+    anterior en la carpeta, lo recibe junto con los cambios; y los cambios no
+    pasan por el agente de requisitos, que leyó la descripción de un defecto
+    («un bloque de unos 8 mm») como una cota que cumplir."""
+    anterior = ConceptoComprobado(concepto=Concepto(
+        idea="gancho en J", camino_de_carga="c", orientacion="o",
+        fijaciones=["2 tornillos M4 a la pared"]))
+    (tmp_path / "concepto_anterior.json").write_text(anterior.model_dump_json(),
+                                                     encoding="utf-8")
+    (tmp_path / "cambios.md").write_text("el bloque de unos 8 mm sobra\n", encoding="utf-8")
+    recibido = {}
+
+    class Recuerda(Ingeniero):
+        def concebir(self, spec, anterior=None, cambios=""):
+            recibido.update(anterior=anterior, cambios=cambios)
+            return super().concebir(spec)
+
+    class Mira(Requisitos):
+        def draft(self, peticion):
+            recibido["peticion"] = peticion
+            return super().draft(peticion)
+
+    concebir_pieza(PETICION, tmp_path, requisitos=Mira(), ingeniero=Recuerda(), log=_nada)
+
+    assert recibido["anterior"].concepto.fijaciones == ["2 tornillos M4 a la pared"]
+    assert "unos 8 mm" in recibido["cambios"]
+    assert "8 mm" not in recibido["peticion"]
+
+
 def test_un_concepto_que_no_sale_deja_el_porque(tmp_path):
     class NoSale:
         def concebir(self, spec):
