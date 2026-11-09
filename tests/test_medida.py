@@ -237,6 +237,20 @@ def test_una_brida_cuyo_tornillo_no_cruza_la_ranura_no_aprieta():
     assert "«pasante_brida_m3»" in d and "cruzar" in d.casefold()
 
 
+def test_una_brida_que_se_cierra_lejos_del_servo_no_aprieta():
+    """La tercera base: la ranura en U (y 26.4–28.4, con dos brazos hasta el
+    servo) deja entre ella y el servo una lengüeta con la tuerca; el tornillo
+    (cabeza en y = 34) cruza la ranura y tira de la lengüeta hacia la cabeza,
+    es decir, la APARTA del servo: el alojamiento se abre en vez de cerrarse.
+    Lo que se cierra (y 24.3–28.4) no corta el servo (y 5.9–18.5)."""
+    from orchestrator.medida import bridas_que_no_aprietan
+    en_u = {"nombre": "ranura_brida", "tipo": "hueco", "desde": [24.0, 18.0, 6.0],
+            "hasta": [46.0, 28.4, 19.5]}
+    [d] = bridas_que_no_aprietan([_SERVO, _TUERCA, _RANURA_TUERCA, _tornillo(12.2), en_u,
+                                  _ALIVIO])
+    assert "«ranura_brida»" in d and "«alojamiento_sg90»" in d and "aparta" in d
+
+
 def test_una_brida_que_corta_la_pared_y_cruza_el_tornillo_si_aprieta():
     """Una brida de verdad: la ranura corta la pared de detrás del servo en
     x = 39–41, de y = 18.5 (el alojamiento) a 34; el tornillo va en x, con

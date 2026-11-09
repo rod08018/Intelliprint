@@ -227,6 +227,30 @@ def _de_caja_a_agujero(caja, ag) -> float:
     return max(mejor - r, 0.0)
 
 
+def _a_lo_largo(rasgo, origen, e) -> tuple[float, float]:
+    """Lo que ocupa un hueco o un agujero proyectado sobre la recta `origen +
+    t·e`: el tramo de t que cubre."""
+    def t(p):
+        return sum((a - b) * c for a, b, c in zip(p, origen, e))
+    if rasgo.get("tipo") == "hueco":
+        ts = [t((x, y, z)) for x in (rasgo["desde"][0], rasgo["hasta"][0])
+              for y in (rasgo["desde"][1], rasgo["hasta"][1])
+              for z in (rasgo["desde"][2], rasgo["hasta"][2])]
+        return min(ts), max(ts)
+    a = _unitario(rasgo["eje"])
+    largo = rasgo.get("profundidad_mm") or 500.0
+    radio = (rasgo.get("diametro_mm") or 0) / 2
+    coseno = sum(x * y for x, y in zip(a, e))
+    ancho = radio * math.sqrt(max(1.0 - coseno * coseno, 0.0))
+    t0 = t(rasgo["entrada"])
+    t1 = t0 + largo * coseno
+    return min(t0, t1) - ancho, max(t0, t1) + ancho
+
+
+def _solapan(a, b, minimo=0.2) -> bool:
+    return min(a[1], b[1]) - max(a[0], b[0]) > minimo
+
+
 def bridas_que_no_aprietan(rasgos) -> list[str]:
     """Un tornillo con su tuerca dentro de la misma pieza es una brida: al
     apretarlo tiene que cerrarse una ranura, y esa ranura tiene que dar a lo
@@ -275,6 +299,24 @@ def bridas_que_no_aprietan(rasgos) -> list[str]:
                         "ningún hueco ni agujero: al apretar se cierra sobre sí misma y no sujeta "
                         "nada. Tiene que abrirse al alojamiento de lo que sujeta, y dejar que la "
                         "parte que se cierra se doble")
+                    continue
+                # Lo que se cierra tiene que caer a la altura de lo que se
+                # sujeta, medido a lo largo del tornillo: si no, la ranura se
+                # cierra junto a ello y lo único que se mueve es la pared que
+                # lo separa, alejándose. La tercera base del pan-tilt
+                # (2026-11-09) pasó la regla anterior así: su lengüeta con la
+                # tuerca se iba hacia la cabeza y abría el alojamiento.
+                dentro = [k * fin / pasos for k, p in enumerate(puntos) if _en_caja(p, r)]
+                cierra = (min(dentro), max(dentro))
+                if not any(_solapan(cierra, _a_lo_largo(o, ag["entrada"], ea)) for o in otros):
+                    nombres = ", ".join(f"«{o['nombre']}»" for o in otros)
+                    fallos.append(
+                        f"brida: al apretar «{ag['nombre']}», la ranura «{r['nombre']}» se cierra "
+                        f"entre {cierra[0]:.1f} y {cierra[1]:.1f} mm de la cabeza, fuera de "
+                        f"{nombres}: la pared que queda entre ambos se aparta de lo que sujeta "
+                        "en vez de cerrarse sobre ello. La ranura tiene que cortar la pared de "
+                        "lo que sujeta en la dirección del tornillo (el tornillo la cruza a la "
+                        "altura del alojamiento, como una abrazadera partida)")
     return fallos
 
 
