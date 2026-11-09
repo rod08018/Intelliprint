@@ -105,6 +105,24 @@ def test_lo_que_hace_una_pieza_sale_de_su_registro_de_ejecucion(tmp_path):
     assert _progreso({"ultima_etapa": etapa}) == "dibujando «Soporte»"
 
 
+def test_la_etapa_de_una_ejecucion_anterior_no_cuenta(tmp_path):
+    """Al corregir la base del pan-tilt (2026-11-09) la web dijo «preparando
+    la impresión» durante el primer minuto: el `run.log` de una obra se
+    alarga en cada lanzamiento, y la última línea de avance era el
+    «laminado…» de la vez anterior."""
+    carpeta = _pieza(tmp_path, "2026-11-09-soporte", terminada=False)
+    (carpeta / "run.log").write_text(
+        "[Crafty] Pieza → /workspace/projects/2026-11-09-soporte/nodos/base\n"
+        "  laminado…\n"
+        "[Crafty] ✋ «Base» diseñada: revísala\n"
+        "[Crafty] Obra → /workspace/projects/2026-11-09-soporte\n"
+        "[Crafty] nodo «Base» (base)\n", encoding="utf-8")
+
+    etapa = estadisticas(carpeta, en_marcha=True)["ultima_etapa"]
+
+    assert _progreso({"ultima_etapa": etapa}) == "arrancando"
+
+
 def test_mientras_lamina_lo_dice(tmp_path):
     carpeta = _pieza(tmp_path, "2026-11-09-soporte", terminada=False)
     (carpeta / "run.log").write_text(

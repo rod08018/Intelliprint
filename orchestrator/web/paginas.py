@@ -463,6 +463,7 @@ ESTADOS_DE_NODO = {
     "concepto por aprobar": ("Su concepto espera tu visto bueno", "ambar"),
     "concepto aprobado": ("Concepto aprobado", "suave"),
     "diseñando": ("Diseñando…", "vivo"),
+    "corrigiendo": ("Corrigiéndose…", "vivo"),
     "diseñada": ("Diseñada: revísala", "ambar"),
     "con fallos": ("No salió del todo", "mal"),
     "sin verificar": ("Conjunto: su verificación aún no existe", "suave"),
@@ -516,6 +517,12 @@ def _arbol(carpeta: Path, vid: str, bloqueo: str, hay_puente: bool) -> tuple[str
         if detalles:
             partes.append('<ul class="interfaz">' + "".join(
                 f"<li><b>{t}:</b> {e(x)}</li>" for t, x in detalles) + "</ul>")
+        # Qué se pidió corregir: mientras se corrige, y después, porque es lo
+        # que hay que mirar al revisarla (pan-tilt, 2026-11-09).
+        retoque = _leer(dir_nodo / "retoque.json")
+        if retoque and retoque.get("cambio"):
+            rotulo = "Se corrige" if estado == "corrigiendo" else "Corregida"
+            partes.append(f'<p class="corregida"><b>{rotulo}:</b> {e(retoque["cambio"])}</p>')
         for stl in piezas_de(dir_nodo):
             partes.insert(0, f'<div class="foto-pieza"><img src="/proyectos/{vid}/piezas/'
                              f'{e(stl.stem)}.png" alt="{e(n.nombre)}" loading="lazy"></div>')
@@ -551,8 +558,11 @@ def _arbol(carpeta: Path, vid: str, bloqueo: str, hay_puente: bool) -> tuple[str
             aviso = f" (se rehace también {', '.join(arrastra)})" if arrastra else ""
             partes.append(
                 f'<form class="cambiar-pieza" data-rehacer="{e(i)}" data-proyecto-obra="{vid}">'
-                f'<input name="cambio" placeholder="Qué cambiar (se corrige esta pieza, '
-                f'no se rediseña)" aria-label="Qué cambiar de {e(n.nombre)}{e(aviso)}"{bloqueo}>'
+                # Un textarea: el cambio de la brida del pan-tilt eran tres
+                # frases, y en una línea no se leía lo que se escribía.
+                f'<textarea name="cambio" rows="3" placeholder="Qué cambiar de esta pieza; '
+                f'se corrige la que hay, no se rediseña" '
+                f'aria-label="Qué cambiar de {e(n.nombre)}{e(aviso)}"{bloqueo}></textarea>'
                 f'<button class="btn"{bloqueo}>Corregir</button></form>'
                 + (f'<p class="nota-grupo">Cambiarla deshace también {e(", ".join(arrastra))}: '
                    'se diseñó contra esta.</p>' if arrastra else ""))
@@ -883,7 +893,10 @@ ESTILO = """
   .nombre-pieza { padding:10px 12px 0; font-weight:600; }
   .uso { font-size:11px; font-weight:600; color:var(--suave); border:1px solid var(--linea); border-radius:6px; padding:1px 6px; margin-left:4px; }
   .cambiar-pieza { display:flex; gap:6px; padding:10px 12px 12px; }
-  .cambiar-pieza input { padding:8px 10px; font-size:14px; border-radius:9px; }
+  .cambiar-pieza input, .cambiar-pieza textarea { padding:8px 10px; font-size:14px; border-radius:9px; }
+  .cambiar-pieza textarea { flex:1; min-width:0; resize:vertical; font:inherit; }
+  .cambiar-pieza:has(textarea) { align-items:flex-end; }
+  .corregida { font-size:14px; padding:8px 10px; border-radius:9px; background:var(--fondo-suave, rgba(127,127,127,.12)); }
   .cambiar-pieza .btn { padding:8px 12px; }
   .cambiar { max-width:760px; }
   .documento { background:var(--tarjeta); border:1px solid var(--linea); border-radius:14px; padding:6px 18px 14px; font-size:14px; }
@@ -1025,7 +1038,7 @@ GUION_PROYECTO = r"""
   document.querySelectorAll("form[data-impresa], form[data-rehacer]").forEach(f => f.addEventListener("submit", async ev => {
     ev.preventDefault();
     const accion = f.dataset.impresa ? "impresa" : "rehacer";
-    const caja = f.querySelector("input"), b = f.querySelector("button");
+    const caja = f.querySelector("input, textarea"), b = f.querySelector("button");
     if (accion === "rehacer" && !caja.value.trim() && !confirm("Sin decir qué cambiar, se rediseña desde cero. ¿Seguro?")) return;
     b.disabled = true;
     const [ok, d] = await enviar(obra(f, accion), accion === "impresa" ? {nota: caja.value} : {cambio: caja.value});

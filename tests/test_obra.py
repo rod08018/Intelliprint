@@ -286,7 +286,7 @@ def test_corregir_una_pieza_disenada_parte_de_ella_y_no_de_cero(tmp_path):
     for queda in ("spec.yaml", "concepto.json", "concepto_aprobado"):
         assert (nodo / queda).exists(), queda
     assert not (nodo / "parts").exists() and not (nodo / "pieza_report.json").exists()
-    assert O.estados(tmp_path)["base"] == "concepto aprobado"
+    assert O.estados(tmp_path)["base"] == "corrigiendo"
     assert json.loads((nodo / "retoque.json").read_text(encoding="utf-8")) == {
         "programa": SOPORTE, "cambio": "la tuerca, 2 mm más adentro"}
     assert list((tmp_path / "archivo").rglob("base/parts/base/programa.py"))

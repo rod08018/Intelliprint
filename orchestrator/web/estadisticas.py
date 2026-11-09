@@ -8,6 +8,7 @@ eso, y tiene que seguir viéndose.
 """
 
 import json
+import re
 from pathlib import Path
 
 
@@ -108,7 +109,16 @@ def _etapa_del_registro(carpeta: Path) -> str | None:
         lineas = (carpeta / "run.log").read_text(encoding="utf-8", errors="ignore").splitlines()
     except OSError:
         return None
-    return next((x.strip() for x in reversed(lineas) if x.rstrip().endswith("…")), None)
+    for x in reversed(lineas):
+        if x.rstrip().endswith("…"):
+            return x.strip()
+        # El arranque de esta ejecución: lo de antes es de otra. El `run.log`
+        # de una obra se alarga en cada lanzamiento, y al corregir la base del
+        # pan-tilt (2026-11-09) la web dijo «preparando la impresión» por el
+        # «laminado…» de la vez anterior.
+        if re.match(r"\[[^\]]+\] \w+ → ", x):
+            return None
+    return None
 
 
 def _revisor(carpeta: Path) -> dict | None:

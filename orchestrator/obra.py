@@ -160,17 +160,22 @@ def lista(carpeta: Path, nodo: str) -> dict | None:
 
 
 def _estado_pieza(nodo: Path) -> str:
-    from orchestrator.pieza import APROBADO, CONCEPTO
+    from orchestrator.pieza import APROBADO, CONCEPTO, RETOQUE
     from orchestrator.registry import LATIDO, LATIDO_VALE_S
     latido = nodo / LATIDO
+    # Corrigiendo la base del pan-tilt desde la web (2026-11-09) su tarjeta
+    # decía «Concepto aprobado»: que se está corrigiendo tiene que verse.
+    corrige = (nodo / RETOQUE).is_file()
     if latido.exists() and time.time() - latido.stat().st_mtime < LATIDO_VALE_S:
-        return "diseñando"
+        return "corrigiendo" if corrige else "diseñando"
     informe = nodo / "pieza_report.json"
     if informe.is_file():
         resuelto = json.loads(informe.read_text(encoding="utf-8")).get("resuelto")
         return "diseñada" if resuelto else "con fallos"
     if (nodo / "blocked.md").is_file():
         return "con fallos"
+    if corrige:
+        return "corrigiendo"
     if (nodo / CONCEPTO).is_file():
         return "concepto aprobado" if (nodo / APROBADO).is_file() else "concepto por aprobar"
     return "pendiente"

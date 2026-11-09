@@ -115,7 +115,7 @@ def test_rehacer_avisa_de_lo_que_se_rehace_con_el(tmp_path):
     assert r.status_code == 200, r.text
     assert r.json()["rehechos"] == ["base", "giro"]
     # Construida y con un cambio dicho: se corrige, sin volver al concepto.
-    assert O.estados(carpeta)["base"] == "concepto aprobado"
+    assert O.estados(carpeta)["base"] == "corrigiendo"
 
 
 def test_cambiar_una_pieza_disenada_la_corrige_sin_rehacer_el_concepto(tmp_path):
@@ -130,7 +130,7 @@ def test_cambiar_una_pieza_disenada_la_corrige_sin_rehacer_el_concepto(tmp_path)
     r = web.post(f"/api/proyectos/{ID}/nodos/base/rehacer",
                  json={"cambio": "la tuerca más adentro"})
     assert r.status_code == 200, r.text
-    assert O.estados(carpeta)["base"] == "concepto aprobado"
+    assert O.estados(carpeta)["base"] == "corrigiendo"
     _esperar_registro(carpeta)
 
     # Y quien de verdad quiera empezar de cero lo pide.
@@ -138,6 +138,26 @@ def test_cambiar_una_pieza_disenada_la_corrige_sin_rehacer_el_concepto(tmp_path)
                  json={"cambio": "otra idea", "desde_cero": True})
     assert r.status_code == 200, r.text
     assert O.estados(carpeta)["base"] == "pendiente"
+
+
+def test_la_tarjeta_dice_que_se_corrige_y_que_se_corrigio(tmp_path):
+    """Corrigiendo la base del pan-tilt desde la web (2026-11-09), su tarjeta
+    decía «Concepto aprobado» y no qué se había pedido; y el campo del
+    cambio era de una línea, con la indicación cortada."""
+    carpeta = _empezar(tmp_path, aprobada=True)
+    _disenar_nodo(carpeta, "base")
+    nodo = carpeta / "nodos" / "base"
+    (nodo / "parts" / "base" / "programa.py").write_text("CODIGO", encoding="utf-8")
+    web = _ws_con_trabajos(tmp_path)
+    assert re.search(r'<textarea[^>]*name="cambio"', web.get(f"/p/{ID}").text)
+
+    O.corregir(carpeta, "base", cambio="la tuerca, 2 mm más adentro")
+    texto = _visible(web.get(f"/p/{ID}").text)
+    assert "Corrigiéndose" in texto and "la tuerca, 2 mm más adentro" in texto
+
+    _disenar_nodo(carpeta, "base")   # la corrección termina
+    texto = _visible(web.get(f"/p/{ID}").text)
+    assert "Corregida: la tuerca, 2 mm más adentro" in texto
 
 
 def test_un_proyecto_de_varias_piezas_se_pide_desde_la_portada(tmp_path):
