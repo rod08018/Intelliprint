@@ -138,14 +138,19 @@ def _de_la_vuelta_anterior(carpeta: Path) -> dict:
 
 
 def _concebir(peticion: str, carpeta: Path, *, requisitos, ingeniero,
-              investigador=None, log=print) -> ConceptoComprobado | None:
+              investigador=None, juez=None, log=print) -> ConceptoComprobado | None:
     """Redacta la especificación y el concepto, y PARA a esperar el visto
     bueno. Devuelve None si el concepto no sale (queda `blocked.md`).
 
     `investigador` (F3.21 (investigar)): antes de redactar, busca en internet
     las medidas de lo que la petición nombra sin medir. Lo encontrado entra
-    en los requisitos como `catalogo` y sale en el concepto con su fuente."""
+    en los requisitos como `catalogo` y sale en el concepto con su fuente.
+
+    `juez(texto) -> dict | None`: lee el concepto redactado y su veredicto
+    queda en `juez.json` para avisar a la persona (ver `orchestrator.juez`)."""
+    from orchestrator.juez import JUEZ
     carpeta = Path(carpeta)
+    (carpeta / JUEZ).unlink(missing_ok=True)   # era del concepto anterior
     # Un concepto nuevo (p. ej. tras contestar a sus preguntas) necesita un
     # visto bueno nuevo: el anterior era de otra cosa.
     (carpeta / APROBADO).unlink(missing_ok=True)
@@ -179,6 +184,10 @@ def _concebir(peticion: str, carpeta: Path, *, requisitos, ingeniero,
     (carpeta / "concepto.md").write_text(
         f"# {spec.title}: el concepto\n\n{concepto.texto()}\n"
         + (f"\n{buscado}\n" if buscado else ""), encoding="utf-8")
+    if juez is not None:
+        veredicto = juez((carpeta / "concepto.md").read_text(encoding="utf-8"))
+        if veredicto:
+            (carpeta / JUEZ).write_text(json.dumps(veredicto), encoding="utf-8")
     log(concepto.texto())
     return concepto
 

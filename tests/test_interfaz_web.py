@@ -803,6 +803,22 @@ def test_las_preguntas_van_antes_que_las_medidas(ws):
     assert texto.index("¿Tu perfil es de ranura 6 u 8?") < texto.index("Lo que pediste")
 
 
+def test_si_el_juez_cree_que_algo_queda_suelto_lo_avisa_antes_de_aprobar(ws):
+    """El primer soporte de giro del pan-tilt (2026-11-09) metía el servo en
+    una U abierta por arriba sin nada que lo sujetara; JEV le dio 0.91."""
+    carpeta = _concepto_completo(ws)
+    (carpeta / "juez.json").write_text('{"suelto": 0.91}', encoding="utf-8")
+    texto = _visible(_ws_con_trabajos(ws).get("/p/2026-11-05-sensor").text)
+    assert "quede suelto" in texto
+    assert texto.index("quede suelto") < texto.index("Aprobar y diseñar")
+
+
+def test_si_el_juez_no_lo_ve_suelto_no_avisa(ws):
+    carpeta = _concepto_completo(ws)
+    (carpeta / "juez.json").write_text('{"suelto": 0.4}', encoding="utf-8")
+    assert "quede suelto" not in _visible(_ws_con_trabajos(ws).get("/p/2026-11-05-sensor").text)
+
+
 def test_un_concepto_sin_piezas_no_ofrece_imprimir_ni_descargar(ws):
     _concepto_completo(ws)
     html = _ws_con_trabajos(ws).get("/p/2026-11-05-sensor").text

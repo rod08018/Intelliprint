@@ -471,13 +471,16 @@ def _pieza(args, raiz: Path, env: dict, nombre: str) -> None:
     # Crafty dejan la marca y reanudan, y entonces se modela ESE concepto.
     if not (carpeta / APROBADO).exists():
         from orchestrator.investigar import BuscadorDeepSeek, Investigador
+        from orchestrator.juez import juzgar_concepto
 
         # La búsqueda de DeepSeek, con la misma clave: DuckDuckGo bloquea las
         # búsquedas del contenedor y no se quiere pagar otro servicio.
         concepto = concebir_pieza(peticion, carpeta, requisitos=requisitos,
                                   ingeniero=_ingeniero(raiz, router, env, cliente),
                                   investigador=Investigador(
-                                      cliente, BuscadorDeepSeek(env["DEEPSEEK_API_KEY"])))
+                                      cliente, BuscadorDeepSeek(env["DEEPSEEK_API_KEY"])),
+                                  juez=lambda texto: juzgar_concepto(texto,
+                                                                     env.get("JEV_API_KEY")))
         if concepto is None:
             sys.exit(f"[{nombre}] ✗ el concepto no salió: mira {carpeta / 'blocked.md'}")
         if not args.aprobar_concepto:

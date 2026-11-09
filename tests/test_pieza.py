@@ -130,6 +130,28 @@ def test_la_pieza_espera_el_visto_bueno_del_concepto_antes_de_modelar(tmp_path):
     assert not (tmp_path / "parts").exists()
 
 
+def test_el_concepto_se_juzga_y_el_veredicto_queda_en_la_carpeta(tmp_path):
+    """El juez lee lo mismo que la persona: el concepto ya redactado."""
+    leido = []
+
+    def juez(texto):
+        leido.append(texto)
+        return {"suelto": 0.9}
+
+    concebir_pieza(PETICION, tmp_path, requisitos=Requisitos(), ingeniero=Ingeniero(),
+                   juez=juez, log=_nada)
+
+    assert "gancho en J" in leido[0]
+    assert json.loads((tmp_path / "juez.json").read_text(encoding="utf-8")) == {"suelto": 0.9}
+
+
+def test_un_concepto_nuevo_no_hereda_el_juicio_del_anterior(tmp_path):
+    (tmp_path / "juez.json").write_text('{"suelto": 0.9}', encoding="utf-8")
+    concebir_pieza(PETICION, tmp_path, requisitos=Requisitos(), ingeniero=Ingeniero(),
+                   juez=lambda texto: None, log=_nada)
+    assert not (tmp_path / "juez.json").exists()
+
+
 def test_aprobado_se_modela_ese_concepto_sin_volver_a_redactar_nada(tmp_path):
     """Lo que se aprobó es lo que se dibuja: redactar otra vez la spec
     podría dar otra distinta de la que viste."""

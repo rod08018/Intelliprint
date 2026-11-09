@@ -343,6 +343,10 @@ def _concepto(carpeta: Path, aprobado: bool = False) -> str | None:
     partes = ([] if aprobado else
               ['<p class="lead">Si lo apruebas, se dibuja <b>esta idea</b> con <b>estas '
                'medidas</b>. Una medida mal aquí es una pieza mal: revísalas.</p>'])
+    if not aprobado:
+        from orchestrator.juez import JUEZ, avisos
+        partes += [f'<div class="aviso ambar juez">{e(a)}</div>'
+                   for a in avisos(_leer(carpeta / JUEZ))]
     partes.append(f'<h3>La idea</h3><p class="idea">{e(c["idea"])}</p>')
     if c.get("preguntas") and not aprobado:
         partes.append('<div class="preguntas"><b>Antes, contéstame</b><ol>'
