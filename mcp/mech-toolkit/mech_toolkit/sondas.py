@@ -468,10 +468,14 @@ def componente_cabe(forma, ficha, en, giros=()):
         return {"cumple": False, "detalle": f"{ficha.get('nombre', ficha['id'])} no cabe: "
                                             + "; ".join(fallos)}
     cerca = min(forma.distToShape(solido(p))[0] for p in cuerpos)
-    if cerca > TOQUE_MAX_MM:
+    # Una pieza de la obra (F7.1 (fichar)) es un vecino: puede ir al lado sin
+    # tocar, como la base bajo el soporte de giro del pan-tilt (2026-11-09),
+    # que gira libre por encima. Atornillarse a ella se comprueba con sus
+    # agujeros con nombre, no aquí.
+    if cerca > TOQUE_MAX_MM and ficha.get("origen") != "impreso":
         return {"cumple": False,
-                "detalle": f"el componente no toca la pieza: queda a {cerca:.1f} mm; "
-                           "donde está colocado no lo sujeta nada"}
+                "detalle": f"{ficha.get('nombre', ficha['id'])} no toca la pieza: queda a "
+                           f"{cerca:.1f} mm; donde está colocado no lo sujeta nada"}
     return {"cumple": True, "detalle": f"cabe, y se apoya a {cerca:.2f} mm de la pieza"}
 
 

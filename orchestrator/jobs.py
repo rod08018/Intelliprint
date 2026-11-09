@@ -163,12 +163,11 @@ class JobStore:
     def aprobar(self, job_id: str, respuestas: str = "", por: str = "") -> str:
         """El visto bueno al concepto del ingeniero (F3.20 (concepto)), y sigue.
 
-        Con `respuestas` NO se aprueba: se añaden a la petición, tal cual las
-        escribió la persona, y el ingeniero propone otro concepto que vuelve
-        a esperar. Contestar puede cambiar la idea, y lo que se modela tiene
+        Con `respuestas` NO se aprueba: van al ingeniero, tal cual las
+        escribió la persona, y propone otro concepto que vuelve a esperar. Contestar puede cambiar la idea, y lo que se modela tiene
         que ser algo que la persona haya visto."""
         from orchestrator import obra
-        from orchestrator.pieza import ANTERIOR, CONCEPTO, aprobar_concepto
+        from orchestrator.pieza import ANTERIOR, CONCEPTO, RESPUESTAS, aprobar_concepto
         destino = self.carpeta / job_id
         if obra.es_obra(destino):
             # F7.2 (desglose): lo que espera es el desglose o el concepto del
@@ -184,8 +183,10 @@ class JobStore:
         if en_marcha:
             raise RuntimeError(f"ya hay un proyecto en marcha ({en_marcha})")
         if respuestas.strip():
-            with (destino / "request.md").open("a", encoding="utf-8") as f:
-                f.write(f"\nRespuestas a las preguntas del ingeniero: {respuestas.strip()}\n")
+            # Al ingeniero, no a la petición: el agente de requisitos hacía de
+            # cada cifra de una respuesta un requisito (2026-11-09).
+            with (destino / RESPUESTAS).open("a", encoding="utf-8") as f:
+                f.write(respuestas.strip() + "\n")
             # El contestado es el punto de partida del siguiente concepto:
             # sin él el ingeniero empezaba de cero (pan-tilt, 2026-11-09).
             (destino / CONCEPTO).replace(destino / ANTERIOR)

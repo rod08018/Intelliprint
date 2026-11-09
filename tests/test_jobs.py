@@ -265,7 +265,10 @@ def test_responder_al_ingeniero_pide_otro_concepto_en_vez_de_aprobar(tmp_path):
 
     assert not (tmp_path / job / "concepto_aprobado").exists()
     assert not (tmp_path / job / "concepto.json").exists()
-    assert "la mochila pesa 3 kg" in (tmp_path / job / "request.md").read_text(encoding="utf-8")
+    # Al ingeniero, no a la petición: el agente de requisitos convertía cada
+    # cifra de una respuesta en un requisito (soporte de giro, 2026-11-09).
+    assert "la mochila pesa 3 kg" not in (tmp_path / job / "request.md").read_text(encoding="utf-8")
+    assert "la mochila pesa 3 kg" in (tmp_path / job / "respuestas.md").read_text(encoding="utf-8")
 
 
 def test_no_se_aprueba_un_concepto_que_no_existe(tmp_path):

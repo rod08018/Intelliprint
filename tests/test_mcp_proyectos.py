@@ -147,7 +147,7 @@ def test_crafty_ve_el_concepto_y_lo_aprueba_o_contesta(ws):
 
     r = servidor.aprobar_concepto("2026-11-04-gancho", respuestas="pesa unos 3 kg")
     assert "error" not in r, r
-    assert "pesa unos 3 kg" in (carpeta / "request.md").read_text(encoding="utf-8")
+    assert "pesa unos 3 kg" in (carpeta / "respuestas.md").read_text(encoding="utf-8")
     limite = time.time() + 20
     while "--continuar" not in (carpeta / "run.log").read_text(encoding="utf-8") \
             and time.time() < limite:

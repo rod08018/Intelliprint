@@ -380,6 +380,18 @@ def test_un_componente_que_no_toca_la_pieza_no_cuenta(tmp_path):
     [cabe] = _medir(CUNA, [ComponenteCabe(tipo="componente_cabe", ficha=_real(),
                                           en=[200, 0, 0])], tmp_path)
     assert cabe.estado == "no_cumple" and "no toca" in cabe.detalle
+    assert _real()["nombre"] in cabe.detalle   # cuál, que puede haber varios
+
+
+def test_una_pieza_vecina_de_la_obra_no_tiene_que_tocar(tmp_path):
+    """El soporte de giro del pan-tilt (2026-11-09) coloca la base debajo solo
+    para ver que no choca: gira libre 7.5 mm por encima, y la sonda lo daba
+    por suelto. Una pieza de la obra es un vecino; atornillarse a él ya se
+    comprueba con sus agujeros con nombre."""
+    vecina = {**_real(), "origen": "impreso"}
+    [cabe] = _medir(CUNA, [ComponenteCabe(tipo="componente_cabe", ficha=vecina,
+                                          en=[200, 0, 0])], tmp_path)
+    assert cabe.estado == "cumple", cabe.detalle
 
 
 RODAMIENTO_EN_SU_EJE = """

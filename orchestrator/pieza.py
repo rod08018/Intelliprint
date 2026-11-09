@@ -109,6 +109,7 @@ def disenar_pieza(peticion: str, carpeta: Path, **kw) -> "InformePieza":
 ANTERIOR = "concepto_anterior.json"
 CAMBIOS = "cambios.md"
 RETOQUE = "retoque.json"
+RESPUESTAS = "respuestas.md"
 """{programa, cambio}: corregir la pieza construida en vez de diseñarla otra vez."""
 
 
@@ -121,8 +122,18 @@ def _de_la_vuelta_anterior(carpeta: Path) -> dict:
     if (carpeta / ANTERIOR).is_file():
         kw["anterior"] = ConceptoComprobado.model_validate_json(
             (carpeta / ANTERIOR).read_text(encoding="utf-8"))
+    partes = []
     if (carpeta / CAMBIOS).is_file():
-        kw["cambios"] = (carpeta / CAMBIOS).read_text(encoding="utf-8")
+        partes.append((carpeta / CAMBIOS).read_text(encoding="utf-8").strip())
+    # Lo que contestó a los conceptos, también aquí y no en la petición: al
+    # soporte de giro del pan-tilt (2026-11-09) se le citó el cuerno de la
+    # ficha («cubo de Ø6.9») y salió un requisito de agujero de Ø6.9 que la
+    # pieza no tenía por qué tener.
+    if (carpeta / RESPUESTAS).is_file():
+        partes.append("Lo que contestó la persona a los conceptos anteriores:\n"
+                      + (carpeta / RESPUESTAS).read_text(encoding="utf-8").strip())
+    if partes:
+        kw["cambios"] = "\n\n".join(p for p in partes if p)
     return kw
 
 

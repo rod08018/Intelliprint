@@ -16,6 +16,7 @@ import time
 
 import pytest
 
+from orchestrator.pieza import _de_la_vuelta_anterior
 from orchestrator.schemas.obra import Obra
 
 PANTILT = {
@@ -157,7 +158,7 @@ def test_el_concepto_de_un_nodo_se_aprueba_o_se_contesta_en_su_carpeta(tmp_path)
 
     O.aprobar(tmp_path, respuestas="que se atornille con M2", por="web")
     assert not (nodo / "concepto.json").exists()
-    assert "que se atornille con M2" in O.peticion_del_nodo(tmp_path, "base")
+    assert "que se atornille con M2" in _de_la_vuelta_anterior(nodo)["cambios"]
 
     (nodo / "concepto.json").write_text("{}", encoding="utf-8")
     O.aprobar(tmp_path, por="web")
@@ -304,7 +305,7 @@ def test_rehacer_conserva_las_respuestas_de_la_persona(tmp_path):
 
     O.rehacer(tmp_path, "base", cambio="más alta")
 
-    assert "lado corto" in O.peticion_del_nodo(tmp_path, "base")
+    assert "lado corto" in _de_la_vuelta_anterior(tmp_path / "nodos" / "base")["cambios"]
 
 
 def test_contestar_al_concepto_guarda_el_contestado_como_anterior(tmp_path):
@@ -317,8 +318,23 @@ def test_contestar_al_concepto_guarda_el_contestado_como_anterior(tmp_path):
 
     anterior = json.loads((nodo / "concepto_anterior.json").read_text(encoding="utf-8"))
     assert anterior["concepto"]["idea"] == "brida en U"
-    # La respuesta sí es un dato de la pieza: va a la petición.
-    assert "lado corto" in O.peticion_del_nodo(tmp_path, "base")
+    assert "lado corto" in _de_la_vuelta_anterior(nodo)["cambios"]
+
+
+def test_contestar_al_concepto_no_crea_requisitos(tmp_path):
+    """Al soporte de giro del pan-tilt (2026-11-09) se le contestó citando
+    el cuerno de la ficha («cubo de Ø6.9») y diciendo que 4 mm no bastaban.
+    El agente de requisitos sacó «R7: un agujero de Ø6.9» y «R9: 4 mm», y la
+    pieza falló por no tener un agujero que nadie quería. Contestar es hablar
+    con el ingeniero: va al concepto, no a la petición."""
+    O = _empezar(tmp_path)
+    O.aprobar(tmp_path, por="web")
+    nodo = tmp_path / "nodos" / "base"
+    _concepto_visto(nodo, "placa en el cuerno")
+    O.aprobar(tmp_path, respuestas="el rebaje para el cubo de Ø6.9 del cuerno; 4 mm no bastan",
+              por="web")
+    assert "Ø6.9" not in O.peticion_del_nodo(tmp_path, "base")
+    assert "Ø6.9" in _de_la_vuelta_anterior(nodo)["cambios"]
 
 
 # --- la orden -----------------------------------------------------------------------------

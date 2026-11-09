@@ -76,6 +76,37 @@ def test_la_ficha_de_una_pieza_impresa_es_su_step_y_sus_agujeros(tmp_path, monke
     assert "impresa en este proyecto" in resumen(f)
 
 
+def test_la_ficha_lleva_montado_lo_que_la_pieza_aloja(tmp_path, monkeypatch):
+    """La base del pan-tilt (2026-11-09) se fichó sin su SG90: el soporte de
+    giro, que se apoya en el cuerno de ese servo, no veía su carcasa ni su
+    eje, y puso el cubo 1.1 mm dentro de la carcasa sin que nada lo viera. La
+    pieza siguiente se diseña contra la pieza montada, no contra la pieza
+    vacía. El SG90 va en (23.6, 6, 0), como en la base."""
+    import json
+
+    from orchestrator.componentes import cargar
+    from orchestrator.obra import fichar
+    carpeta = tmp_path / "base"
+    carpeta.mkdir()
+    (carpeta / "base.step").write_text("STEP", encoding="utf-8")
+    (carpeta / "envolvente.json").write_text(json.dumps({"min": [0, 0, 0], "max": [70, 34, 18.5]}),
+                                             encoding="utf-8")
+    (carpeta / "rasgos.json").write_text(json.dumps([
+        {"nombre": "sg90", "tipo": "componente", "ficha": "sg90", "en": [23.6, 6.0, 0.0],
+         "giros": [], "entra_por": "+z"}]), encoding="utf-8")
+    fichar(carpeta, "obra-base", "Base", tmp_path / "fichas", proyecto="prueba")
+    monkeypatch.setenv("INTELLIPRINT_FICHAS", str(tmp_path / "fichas"))
+    f = cargar("obra-base")
+
+    servo = cargar("sg90")
+    cuerpo = next(c for c in f.cuerpos if c.nombre == "sg90: cuerpo")
+    assert cuerpo.en == pytest.approx([23.6, 6.0, 0.0])
+    assert cuerpo.caja == pytest.approx(next(c for c in servo.cuerpos if c.nombre == "cuerpo").caja)
+    eje = next(c for c in f.despejar if c.nombre == "sg90: eje_y_cubo_del_cuerno")
+    assert eje.en == pytest.approx([23.6 + 5.8, 6.0 + 6.2, 27.1])
+    assert eje.cilindro.eje == "+z" and eje.cilindro.diametro == 6.9
+
+
 @pytest.mark.parametrize("z, cabe", [(0, True), (1, False)])
 def test_la_pieza_siguiente_se_disena_contra_la_ficha(tmp_path, monkeypatch, z, cabe):
     f = _fichar(tmp_path, monkeypatch, SOPORTE, "soporte-impreso", "Soporte impreso")

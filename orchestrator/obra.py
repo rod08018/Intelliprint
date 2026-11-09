@@ -48,6 +48,47 @@ def _agujeros(rasgos: list[dict]) -> list[dict]:
     return salida
 
 
+def _como_cuerpo(p: dict, de: str) -> dict:
+    """Una primitiva ya colocada (`mech_toolkit.componentes.primitivas`) como
+    cuerpo de ficha, con el nombre del componente delante."""
+    nombre = f"{de}: {p['nombre']}"
+    extra = {"porque": p["porque"]} if p.get("porque") else {}
+    if p.get("gira_con"):
+        extra["gira_con"] = p["gira_con"]
+    if p["tipo"] == "caja":
+        return {"nombre": nombre, "en": [round(c, 6) for c in p["min"]],
+                "caja": [round(b - a, 6) for a, b in zip(p["min"], p["max"])], **extra}
+    if p["tipo"] == "cilindro":
+        cil = {"diametro": p["diametro"], "alto": p["alto"],
+               "eje": _EJES[tuple(int(c) for c in p["eje"])]}
+        if p.get("interior"):
+            cil["interior"] = p["interior"]
+        return {"nombre": nombre, "en": [round(c, 6) for c in p["base"]], "cilindro": cil,
+                **extra}
+    raise ValueError(f"«{nombre}»: una pieza impresa dentro de otra no se ficha todavía")
+
+
+def _montados(rasgos: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Lo comprado que la pieza aloja (los `componente` de sus rasgos), en el
+    marco de la pieza: la siguiente se diseña contra la pieza MONTADA. La base
+    del pan-tilt (2026-11-09) se fichó vacía, y el soporte de giro, que se
+    apoya en el cuerno de su SG90, no veía la carcasa del servo."""
+    from mech_toolkit.componentes import primitivas
+
+    from orchestrator.componentes import cargar
+    cuerpos, despejar = [], []
+    for r in rasgos:
+        if r.get("tipo") != "componente" or not r.get("ficha"):
+            continue
+        ficha = cargar(r["ficha"])
+        if ficha.origen == "impreso":
+            continue   # su forma ya está en su propia ficha
+        giros = [tuple(g) for g in r.get("giros") or []]
+        for de, lista in (("cuerpos", cuerpos), ("despejar", despejar)):
+            lista += [_como_cuerpo(p, r["nombre"]) for p in primitivas(ficha, r["en"], giros, de)]
+    return cuerpos, despejar
+
+
 def fichar(carpeta: Path, id_: str, nombre: str, destino: Path, proyecto: str = "") -> Path:
     """La ficha de la pieza construida en `carpeta` (`parts/<pieza>/`), en
     `destino/<id_>.yaml`, con una copia de su STEP al lado. Es su forma
@@ -62,6 +103,7 @@ def fichar(carpeta: Path, id_: str, nombre: str, destino: Path, proyecto: str = 
               if (carpeta / "rasgos.json").is_file() else [])
     destino.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(_step_de(carpeta), destino / f"{id_}.step")
+    montados, despejar = _montados(rasgos)
     datos = {
         "id": id_, "nombre": nombre, "origen": "impreso", "proyecto": proyecto,
         "verificado": False,
@@ -70,7 +112,9 @@ def fichar(carpeta: Path, id_: str, nombre: str, destino: Path, proyecto: str = 
         "marco": "El de la pieza construida: el mismo origen y los mismos ejes que su programa.",
         "mira": "+z",
         "cuerpos": [{"nombre": nombre, "en": [0, 0, 0],
-                     "step": {"ruta": f"{id_}.step", "min": caja["min"], "max": caja["max"]}}],
+                     "step": {"ruta": f"{id_}.step", "min": caja["min"], "max": caja["max"]}},
+                    *montados],
+        "despejar": despejar,
         "fijacion": _agujeros(rasgos),
     }
     Ficha(**datos)   # que no se guarde una ficha que luego no carga
@@ -274,11 +318,11 @@ def peticion_del_nodo(carpeta: Path, nodo: str) -> str:
     carpeta = Path(carpeta)
     obra = cargar_obra(carpeta)
     n = obra.nodo(nodo)
-    ruta = carpeta / NODOS / nodo / "respuestas.md"
-    respuestas = ruta.read_text(encoding="utf-8").strip() if ruta.is_file() else ""
+    # Sin lo que la persona contestó a los conceptos: va al ingeniero
+    # (`pieza._de_la_vuelta_anterior`). Aquí lo leía el agente de requisitos,
+    # y cada cifra de una respuesta acababa de requisito.
     if len(obra.nodos) == 1:
-        original = (carpeta / "request.md").read_text(encoding="utf-8").strip()
-        return original + (f"\n\nRespuestas de la persona: {respuestas}" if respuestas else "")
+        return (carpeta / "request.md").read_text(encoding="utf-8").strip()
     lineas = [f"{n.nombre}: {n.que_hace}.", "",
               f"Es una de las piezas de «{obra.titulo}», que se diseñan una a una: aquí solo "
               "se diseña esta."]
@@ -295,8 +339,6 @@ def peticion_del_nodo(carpeta: Path, nodo: str) -> str:
                    "y atorníllate a sus agujeros con `punto()`:"]
         lineas += [f"- {obra.nodo(d).nombre}: ficha {id_de_ficha(d)} ({obra.nodo(d).que_hace})"
                    for d in n.depende_de]
-    if respuestas:
-        lineas += ["", f"Respuestas de la persona sobre esta pieza: {respuestas}"]
     return "\n".join(lineas) + "\n"
 
 
