@@ -148,6 +148,54 @@ def sondas_de(requisitos, rasgos=(), pared_min_mm=None) -> list:
     return sondas
 
 
+def _distancia_a_rasgo(p, r) -> float | None:
+    """Del punto `p` a la superficie del rasgo: una caja para un hueco, un
+    cilindro de eje y largo conocidos para un agujero o una tuerca (el
+    hexágono, por su entrecaras: basta para saber si es él)."""
+    if r.get("tipo") == "hueco":
+        fuera = [max(lo - x, 0.0, x - hi) for x, lo, hi in zip(p, r["desde"], r["hasta"])]
+        if any(fuera):
+            return math.sqrt(sum(f * f for f in fuera))
+        return min(min(x - lo, hi - x) for x, lo, hi in zip(p, r["desde"], r["hasta"]))
+    if r.get("tipo") in ("agujero", "tuerca"):
+        radio = (r.get("diametro_mm") or r.get("entrecaras_mm") or 0) / 2
+        e = r["eje"]
+        norma = math.sqrt(sum(c * c for c in e)) or 1.0
+        e = [c / norma for c in e]
+        d = [a - b for a, b in zip(p, r["entrada"])]
+        t = sum(x * y for x, y in zip(d, e))
+        radial = math.sqrt(max(sum(x * x for x in d) - t * t, 0.0))
+        largo = r.get("profundidad_mm")
+        axial = max(-t, 0.0, (t - largo) if largo is not None else 0.0)
+        if axial:
+            return math.hypot(axial, max(radial - radio, 0.0))
+        return abs(radial - radio)
+    return None
+
+
+def mensaje_de_pared(detalle: str, rasgos, pared_min_mm) -> str:
+    """El defecto de pared, con los rasgos que la tocan por nombre.
+
+    La base del pan-tilt (2026-11-09) recibía «(en 5.0, 15.2, 15.7)» y nada
+    más: un punto que el diseñador tenía que casar a mano con su programa.
+    La pared fina tiene un rasgo a cada lado, o la cara de la pieza en uno:
+    los que quedan a menos del mínimo del punto son los que la adelgazan."""
+    texto = (f"pared: {detalle} (el mínimo que imprime la impresora). Engrosa esa pared o "
+             "aparta lo que la adelgaza")
+    m = re.search(r"\(en (-?[\d.]+), (-?[\d.]+), (-?[\d.]+)\)", detalle)
+    cerca = []
+    if m and pared_min_mm:
+        p = [float(x) for x in m.groups()]
+        # 0.1 de margen: el punto sale redondeado a una décima.
+        cerca = [r["nombre"] for r in rasgos
+                 if (dist := _distancia_a_rasgo(p, r)) is not None
+                 and dist <= float(pared_min_mm) + 0.1]
+    if cerca:
+        return (texto + f". Está junto a {', '.join(f'«{n}»' for n in cerca)}: muévelo hacia "
+                "dentro o engrosa la pared que lo rodea")
+    return texto + "; suele ser un hueco o un agujero demasiado cerca de una cara"
+
+
 def componentes_sin_colocar(componentes, rasgos) -> list[str]:
     """Los componentes que el concepto nombra y el programa no coloca: sin
     colocarlos no se puede comprobar que quepan."""
@@ -184,9 +232,7 @@ def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
                           "(`pieza.quitar(\"...\", componente.hueco())`), y si lo que choca "
                           "es algo que la pieza necesita, muévelo o cambia por dónde entra")
         elif isinstance(sonda, ParedMinima):
-            fallos.append(f"pared: {medida.detalle} (el mínimo que imprime la impresora). "
-                          "Engrosa esa pared o aparta lo que la adelgaza; suele ser un hueco "
-                          "o un agujero demasiado cerca de una cara")
+            fallos.append(mensaje_de_pared(medida.detalle, resultado.rasgos, pared_min_mm))
         elif isinstance(sonda, AccesoTornillo):
             fallos.append(f"{medida.detalle}. Mueve el tornillo a donde se llegue desde "
                           "fuera, aparta lo que tapa su camino, o atorníllalo desde el otro "

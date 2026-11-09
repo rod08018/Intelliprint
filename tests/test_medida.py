@@ -109,6 +109,41 @@ def test_con_el_minimo_del_perfil_el_bucle_mide_la_pared_mas_fina():
     assert p.min_mm == 0.8
 
 
+# Los rasgos de la base del pan-tilt (2026-11-09), copiados de su rasgos.json.
+# La pared fina de verdad, medida en FreeCAD, es de 0.25 mm en (5.7, 17.2, 13.1):
+# la cara exterior de la brida (y = 17.2) contra el plano de la tuerca, cuyo
+# eje va por y = 14, z = 13 con entrecaras 5.9 → 14 + 2.95 = 16.95. El
+# agujero del tornillo, en el mismo eje, tiene radio 1.65: su superficie
+# queda a 3.2 - 1.65 = 1.55 mm del punto, y no es lo que adelgaza la pared.
+BASE_PAN_TILT = [
+    {"nombre": "alojamiento_sg90", "tipo": "hueco", "desde": [-16.2, -6.3, 4.9],
+     "hasta": [16.2, 6.3, 2031.8]},
+    {"nombre": "brida_ranura", "tipo": "hueco", "desde": [-1.0, 5.7, 5.0],
+     "hasta": [1.0, 17.7, 20.0]},
+    {"nombre": "apriete", "tipo": "agujero", "diametro_mm": 3.3, "entrada": [-8.0, 14.0, 13.0],
+     "eje": [1.0, 0.0, 0.0], "profundidad_mm": None, "tornillo": "M3"},
+    {"nombre": "apriete_tuerca", "tipo": "tuerca", "entrecaras_mm": 5.9,
+     "entrada": [8.0, 14.0, 13.0], "eje": [-1.0, 0.0, 0.0], "profundidad_mm": 3.0},
+]
+
+
+def test_la_pared_fina_dice_que_rasgo_la_adelgaza():
+    """Con solo «(en 5.7, 17.2, 13.1)» el diseñador tiene que adivinar qué
+    hueco es; el kit sabe dónde puso cada uno."""
+    from orchestrator.medida import mensaje_de_pared
+    m = mensaje_de_pared("la pared más fina mide 0.25 mm (en 5.7, 17.2, 13.1); se exige 0.8",
+                         BASE_PAN_TILT, 0.8)
+    assert "«apriete_tuerca»" in m
+    assert "«apriete»" not in m and "brida_ranura" not in m and "alojamiento_sg90" not in m
+
+
+def test_una_pared_fina_lejos_de_todo_rasgo_no_nombra_ninguno():
+    from orchestrator.medida import mensaje_de_pared
+    m = mensaje_de_pared("la pared más fina mide 0.5 mm (en 25.0, -20.0, 1.0); se exige 0.8",
+                         BASE_PAN_TILT, 0.8)
+    assert "«" not in m and "0.5 mm" in m
+
+
 # --- «M5» es un tornillo, no un diámetro --------------------------------------------
 # Proyecto del 608ZZ (2026-11-08): «dos tornillos M5 separados 20 mm» salió
 # como requisito `agujero` de valor 5, y el bucle exigía un agujero de Ø5 por

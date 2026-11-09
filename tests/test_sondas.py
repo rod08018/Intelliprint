@@ -140,6 +140,36 @@ def construir(kit):
     assert r.estado == "cumple"
 
 
+# Un bloque con una tuerca M3 cautiva de eje x, entrando por la cara x=30.
+# La entrecaras del perfil es 5.9: con eje x los planos del hexágono quedan
+# en y = 10 ± 2.95. El fondo del hueco, en x = 27, tiene 27 mm de material
+# detrás.
+_TUERCA = """
+def construir(kit):
+    p = kit.caja(30, {y}, 20)
+    return p.tuerca("t", "M3", en=(30, 10, 10), eje="-x", profundidad=3)
+"""
+
+
+def test_el_fondo_de_una_tuerca_cautiva_no_es_una_pared_fina(tmp_path):
+    """La base del pan-tilt (2026-11-09) salió «con fallos» por una pared de
+    0.01 mm que no existe: en el fondo hexagonal de la tuerca había 4 mm. La
+    sonda tomaba puntos de la caja UV de la cara, que en un hexágono caen
+    sobre su borde, y el rayo rozaba la pared lateral del hueco. Los cinco
+    intentos persiguieron esa pared; ninguno podía quitarla sin quitar la
+    tuerca. Aquí la pared más cercana a la tuerca son 10 - 2.95 = 7.05 mm."""
+    [r] = _medir(_TUERCA.format(y=20), [ParedMinima(tipo="pared_minima", min_mm=0.8)], tmp_path)
+    assert r.estado == "cumple", r.detalle
+
+
+def test_la_tuerca_junto_a_una_cara_deja_la_pared_que_queda(tmp_path):
+    """Con el bloque hasta y = 13.45, entre el plano de la tuerca (12.95) y
+    la cara quedan 0.5 mm: eso es lo que hay que decir, y no otra cosa."""
+    [r] = _medir(_TUERCA.format(y=13.45), [ParedMinima(tipo="pared_minima", min_mm=0.8)],
+                 tmp_path)
+    assert r.estado == "no_cumple" and "0.50 mm" in r.detalle, r.detalle
+
+
 def test_la_boca_del_clip(tmp_path):
     u = """
 def construir(kit):

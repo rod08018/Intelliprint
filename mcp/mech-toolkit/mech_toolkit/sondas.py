@@ -300,6 +300,12 @@ def paso_libre(forma, diametro_mm, eje_de_mm):
                         f"un Ø{diametro_mm:g} no pasa: choca con {choca:.1f} mm³ de pieza")}
 
 
+def _por_dentro(forma, tramo):
+    """El punto medio del tramo está dentro del sólido, no en su piel."""
+    medio = tramo.valueAt((tramo.FirstParameter + tramo.LastParameter) / 2)
+    return forma.isInside(medio, 1e-4, False)
+
+
 def pared_minima(forma, min_mm, por_cara=5, area_min_mm2=4.0):
     """El espesor más fino, con rayos hacia dentro desde puntos de cada cara
     plana: la primera porción de material que atraviesa el rayo es la pared."""
@@ -318,7 +324,16 @@ def pared_minima(forma, min_mm, por_cara=5, area_min_mm2=4.0):
                 n = cara.normalAt(u, v)
                 rayo = Part.LineSegment(p + n * 0.01, p - n * 500).toShape()
                 tramos = forma.common(rayo).Edges
-                cerca = [e for e in tramos if min((x.Point - p).Length for x in e.Vertexes) < 0.05]
+                # Solo cuenta un tramo que va POR DENTRO del material. Los
+                # puntos salen de la caja UV de la cara, y en una cara que
+                # no es un rectángulo (el fondo hexagonal de una tuerca) caen
+                # sobre su borde: ahí el rayo empieza rozando la pared
+                # lateral del hueco y `common` devuelve ese roce de 0.01 mm.
+                # La base del pan-tilt (2026-11-09) salió «con fallos» por
+                # esa pared inexistente, y cinco intentos la persiguieron.
+                cerca = [e for e in tramos
+                         if min((x.Point - p).Length for x in e.Vertexes) < 0.05
+                         and _por_dentro(forma, e)]
                 if not cerca:
                     continue
                 grosor = min(e.Length for e in cerca)
