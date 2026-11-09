@@ -575,24 +575,27 @@ Y una realidad del punto de partida: la clase `robot` solo existe en `spec.py`. 
 
 ---
 
-## ADR-019 · Lo que se entrega es un kit que imprime otro
+## ADR-019 · Lo que se entrega es un kit para montar
 
-**Estado:** aceptada (2026-11-09) · **Afecta a:** Fase 8 (F8.1–F8.10), F5.15 (movida a F8.6 (montaje)), ADR-016, ADR-018
+**Estado:** aceptada (2026-11-09), corregida el mismo día · **Afecta a:** Fase 8 (F8.1–F8.11), F5.15 (movida a F8.6 (montaje)), F5.16, ADR-018
 
-**Problema.** Intelliprint diseñaba para **una** impresora: la M5 del usuario, con su perfil de holguras y su laminado. La salida era «una pieza lista para imprimir aquí». El usuario va a montar una empresa de robótica infantil, y el modelo es otro:
+**Corrección.** La primera versión de esta ADR suponía que los clientes imprimían el kit en su casa. Planteaba un perfil para impresoras ajenas y laminar con las de otros fabricantes. El usuario lo corrigió: «son mías, yo las voy a imprimir para armar kits», y «la impresora yo la voy a setear». Lo que sigue es la decisión corregida. F8.2 (ajena) y F8.3 (otras) quedan en el plan como descartadas.
+
+**Problema.** El usuario va a montar una empresa de robótica infantil:
 
 - **él diseña los kits** con Intelliprint;
-- **sus clientes los imprimen** en sus impresoras;
+- **los imprime en sus impresoras** y los mete en una caja con lo comprado;
+- **el cliente monta** el robot, y puede ser un niño;
 - la programación de los robots se mira **después**.
 
-Un kit no sabe en qué impresora va a salir, y lo monta alguien que no ha visto el diseño. Faltan cuatro cosas:
+Hoy Intelliprint saca piezas listas para imprimir y nada más. Para vender un kit faltan cuatro cosas:
 
-- holguras que funcionen sin calibrar;
-- saber si cada pieza se imprime bien en otras máquinas;
 - la lista de lo que hay que comprar;
-- unas instrucciones de montaje.
+- unas instrucciones que alguien que no ha visto el diseño pueda seguir;
+- avisos de lo que no conviene en las manos de un niño;
+- lo que cuesta cada kit.
 
-Lo que descarga hoy la web es la carpeta del proyecto en un zip, con rondas, registros y especificación: es el historial del sistema, no un producto.
+Lo que descarga hoy la web es la carpeta del proyecto con su historial, no algo que se pueda meter en una caja.
 
 **Decisión.** Decidida con el usuario el 2026-11-09.
 
@@ -602,32 +605,32 @@ Lo que descarga hoy la web es la carpeta del proyecto en un zip, con rondas, reg
    - el orden de montaje, en las dependencias.
 
    No se empaqueta nada que no haya salido entero como obra.
-2. **El kit se diseña con un perfil propio**, `kit_generico`, separado del de la M5. Sus agujeros son la ISO 273 serie media, citada. Sus holguras son las que aguantan una impresora sin calibrar. El perfil de la M5 sigue para lo que el usuario imprime él, y su `M3_through_mm: 3.3` no se toca (deuda de F2.18 (calibración)).
-3. **«Se imprime bien en otras impresoras» se comprueba laminando**, no imprimiendo. Cada pieza se lamina con los perfiles de sistema que trae PrusaSlicer para las impresoras elegidas. Lo que necesita soportes en alguna se marca. Es lo mismo que hace F1.13 con la M5, repetido.
-4. **El paquete lleva lo que hace falta para imprimir y montar, y nada más:**
-   - las piezas en STL y 3MF, orientadas como se laminaron;
-   - `imprimir.md` con material, capa, relleno y orientación por pieza;
-   - `compras.csv`;
-   - las instrucciones de montaje;
-   - la versión del kit.
+2. **Se imprime en las impresoras del usuario, con su perfil.** El kit se diseña y se lamina con el perfil activo de `config/impresion.yaml`, como cualquier pieza. La impresora la configura y la calibra el usuario: él decide cuándo imprimir la pieza de F2.18 (calibración) y qué valores salen. El asistente no cambia holguras por su cuenta, y `M3_through_mm: 3.3` sigue igual hasta entonces.
+3. **El paquete tiene dos partes.**
+   - **Producción**, para el usuario: piezas en STL y 3MF, el G-code de su máquina, la lista de compras, y el coste y las horas por kit.
+   - **La caja**, para el cliente: las instrucciones y la lista de piezas y compras, sin nada interno.
+4. **Las instrucciones son para quien monta, no para quien diseña.** El orden sale del árbol. Cada paso tiene sus piezas numeradas y una imagen. Van imágenes antes que texto.
+5. **Las reglas de montaje infantil son avisos, no una certificación.** El código revisa y avisa de:
+   - piezas que caben en el cilindro de piezas pequeñas (16 CFR 1501);
+   - más tipos de tornillo de los decididos;
+   - aristas vivas;
+   - pasos que necesitan pegamento.
 
-   El STL y el `imprimir.md` sirven en cualquier laminador; el 3MF de PrusaSlicer es una comodidad.
-5. **Las reglas de montaje infantil son avisos, no una certificación.** El cilindro de piezas pequeñas (16 CFR 1501), los tipos de tornillo, las aristas vivas y el pegamento se revisan con el código y se avisan. La seguridad de un juguete se certifica con EN 71 o ASTM F963 en un laboratorio. Intelliprint no lo sustituye, y el kit no debe decir que cumple nada que no se haya certificado.
-6. **La programación queda fuera de esta fase**, por decisión del usuario. Lo de ADR-017 (Gazebo) sigue siendo para probar el código del usuario. Un entorno para que programen los niños es otro producto, sin diseñar.
+   La seguridad de un juguete la certifica un laboratorio con EN 71 o ASTM F963. Intelliprint no lo sustituye, y el kit no debe decir que cumple nada que no se haya certificado.
+6. **El coste por kit sale de lo medido**: los gramos del laminado al precio por kilo del filamento, más lo comprado a sus precios. Los precios los pone el usuario en F8.1 (cliente).
+7. **La programación queda fuera de esta fase**, por decisión del usuario. Lo de ADR-017 (Gazebo) sigue siendo para probar el código del usuario. Un entorno para que programen los niños es otro producto, sin diseñar.
 
 **Preguntas abiertas**, que decide el usuario en F8.1 (cliente) y no el asistente por defecto:
 
-- **Qué impresoras.** Las más comunes entre sus clientes (colegios, familias, makerspaces), y la cama más pequeña que el kit tiene que respetar.
-- **Qué material.** PLA es lo más común y lo más fácil; PETG aguanta más pero se imprime peor.
-- **Lo comprado.** Si va en la caja del kit (servos, tornillos) o lo compra el cliente con la lista.
-- **Quién monta.** La edad de quien monta, y qué herramientas se permiten (destornillador sí o no, insertos térmicos no).
-- **Las instrucciones.** El formato: PDF para imprimir, página web o las dos.
+- **Quién monta.** La edad de quien monta, y qué herramientas se permiten (destornillador sí o no).
+- **Lo comprado.** Si los servos, los tornillos y la electrónica van en la caja.
+- **Las instrucciones.** El formato: PDF impreso en la caja, página web con un código QR, o las dos.
+- **Los precios.** El precio por kilo del filamento y el de cada componente comprado, para el coste por kit.
 
 **Alternativas descartadas.**
-- **Calibrar el kit contra la M5 del usuario.** Saldría bien en su impresora y no se sabría en las demás, justo el caso que importa.
-- **Entregar el G-code.** El G-code es de una máquina concreta; en otra puede no imprimir o dañarla.
-- **Imprimir con varias impresoras de prueba antes de cada kit.** Es la comprobación buena, pero cara. Se hace una vez, en F8.10 (prueba). El día a día lo cubren el laminado con otros perfiles y los reportes de los clientes (F8.9 (reportes)).
+- **Perfil genérico para impresoras ajenas** (la primera versión de esta ADR). No hace falta: el kit sale de las impresoras del usuario.
+- **Instrucciones escritas a mano por kit.** No escalan, y se quedan viejas en cuanto cambia una pieza. Generadas desde el árbol, cambian con él.
 
 **Lo que no cubre.**
-- Laminar con el perfil de otra impresora dice si la pieza **se puede** imprimir sin soportes, no si saldrá bien. La calidad real de una máquina mal calibrada no se simula.
-- Las holguras genéricas son un compromiso: en una impresora muy precisa los encajes quedarán flojos. Lo corrigen los reportes, con el tiempo.
+- **Si un niño de esa edad sabe montarlo** no lo mide ningún test. Lo dice la prueba de F8.10 (prueba) y lo que se registra en F8.9 (reportes).
+- **El coste no incluye** la luz, el desgaste de la impresora, las horas del usuario ni el embalaje. Es el coste de material.
