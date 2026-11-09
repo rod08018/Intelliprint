@@ -336,13 +336,16 @@ def _resumen(piezas, choques, paso: float = PASO) -> list[str]:
         por_par.setdefault((c["solido_a"], c["solido_b"]), []).append(c)
     lineas = []
     for (x, y), cs in por_par.items():
+        # «X y Y chocan con Y girada…» se leía como si Y chocara consigo
+        # misma (pan-tilt, 2026-11-09): los ángulos van tras un «si».
         tramos = []
         for j in cs[0]["angulos"]:
-            tramos.append(f"«{piezas[j].nombre}» girada "
-                          f"{_tramos([c['angulos'][j] for c in cs], paso)}")
+            angulos = _tramos([c["angulos"][j] for c in cs], paso)
+            tramos.append(f"«{piezas[j].nombre}» "
+                          + (f"está girada {angulos}" if not tramos else angulos))
         peor = min(c["hueco_mm"] for c in cs)
         como = (f"se meten {-peor:.1f} mm³ una en otra" if peor < 0
                 else f"quedan a {peor:.2f} mm")
-        cuando = ", ".join(tramos) if tramos else "en reposo"
-        lineas.append(f"{_que(piezas, x)} y {_que(piezas, y)} chocan con {cuando} ({como})")
+        cuando = "si " + "; y ".join(tramos) if tramos else "en reposo"
+        lineas.append(f"{_que(piezas, x)} y {_que(piezas, y)} chocan {cuando} ({como})")
     return lineas
