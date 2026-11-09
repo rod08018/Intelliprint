@@ -283,9 +283,11 @@ def _fila(r: dict, datos: list[dict]) -> str:
             f'<td class="fuente">{fuente}</td></tr>')
 
 
-def _componente(x: dict) -> str:
+def _componente(x: dict, fichas=()) -> str:
     """Un componente que aloja la pieza (F6.11 (biblioteca)): su tamaño, cómo
-    entra, cómo se sujeta y de qué planos salen sus medidas."""
+    entra, cómo se sujeta y de qué planos salen sus medidas. `fichas`: las de
+    las piezas ya terminadas de la obra; sin ellas, el soporte de giro del
+    pan-tilt (2026-11-09) decía «obra-base (no hay ficha)» con la base fichada."""
     from orchestrator.componentes import cargar, envolvente
 
     from orchestrator.schemas.concepto import AJUSTES
@@ -297,7 +299,7 @@ def _componente(x: dict) -> str:
             f'<br>Cómo se sujeta: {e(x.get("como_se_sujeta", ""))}'
             f'<br>Ajuste: {e(ajuste)} <small>(la holgura sale del perfil de la impresora)</small>')
     try:
-        f = cargar(str(x.get("id")))
+        f = cargar(str(x.get("id")), fichas)
     except (KeyError, ValueError):
         return (f'<tr><td>{e(str(x.get("id")))} (no hay ficha){como}</td>'
                 '<td class="valor"></td><td class="fuente"></td></tr>')
@@ -307,6 +309,8 @@ def _componente(x: dict) -> str:
     fuentes = ", ".join(f'<a href="{e(u)}" target="_blank" rel="noopener">{e(_dominio(u))}</a>'
                         for u in urls)
     medido = "medido con calibre" if f.verificado else "sin verificar con calibre"
+    if f.origen == "impreso":
+        medido = "pieza de este proyecto"
     return (f'<tr><td><b>{e(f.nombre)}</b>{como}</td><td class="valor">{e(tamano)}</td>'
             f'<td class="fuente">{fuentes}<br><small>{medido}</small></td></tr>')
 
@@ -344,12 +348,15 @@ def _concepto(carpeta: Path, aprobado: bool = False) -> str | None:
                       + "".join(f"<li>{e(p)}</li>" for p in c["preguntas"]) + "</ol></div>")
 
     componentes = [x for x in c.get("componentes") or [] if isinstance(x, dict)]
+    from orchestrator import obra
+    fichas = ([obra.carpeta_de_fichas(carpeta.parent.parent)]
+              if carpeta.parent.name == obra.NODOS else [])
     if componentes:
         partes.append('<h3>Lo que aloja</h3><p class="nota-grupo">Su forma sale de la '
                       'ficha de la biblioteca; al dibujar se mete en la pieza para ver si '
                       'cabe y si entra. Mide el tuyo: las unidades varían.</p>'
                       '<table class="medidas"><tbody>'
-                      + "".join(_componente(x) for x in componentes) + "</tbody></table>")
+                      + "".join(_componente(x, fichas) for x in componentes) + "</tbody></table>")
 
     requisitos = spec.get("requisitos") or []
     for origen, titulo, nota in GRUPOS_DE_ORIGEN:

@@ -120,8 +120,8 @@ def bibliotecas() -> list[Path]:
     return [BIBLIOTECA, *extra]
 
 
-def _ruta(id_: str) -> Path | None:
-    for carpeta in bibliotecas():
+def _ruta(id_: str, extra=()) -> Path | None:
+    for carpeta in [*bibliotecas(), *map(Path, extra)]:
         if (carpeta / f"{id_}.yaml").is_file():
             return carpeta / f"{id_}.yaml"
     return None
@@ -131,8 +131,10 @@ def ids() -> list[str]:
     return sorted({p.stem for c in bibliotecas() for p in c.glob("*.yaml")})
 
 
-def cargar(id_: str) -> Ficha:
-    ruta = _ruta(id_)
+def cargar(id_: str, extra=()) -> Ficha:
+    """`extra`: más carpetas de fichas, para quien no corre dentro de la obra
+    (la web, que no tiene `INTELLIPRINT_FICHAS`)."""
+    ruta = _ruta(id_, extra)
     if ruta is None:
         raise KeyError(f"no hay ficha de «{id_}»; hay: {', '.join(ids()) or 'ninguna'}")
     ficha = Ficha(**yaml.safe_load(ruta.read_text(encoding="utf-8")))

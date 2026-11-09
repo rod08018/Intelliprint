@@ -160,6 +160,25 @@ def test_la_tarjeta_dice_que_se_corrige_y_que_se_corrigio(tmp_path):
     assert "Corregida: la tuerca, 2 mm más adentro" in texto
 
 
+def test_el_concepto_ve_la_ficha_de_la_pieza_terminada(tmp_path):
+    """El concepto del soporte de giro (2026-11-09) decía «obra-base (no hay
+    ficha)» con la base ya fichada: la web solo miraba en `library/`."""
+    carpeta = _empezar(tmp_path, aprobada=True)
+    _disenar_nodo(carpeta, "base")
+    O.dar_por_lista(carpeta, "base", por="prueba")
+    giro = carpeta / "nodos" / "giro"
+    giro.mkdir(parents=True)
+    (giro / "concepto.json").write_text(json.dumps({"concepto": {
+        "idea": "una placa sobre el cuerno", "componentes": [
+            {"id": "obra-base", "como_entra": "ya montada", "como_se_sujeta": "no se fija",
+             "ajuste": "clearance"}]}}), encoding="utf-8")
+    (giro / "concepto.md").write_text("# Giro\n", encoding="utf-8")
+    html = _ws_con_trabajos(tmp_path).get(f"/p/{ID}").text
+    assert "una placa sobre el cuerno" in html
+    assert "no hay ficha" not in html
+    assert "pieza de este proyecto" in _visible(html)
+
+
 def test_una_obra_sin_piezas_hechas_no_abre_con_una_caja_vacia(tmp_path):
     """Corrigiendo la base (2026-11-09), su pieza se archiva mientras se
     rehace y la página abría con «Todavía no hay imagen» a media pantalla;
