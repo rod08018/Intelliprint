@@ -415,6 +415,32 @@ def test_la_orden_obra_para_en_el_desglose_y_luego_disena_el_nodo_que_toca(
     assert fichas.split(os.pathsep)[0] == str(tmp_path / "fichas")
 
 
+def test_la_orden_obra_mueve_el_conjunto_con_la_holgura_de_la_impresora(
+        tmp_path, monkeypatch, capsys):
+    """Con las piezas del pan-tilt listas (2026-11-09), la orden reventó al
+    pedir la holgura al perfil en vez de a su impresora: ningún test pasaba
+    por ahí. El hueco mínimo es media holgura «slide» del perfil."""
+    from types import SimpleNamespace
+
+    from orchestrator import cli, conjunto
+    _con_conjunto(tmp_path)
+    pedido = {}
+
+    def verificar(carpeta, nodo, freecadcmd, min_gap_mm):
+        pedido.update(nodo=nodo, min_gap_mm=min_gap_mm)
+        return {"ok": True, "articulaciones": [], "resumen": []}
+
+    monkeypatch.setattr(conjunto, "verificar_conjunto", verificar)
+    monkeypatch.setattr(cli, "_freecadcmd", lambda env: "freecadcmd")
+    monkeypatch.setenv("INTELLIPRINT_FICHAS", "")
+    args = SimpleNamespace(peticion=["un pan-tilt"], archivo=False, carpeta=str(tmp_path))
+    cli._obra(args, cli._raiz(), {}, "prueba")
+
+    holgura = cli._perfil(cli._raiz(), {}).impresora.fit_mm("slide")
+    assert pedido == {"nodo": "pan-tilt", "min_gap_mm": holgura / 2}
+    assert "se mueve sin chocar" in capsys.readouterr().out
+
+
 # --- el gestor de trabajos ----------------------------------------------------------------
 
 def _esperar(store, job):

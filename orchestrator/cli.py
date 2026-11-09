@@ -565,7 +565,7 @@ def _obra(args, raiz: Path, env: dict, nombre: str) -> None:
         print(f"[{nombre}] «{nombre_nodo}»: se mueve por todo su recorrido…", flush=True)
         with latir(carpeta), latir(dir_nodo):
             v = verificar_conjunto(carpeta, nodo, _freecadcmd(env),
-                                   min_gap_mm=_perfil(raiz, env).fit_mm("slide") / 2)
+                                   min_gap_mm=_perfil(raiz, env).impresora.fit_mm("slide") / 2)
         for a in v["articulaciones"]:
             print(f"  «{a['pieza']}» gira con el {a['de']} de «{a['padre']}», "
                   f"de {a['recorrido'][0]:g}° a {a['recorrido'][1]:g}°", flush=True)
