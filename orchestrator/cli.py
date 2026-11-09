@@ -488,6 +488,80 @@ def _pieza(args, raiz: Path, env: dict, nombre: str) -> None:
         sys.exit(1)
 
 
+def _obra(args, raiz: Path, env: dict, nombre: str) -> None:
+    """Un proyecto por partes (F7.2 (desglose)). Cada vez que se lanza da UN
+    paso y para donde haga falta la persona: el desglose, el concepto de un
+    nodo o su «está bien, la siguiente». La web o Crafty dejan la marca y
+    vuelven a lanzarlo."""
+    from types import SimpleNamespace
+
+    from orchestrator import obra
+    from orchestrator.agents.desglosador import DesglosadorAgent
+    from orchestrator.registry import latir
+
+    texto = " ".join(args.peticion)
+    peticion = Path(texto).read_text(encoding="utf-8") if args.archivo else texto
+    carpeta = (Path(args.carpeta) if args.carpeta else _workspace(raiz, env) / "projects"
+               / f"{dt.datetime.now():%Y-%m-%d-%H%M%S}-{nombre_corto(peticion.splitlines()[0], 40)}")
+    carpeta.mkdir(parents=True, exist_ok=True)
+    if not (carpeta / "request.md").exists():
+        (carpeta / "request.md").write_text(peticion.strip() + "\n", encoding="utf-8")
+    print(f"[{nombre}] Obra → {carpeta}", flush=True)
+
+    if not obra.es_obra(carpeta):
+        router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
+        cliente = _cliente(router, env)
+        with latir(carpeta):
+            try:
+                desglose = DesglosadorAgent(_cliente(router, env, "reason"),
+                                            reserva=cliente).desglosar(peticion)
+            except ValueError as e:
+                (carpeta / "rounds.json").write_text(json.dumps(
+                    [{"number": 1, "title": "desglose", "feedback": f"el desglose no salió: {e}",
+                      "plan": None}], ensure_ascii=False), encoding="utf-8")
+                sys.exit(f"[{nombre}] ✗ el desglose no salió: {e}")
+            obra.guardar(carpeta, desglose, por="desglosador")
+        print(obra.presentar(desglose), flush=True)
+    if not obra.aprobada(carpeta):
+        print(f"[{nombre}] ✋ desglose listo: espera tu visto bueno ({carpeta / 'obra.md'})")
+        return
+
+    nodo = obra.siguiente(carpeta)
+    if nodo is None:
+        print(f"[{nombre}] ✓ obra terminada: {', '.join(obra.estados(carpeta))}")
+        return
+    estado = obra.estados(carpeta)[nodo]
+    nombre_nodo = obra.cargar_obra(carpeta).nodo(nodo).nombre
+    if estado in ("diseñada", "con fallos"):
+        print(f"[{nombre}] ✋ «{nombre_nodo}» está {estado}: revísala y da el visto bueno "
+              "para seguir con la siguiente, o pide rehacerla")
+        return
+    if estado == "concepto por aprobar":
+        print(f"[{nombre}] ✋ «{nombre_nodo}»: el concepto espera tu visto bueno")
+        return
+    # Las piezas ya terminadas, como fichas: el nodo se diseña contra ellas
+    # con `kit.componente`, igual que contra un 608ZZ comprado.
+    fichas = str(obra.carpeta_de_fichas(carpeta))
+    os.environ["INTELLIPRINT_FICHAS"] = os.pathsep.join(
+        filter(None, [fichas, os.environ.get("INTELLIPRINT_FICHAS", "")]))
+    dir_nodo = carpeta / obra.NODOS / nodo
+    dir_nodo.mkdir(parents=True, exist_ok=True)
+    (dir_nodo / "request.md").write_text(obra.peticion_del_nodo(carpeta, nodo), encoding="utf-8")
+    print(f"[{nombre}] nodo «{nombre_nodo}» ({nodo})", flush=True)
+    with latir(carpeta):
+        try:
+            _pieza(SimpleNamespace(peticion=[str(dir_nodo / "request.md")], archivo=True,
+                                   carpeta=str(dir_nodo), aprobar_concepto=False),
+                   raiz, env, nombre)
+        except SystemExit as e:   # el nodo cerró con fallos: queda en su carpeta
+            if e.code not in (None, 0):
+                print(e.code if isinstance(e.code, str) else "", flush=True)
+                sys.exit(1)
+    if obra.estados(carpeta)[nodo] == "diseñada":
+        print(f"[{nombre}] ✋ «{nombre_nodo}» diseñada: revísala y da el visto bueno "
+              "para seguir con la siguiente")
+
+
 def orden_del_banco() -> list[str]:
     """El banco pide como la web: por el flujo de pieza (investigador,
     ingeniero, kit), con el concepto aprobado tal cual. Hasta el 2026-11-05
@@ -586,6 +660,14 @@ def _parser() -> argparse.ArgumentParser:
     pieza.add_argument("--aprobar-concepto", action="store_true",
                        help="dar por bueno el concepto y modelar sin parar (el banco)")
     pieza.add_argument("--adjunto", action="append", default=[], help=argparse.SUPPRESS)
+    ob = sub.add_parser("obra", help="un proyecto por partes (F7.2 (desglose)): lo desglosa y "
+                                     "diseña una pieza cada vez, parando a por tu visto bueno")
+    ob.add_argument("peticion", nargs="+")
+    ob.add_argument("--archivo", action="store_true",
+                    help="la petición es la ruta de un archivo de texto")
+    ob.add_argument("--carpeta", help="carpeta del proyecto (por defecto, una nueva)")
+    ob.add_argument("--continuar", action="store_true", help=argparse.SUPPRESS)
+    ob.add_argument("--adjunto", action="append", default=[], help=argparse.SUPPRESS)
     banco = sub.add_parser("banco", help="pedir las piezas del banco y medir si salen usables "
                                          "(F6.1 (evaluación)); cuesta dinero")
     banco.add_argument("--solo", action="append", default=[], metavar="ENCARGO",
@@ -632,6 +714,9 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.comando == "pieza":
         _pieza(args, raiz, env, nombre)
+        return
+    if args.comando == "obra":
+        _obra(args, raiz, env, nombre)
         return
     grafo = _grafo(raiz, env)
 

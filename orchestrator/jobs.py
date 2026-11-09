@@ -167,8 +167,15 @@ class JobStore:
         escribió la persona, y el ingeniero propone otro concepto que vuelve
         a esperar. Contestar puede cambiar la idea, y lo que se modela tiene
         que ser algo que la persona haya visto."""
+        from orchestrator import obra
         from orchestrator.pieza import CONCEPTO, aprobar_concepto
         destino = self.carpeta / job_id
+        if obra.es_obra(destino):
+            # F7.2 (desglose): lo que espera es el desglose o el concepto del
+            # nodo en el que se está; lo decide la obra.
+            self._libre()
+            obra.aprobar(destino, respuestas=respuestas, por=por)
+            return self._relanzar(job_id)
         if not (destino / CONCEPTO).exists():
             raise ValueError(f"{job_id} no tiene ningún concepto esperando el visto bueno")
         # Antes de tocar nada: con la marca puesta, un proyecto sin rondas y
@@ -183,6 +190,28 @@ class JobStore:
         else:
             aprobar_concepto(destino, por=por)
         return self._relanzar(job_id)
+
+    def _libre(self) -> None:
+        en_marcha = self.current()
+        if en_marcha:
+            raise RuntimeError(f"ya hay un proyecto en marcha ({en_marcha})")
+
+    def dar_por_lista(self, job_id: str, nodo: str | None = None, por: str = "",
+                      impresa: bool = False, nota: str = "") -> str:
+        """«Está bien, la siguiente» (F7.2 (desglose)): congela el nodo y
+        sigue con el que le toca."""
+        from orchestrator import obra
+        self._libre()
+        obra.dar_por_lista(self.carpeta / job_id, nodo, por=por, impresa=impresa, nota=nota)
+        return self._relanzar(job_id)
+
+    def rehacer(self, job_id: str, nodo: str, cambio: str = "") -> list[str]:
+        """Vuelve a diseñar un nodo y lo que se diseñó contra él, y sigue."""
+        from orchestrator import obra
+        self._libre()
+        rehechos = obra.rehacer(self.carpeta / job_id, nodo, cambio=cambio)
+        self._relanzar(job_id)
+        return rehechos
 
     def cancel(self, job_id: str) -> None:
         proceso = self._procesos.get(job_id)

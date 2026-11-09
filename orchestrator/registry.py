@@ -146,6 +146,10 @@ def _suspensos_del_revisor(carpeta: Path) -> int:
     return sum(1 for i in revision.get("items", []) if i.get("verdict") == "no_cumple")
 
 
+def cargar_titulo_de_obra(carpeta: Path) -> str:
+    return (_lee_json(carpeta / "obra.json") or {}).get("titulo", "")
+
+
 def estado_de(carpeta: Path) -> dict:
     """Qué es este proyecto, mirando lo que tiene dentro."""
     rondas = _lee_json(carpeta / "rounds.json") or []
@@ -173,6 +177,7 @@ def estado_de(carpeta: Path) -> dict:
     # contenedor, y si no late (anterior al latido), su pid.
     por_aprobar = ((carpeta / "concepto.json").exists()
                    and not (carpeta / "concepto_aprobado").exists())
+    es_obra = (carpeta / "obra.json").exists()
     latido = carpeta / LATIDO
     if latido.exists():
         try:
@@ -184,9 +189,19 @@ def estado_de(carpeta: Path) -> dict:
     else:
         # Un concepto por aprobar se acaba de escribir y el proceso ya salió:
         # «reciente» no quiere decir aquí que siga trabajando.
-        vivo = not rondas and not por_aprobar and tocado_hace < RECIENTE_S
+        # Una obra no deja rondas propias (son de sus nodos) y su proceso late:
+        # sin latido, ha terminado o está esperando a la persona.
+        vivo = (not rondas and not por_aprobar and not es_obra
+                and tocado_hace < RECIENTE_S)
+    if es_obra:
+        # F7.2 (desglose): su estado es el del nodo en el que se está, y su
+        # título el del desglose.
+        from orchestrator import obra
+        mecanismo = {"title": cargar_titulo_de_obra(carpeta)}
     if vivo:
         estado = "en marcha"
+    elif es_obra:
+        estado, motivo = obra.resumen_de_estado(carpeta)
     elif por_aprobar:
         # F3.20 (concepto): el ingeniero propuso y espera el visto bueno. No
         # es «incompleto»: no falta nada del sistema, falta la persona.

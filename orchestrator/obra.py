@@ -7,13 +7,16 @@ pide de golpe junto con las demás, que es donde se murieron los mecanismos
 grandes (la Ginebra, 2026-09-20: el razonador se cortó tres veces).
 """
 
+import datetime as dt
 import json
 import shutil
+import time
 from pathlib import Path
 
 import yaml
 
 from orchestrator.componentes import Ficha
+from orchestrator.schemas.obra import Obra
 
 _EJES = {(1, 0, 0): "+x", (-1, 0, 0): "-x", (0, 1, 0): "+y", (0, -1, 0): "-y",
          (0, 0, 1): "+z", (0, 0, -1): "-z"}
@@ -74,3 +77,271 @@ def fichar(carpeta: Path, id_: str, nombre: str, destino: Path, proyecto: str = 
     ruta = destino / f"{id_}.yaml"
     ruta.write_text(yaml.safe_dump(datos, allow_unicode=True, sort_keys=False), encoding="utf-8")
     return ruta
+
+
+# --- el avance pieza a pieza (F7.2 (desglose)) ---------------------------------------------
+
+OBRA, APROBADA, NODOS, FICHAS, ARCHIVO = "obra.json", "obra_aprobada", "nodos", "fichas", "archivo"
+ESPERAN_A_LA_PERSONA = ("concepto por aprobar", "diseñada", "con fallos")
+
+
+def _ahora() -> str:
+    return dt.datetime.now().isoformat(timespec="seconds")
+
+
+def es_obra(carpeta: Path) -> bool:
+    return (Path(carpeta) / OBRA).is_file()
+
+
+def cargar_obra(carpeta: Path) -> Obra:
+    return Obra.model_validate_json((Path(carpeta) / OBRA).read_text(encoding="utf-8"))
+
+
+def id_de_ficha(nodo: str) -> str:
+    """`obra-<id>`: no choca con los ids de la biblioteca, y «base» a secas
+    saldría como componente mencionado en cualquier petición."""
+    return f"obra-{nodo}"
+
+
+def carpeta_de_fichas(carpeta: Path) -> Path:
+    return Path(carpeta) / FICHAS
+
+
+def _marca(ruta: Path, **datos) -> None:
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    ruta.write_text(json.dumps({**datos, "cuando": datos.get("cuando") or _ahora()},
+                               ensure_ascii=False), encoding="utf-8")
+
+
+def guardar(carpeta: Path, obra: Obra, por: str) -> None:
+    """El desglose propuesto. Un solo nodo no espera otro visto bueno: es el
+    flujo de pieza de siempre, con su concepto, sin pasos extra."""
+    carpeta = Path(carpeta)
+    (carpeta / OBRA).write_text(obra.model_dump_json(indent=2), encoding="utf-8")
+    (carpeta / "obra.md").write_text(presentar(obra), encoding="utf-8")
+    if len(obra.nodos) == 1:
+        _marca(carpeta / APROBADA, por=f"{por} (un solo nodo)")
+
+
+def presentar(obra: Obra) -> str:
+    lineas = [f"# {obra.titulo}: el desglose", ""]
+    for i in obra.orden():
+        n = obra.nodo(i)
+        tipo = ", conjunto" if n.tipo == "conjunto" else ""
+        lineas.append(f"- **{n.nombre}** (`{n.id}`{tipo}): {n.que_hace}")
+        for titulo, cosas in (("compra", n.compra), ("depende de", n.depende_de),
+                              ("ofrece", n.ofrece), ("necesita", n.necesita)):
+            if cosas:
+                lineas.append(f"  - {titulo}: {'; '.join(cosas)}")
+    return "\n".join(lineas) + "\n"
+
+
+def aprobada(carpeta: Path) -> bool:
+    return (Path(carpeta) / APROBADA).is_file()
+
+
+def _archivar(carpeta: Path, *rutas: Path) -> Path:
+    """Archivar no es borrar: un intento descartado es la única prueba de
+    por qué no valía."""
+    carpeta = Path(carpeta)
+    destino = carpeta / ARCHIVO / f"{dt.datetime.now():%Y%m%d-%H%M%S-%f}"
+    for r in rutas:
+        if r.exists():
+            nuevo = destino / r.relative_to(carpeta)
+            nuevo.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(r), str(nuevo))
+    return destino
+
+
+def lista(carpeta: Path, nodo: str) -> dict | None:
+    """La marca de «está bien, la siguiente», o None."""
+    ruta = Path(carpeta) / NODOS / nodo / "lista.json"
+    return json.loads(ruta.read_text(encoding="utf-8")) if ruta.is_file() else None
+
+
+def _estado_pieza(nodo: Path) -> str:
+    from orchestrator.pieza import APROBADO, CONCEPTO
+    from orchestrator.registry import LATIDO, LATIDO_VALE_S
+    latido = nodo / LATIDO
+    if latido.exists() and time.time() - latido.stat().st_mtime < LATIDO_VALE_S:
+        return "diseñando"
+    informe = nodo / "pieza_report.json"
+    if informe.is_file():
+        resuelto = json.loads(informe.read_text(encoding="utf-8")).get("resuelto")
+        return "diseñada" if resuelto else "con fallos"
+    if (nodo / "blocked.md").is_file():
+        return "con fallos"
+    if (nodo / CONCEPTO).is_file():
+        return "concepto aprobado" if (nodo / APROBADO).is_file() else "concepto por aprobar"
+    return "pendiente"
+
+
+def estados(carpeta: Path) -> dict[str, str]:
+    """El estado de cada nodo, en orden: «lista»; «bloqueado» si algo de lo
+    que depende no lo está; «sin verificar» para un conjunto, hasta
+    F7.4 (conjunto); o lo que diga su carpeta: pendiente, concepto por
+    aprobar, concepto aprobado, diseñando, diseñada, con fallos."""
+    carpeta = Path(carpeta)
+    obra = cargar_obra(carpeta)
+    salida: dict[str, str] = {}
+    for i in obra.orden():
+        n = obra.nodo(i)
+        if lista(carpeta, i):
+            salida[i] = "lista"
+        elif any(salida[d] != "lista" for d in n.depende_de):
+            salida[i] = "bloqueado"
+        elif n.tipo == "conjunto":
+            salida[i] = "sin verificar"
+        else:
+            salida[i] = _estado_pieza(carpeta / NODOS / i)
+    return salida
+
+
+def siguiente(carpeta: Path) -> str | None:
+    """El nodo en el que se está: el primero, en orden, que se puede tocar."""
+    for i, e in estados(carpeta).items():
+        if e not in ("lista", "bloqueado", "sin verificar"):
+            return i
+    return None
+
+
+def resumen_de_estado(carpeta: Path) -> tuple[str, str]:
+    """(estado, motivo) de la obra entera, con las palabras del registro."""
+    obra = cargar_obra(carpeta)
+    if not aprobada(carpeta):
+        return "por aprobar", (f"el desglose en {len(obra.nodos)} piezas espera tu visto "
+                               "bueno")
+    todos = estados(carpeta)
+    i = siguiente(carpeta)
+    if i is None:
+        sin = [obra.nodo(k).nombre for k, e in todos.items() if e == "sin verificar"]
+        return "aprobado", (f"conjuntos sin verificar: {', '.join(sin)}" if sin else "")
+    nombre, e = obra.nodo(i).nombre, todos[i]
+    if e == "concepto por aprobar":
+        return "por aprobar", f"«{nombre}»: el concepto espera tu visto bueno"
+    if e == "diseñada":
+        return "por aprobar", f"«{nombre}» está diseñada: revísala y da el visto bueno"
+    if e == "con fallos":
+        return "fallido", f"«{nombre}» no salió del todo: mira su informe"
+    return "incompleto", f"falta «{nombre}» ({e})"
+
+
+def aprobar(carpeta: Path, respuestas: str = "", por: str = "") -> str:
+    """El visto bueno a lo que espera: el desglose, o el concepto del nodo en
+    el que se está. Con `respuestas` no se aprueba: se guardan y se vuelve a
+    proponer, como con el concepto de una pieza (F3.20 (concepto)).
+    Devuelve «desglose» o el id del nodo."""
+    from orchestrator.pieza import CONCEPTO, aprobar_concepto
+    carpeta = Path(carpeta)
+    if not aprobada(carpeta):
+        if respuestas.strip():
+            with (carpeta / "request.md").open("a", encoding="utf-8") as f:
+                f.write(f"\nRespuestas al desglose: {respuestas.strip()}\n")
+            _archivar(carpeta, carpeta / OBRA, carpeta / "obra.md")
+        else:
+            _marca(carpeta / APROBADA, por=por)
+        return "desglose"
+    i = siguiente(carpeta)
+    if i is None or estados(carpeta)[i] != "concepto por aprobar":
+        raise ValueError("no hay ningún desglose ni concepto esperando el visto bueno")
+    nodo = carpeta / NODOS / i
+    if respuestas.strip():
+        with (nodo / "respuestas.md").open("a", encoding="utf-8") as f:
+            f.write(respuestas.strip() + "\n")
+        _archivar(carpeta, nodo / CONCEPTO, nodo / "concepto.md")
+    else:
+        aprobar_concepto(nodo, por=por)
+    return i
+
+
+def peticion_del_nodo(carpeta: Path, nodo: str) -> str:
+    """Lo que se le pide al flujo de pieza para este nodo. Solo lo del nodo:
+    con la petición entera, el ingeniero exigiría en cada pieza todos los
+    componentes que nombra, y las cifras de una saldrían como requisitos de
+    todas."""
+    from orchestrator.componentes import cargar
+    carpeta = Path(carpeta)
+    obra = cargar_obra(carpeta)
+    n = obra.nodo(nodo)
+    ruta = carpeta / NODOS / nodo / "respuestas.md"
+    respuestas = ruta.read_text(encoding="utf-8").strip() if ruta.is_file() else ""
+    if len(obra.nodos) == 1:
+        original = (carpeta / "request.md").read_text(encoding="utf-8").strip()
+        return original + (f"\n\nRespuestas de la persona: {respuestas}" if respuestas else "")
+    lineas = [f"{n.nombre}: {n.que_hace}.", "",
+              f"Es una de las piezas de «{obra.titulo}», que se diseñan una a una: aquí solo "
+              "se diseña esta."]
+    if n.compra:
+        lineas += ["", "Lleva estos componentes comprados: "
+                   + ", ".join(f"{cargar(c).nombre} ({c})" for c in n.compra) + "."]
+    if n.ofrece:
+        lineas += ["", "Lo que da a las demás piezas:", *(f"- {x}" for x in n.ofrece)]
+    if n.necesita:
+        lineas += ["", "Lo que necesita de las demás:", *(f"- {x}" for x in n.necesita)]
+    if n.depende_de:
+        lineas += ["", "Se une a estas piezas, ya terminadas. Tienen ficha con su forma "
+                   "construida y sus agujeros con nombre: colócalas con `kit.componente` "
+                   "y atorníllate a sus agujeros con `punto()`:"]
+        lineas += [f"- {obra.nodo(d).nombre}: ficha {id_de_ficha(d)} ({obra.nodo(d).que_hace})"
+                   for d in n.depende_de]
+    if respuestas:
+        lineas += ["", f"Respuestas de la persona sobre esta pieza: {respuestas}"]
+    return "\n".join(lineas) + "\n"
+
+
+def _pieza_construida(nodo: Path) -> Path:
+    partes = sorted(p.parent for p in (nodo / "parts").glob("*/envolvente.json"))
+    if len(partes) != 1:
+        raise ValueError(f"«{nodo.name}»: no hay una pieza construida que congelar "
+                         f"({len(partes)} encontradas)")
+    return partes[0]
+
+
+def dar_por_lista(carpeta: Path, nodo: str | None = None, por: str = "",
+                  impresa: bool = False, nota: str = "") -> str:
+    """«Está bien, la siguiente»: congela el nodo y lo ficha, para que los
+    que dependen de él se diseñen contra su forma real. Lo decide la persona
+    con su visto bueno (decidido con el usuario, 2026-11-09)."""
+    carpeta = Path(carpeta)
+    obra = cargar_obra(carpeta)
+    nodo = nodo or siguiente(carpeta)
+    if nodo is None:
+        raise ValueError("la obra ya está terminada")
+    estado = estados(carpeta)[nodo]
+    if estado not in ("diseñada", "con fallos"):
+        raise ValueError(f"«{nodo}» está «{estado}»: no hay pieza diseñada que dar por buena")
+    fichar(_pieza_construida(carpeta / NODOS / nodo), id_de_ficha(nodo),
+           obra.nodo(nodo).nombre, carpeta_de_fichas(carpeta), proyecto=carpeta.name)
+    _marca(carpeta / NODOS / nodo / "lista.json", por=por, impresa=impresa, nota=nota)
+    return nodo
+
+
+def marcar_impresa(carpeta: Path, nodo: str, nota: str = "") -> None:
+    """La prueba física, que el sistema no puede hacer: queda registrada y
+    no frena nada."""
+    marca = lista(carpeta, nodo)
+    if marca is None:
+        raise ValueError(f"«{nodo}» todavía no está dada por buena")
+    _marca(Path(carpeta) / NODOS / nodo / "lista.json",
+           **{**marca, "impresa": True, "nota": nota or marca.get("nota", "")})
+
+
+def rehacer(carpeta: Path, nodo: str, cambio: str = "") -> list[str]:
+    """Vuelve a diseñar `nodo`, y con él lo que se diseñó contra su ficha,
+    que ya no será la misma. Todo se archiva, nada se borra. Devuelve los
+    nodos archivados."""
+    carpeta = Path(carpeta)
+    obra = cargar_obra(carpeta)
+    rehechos = []
+    for i in [nodo, *obra.dependientes(nodo)]:
+        fichas = carpeta_de_fichas(carpeta)
+        rutas = [carpeta / NODOS / i, fichas / f"{id_de_ficha(i)}.yaml",
+                 fichas / f"{id_de_ficha(i)}.step"]
+        if any(r.exists() for r in rutas):
+            _archivar(carpeta, *rutas)
+            rehechos.append(i)
+    if cambio.strip():
+        (carpeta / NODOS / nodo).mkdir(parents=True, exist_ok=True)
+        (carpeta / NODOS / nodo / "respuestas.md").write_text(cambio.strip() + "\n",
+                                                              encoding="utf-8")
+    return rehechos
