@@ -452,3 +452,23 @@ def test_el_banco_pide_una_obra_entera_sin_visto_bueno_de_nadie():
     from orchestrator.cli import _parser, orden_del_banco
     assert orden_del_banco(obra=True)[-3:] == ["orchestrator.cli", "obra", "--banco"]
     assert _parser().parse_args(["obra", "--banco", "un pan-tilt"]).banco
+
+
+def test_una_obra_tiene_mas_tiempo_que_una_pieza(tmp_path, monkeypatch):
+    """Una obra son varias piezas seguidas (el pan-tilt: desglose, tres
+    conceptos, tres diseños y moverlo entero). Con la hora de una pieza, la
+    mataría la guarda contra cuelgues sin que se haya colgado nada."""
+    import subprocess
+
+    from orchestrator import banco
+    pedido = {}
+
+    def tarda(orden, **k):
+        pedido["timeout"] = k["timeout"]
+        raise subprocess.TimeoutExpired(orden, k["timeout"])
+
+    monkeypatch.setattr(banco.subprocess, "run", tarda)
+    e = banco.Encargo(nombre="x", categoria="robots", peticion="un pan-tilt", obra=True,
+                      oraculo=[{"tipo": "conjunto_libre"}])
+    banco.correr(e, tmp_path / "01", ["intelliprint", "obra"], "x", {})
+    assert pedido["timeout"] >= 3 * banco.LIMITE_S

@@ -579,6 +579,10 @@ no una exigencia: la web no tiene límite. Con 30 minutos, el MG996R del
 banco `1106-1554` no llegó: concepto y cinco vueltas del razonador, a unos
 cinco minutos cada una."""
 
+LIMITE_OBRA_S = 4 * LIMITE_S
+"""Una obra son varias piezas seguidas, más el desglose y moverla entera:
+con la hora de una pieza la mataría la guarda sin haberse colgado nada."""
+
 
 def _texto(salida) -> str:
     if salida is None:
@@ -591,17 +595,18 @@ def correr(encargo: Encargo, carpeta: Path, orden: list[str], freecadcmd: str,
     """Pide la pieza como la pediría una persona y la juzga. Devuelve los
     resultados y, si no llegó a construirse, el porqué."""
     carpeta.mkdir(parents=True, exist_ok=True)
+    limite = LIMITE_OBRA_S if encargo.obra else LIMITE_S
     try:
         proceso = subprocess.run(
             [*orden, encargo.peticion], input="sí\n", capture_output=True, text=True,
-            timeout=LIMITE_S, env={**env, "INTELLIPRINT_WORKSPACE": str(carpeta)})
+            timeout=limite, env={**env, "INTELLIPRINT_WORKSPACE": str(carpeta)})
     except subprocess.TimeoutExpired as e:
         # Banco `1106-1554` (2026-11-06): esto salía de aquí y la corrida
         # entera murió en el primer encargo. Se pierde el encargo, no el banco.
         texto = _texto(e.output) + "\n--- stderr ---\n" + _texto(e.stderr)
         (carpeta / "salida.txt").write_text(texto, encoding="utf-8")
         sin = [Resultado(estado="no_cumple", detalle="no hay pieza") for _ in encargo.oraculo]
-        return sin, f"tardó más de {LIMITE_S // 60} minutos"
+        return sin, f"tardó más de {limite // 60} minutos"
     (carpeta / "salida.txt").write_text(proceso.stdout + "\n--- stderr ---\n" + proceso.stderr,
                                         encoding="utf-8")
     if encargo.obra:
