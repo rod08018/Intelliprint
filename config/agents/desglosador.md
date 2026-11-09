@@ -16,9 +16,12 @@ congela, y las que dependen de ella se diseñan contra su forma real.
 3. **`depende_de` es físico**: B depende de A si B se atornilla a A, se
    apoya en ella o va montada en algo que A sujeta. B se diseña después de A
    y contra ella. Nada de dependencias «porque van juntas».
-4. **Lo comprado va en `compra`**, con el id de su ficha. Solo puedes usar
-   ids de la lista de componentes con ficha. Un tornillo o una tuerca no son
-   componentes: los pone el diseño de la pieza.
+4. **Lo comprado va en `compra`** de la pieza que lo aloja, con el id de su
+   ficha. **Un componente comprado NUNCA es un nodo**: un servo, un motor o
+   un rodamiento no se diseñan ni se imprimen. «Base que aloja el SG90 de
+   giro» es un nodo con `compra: ["sg90"]`; «Servo SG90 de giro» no es un
+   nodo. Solo puedes usar ids de la lista de componentes con ficha. Un
+   tornillo o una tuerca no son componentes: los pone el diseño de la pieza.
 5. **`ofrece` y `necesita` son cortos y medibles**: «eje de salida del SG90
    de giro hacia +z», «dos agujeros M3 a 20 mm», «asiento de Ø22 para un
    608ZZ». No escribas cotas que la petición no da: las decide el ingeniero

@@ -78,6 +78,28 @@ def test_el_desglosador_solo_compra_lo_que_tiene_ficha():
     assert "sg91" in guion.prompts[1] and "sg90" in guion.prompts[1]
 
 
+def test_un_componente_comprado_no_es_un_nodo():
+    """El primer pan-tilt de verdad (2026-11-09) salió con «Servo SG90 de
+    giro» y «Servo SG90 de inclinación» como nodos: se habrían «diseñado» dos
+    servos. Lo comprado va en `compra` de la pieza que lo aloja."""
+    from orchestrator.agents.desglosador import DesglosadorAgent
+    servo = {"id": "servo-giro", "nombre": "Servo SG90 de giro", "que_hace": "gira",
+             "compra": ["sg90"], "depende_de": ["base"]}
+    malo = {**PANTILT, "nodos": [PANTILT["nodos"][0], servo, *PANTILT["nodos"][1:]]}
+    guion = Guion([json.dumps(malo), json.dumps(PANTILT)])
+    DesglosadorAgent(guion).desglosar("un pan-tilt con dos SG90")
+    assert "Servo SG90 de giro" in guion.prompts[1] and "compra" in guion.prompts[1]
+
+
+def test_una_pieza_que_nombra_su_componente_si_es_un_nodo():
+    from orchestrator.agents.desglosador import DesglosadorAgent
+    soporte = {"titulo": "soporte", "nodos": [
+        {"id": "soporte", "nombre": "Soporte del SG90", "que_hace": "aloja un SG90",
+         "compra": ["sg90"]}]}
+    obra = DesglosadorAgent(Guion([json.dumps(soporte)])).desglosar("un soporte para un SG90")
+    assert obra.orden() == ["soporte"]
+
+
 # --- el avance --------------------------------------------------------------------------
 
 def _empezar(tmp_path, obra=None, peticion="un pan-tilt con dos SG90 para una cámara"):
