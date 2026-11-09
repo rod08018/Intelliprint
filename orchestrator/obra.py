@@ -365,9 +365,33 @@ def peticion_del_nodo(carpeta: Path, nodo: str) -> str:
         lineas += ["", "Se une a estas piezas, ya terminadas. Tienen ficha con su forma "
                    "construida y sus agujeros con nombre: colócalas con `kit.componente` "
                    "y atorníllate a sus agujeros con `punto()`:"]
-        lineas += [f"- {obra.nodo(d).nombre}: ficha {id_de_ficha(d)} ({obra.nodo(d).que_hace})"
-                   for d in n.depende_de]
+        for d in n.depende_de:
+            dep = obra.nodo(d)
+            lineas.append(f"- {dep.nombre}: ficha {id_de_ficha(d)} ({dep.que_hace})")
+            # Banco 1109-1949: la plataforma colocó otra vez el SG90 que ya
+            # montaba el soporte de giro. Su ficha lo trae, con el eje.
+            for c in dict.fromkeys(dep.compra):
+                lineas.append(f"  Esta pieza ya lleva {c} montado: su cuerpo, su eje y lo que hay que dejar "
+                              f"libre están en la ficha {id_de_ficha(d)}; no coloques otro {c}.")
     return "\n".join(lineas) + "\n"
+
+
+def ajenos(carpeta: Path, nodo: str) -> dict[str, dict]:
+    """Lo comprado que monta OTRA pieza del backlog: cuántos puede colocar
+    este nodo (los suyos, de `compra`) y qué decirle si coloca más. Lo
+    aplica el kit. Lo que no compra nadie no sale: no hay con qué duplicarse."""
+    obra = cargar_obra(Path(carpeta))
+    n = obra.nodo(nodo)
+    salida = {}
+    for c in {c for otro in obra.nodos if otro.id != nodo for c in otro.compra}:
+        quien = [o for o in obra.nodos if o.id != nodo and c in o.compra]
+        nombres = " y ".join(f"«{o.nombre}» (ficha {id_de_ficha(o.id)})" for o in quien)
+        cuantos = n.compra.count(c)
+        salida[c] = {"cuantos": cuantos, "mensaje": (
+            f"el {c} lo monta {nombres}; esta pieza compra {cuantos}. No lo coloques otra "
+            f"vez: coloca la ficha de esa pieza con `kit.componente`, que ya lleva el {c} "
+            "con su eje y lo que hay que dejar libre, y usa sus puntos.")}
+    return salida
 
 
 def _pieza_construida(nodo: Path) -> Path:

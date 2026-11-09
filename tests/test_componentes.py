@@ -260,3 +260,24 @@ def test_el_resumen_del_608_dice_que_se_apoya_en_un_solo_aro():
     texto = resumen(cargar("608zz"))
     assert "aro interior" in texto and "aro exterior" in texto
     assert "uno solo" in texto
+
+
+def test_el_kit_no_coloca_lo_que_ya_monta_otra_pieza_del_backlog():
+    """Banco 1109-1949: la plataforma del pan-tilt colocó el SG90 que ya
+    montaba el soporte de giro, y quedaron tres servos en un pan-tilt de dos."""
+    from mech_toolkit.kit import Kit, KitError
+    kit = Kit(fichas={"sg90": cargar("sg90").model_dump()},
+              ajenos={"sg90": {"cuantos": 1, "mensaje": "el sg90 lo monta «Base»"}})
+    kit.componente("sg90", nombre="propio")
+    with pytest.raises(KitError, match="lo monta «Base»"):
+        kit.componente("sg90", nombre="otro")
+
+
+def test_el_programa_se_construye_con_lo_que_monta_otra_pieza(monkeypatch):
+    from types import SimpleNamespace
+
+    from orchestrator.recipes.compose import compose_program_script
+    monkeypatch.setenv("INTELLIPRINT_AJENOS",
+                       '{"sg90": {"cuantos": 0, "mensaje": "lo monta otra"}}')
+    script = compose_program_script(SimpleNamespace(part="p", codigo="x"))
+    assert "lo monta otra" in script and "ajenos=" in script

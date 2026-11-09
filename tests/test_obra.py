@@ -393,7 +393,8 @@ def test_la_orden_obra_para_en_el_desglose_y_luego_disena_el_nodo_que_toca(
 
     def pieza(args, raiz, env, nombre):
         vistos.append((args.carpeta, open(args.peticion[0], encoding="utf-8").read(),
-                       os.environ.get("INTELLIPRINT_FICHAS", "")))
+                       os.environ.get("INTELLIPRINT_FICHAS", ""),
+                       os.environ.get("INTELLIPRINT_AJENOS", "")))
 
     monkeypatch.setattr(desglosador, "DesglosadorAgent", Desglosador)
     monkeypatch.setattr(cli, "_pieza", pieza)
@@ -401,6 +402,7 @@ def test_la_orden_obra_para_en_el_desglose_y_luego_disena_el_nodo_que_toca(
     monkeypatch.setattr(cli.Router, "from_config_file", lambda *a, **k: None)
     # setenv y no delenv: la orden la cambia, y así se deshace al terminar.
     monkeypatch.setenv("INTELLIPRINT_FICHAS", "")
+    monkeypatch.setenv("INTELLIPRINT_AJENOS", "")
     args = SimpleNamespace(peticion=["un pan-tilt con dos SG90 para una cámara"],
                            archivo=False, carpeta=str(tmp_path))
 
@@ -409,10 +411,13 @@ def test_la_orden_obra_para_en_el_desglose_y_luego_disena_el_nodo_que_toca(
 
     O.aprobar(tmp_path, por="web")
     cli._obra(args, cli._raiz(), {}, "prueba")
-    [(carpeta, peticion, fichas)] = vistos
+    [(carpeta, peticion, fichas, ajenos)] = vistos
     assert carpeta == str(tmp_path / "nodos" / "base")
     assert peticion.startswith("Base: aloja el SG90 de giro")
     assert fichas.split(os.pathsep)[0] == str(tmp_path / "fichas")
+    # El kit que construye la base solo deja colocar UN sg90: el otro es del
+    # soporte de giro.
+    assert json.loads(ajenos)["sg90"]["cuantos"] == 1
 
 
 def test_la_orden_obra_mueve_el_conjunto_con_la_holgura_de_la_impresora(
@@ -527,3 +532,19 @@ def test_aprobar_una_obra_sigue_con_su_orden(tmp_path):
     _esperar(store, job)
     assert O.aprobada(tmp_path / job)
     assert (tmp_path / job / "run.log").read_text().count("orden obra") == 2
+
+
+def test_lo_que_ya_monta_otra_pieza_no_se_vuelve_a_colocar(tmp_path):
+    """Banco 1109-1949 (2026-11-09): la plataforma del pan-tilt colocó un
+    SG90 propio para tallar el hueco del cuerno, encima del que ya monta el
+    soporte de giro. El juez contó tres servos y el conjunto chocó 7920 mm³
+    contra el de verdad. La ficha del soporte ya traía ese servo, su eje y
+    lo que hay que dejar libre: la petición lo dice y el kit no deja otro."""
+    O = _empezar(tmp_path)
+    texto = O.peticion_del_nodo(tmp_path, "inclinacion")
+    assert "ya lleva" in texto and "no coloques otro sg90" in texto
+    ajenos = O.ajenos(tmp_path, "inclinacion")
+    assert ajenos["sg90"]["cuantos"] == 0 and "«Soporte de giro»" in ajenos["sg90"]["mensaje"]
+    assert O.ajenos(tmp_path, "giro")["sg90"]["cuantos"] == 1
+    # Lo que no compra nadie del backlog se puede colocar: no hay con qué chocar.
+    assert "608zz" not in ajenos

@@ -38,8 +38,12 @@ def _alojamiento_inventado(c, ficha, ajustes) -> list[str]:
 
     from orchestrator.componentes import primitivas
 
-    diametros = [d for p in primitivas(ficha) if p["tipo"] == "cilindro"
-                 for d in (p["diametro"], p.get("interior")) if d]
+    # Solo el Ø exterior, que es el que se aloja con `hueco()`. Con el de
+    # dentro (el Ø8 del 608ZZ) la polea del banco 1109-1949 murió tres veces:
+    # su «Ø8.2 para el eje» es del eje, no del rodamiento, y la salida que se
+    # le daba no se podía cumplir.
+    diametros = [p["diametro"] for p in primitivas(ficha)
+                 if p["tipo"] == "cilindro" and p["diametro"]]
     texto = f"{c.como_entra} {c.como_se_sujeta}"
     errores = []
     for n in re.findall(r"(?:[Øø]|di[áa]metro(?: de)?)\s*(\d+(?:[.,]\d+)?)", texto):

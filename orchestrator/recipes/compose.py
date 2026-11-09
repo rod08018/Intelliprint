@@ -6,6 +6,7 @@ sale de un modelo — esa es la propiedad que hace segura la ejecución.
 """
 
 import json
+import os
 from pathlib import Path
 from string import Template
 
@@ -42,7 +43,8 @@ import Part
 from mech_toolkit.kit import Kit, KitError, ejecutar
 
 doc = FreeCAD.newDocument({part!r})
-_kit = Kit(perfil=json.loads({perfil!r}), fichas=json.loads({fichas!r}))
+_kit = Kit(perfil=json.loads({perfil!r}), fichas=json.loads({fichas!r}),
+           ajenos=json.loads({ajenos!r}))
 try:
     _cuerpo = ejecutar({codigo!r}, _kit)
 except KitError as _e:
@@ -136,6 +138,8 @@ def compose_program_script(programa, output_dir: Path | str = ".",
         toolkit=str(Path(mech_toolkit.__file__).resolve().parent.parent),
         part=programa.part, perfil=json.dumps(perfil or {}), codigo=programa.codigo,
         fichas=json.dumps(_fichas(), ensure_ascii=False),
+        # En un backlog, lo comprado que monta otra pieza (`obra.ajenos`).
+        ajenos=os.environ.get("INTELLIPRINT_AJENOS") or "{}",
     ) + _EPILOGO.format(
         part=programa.part,
         stl=str(salida / f"{programa.part}.stl"),

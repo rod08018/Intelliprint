@@ -233,3 +233,17 @@ def test_el_ajuste_de_un_componente_se_nombra_y_no_se_inventa_su_diametro():
     brief = spec_to_task(RODAMIENTO, resultado).brief
     assert 'hueco(holgura="press")' in brief
     assert "Ajuste: a presión" in resultado.texto()
+
+
+def test_el_eje_que_pasa_por_dentro_del_rodamiento_no_es_su_alojamiento():
+    """Banco 1109-1949 (2026-11-09): la polea del 608ZZ no llegó a diseñarse.
+    Pedía «Ø8.2 para el eje de 8 mm», y la regla lo tomó por el alojamiento
+    del rodamiento porque el 608ZZ tiene Ø8 de agujero. La salida que daba
+    (`hueco()` con un ajuste) aloja el rodamiento por FUERA: con el agujero
+    de dentro no se puede cumplir, y el concepto murió tres veces. Solo el
+    Ø exterior es el que se aloja."""
+    polea = [{"id": "608zz", "como_entra": "la polea se monta sobre el eje que sale del rodamiento",
+              "como_se_sujeta": "taladro central Ø8.2 para el eje de 8 mm, con prisionero M3"}]
+    guion = Guion([_concepto(casos=False, componentes=polea)])
+    IngenieroAgent(guion, ACTIVO).concebir(RODAMIENTO)
+    assert len(guion.prompts) == 1

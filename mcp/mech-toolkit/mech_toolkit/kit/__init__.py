@@ -739,9 +739,12 @@ class Componente:
 class Kit:
     """Las piezas de partida. Cada una devuelve un `Cuerpo`."""
 
-    def __init__(self, perfil: dict | None = None, fichas: dict | None = None) -> None:
+    def __init__(self, perfil: dict | None = None, fichas: dict | None = None,
+                 ajenos: dict | None = None) -> None:
         self.perfil = perfil or {}
         self._fichas = fichas or {}
+        # En un backlog, lo comprado que monta otra pieza: {id: {cuantos, mensaje}}.
+        self._ajenos = ajenos or {}
         self._rasgos: list[dict] = []
         self._avisos: list[str] = []
 
@@ -793,6 +796,13 @@ class Kit:
                            f"{', '.join(sorted(self._fichas)) or 'ninguna'}")
         if entra_por not in EJES:
             raise KitError(f"`entra_por` es uno de {', '.join(EJES)}, no {entra_por!r}")
+        # Banco 1109-1949: la plataforma del pan-tilt colocó el SG90 que ya
+        # montaba el soporte de giro, y quedaron tres servos en uno de dos.
+        if id in self._ajenos:
+            puestos = sum(1 for r in self._rasgos
+                          if r["tipo"] == "componente" and r.get("ficha") == id)
+            if puestos >= self._ajenos[id]["cuantos"]:
+                raise KitError(self._ajenos[id]["mensaje"])
         giros = [[str(e), float(g)] for e, g in girar]
         try:
             primitivas(self._fichas[id], en, giros)

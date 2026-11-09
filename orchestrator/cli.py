@@ -625,6 +625,9 @@ def _paso_de_obra(carpeta: Path, peticion: str, raiz: Path, env: dict, nombre: s
     fichas = str(obra.carpeta_de_fichas(carpeta))
     os.environ["INTELLIPRINT_FICHAS"] = os.pathsep.join(
         filter(None, [fichas, os.environ.get("INTELLIPRINT_FICHAS", "")]))
+    # Y lo comprado que ya monta otra pieza: el kit no deja colocarlo otra vez.
+    os.environ["INTELLIPRINT_AJENOS"] = json.dumps(obra.ajenos(carpeta, nodo),
+                                                   ensure_ascii=False)
     dir_nodo = carpeta / obra.NODOS / nodo
     dir_nodo.mkdir(parents=True, exist_ok=True)
     (dir_nodo / "request.md").write_text(obra.peticion_del_nodo(carpeta, nodo), encoding="utf-8")
