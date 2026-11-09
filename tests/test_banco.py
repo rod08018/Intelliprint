@@ -183,7 +183,7 @@ def test_una_pieza_con_defectos_tambien_se_juzga(tmp_path, monkeypatch):
     import sys
     from orchestrator import banco
     monkeypatch.setattr(banco, "juzgar_pieza",
-                        lambda e, c, f, m=None: [banco.Resultado(estado="cumple", detalle="medida")])
+                        lambda e, c, f, m=None, laminar=None: [banco.Resultado(estado="cumple", detalle="medida")])
     entrega_con_defectos = (
         "import json, os, pathlib, sys; "
         "c = pathlib.Path(os.environ['INTELLIPRINT_WORKSPACE']) / 'projects/a'; "
@@ -219,7 +219,7 @@ def test_un_componente_colocado_se_mide_con_su_ficha():
 def test_rejuzgar_reconoce_una_pieza_del_flujo_nuevo(tmp_path, monkeypatch):
     from orchestrator import banco
     monkeypatch.setattr(banco, "juzgar_pieza",
-                        lambda e, c, f, m=None: [banco.Resultado(estado="cumple", detalle="ok")])
+                        lambda e, c, f, m=None, laminar=None: [banco.Resultado(estado="cumple", detalle="ok")])
     e = banco.Encargo(nombre="x", categoria="casa", peticion="un gancho",
                       oraculo=[{"tipo": "sin_soportes"}])
     proyecto = tmp_path / "01" / "projects" / "p"
@@ -276,7 +276,7 @@ def test_rejuzgar_reconoce_una_pieza_guardada_aunque_el_proceso_muriera_despues(
     cuando la construcción salió; un intento fallido no lo deja."""
     from orchestrator import banco
     monkeypatch.setattr(banco, "juzgar_pieza",
-                        lambda e, c, f, m=None: [banco.Resultado(estado="cumple", detalle="ok")])
+                        lambda e, c, f, m=None, laminar=None: [banco.Resultado(estado="cumple", detalle="ok")])
     e = banco.Encargo(nombre="x", categoria="casa", peticion="un gancho",
                       oraculo=[{"tipo": "sin_soportes"}])
     pieza = tmp_path / "01" / "projects" / "p" / "parts" / "p"
@@ -472,3 +472,59 @@ def test_una_obra_tiene_mas_tiempo_que_una_pieza(tmp_path, monkeypatch):
                       oraculo=[{"tipo": "conjunto_libre"}])
     banco.correr(e, tmp_path / "01", ["intelliprint", "obra"], "x", {})
     assert pedido["timeout"] >= 3 * banco.LIMITE_S
+
+
+# --- el juez lamina, el diseño no (2026-11-09) --------------------------------
+
+def _laminador_falso(pide_soportes=()):
+    """PrusaSlicer de mentira: dice que pide soportes la pieza cuyo STL se
+    llama como alguna de `pide_soportes`, y apunta qué laminó."""
+    from orchestrator.schemas.slicing_report import SlicingReport
+    laminados = []
+
+    def laminar(stl, gcode):
+        laminados.append(stl.stem)
+        return SlicingReport(plate=1, filament_mm=10, grams=1, time_s=60,
+                             needs_supports=stl.stem in pide_soportes)
+    laminar.laminados = laminados
+    return laminar
+
+
+def _sin_laminado_del_diseno(carpeta):
+    import shutil
+    for f in carpeta.glob("projects/*/nodos/*/fabrication"):
+        shutil.rmtree(f)
+
+
+def test_sin_el_laminado_del_diseno_el_juez_lamina_cada_pieza(tmp_path):
+    """El diseño ya no lamina: no se sabe en qué impresora se va a imprimir
+    (decidido por el usuario, 2026-11-09). «Sin soportes» lo sigue diciendo
+    PrusaSlicer, un oráculo que no es el propio sistema, laminando el juez."""
+    from orchestrator import banco
+    carpeta = _obra_construida(tmp_path)
+    _sin_laminado_del_diseno(carpeta)
+    laminar = _laminador_falso(pide_soportes=("giro",))
+
+    def hechos_de(step, freecadcmd, laminado, aserciones, material):
+        import json
+        return Hechos(cilindros=[], bbox_mm=[1, 1, 1], volumen_mm3=1,
+                      soportes=json.loads(laminado.read_text())["needs_supports"])
+
+    e = Encargo(nombre="pan-tilt", categoria="robots", obra=True, peticion="p",
+                oraculo=[{"tipo": "sin_soportes"}])
+    [r] = banco.juzgar_obra(e, carpeta, "freecadcmd", hechos_de=hechos_de, laminar=laminar)
+    assert sorted(laminar.laminados) == ["base", "giro"]
+    assert r.estado == "no_cumple" and "«Soporte de giro»" in r.detalle
+
+
+def test_si_no_se_pide_sin_soportes_el_juez_no_lamina(tmp_path):
+    from orchestrator import banco
+    carpeta = _obra_construida(tmp_path)
+    _sin_laminado_del_diseno(carpeta)
+    laminar = _laminador_falso()
+    e = Encargo(nombre="pan-tilt", categoria="robots", obra=True, peticion="p",
+                oraculo=[{"tipo": "componente", "ficha": "sg90", "cuantos": 2}])
+    banco.juzgar_obra(e, carpeta, "freecadcmd", laminar=laminar,
+                      hechos_de=lambda *a: Hechos(cilindros=[], bbox_mm=[1, 1, 1],
+                                                  volumen_mm3=1))
+    assert laminar.laminados == []

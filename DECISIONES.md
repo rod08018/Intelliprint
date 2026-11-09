@@ -408,6 +408,8 @@ Va FreeCAD **1.1.3**, la misma versión que el escritorio. Debian empaqueta la 1
 
 **Lo que sigue sin resolverse.** El PrusaSlicer del PC es **2.9.6** y el laminado lo hace él; no hay una segunda versión en juego. Pero si alguien levanta esto en una máquina sin PrusaSlicer, no hay laminado: el puente es obligatorio, no opcional. Se ve en la suite, donde tres tests se saltan dentro del contenedor y solo pasan en el host.
 
+**Enmienda (2026-11-09): el diseño no lamina.** Decidido por el usuario. Cada pieza se laminaba al terminar con el perfil activo, y salían gramos, tiempo y G-code de una impresora que quizá no es la que se va a usar: él tiene varias y al diseñar no se sabe en cuál se imprimirá. Ahora se lamina cuando la persona abre la pieza en PrusaSlicer desde la web, y la página dice «gramos y tiempo, al abrirla en PrusaSlicer» en vez de inventarlos. El banco lamina **al juzgar**, y solo si el encargo pide «sin soportes». Así esa respuesta sigue viniendo de PrusaSlicer, un oráculo que no es el propio sistema. Un detector de voladizos escrito aquí habría sido el sistema juzgándose a sí mismo. `intelliprint new` (el flujo de consola con confirmación) sigue laminando; nadie lo usa ya.
+
 ---
 
 ## ADR-015 · Ingeniero primero, CAD después

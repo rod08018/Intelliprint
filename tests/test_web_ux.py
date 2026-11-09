@@ -80,6 +80,21 @@ def test_sin_laminado_no_se_inventa_ninguna_cifra(tmp_path):
     assert 'class="impresion"' not in html
 
 
+def test_sin_laminado_se_ve_su_tamano_y_donde_se_sabe_el_resto(tmp_path):
+    """El diseño ya no lamina (2026-11-09): no se sabe en qué impresora se
+    va a imprimir. La caja sí es de la pieza; gramos y tiempo los da
+    PrusaSlicer al abrirla, y la web lo dice en vez de callar."""
+    carpeta = _pieza(tmp_path, "2026-11-06-soporte")
+    (carpeta / "pieza_report.json").write_text(json.dumps(
+        {"titulo": "t", "resuelto": True, "bbox_mm": [60, 50.04, 10]}), encoding="utf-8")
+
+    html = _web(tmp_path).get("/p/2026-11-06-soporte").text
+
+    assert "60 × 50 × 10 mm" in html
+    assert "gramos y tiempo, al abrirla en PrusaSlicer" in html
+    assert "sin soportes" not in html
+
+
 # --- Lo que se aprobó -------------------------------------------------------------
 
 
@@ -202,3 +217,9 @@ def test_lo_que_se_toca_mide_al_menos_44_px_y_el_movimiento_se_puede_quitar():
     # Apple y la propia WCAG en AAA (2.5.5) para el dedo.
     assert "min-height:44px" in ESTILO
     assert "@media (prefers-reduced-motion: reduce)" in ESTILO
+
+
+def test_el_proyecto_de_varias_piezas_se_llama_backlog(tmp_path):
+    """El usuario no entendía «obra» (2026-11-09): pidió «backlog»."""
+    html = _web(tmp_path).get("/").text
+    assert "un backlog: varias piezas, una a una" in html

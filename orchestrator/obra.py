@@ -387,7 +387,7 @@ def dar_por_lista(carpeta: Path, nodo: str | None = None, por: str = "",
     obra = cargar_obra(carpeta)
     nodo = nodo or siguiente(carpeta)
     if nodo is None:
-        raise ValueError("la obra ya está terminada")
+        raise ValueError("el backlog ya está terminado")
     estado = estados(carpeta)[nodo]
     if estado not in ("diseñada", "con fallos"):
         raise ValueError(f"«{nodo}» está «{estado}»: no hay pieza diseñada que dar por buena")

@@ -115,7 +115,7 @@ def test_la_etapa_de_una_ejecucion_anterior_no_cuenta(tmp_path):
         "[Crafty] Pieza → /workspace/projects/2026-11-09-soporte/nodos/base\n"
         "  laminado…\n"
         "[Crafty] ✋ «Base» diseñada: revísala\n"
-        "[Crafty] Obra → /workspace/projects/2026-11-09-soporte\n"
+        "[Crafty] Backlog → /workspace/projects/2026-11-09-soporte\n"
         "[Crafty] nodo «Base» (base)\n", encoding="utf-8")
 
     etapa = estadisticas(carpeta, en_marcha=True)["ultima_etapa"]

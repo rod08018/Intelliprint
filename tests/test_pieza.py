@@ -283,3 +283,33 @@ def test_lo_buscado_en_internet_llega_a_los_requisitos_y_al_concepto(tmp_path):
     concepto = (tmp_path / "concepto.md").read_text(encoding="utf-8")
     assert "hole diameter 2.7 mm" in concepto and url in concepto
     assert "alto de los USB" in concepto
+
+
+def test_intelliprint_pieza_no_lamina(tmp_path, monkeypatch):
+    """Laminar al diseñar es tiempo perdido: no se sabe en qué impresora se
+    va a imprimir. Se lamina cuando la persona abre PrusaSlicer (decidido
+    por el usuario, 2026-11-09)."""
+    import argparse
+    from pathlib import Path
+
+    from orchestrator import cli, pieza
+    from orchestrator.pieza import APROBADO, InformePieza
+
+    def no_lamines(*a, **k):
+        raise AssertionError("el diseño no debe laminar")
+
+    recibido = {}
+
+    def disenar_pieza_falso(peticion, carpeta, **kw):
+        recibido.update(kw)
+        return InformePieza(titulo="t", pieza="p", resuelto=True, bbox_mm=[1, 1, 1])
+
+    monkeypatch.setattr(cli, "elegir_laminador", no_lamines)
+    monkeypatch.setattr(cli, "_disenar_con_kit", lambda *a, **k: None)
+    monkeypatch.setattr(pieza, "disenar_pieza", disenar_pieza_falso)
+    (tmp_path / APROBADO).write_text("{}", encoding="utf-8")
+    args = argparse.Namespace(peticion=["un gancho"], archivo=False, carpeta=str(tmp_path),
+                              aprobar_concepto=False, comando="pieza")
+    cli._pieza(args, Path("."), {"DEEPSEEK_API_KEY": "x", "INTELLIPRINT_WORKSPACE": str(tmp_path)},
+               "t")
+    assert recibido["laminar"] is None

@@ -591,7 +591,8 @@ def _texto(salida) -> str:
 
 
 def correr(encargo: Encargo, carpeta: Path, orden: list[str], freecadcmd: str,
-           env: dict, material: dict | None = None) -> tuple[list[Resultado], str | None]:
+           env: dict, material: dict | None = None,
+           laminar=None) -> tuple[list[Resultado], str | None]:
     """Pide la pieza como la pediría una persona y la juzga. Devuelve los
     resultados y, si no llegó a construirse, el porqué."""
     carpeta.mkdir(parents=True, exist_ok=True)
@@ -611,7 +612,7 @@ def correr(encargo: Encargo, carpeta: Path, orden: list[str], freecadcmd: str,
                                         encoding="utf-8")
     if encargo.obra:
         return _juzgar_si_hay_obra(encargo, carpeta, freecadcmd, material,
-                                   proceso.stdout + "\n" + proceso.stderr)
+                                   proceso.stdout + "\n" + proceso.stderr, laminar)
     step = next(carpeta.glob("projects/*/parts/*/*.step"), None)
     # Que exista el STEP no basta: queda el de un intento fallido. En la
     # primera corrida (2026-11-03) el banco midió los restos de dos piezas
@@ -619,18 +620,19 @@ def correr(encargo: Encargo, carpeta: Path, orden: list[str], freecadcmd: str,
     if not construida(carpeta, proceso.returncode, proceso.stdout) or step is None:
         sin = [Resultado(estado="no_cumple", detalle="no hay pieza") for _ in encargo.oraculo]
         return sin, motivo_del_fallo(proceso.stdout + "\n" + proceso.stderr)
-    return juzgar_pieza(encargo, carpeta, freecadcmd, material), None
+    return juzgar_pieza(encargo, carpeta, freecadcmd, material, laminar), None
 
 
 def _juzgar_si_hay_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
-                        material: dict | None, salida: str) -> tuple[list[Resultado], str | None]:
+                        material: dict | None, salida: str,
+                        laminar=None) -> tuple[list[Resultado], str | None]:
     """Una obra se juzga con lo que tenga construido: las piezas que falten
     no cumplen, con su nombre. Sin desglose no hay nada que juzgar."""
     from orchestrator.obra import OBRA
     if next(Path(carpeta).glob(f"projects/*/{OBRA}"), None) is None:
         sin = [Resultado(estado="no_cumple", detalle="no hay obra") for _ in encargo.oraculo]
         return sin, motivo_del_fallo(salida)
-    return juzgar_obra(encargo, carpeta, freecadcmd, material), None
+    return juzgar_obra(encargo, carpeta, freecadcmd, material, laminar=laminar), None
 
 
 def construida(carpeta: Path, codigo: int | None, salida: str) -> bool:
@@ -652,10 +654,34 @@ def construida(carpeta: Path, codigo: int | None, salida: str) -> bool:
     return codigo == 0 or "] Listo:" in salida
 
 
+def laminado_del_juez(encargo: Encargo, step: Path, del_diseno: Path, carpeta: Path,
+                      laminar) -> Path | None:
+    """El laminado con el que se juzga «sin soportes». El diseño ya no lamina
+    (2026-11-09: no se sabe en qué impresora se imprimirá), así que lo hace
+    el juez, y solo si se pide «sin soportes»: lo sigue diciendo PrusaSlicer,
+    no el propio sistema. Las corridas viejas traen el del diseño: se usa."""
+    from orchestrator.slicing import LaminadoFallido
+
+    if del_diseno.is_file():
+        return del_diseno
+    if laminar is None or not any(isinstance(a, SinSoportes) for a in encargo.oraculo):
+        return None
+    destino = Path(carpeta) / "juez"
+    destino.mkdir(parents=True, exist_ok=True)
+    try:
+        informe = laminar(step.with_suffix(".stl"), destino / f"{step.stem}.gcode")
+    except LaminadoFallido:
+        return None
+    salida = destino / f"{step.stem}.json"
+    salida.write_text(json.dumps(informe.model_dump()), encoding="utf-8")
+    return salida
+
+
 def juzgar_pieza(encargo: Encargo, carpeta: Path, freecadcmd: str,
-                 material: dict | None = None) -> list[Resultado]:
+                 material: dict | None = None, laminar=None) -> list[Resultado]:
     step = next(carpeta.glob("projects/*/parts/*/*.step"))
-    laminado = next(carpeta.glob("projects/*/fabrication/slicing_report.json"), None)
+    laminado = laminado_del_juez(encargo, step, step.parent.parent.parent / "fabrication"
+                                 / "slicing_report.json", carpeta, laminar)
     rasgos_json = step.parent / "rasgos.json"
     rasgos = json.loads(rasgos_json.read_text(encoding="utf-8")) if rasgos_json.exists() else []
     de_componente = {a.clave(): sondas_de_componente(a, rasgos)
@@ -701,7 +727,8 @@ def _sondeado(h: Hechos, sondas: list) -> Resultado:
 
 
 def juzgar_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
-                material: dict | None = None, hechos_de=None) -> list[Resultado]:
+                material: dict | None = None, hechos_de=None,
+                laminar=None) -> list[Resultado]:
     """F7.5 (obras). Lo que se pide a una pieza se mide en CADA pieza de la
     obra; los componentes, en la que los aloja; y además el encaje entre
     piezas, el conjunto moviéndose y sus articulaciones. Antes el banco medía
@@ -727,7 +754,8 @@ def juzgar_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
         propias = [(r, sondas_del_rasgo(r)) for r in p.propios if r["ficha"] in pedidos]
         encajes = [(r, sondas_del_rasgo(r, [fichas])) for r in rasgos if encaje
                    and r.get("tipo") == "componente" and str(r.get("ficha")).startswith("obra-")]
-        laminado = p.step.parent.parent.parent / "fabrication" / "slicing_report.json"
+        laminado = laminado_del_juez(encargo, p.step, p.step.parent.parent.parent
+                                     / "fabrication" / "slicing_report.json", carpeta, laminar)
         medir = [*de_pieza, *(s for _, ss in propias + encajes for s in ss)]
         medidas[p.id] = (hechos_de(p.step, freecadcmd, laminado, medir, material),
                          propias, encajes)
@@ -780,7 +808,7 @@ def juzgar_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
 
 
 def rejuzgar(encargos: list[Encargo], corrida: Path, freecadcmd: str,
-             material: dict | None = None) -> tuple[dict, dict]:
+             material: dict | None = None, laminar=None) -> tuple[dict, dict]:
     """Vuelve a juzgar las piezas de una corrida ya hecha, sin pedirlas otra
     vez: cambiar el juez no debería costar 46 minutos de modelo. Una pieza
     cuenta como construida si `intelliprint new` dijo «Listo»; que exista el
@@ -792,7 +820,7 @@ def rejuzgar(encargos: list[Encargo], corrida: Path, freecadcmd: str,
         texto = salida.read_text(encoding="utf-8", errors="ignore") if salida.exists() else ""
         if e.obra:
             resultados[e.nombre], fallo = _juzgar_si_hay_obra(e, carpeta, freecadcmd, material,
-                                                              texto)
+                                                              texto, laminar)
             if fallo:
                 fallos[e.nombre] = fallo
             continue
@@ -802,5 +830,5 @@ def rejuzgar(encargos: list[Encargo], corrida: Path, freecadcmd: str,
                                     for _ in e.oraculo]
             fallos[e.nombre] = "no se construyó en esa corrida"
             continue
-        resultados[e.nombre] = juzgar_pieza(e, carpeta, freecadcmd, material)
+        resultados[e.nombre] = juzgar_pieza(e, carpeta, freecadcmd, material, laminar)
     return resultados, fallos

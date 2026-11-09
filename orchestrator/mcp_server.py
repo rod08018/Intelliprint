@@ -134,8 +134,8 @@ def disenar_pieza(peticion: str) -> dict:
 
 
 @mcp.tool()
-def disenar_obra(peticion: str) -> dict:
-    """Diseña un proyecto de VARIAS piezas, una cada vez (un pan-tilt, una
+def disenar_backlog(peticion: str) -> dict:
+    """Diseña un backlog: un proyecto de VARIAS piezas, una cada vez (un pan-tilt, una
     base con su tapa y su soporte, un robot por partes).
 
     Primero lo parte en piezas y para: `estado_proyecto` dirá «por

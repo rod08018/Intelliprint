@@ -491,9 +491,12 @@ def _pieza(args, raiz: Path, env: dict, nombre: str) -> None:
         from orchestrator.pieza import aprobar_concepto
         aprobar_concepto(carpeta, por="banco")
 
+    # Sin laminar: al diseñar no se sabe en qué impresora se va a imprimir,
+    # así que el G-code y los gramos de un perfil cualquiera eran tiempo
+    # perdido (decidido por el usuario, 2026-11-09). Se lamina cuando la
+    # persona abre PrusaSlicer desde la web; el banco lamina para juzgar.
     informe = disenar_pieza(peticion, carpeta, requisitos=requisitos,
-                            disenar=_disenar_con_kit(raiz, env, cliente),
-                            laminar=elegir_laminador(raiz, env))
+                            disenar=_disenar_con_kit(raiz, env, cliente), laminar=None)
     if informe.resuelto:
         gramos = f", {informe.gramos:.1f} g" if informe.gramos is not None else ""
         print(f"[{nombre}] ✓ {informe.titulo}: "
@@ -517,7 +520,9 @@ def _obra(args, raiz: Path, env: dict, nombre: str) -> None:
     carpeta.mkdir(parents=True, exist_ok=True)
     if not (carpeta / "request.md").exists():
         (carpeta / "request.md").write_text(peticion.strip() + "\n", encoding="utf-8")
-    print(f"[{nombre}] Obra → {carpeta}", flush=True)
+    # «Backlog» y no «obra»: así lo llama el usuario (2026-11-09). Las
+    # estadísticas de la web reconocen la línea por «palabra →».
+    print(f"[{nombre}] Backlog → {carpeta}", flush=True)
     if not getattr(args, "banco", False):
         _paso_de_obra(carpeta, peticion, raiz, env, nombre)
         return
@@ -583,7 +588,7 @@ def _paso_de_obra(carpeta: Path, peticion: str, raiz: Path, env: dict, nombre: s
 
     nodo = obra.siguiente(carpeta)
     if nodo is None:
-        print(f"[{nombre}] ✓ obra terminada: {', '.join(obra.estados(carpeta))}")
+        print(f"[{nombre}] ✓ backlog terminado: {', '.join(obra.estados(carpeta))}")
         return
     estado = obra.estados(carpeta)[nodo]
     nombre_nodo = obra.cargar_obra(carpeta).nodo(nodo).nombre
@@ -661,7 +666,8 @@ def _banco(args, raiz: Path, env: dict, nombre: str) -> None:
     material = _perfil(raiz, env).datos["resistencia"]
     if args.rejuzgar:
         corrida = Path(args.rejuzgar)
-        resultados, fallos = rejuzgar(encargos, corrida, _freecadcmd(env), material)
+        resultados, fallos = rejuzgar(encargos, corrida, _freecadcmd(env), material,
+                                      elegir_laminador(raiz, env))
         texto = informe(resultados, modelo="rejuzgada con el juez de hoy", fallos=fallos)
         # Al lado del informe original, sin pisarlo: es la evidencia de esa corrida.
         (corrida / "banco_rejuzgado.md").write_text(texto, encoding="utf-8")
@@ -676,7 +682,8 @@ def _banco(args, raiz: Path, env: dict, nombre: str) -> None:
         print(f"[{nombre}] banco: {e.nombre} (carpeta {i:02d})…", flush=True)
         resultados[e.nombre], fallo = correr(e, salida / f"{i:02d}", orden_del_banco(e.obra),
                                              _freecadcmd(env),
-                                             dict(os.environ), material)
+                                             dict(os.environ), material,
+                                             elegir_laminador(raiz, env))
         if fallo:
             fallos[e.nombre] = fallo
     modelo = env.get("DEEPSEEK_MODEL", "deepseek")

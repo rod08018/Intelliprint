@@ -220,7 +220,7 @@ def galeria(grupos: list[dict], workspace: Path, hay_puente: bool, puede_pedir: 
   </header>
   <dialog id="nuevo">
     <form method="dialog" class="cabeza-dialogo"><h2>Nuevo diseño</h2><button class="cerrar" aria-label="Cerrar">✕</button></form>
-    <label class="partir">Qué es <select id="tipo"><option value="pieza" data-ejemplo="{e(EJEMPLOS['pieza'])}">una pieza (soporte, gancho, adaptador…)</option><option value="mecanismo" data-ejemplo="{e(EJEMPLOS['mecanismo'])}">un mecanismo (piezas que se mueven)</option><option value="obra" data-ejemplo="{e(EJEMPLOS['obra'])}">un proyecto de varias piezas, pieza a pieza</option></select></label>
+    <label class="partir">Qué es <select id="tipo"><option value="pieza" data-ejemplo="{e(EJEMPLOS['pieza'])}">una pieza (soporte, gancho, adaptador…)</option><option value="mecanismo" data-ejemplo="{e(EJEMPLOS['mecanismo'])}">un mecanismo (piezas que se mueven)</option><option value="obra" data-ejemplo="{e(EJEMPLOS['obra'])}">un backlog: varias piezas, una a una</option></select></label>
     <label for="peticion" class="partir">Qué quieres</label>
     <textarea id="peticion" rows="9" placeholder="{e(EJEMPLOS['pieza'])}"></textarea>
     <label class="partir">Partir de <select id="basado_en"><option value="">nada, empezar de cero</option>{opciones}</select></label>
@@ -407,15 +407,20 @@ def _impresion(carpeta: Path) -> str:
     """Lo que cuesta imprimirla, tal como lo calculó el laminado: gramos,
     tiempo, soportes y caja. Antes no salía en ningún sitio y era lo primero
     que hay que saber antes de mandarla a la impresora (2026-11-08). Sin
-    laminado no se pone nada: una cifra estimada aquí parecería medida."""
+    laminado no se estima nada (una cifra estimada aquí parecería medida):
+    desde el 2026-11-09 el diseño no lamina, porque no se sabe en qué
+    impresora se va a imprimir, y se dice dónde se sabe."""
     lamina = _leer(carpeta / "fabrication" / "slicing_report.json")
-    if not lamina:
-        return ""
-    datos = [f"{lamina['grams']:.0f} g", _duracion(lamina["time_s"]),
-             "con soportes" if lamina.get("needs_supports") else "sin soportes"]
     caja = (_leer(carpeta / "pieza_report.json") or {}).get("bbox_mm") or []
+    if not lamina and len(caja) != 3:
+        return ""
+    datos = ([f"{lamina['grams']:.0f} g", _duracion(lamina["time_s"]),
+              "con soportes" if lamina.get("needs_supports") else "sin soportes"]
+             if lamina else [])
     if len(caja) == 3:
         datos.append(" × ".join(f"{round(x):g}" for x in caja) + " mm")
+    if not lamina:
+        datos.append("gramos y tiempo, al abrirla en PrusaSlicer")
     return ('<ul class="impresion" aria-label="Lo que cuesta imprimirla">'
             + "".join(f"<li>{e(d)}</li>" for d in datos) + "</ul>")
 

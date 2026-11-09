@@ -47,7 +47,7 @@ def test_una_obra_se_pide_con_su_orden(ws, monkeypatch):
     import sys
     monkeypatch.setattr(servidor, "_orden_obra",
                         lambda: [sys.executable, "-c", "import sys; print(sys.argv)", "obra"])
-    r = servidor.disenar_obra("un pan-tilt con dos SG90")
+    r = servidor.disenar_backlog("un pan-tilt con dos SG90")
     assert "error" not in r, r
     assert "'obra'" in _esperar_registro(ws / "projects" / r["proyecto"])
 

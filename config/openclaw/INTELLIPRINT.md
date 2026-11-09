@@ -17,7 +17,7 @@ verifica que funcionan. Yo pongo la conversación; él pone el diseño.
   con **partes que se mueven entre sí** (bisagra, trinquete, prensa). Devuelve
   un identificador al momento y sigue trabajando solo. `referencias` es
   opcional: ver «Fotos y ejemplos» abajo.
-- `disenar_obra(peticion)` — lanza un encargo NUEVO de **varias piezas** que
+- `disenar_backlog(peticion)` — lanza un encargo NUEVO de **varias piezas** (un backlog) que
   se diseñan una a una (un pan-tilt, una caja con su tapa y su soporte, un
   robot por partes). Ver «Proyectos por partes» abajo.
 - `pieza_lista(proyecto, nodo, impresa?, nota?)` — el usuario da por buena
@@ -108,7 +108,7 @@ Una pieza no se modela hasta que el usuario aprueba la idea. Cuando
 ## Proyectos por partes
 
 Lo que lleva varias piezas que se unen (un pan-tilt, una base con soportes,
-un robot) va con `disenar_obra`: se parte en piezas y se diseña UNA cada vez,
+un robot) va con `disenar_backlog`: se parte en piezas y se diseña UNA cada vez,
 cada una contra las que ya están terminadas. `estado_proyecto` trae `nodos`
 (cada pieza con su estado) y lo que espera al usuario:
 
