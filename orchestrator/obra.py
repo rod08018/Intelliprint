@@ -346,6 +346,10 @@ def rehacer(carpeta: Path, nodo: str, cambio: str = "") -> list[str]:
     anterior = _ultimo_concepto(dir_nodo)
     previos = (dir_nodo / CAMBIOS).read_text(encoding="utf-8").strip() \
         if (dir_nodo / CAMBIOS).is_file() else ""
+    # Lo que la persona contestó (por dónde sale un cable) sigue siendo
+    # verdad aunque la pieza se rehaga por otra cosa.
+    respuestas = (dir_nodo / "respuestas.md").read_text(encoding="utf-8") \
+        if (dir_nodo / "respuestas.md").is_file() else ""
     rehechos = []
     for i in [nodo, *obra.dependientes(nodo)]:
         fichas = carpeta_de_fichas(carpeta)
@@ -355,8 +359,10 @@ def rehacer(carpeta: Path, nodo: str, cambio: str = "") -> list[str]:
             _archivar(carpeta, *rutas)
             rehechos.append(i)
     todos = "\n".join(c for c in (previos, cambio.strip()) if c)
-    if todos or anterior:
+    if todos or anterior or respuestas:
         dir_nodo.mkdir(parents=True, exist_ok=True)
+    if respuestas:
+        (dir_nodo / "respuestas.md").write_text(respuestas, encoding="utf-8")
     if todos:
         (dir_nodo / CAMBIOS).write_text(todos + "\n", encoding="utf-8")
     if anterior:

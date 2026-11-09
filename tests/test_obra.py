@@ -264,6 +264,19 @@ def test_rehacer_parte_del_concepto_aprobado_y_acumula_los_cambios(tmp_path):
     assert "más adentro" not in peticion and "abierta al servo" not in peticion
 
 
+def test_rehacer_conserva_las_respuestas_de_la_persona(tmp_path):
+    """Que el cable del SG90 sale por un lado corto lo dijo la persona una
+    vez; rehacer la pieza por otra cosa no lo vuelve falso."""
+    O = _empezar(tmp_path)
+    O.aprobar(tmp_path, por="web")
+    _concepto_visto(tmp_path / "nodos" / "base", "brida en U")
+    O.aprobar(tmp_path, respuestas="el cable sale por un lado corto, abajo", por="web")
+
+    O.rehacer(tmp_path, "base", cambio="más alta")
+
+    assert "lado corto" in O.peticion_del_nodo(tmp_path, "base")
+
+
 def test_contestar_al_concepto_guarda_el_contestado_como_anterior(tmp_path):
     O = _empezar(tmp_path)
     O.aprobar(tmp_path, por="web")
