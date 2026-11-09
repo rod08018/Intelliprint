@@ -30,6 +30,9 @@ en FreeCAD y **verifica que funcionan** antes de que nadie imprima nada.
   algo no funcionó.
 - **No tocar `M3_through_mm: 3.3`** sin la impresora delante: cambiarlo a ciegas
   es sustituir un valor sin validar por otro igual de sin validar (deuda F2.18).
+  Lo cambia el usuario midiendo: lo apunta en la página «Impresora» de la web
+  (F2.21 (impresora)), se guarda en `workspace/impresoras/` y manda sobre
+  `config/printers/`, que no se toca. La impresora la configura él.
 
 ## Órdenes
 

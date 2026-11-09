@@ -73,11 +73,11 @@ def _disenar_con_kit(raiz: Path, env: dict, cliente):
     # Con el razonador y cinco construcciones: en el banco (2026-11-04)
     # deepseek-chat recibía el motivo exacto —«los lados 2 y 7 se cruzan»,
     # «el rebaje del servo no toca la pieza»— y no lo corregía en tres.
-    disenador = DisenadorKitAgent(_cliente(router, env, "reason"), perfil_activo(raiz),
+    disenador = DisenadorKitAgent(_cliente(router, env, "reason"), _perfil(raiz, env),
                                   reserva=cliente)
-    material = perfil_activo(raiz).datos["resistencia"]
-    pared_min = (perfil_activo(raiz).datos.get("walls") or {}).get("min_mm")
-    agujeros = perfil_activo(raiz).datos.get("holes") or {}
+    material = _perfil(raiz, env).datos["resistencia"]
+    pared_min = (_perfil(raiz, env).datos.get("walls") or {}).get("min_mm")
+    agujeros = _perfil(raiz, env).datos.get("holes") or {}
 
     def disenar(spec, carpeta, part, concepto=None, partida=None):
         # F6.7 (lazo): lo que la pieza construida no cumple de los requisitos
@@ -108,7 +108,7 @@ def _grafo(raiz: Path, env: dict):
     router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
     cliente = _cliente(router, env)
     deps = Dependencias(
-        requirements=RequirementsAgent(cliente, activo=perfil_activo(raiz)),
+        requirements=RequirementsAgent(cliente, activo=_perfil(raiz, env)),
         disenar=_disenar_con_kit(raiz, env, cliente),
         laminar=elegir_laminador(raiz, env),
         port=CliAdapter(),
@@ -123,7 +123,14 @@ def _ingeniero(raiz: Path, router: Router, env: dict, reserva):
     pieza es el paso que más pensar pide. `reserva` es el modelo sin
     pensamiento, por si el razonador se corta (ver `structured`)."""
     from orchestrator.agents.ingeniero import IngenieroAgent
-    return IngenieroAgent(_cliente(router, env, "reason"), perfil_activo(raiz), reserva=reserva)
+    return IngenieroAgent(_cliente(router, env, "reason"), _perfil(raiz, env), reserva=reserva)
+
+
+def _perfil(raiz: Path, env: dict):
+    """El perfil activo con lo que el usuario midió en su impresora
+    (F2.21 (impresora)). Todo lo que diseña pasa por aquí: un camino que
+    leyera solo `config/` diseñaría con 3.3 aunque se hubiera medido 3.4."""
+    return perfil_activo(raiz, _workspace(raiz, env))
 
 
 def _workspace(raiz: Path, env: dict) -> Path:
@@ -158,7 +165,7 @@ def _mecanismo(args, raiz: Path, env: dict, nombre: str) -> None:
     from orchestrator.mechanisms.run import build_mechanism, llm_designer
     from orchestrator.mechanisms.slider_crank import SliderCrankLayout
 
-    perfil = perfil_activo(raiz).impresora
+    perfil = _perfil(raiz, env).impresora
     if args.peticion != ["biela-manivela"]:
         _mecanismo_desde_texto(args, raiz, env, nombre, perfil)
         return
@@ -205,7 +212,7 @@ def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> 
     peticion = " ".join(args.peticion)
     if args.archivo:
         peticion = Path(peticion).read_text(encoding="utf-8")
-    impresora = perfil_activo(raiz).datos
+    impresora = _perfil(raiz, env).datos
     cama = tuple(impresora["bed_mm"][k] for k in "xyz")
     hueco = perfil.fit_mm("slide") / 2
     router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
@@ -293,8 +300,8 @@ def _diseñar_mecanismo(peticion: str, raiz: Path, env: dict, nombre: str, log):
     from orchestrator.mechanisms.flow import design_mechanism
     from orchestrator.tasks import slug
 
-    impresora = perfil_activo(raiz).datos
-    perfil = perfil_activo(raiz).impresora
+    impresora = _perfil(raiz, env).datos
+    perfil = _perfil(raiz, env).impresora
     cama = tuple(impresora["bed_mm"][k] for k in "xyz")
     hueco = perfil.fit_mm("slide") / 2
     router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
@@ -341,7 +348,7 @@ def _animar(args, raiz: Path, env: dict, nombre: str) -> None:
 
     carpeta = Path(args.carpeta)
     spec = MechanismSpec.model_validate_json((carpeta / "mechanism.json").read_text(encoding="utf-8"))
-    perfil = perfil_activo(raiz).impresora
+    perfil = _perfil(raiz, env).impresora
     informe = build_mechanism(
         SpecLayout(spec), carpeta, _freecadcmd(env),
         min_gap_mm=perfil.fit_mm("slide") / 2, disenar=lambda n, c: None, animar=True)
@@ -396,16 +403,23 @@ def _bot(raiz: Path, env: dict, nombre: str) -> None:
 
 
 def _calibrar(args, raiz: Path, env: dict, nombre: str) -> None:
-    """F2.18 (calibración): construir la pieza, o apuntar lo que encajó."""
-    from orchestrator.calibracion import CalibracionInvalida, aplicar_resultados, cuadro, recetas
+    """F2.18 (calibración) y F2.21 (impresora): construir las piezas de
+    prueba, o apuntar lo que encajó."""
+    from orchestrator.calibracion import cuadro, cuadro_barra, recetas, recetas_barra
+    from orchestrator.medidas_impresora import MedidaInvalida, registrar
 
-    activo = perfil_activo(raiz)
-    if args.accion == "pieza":
+    activo = _perfil(raiz, env)
+    if args.accion in ("pieza", "barra"):
         from mech_toolkit.generators import CATALOGO
         from orchestrator.build import build_part
 
+        holguras = args.accion == "pieza"
+        sufijo, titulo, piezas, texto = (
+            ("calibracion_holguras", "Pieza de calibración de holguras", recetas(), cuadro())
+            if holguras else
+            ("calibracion_barras", "Barras de flexión", recetas_barra(), cuadro_barra()))
         carpeta = (_workspace(raiz, env) / "projects"
-                   / f"{dt.datetime.now():%Y-%m-%d-%H%M}-calibracion_holguras")
+                   / f"{dt.datetime.now():%Y-%m-%d-%H%M}-{sufijo}")
         carpeta.mkdir(parents=True)
         # Quién la construye: sin job.json, una carpeta recién hecha y sin
         # rondas se toma por un diseño en marcha y bloquea «Diseñar».
@@ -413,29 +427,27 @@ def _calibrar(args, raiz: Path, env: dict, nombre: str) -> None:
             {"pid": os.getpid(), "inicio": dt.datetime.now().isoformat()}), encoding="utf-8")
         (carpeta / "request.md").write_text(
             # La primera línea es el título en la web: corta, o sale cortada.
-            f"Pieza de calibración de holguras\n\nPara {activo.impresora.id} ({activo.material}).\n",
+            f"{titulo}\n\nPara {activo.impresora.id} ({activo.material}).\n",
             encoding="utf-8")
-        (carpeta / "calibracion.md").write_text(cuadro(), encoding="utf-8")
+        (carpeta / "calibracion.md").write_text(texto, encoding="utf-8")
         from orchestrator.registry import latir
         with latir(carpeta):
-            for receta in recetas():
+            for receta in piezas:
                 print(f"[{nombre}] construyendo {receta.part}…")
                 build_part(receta, CATALOGO, carpeta / "parts" / receta.part, _freecadcmd(env))
         print(f"[{nombre}] Listo: {carpeta}\n  Cómo probarla y qué apuntar: {carpeta / 'calibracion.md'}")
         return
 
-    ruta = raiz / "config" / "printers" / f"{activo.impresora.id}.yaml"
-    if not os.access(ruta, os.W_OK):
-        sys.exit(f"no puedo escribir {ruta}: dentro del contenedor config/ es de solo "
-                 "lectura. Ejecuta esta orden en el PC.")
+    # Al workspace y no a config/printers/, que dentro del contenedor es de
+    # solo lectura: apuntar las holguras solo se podía desde el PC.
     try:
-        aplicar_resultados(ruta, press_mm=args.press, slide_mm=args.slide,
-                           clearance_mm=args.clearance, m3_through_mm=args.m3_through,
-                           m3_selftap_mm=args.m3_selftap, m3_insert_mm=args.m3_insert,
-                           fecha=dt.date.today().isoformat())
-    except CalibracionInvalida as e:
+        registrar(_workspace(raiz, env), activo.impresora.id, "tolerancias", {
+            "press_mm": args.press, "slide_mm": args.slide, "clearance_mm": args.clearance,
+            "m3_through_mm": args.m3_through, "m3_selftap_mm": args.m3_selftap,
+            "m3_insert_mm": args.m3_insert}, fotos=[])
+    except MedidaInvalida as e:
         sys.exit(f"no se ha cambiado nada: {e}")
-    print(f"[{nombre}] {ruta} calibrado con lo que mediste.")
+    print(f"[{nombre}] {activo.impresora.id}: apuntado. Desde ahora se diseña con lo que mediste.")
 
 
 def _pieza(args, raiz: Path, env: dict, nombre: str) -> None:
@@ -451,7 +463,7 @@ def _pieza(args, raiz: Path, env: dict, nombre: str) -> None:
                / f"{dt.datetime.now():%Y-%m-%d-%H%M%S}-{nombre_corto(peticion.splitlines()[0], 40)}")
     router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
     cliente = _cliente(router, env)
-    requisitos = RequirementsAgent(cliente, activo=perfil_activo(raiz))
+    requisitos = RequirementsAgent(cliente, activo=_perfil(raiz, env))
     print(f"[{nombre}] Pieza → {carpeta}", flush=True)
 
     # F3.20 (concepto): sin visto bueno no se modela. La primera vez (y tras
@@ -579,7 +591,7 @@ def _banco(args, raiz: Path, env: dict, nombre: str) -> None:
                 if not args.solo or e.nombre in args.solo]
     if not encargos:
         sys.exit(f"ningún encargo se llama {', '.join(args.solo)}")
-    material = perfil_activo(raiz).datos["resistencia"]
+    material = _perfil(raiz, env).datos["resistencia"]
     if args.rejuzgar:
         corrida = Path(args.rejuzgar)
         resultados, fallos = rejuzgar(encargos, corrida, _freecadcmd(env), material)
@@ -639,8 +651,9 @@ def _parser() -> argparse.ArgumentParser:
     cal = sub.add_parser("calibrar", help="pieza de calibración de holguras (F2.18 (calibración))")
     acciones = cal.add_subparsers(dest="accion", required=True)
     acciones.add_parser("pieza", help="construir las piezas para imprimirlas")
+    acciones.add_parser("barra", help="construir las dos barras de flexión (F2.21 (impresora))")
     res = acciones.add_parser(
-        "resultados", help="apuntar qué encajó: cambia las holguras del perfil activo")
+        "resultados", help="apuntar qué encajó: manda sobre las holguras del perfil activo")
     for opcion, ayuda in (("--press", "holgura del primer agujero a presión"),
                           ("--slide", "holgura del primero deslizante"),
                           ("--clearance", "holgura del primero que gira libre"),

@@ -19,9 +19,7 @@ import pytest
 import yaml
 
 from mech_toolkit.generators import CATALOGO
-from mech_toolkit.profile import PrinterProfile
-from orchestrator.calibracion import (
-    CalibracionInvalida, aplicar_resultados, cuadro, recetas)
+from orchestrator.calibracion import CalibracionInvalida, cuadro, recetas, validar_holguras
 from orchestrator.schemas.recipe import Recipe
 
 YAML = Path("config/printers/ankermake_m5_plamas.yaml")
@@ -102,34 +100,30 @@ def test_el_peine_construido_tiene_el_volumen_calculado_a_mano(tmp_path):
     assert (tmp_path / receta.part / f"{receta.part}.stl").is_file()
 
 
-# --- Los resultados: el ÚNICO camino por el que cambian las holguras --------
+# --- Los resultados ------------------------------------------------------------
+#
+# Antes se escribían en config/printers/, que dentro del contenedor es de solo
+# lectura. Ahora van al workspace y mandan sobre el perfil (F2.21 (impresora)):
+# lo prueba tests/test_impresora_medidas.py. Aquí, que la orden lo hace así.
 
 
-@pytest.fixture
-def perfil(tmp_path):
-    copia = tmp_path / "m5.yaml"
-    shutil.copy(YAML, copia)
-    return copia
+def test_la_orden_de_resultados_apunta_en_el_workspace_y_no_toca_config(tmp_path, capsys):
+    import argparse
 
+    from orchestrator.cli import _calibrar
+    from orchestrator.impresion import perfil_activo
 
-def _cargar(ruta):
-    return PrinterProfile(**yaml.safe_load(ruta.read_text(encoding="utf-8")))
+    antes = YAML.read_bytes()
+    _calibrar(argparse.Namespace(accion="resultados", press=0.1, slide=0.3, clearance=0.4,
+                                 m3_through=3.4, m3_selftap=2.8, m3_insert=4.0),
+              Path("."), {"INTELLIPRINT_WORKSPACE": str(tmp_path)}, "Crafty")
 
-
-def test_los_resultados_se_escriben_y_el_perfil_queda_calibrado(perfil):
-    aplicar_resultados(perfil, press_mm=0.1, slide_mm=0.3, clearance_mm=0.4,
-                       m3_through_mm=3.4, m3_selftap_mm=2.8, m3_insert_mm=4.0,
-                       fecha="2026-10-30")
-
-    p = _cargar(perfil)
+    p = perfil_activo(Path("."), workspace=tmp_path).impresora
     assert (p.fit_mm("press"), p.fit_mm("slide"), p.fit_mm("clearance")) == (0.1, 0.3, 0.4)
     assert (p.hole_mm("M3_through"), p.hole_mm("M3_selftap"), p.hole_mm("M3_insert")) == (
         3.4, 2.8, 4.0)
     assert p.calibrated is True
-    texto = perfil.read_text(encoding="utf-8")
-    assert "2026-10-30" in texto
-    # Lo demás del archivo, comentarios incluidos, no se toca.
-    assert "M3_nut_af_mm: 5.9" in texto and "overhang_max_deg: 45" in texto
+    assert YAML.read_bytes() == antes
 
 
 @pytest.mark.parametrize("cambio, motivo", [
@@ -138,15 +132,12 @@ def test_los_resultados_se_escriben_y_el_perfil_queda_calibrado(perfil):
     (dict(press_mm=0.3, slide_mm=0.2), "press"),  # a presión no puede ser más holgado
     (dict(m3_selftap_mm=3.4, m3_through_mm=3.3), "rosca"),
 ])
-def test_unos_resultados_imposibles_no_tocan_el_perfil(perfil, cambio, motivo):
-    antes = perfil.read_text(encoding="utf-8")
+def test_unos_resultados_imposibles_se_rechazan(cambio, motivo):
     valores = dict(press_mm=0.1, slide_mm=0.2, clearance_mm=0.4, m3_through_mm=3.4,
                    m3_selftap_mm=2.8, m3_insert_mm=4.1) | cambio
 
     with pytest.raises(CalibracionInvalida, match=motivo):
-        aplicar_resultados(perfil, **valores, fecha="2026-10-30")
-
-    assert perfil.read_text(encoding="utf-8") == antes
+        validar_holguras(**valores)
 
 
 # --- La orden -----------------------------------------------------------------

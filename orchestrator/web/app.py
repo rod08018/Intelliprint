@@ -387,6 +387,9 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
         paginas.fijar_categoria(workspace, raiz, pedido.categoria)
         return {"proyecto": raiz, "categoria": pedido.categoria}
 
+    # Lo que el usuario midió en su impresora (F2.21 (impresora)).
+    from orchestrator.web import impresora
+    impresora.rutas(app, workspace, raiz)
     return app
 
 

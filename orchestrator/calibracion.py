@@ -13,12 +13,9 @@ Tres piezas, impresas con el perfil activo:
 
 No hay generador de texto, así que no llevan números grabados: los agujeros
 van de menor a mayor empezando junto a la muesca de una esquina. El
-usuario prueba, apunta qué encajó y lo mete con `aplicar_resultados`, que
-es el ÚNICO camino por el que cambian las holguras del perfil.
+usuario prueba y apunta qué encajó; lo apuntado pasa por `validar_holguras`
+y se guarda en el workspace (F2.21 (impresora)).
 """
-
-import re
-from pathlib import Path
 
 from orchestrator.schemas.recipe import Recipe
 
@@ -119,15 +116,15 @@ Fila de abajo (junto a la muesca), con el inserto y el soldador:
 
 ## Apuntar los resultados
 
-En el PC (config/ está en solo lectura dentro del contenedor):
+En la web, en «Impresora», con una foto de la pieza probada; o con la orden:
 
 ```
 intelliprint calibrar resultados --press 0.1 --slide 0.2 --clearance 0.3 \\
     --m3-through 3.4 --m3-selftap 2.8 --m3-insert 4.1
 ```
 
-Es el único camino por el que cambian las holguras del perfil activo; el
-perfil queda marcado como calibrado, con la fecha.
+Lo medido se guarda con su fecha en el workspace y manda sobre el perfil
+de `config/printers/`, que no se toca: el diseño queda calibrado.
 """
 
 
@@ -136,13 +133,13 @@ def _en(valor: float, opciones, que: str) -> None:
         raise CalibracionInvalida(f"{valor} no es ningún agujero de la {que}: {list(opciones)}")
 
 
-def aplicar_resultados(ruta: Path, *, press_mm: float, slide_mm: float, clearance_mm: float,
-                       m3_through_mm: float, m3_selftap_mm: float, m3_insert_mm: float,
-                       fecha: str) -> None:
-    """Escribe lo medido en el YAML de la impresora y lo marca calibrado.
+def validar_holguras(*, press_mm: float, slide_mm: float, clearance_mm: float,
+                     m3_through_mm: float, m3_selftap_mm: float, m3_insert_mm: float) -> None:
+    """Que lo apuntado sea algo que la pieza puede haber dado.
 
-    Se toca solo el número de cada línea: comentarios y demás valores se
-    quedan. Si algo no cuadra con la pieza, no se escribe NADA."""
+    Antes esto escribía en `config/printers/`, que dentro del contenedor es de
+    solo lectura: solo se podía apuntar desde el PC. Lo medido vive ahora en
+    el workspace (F2.21 (impresora)) y se apunta desde la web o la orden."""
     for v in (press_mm, slide_mm, clearance_mm):
         _en(v, HOLGURAS_MM, "pieza: el peine solo tiene holguras de")
     _en(m3_through_mm, M3_ROSCA_Y_PASANTE_MM, "placa M3")
@@ -156,17 +153,73 @@ def aplicar_resultados(ruta: Path, *, press_mm: float, slide_mm: float, clearanc
             f"el agujero de rosca directa ({m3_selftap_mm}) tiene que ser menor que el "
             f"pasante ({m3_through_mm})")
 
-    texto = Path(ruta).read_text(encoding="utf-8")
-    nuevos = {"press_mm": press_mm, "slide_mm": slide_mm, "clearance_mm": clearance_mm,
-              "M3_through_mm": m3_through_mm, "M3_selftap_mm": m3_selftap_mm,
-              "M3_insert_mm": m3_insert_mm}
-    for clave, valor in nuevos.items():
-        texto, n = re.subn(rf"^(\s*{clave}:\s*)[\d.]+", rf"\g<1>{valor:.2f}", texto, flags=re.M)
-        if n != 1:
-            raise CalibracionInvalida(f"{ruta} no tiene exactamente una línea «{clave}:»")
-    texto, n = re.subn(r"^calibrated:.*$",
-                       f"calibrated: true             # medido con F2.18 (calibración), {fecha}",
-                       texto, flags=re.M)
-    if n != 1:
-        raise CalibracionInvalida(f"{ruta} no tiene exactamente una línea «calibrated:»")
-    Path(ruta).write_text(texto, encoding="utf-8")
+
+# --- La barra de flexión (F2.21 (impresora)) ------------------------------------------
+#
+# La resistencia del perfil es una estimación sin ensayar (F3.19 (resistencia)).
+# La barra la mide: se sujeta el bloque al borde de la mesa, se cuelga peso del
+# agujero y se apunta con cuánto rompió. Dos barras porque una pieza FDM no
+# aguanta igual a lo largo del filamento (tumbada) que entre capas (de pie).
+
+BARRA = {"ancho_mm": 10.0, "grueso_mm": 4.0, "brazo_mm": 50.0, "agujero_mm": 5.0,
+         "punta_mm": 6.0, "metida_mm": 2.0, "bloque_mm": (20.0, 10.0, 12.0)}
+G = 9.80665
+
+
+def mpa_de_barra(carga_kg: float) -> float:
+    """Tensión en el borde del bloque al romper: voladizo, σ = M·c/I = 6·F·L / (b·h²).
+
+    Es la de una sección sin entallas; en una pieza real con esquinas vivas
+    rompe antes, y para eso está el factor de seguridad del perfil."""
+    b, h, brazo = BARRA["ancho_mm"], BARRA["grueso_mm"], BARRA["brazo_mm"]
+    return 6 * carga_kg * G * brazo / (b * h ** 2)
+
+
+def recetas_barra() -> list[Recipe]:
+    b, h, brazo = BARRA["ancho_mm"], BARRA["grueso_mm"], BARRA["brazo_mm"]
+    metida, punta = BARRA["metida_mm"], BARRA["punta_mm"]
+    largo_bloque, ancho_bloque, alto_bloque = BARRA["bloque_mm"]
+    largo = metida + brazo + punta
+    # Tumbada: el bloque de x = −20 a 0 y la barra de x = −2 a 56, de 4 de alto.
+    # El esfuerzo va a lo largo del filamento.
+    xy = Recipe.model_validate({"part": "calibracion_barra_xy", "steps": [
+        _paso("generate_box", length_mm=largo_bloque, width_mm=ancho_bloque, height_mm=alto_bloque,
+              x_mm=-largo_bloque / 2, y_mm=0, z_mm=0),
+        _paso("generate_box", length_mm=largo, width_mm=b, height_mm=h,
+              x_mm=-metida + largo / 2, y_mm=0, z_mm=0),
+        _paso("generate_hole", diameter_mm=BARRA["agujero_mm"], x_mm=brazo, y_mm=0),
+    ]})
+    # De pie: el bloque de z = 0 a 20 y la barra encima. La flexión intenta
+    # separar las capas, que es por donde rompe una pieza impresa.
+    z = Recipe.model_validate({"part": "calibracion_barra_z", "steps": [
+        _paso("generate_box", length_mm=alto_bloque, width_mm=ancho_bloque, height_mm=largo_bloque,
+              x_mm=0, y_mm=0, z_mm=0),
+        _paso("generate_box", length_mm=h, width_mm=b, height_mm=largo,
+              x_mm=0, y_mm=0, z_mm=largo_bloque - metida),
+        _paso("generate_hole_axis", diameter_mm=BARRA["agujero_mm"], x_mm=0, y_mm=0,
+              z_mm=largo_bloque + brazo, axis="x"),
+    ]})
+    return [xy, z]
+
+
+def cuadro_barra() -> str:
+    """Cómo romperla y qué apuntar: va con las barras, en calibracion.md."""
+    return f"""# Barras de flexión (F2.21 (impresora))
+
+Imprime las dos barras con el perfil activo, laminadas como las piezas que
+aguantan carga, y **sin** escalar nada:
+
+- `calibracion_barra_xy`, tumbada: mide la resistencia a lo largo del filamento;
+- `calibracion_barra_z`, de pie: mide la resistencia entre capas.
+
+Para cada una:
+
+1. Sujeta el bloque al borde de la mesa con un sargento, con la barra en
+   horizontal y la cara de {BARRA['grueso_mm']:g} mm hacia arriba.
+2. Cuelga del agujero un cubo, a {BARRA['brazo_mm']:g} mm del borde del bloque.
+3. Ve echando agua (o peso) poco a poco hasta que la barra rompa.
+4. Pesa el cubo con lo que tenía dentro y apúntalo en kg en la web, en
+   «Impresora», con una foto de la rotura.
+
+Si rompe lejos del borde del bloque, la impresión tenía un defecto: repítela.
+"""

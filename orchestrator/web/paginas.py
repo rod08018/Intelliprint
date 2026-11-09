@@ -215,6 +215,7 @@ def galeria(grupos: list[dict], workspace: Path, hay_puente: bool, puede_pedir: 
   <header class="barra">
     <a class="marca" href="/">Intelliprint</a>
     <input id="buscar" type="search" placeholder="Buscar" aria-label="Buscar proyectos">
+    <a class="btn" href="/impresora">Impresora</a>
     <button class="btn pri" id="abrir-nuevo">＋ Nuevo diseño</button>
   </header>
   <dialog id="nuevo">
