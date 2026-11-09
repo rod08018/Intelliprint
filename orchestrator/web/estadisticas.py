@@ -99,6 +99,18 @@ def _coste(carpeta: Path) -> tuple[dict | None, str | None]:
     return coste, (detalle[-1].get("etapa") if detalle else None)
 
 
+def _etapa_del_registro(carpeta: Path) -> str | None:
+    """La última línea de avance de `run.log`: las que acaban en «…»
+    («el Part Designer dibuja «soporte»…», «laminado…»). Una pieza suelta no
+    deja `design_cost.json`, y el soporte del 608ZZ dijo «arrancando»
+    mientras se dibujaba (2026-11-08)."""
+    try:
+        lineas = (carpeta / "run.log").read_text(encoding="utf-8", errors="ignore").splitlines()
+    except OSError:
+        return None
+    return next((x.strip() for x in reversed(lineas) if x.rstrip().endswith("…")), None)
+
+
 def _revisor(carpeta: Path) -> dict | None:
     datos = _leer(carpeta / "review.json")
     if not datos:
@@ -114,6 +126,8 @@ def estadisticas(carpeta: Path, en_marcha: bool = False) -> dict:
     carpeta = Path(carpeta)
     historia = _rondas(carpeta, en_marcha)
     coste, ultima_etapa = _coste(carpeta)
+    if ultima_etapa is None and en_marcha:
+        ultima_etapa = _etapa_del_registro(carpeta)
     fallo, fallos = _fallo(historia)
     return {
         "ronda": historia[-1]["ronda"] if historia else 0,

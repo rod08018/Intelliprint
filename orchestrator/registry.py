@@ -193,7 +193,13 @@ def estado_de(carpeta: Path) -> dict:
         estado = "por aprobar"
         motivo = "el ingeniero propone un concepto y espera tu visto bueno"
     elif not rondas:
-        estado = "antiguo" if tiene_obra else "incompleto"
+        # «Antiguo» es lo hecho antes de que existiera rounds.json. Una pieza
+        # suelta nace con el registro y lo escribe SIEMPRE al cerrar, salga o
+        # no: sin él, la ejecución murió a medias. El soporte del 608ZZ
+        # (2026-11-06) cayó al laminar con la pieza construida y la web lo
+        # daba en verde, «Listo para imprimir», con fabrication/ vacía.
+        es_pieza = (carpeta / "pieza.json").exists()
+        estado = "antiguo" if tiene_obra and not es_pieza else "incompleto"
     elif motivo:
         estado = "fallido"
     elif suspensos := _suspensos_del_revisor(carpeta):

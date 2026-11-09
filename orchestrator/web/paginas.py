@@ -69,12 +69,20 @@ def _carpeta(workspace: Path, v: dict) -> Path:
     return Path(workspace) / v["seccion"] / v["id"]
 
 
+def _ficha(carpeta: Path) -> dict:
+    """Lo que el sistema dijo de la versión: `mechanism.json` en un
+    mecanismo, `pieza.json` en una pieza suelta (F5.17 (pieza)). Leyendo
+    solo el primero, dos soportes del 608ZZ distintos se llamaban igual y
+    caían en «Otros» (2026-11-08)."""
+    return _leer(carpeta / "mechanism.json") or _leer(carpeta / "pieza.json") or {}
+
+
 def nombre_de(workspace: Path, g: dict) -> str:
     """El nombre que le dio el diseñador a su mejor versión, o la primera
     línea de la petición. Con la petición cortada a 60 caracteres, dos
     sargentos se llamaban igual: «…imprimible en 3D, par»."""
     for v in [next(x for x in g["versiones"] if x["id"] == g["mejor"]), *g["versiones"]]:
-        titulo = (_leer(_carpeta(workspace, v) / "mechanism.json") or {}).get("title")
+        titulo = _ficha(_carpeta(workspace, v)).get("title")
         if titulo:
             return titulo
     primera = _carpeta(workspace, g["versiones"][0]) / "request.md"
@@ -89,7 +97,7 @@ def categoria_de(workspace: Path, g: dict) -> str:
     if fijada:
         return normalizar(fijada)
     for v in [next(x for x in g["versiones"] if x["id"] == g["mejor"]), *reversed(g["versiones"])]:
-        propuesta = (_leer(_carpeta(workspace, v) / "mechanism.json") or {}).get("categoria")
+        propuesta = _ficha(_carpeta(workspace, v)).get("categoria")
         if propuesta:
             return normalizar(propuesta)
     if any((_carpeta(workspace, v) / "calibracion.md").is_file() for v in g["versiones"]):
@@ -126,8 +134,16 @@ def diferencias(carpeta: Path) -> list[str]:
 def _progreso(v: dict) -> str:
     """En qué va un diseño, sin jerga: «intento 3 · dibujando «mango»»."""
     etapa = v.get("ultima_etapa") or ""
-    if m := re.search(r"pieza «([^»]+)»", etapa):
+    # «pieza «x»» es la etapa de coste de un mecanismo; «dibuja «x»», la
+    # línea del registro de una pieza suelta.
+    if m := re.search(r"(?:pieza|dibuja) «([^»]+)»", etapa):
         que = f"dibujando «{m.group(1)}»"
+    elif "laminado" in etapa:
+        que = "preparando la impresión"
+    elif "ingeniero" in etapa:
+        que = "pensando cómo resolverlo"
+    elif "admisión" in etapa:
+        que = "leyendo tu petición"
     elif "revisión" in etapa:
         que = "comprobando que sea lo que pediste"
     elif "afinado" in etapa:
@@ -454,6 +470,13 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
              (f'<div class="visor">{nav_tira}</div>' if len(versiones) > 1 else ""))
 
     es_mecanismo = (carpeta / "mechanism.json").is_file()
+    # El servidor ya sabía rehacer una pieza suelta (`lanzar_modificacion`),
+    # pero la página solo ponía el formulario en los mecanismos: a un soporte
+    # no había por dónde pedirle un cambio (2026-11-08).
+    # Por aprobar ya tiene su formulario, «Contestar»: dos sitios donde
+    # escribir una corrección y no se sabría cuál vale.
+    se_puede_modificar = es_mecanismo or (
+        (carpeta / "pieza.json").is_file() and v["estado"] != "por aprobar")
     se_puede_cambiar = puede_pedir and not ocupado
     motivo_no = ("" if se_puede_cambiar else
                  "Hay un diseño en marcha: espera a que termine." if ocupado else
@@ -480,8 +503,8 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
     cambiar_todo = (f"""<section class="cambiar"><h2>Cambiar algo</h2>
       <form class="cambiar-todo" data-modificar="{raiz}" data-base="{vid}">
         <textarea name="cambio" rows="2" placeholder="Por ejemplo: que la boca abra hasta 60 mm"{desactivado}></textarea>
-        <div class="pie-cambiar"><span class="nota">{e(motivo_no or "Crea una versión nueva a partir de esta. Si es de una sola pieza, cámbiala en su tarjeta: es más rápido.")}</span>
-        <button class="btn pri"{desactivado}>Pedir cambio</button></div></form></section>""" if es_mecanismo else "")
+        <div class="pie-cambiar"><span class="nota">{e(motivo_no or ("Crea una versión nueva a partir de esta. Si es de una sola pieza, cámbiala en su tarjeta: es más rápido." if es_mecanismo else "Crea una versión nueva a partir de esta."))}</span>
+        <button class="btn pri"{desactivado}>Pedir cambio</button></div></form></section>""" if se_puede_modificar else "")
 
     # Las instrucciones de una pieza suelta (la de calibración), a la vista:
     # son lo que hay que leer para usarla.

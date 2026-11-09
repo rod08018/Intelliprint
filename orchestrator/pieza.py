@@ -26,6 +26,7 @@ import yaml
 from pydantic import BaseModel
 
 from orchestrator.build import ConstruccionFallida, guardar_diseno
+from orchestrator.registry import latir
 from orchestrator.schemas.concepto import ConceptoComprobado
 from orchestrator.schemas.spec import Spec
 from orchestrator.slicing import LaminadoFallido
@@ -74,6 +75,10 @@ def _redactar(peticion: str, carpeta: Path, requisitos, log, externos: str = "")
                   else requisitos.draft(peticion))
     (carpeta / "spec.yaml").write_text(
         yaml.safe_dump(spec.model_dump(), allow_unicode=True, sort_keys=False), encoding="utf-8")
+    # Sin categoría a propósito: pedírsela al Requirements Agent cambió cómo
+    # describe la pieza. El soporte NEMA17 de la e2e pasó a «Soporte estático
+    # … con placa de montaje» y el ingeniero le añadió un pie en L, dos veces
+    # de dos (2026-11-08). La categoría de una pieza la pone la persona.
     (carpeta / "pieza.json").write_text(
         json.dumps({"title": spec.title}, ensure_ascii=False), encoding="utf-8")
     return spec
@@ -86,8 +91,23 @@ def _titulo(carpeta: Path) -> str:
         return carpeta.name
 
 
-def concebir_pieza(peticion: str, carpeta: Path, *, requisitos, ingeniero,
-                   investigador=None, log=print) -> ConceptoComprobado | None:
+def concebir_pieza(peticion: str, carpeta: Path, **kw) -> ConceptoComprobado | None:
+    """Ver `_concebir`. Con latido: Crafty lanza la pieza en el contenedor
+    del MCP y la web la mira desde el suyo, donde el pid de job.json no
+    existe. Sin él, el soporte del 608ZZ en marcha se veía terminado
+    (2026-11-08)."""
+    with latir(carpeta):
+        return _concebir(peticion, Path(carpeta), **kw)
+
+
+def disenar_pieza(peticion: str, carpeta: Path, **kw) -> "InformePieza":
+    """Ver `_disenar`. Con latido, por lo mismo que `concebir_pieza`."""
+    with latir(carpeta):
+        return _disenar(peticion, Path(carpeta), **kw)
+
+
+def _concebir(peticion: str, carpeta: Path, *, requisitos, ingeniero,
+              investigador=None, log=print) -> ConceptoComprobado | None:
     """Redacta la especificación y el concepto, y PARA a esperar el visto
     bueno. Devuelve None si el concepto no sale (queda `blocked.md`).
 
@@ -132,8 +152,8 @@ def concebir_pieza(peticion: str, carpeta: Path, *, requisitos, ingeniero,
     return concepto
 
 
-def disenar_pieza(peticion: str, carpeta: Path, *, requisitos,
-                  disenar: Callable, laminar: Callable | None, log=print) -> InformePieza:
+def _disenar(peticion: str, carpeta: Path, *, requisitos,
+             disenar: Callable, laminar: Callable | None, log=print) -> InformePieza:
     """`requisitos`: el Requirements Agent. `disenar(spec, carpeta, parte,
     concepto)` devuelve (receta, resultado) o lanza `ConstruccionFallida`.
     `laminar(stl, gcode)` devuelve el `SlicingReport`; None si no hay
