@@ -58,6 +58,7 @@ def _store() -> JobStore:
         ejecutable = raiz / ".venv" / "bin" / "intelliprint"
         comando = [str(ejecutable) if ejecutable.exists() else "intelliprint", "mecanismo"]
         _STORE = JobStore(_proyectos(), comando, comando_pieza=_orden_pieza())
+        # Tras F7.2 (desglose), una obra se relanza con la orden de su job.json.
     return _STORE
 
 
@@ -66,6 +67,11 @@ def _orden_pieza() -> list[str]:
     que la de mecanismos."""
     ejecutable = _raiz() / ".venv" / "bin" / "intelliprint"
     return [str(ejecutable) if ejecutable.exists() else "intelliprint", "pieza"]
+
+
+def _orden_obra() -> list[str]:
+    """La orden de un proyecto por partes (F7.2 (desglose))."""
+    return [*_orden_pieza()[:-1], "obra"]
 
 
 def _investigador():
@@ -128,6 +134,71 @@ def disenar_pieza(peticion: str) -> dict:
 
 
 @mcp.tool()
+def disenar_obra(peticion: str) -> dict:
+    """Diseña un proyecto de VARIAS piezas, una cada vez (un pan-tilt, una
+    base con su tapa y su soporte, un robot por partes).
+
+    Primero lo parte en piezas y para: `estado_proyecto` dirá «por
+    aprobar» y traerá el `desglose`. Después, cada pieza tiene su concepto
+    (que se aprueba con `aprobar_concepto`) y, diseñada, espera a que el
+    usuario la dé por buena (`pieza_lista`) para seguir con la siguiente,
+    que se diseña contra ella.
+
+    Para una sola pieza es `disenar_pieza`. La petición, con todo lo que dio
+    el usuario: medidas, componentes, cargas."""
+    store = _store()
+    try:
+        job = store.start(peticion, comando=_orden_obra())
+    except RuntimeError as e:
+        return {"error": str(e), "en_marcha": store.current()}
+    return {"proyecto": job,
+            "aviso": "Partiendo el proyecto en piezas. Pregunta el estado en un par de minutos."}
+
+
+@mcp.tool()
+def pieza_lista(proyecto: str, nodo: str, impresa: bool = False, nota: str = "") -> dict:
+    """«Está bien, la siguiente»: el usuario da por buena la pieza `nodo` de
+    un proyecto por partes. Se congela, se ficha y se sigue con la próxima.
+
+    `impresa` y `nota`: si además la imprimió y la probó, y cómo entró. Es
+    opcional y no frena nada. Llámalo SOLO cuando el usuario lo diga."""
+    from orchestrator import obra
+    store = _store()
+    if impresa and obra.lista(store.carpeta / proyecto, nodo):
+        return marcar_impresa(proyecto, nodo, nota)   # ya estaba lista
+    try:
+        store.dar_por_lista(proyecto, nodo, por="telegram", impresa=impresa, nota=nota)
+    except (KeyError, ValueError, RuntimeError) as e:
+        return {"error": str(e)}
+    return {"proyecto": proyecto, "aviso": "Pieza fichada: sigue con la siguiente."}
+
+
+@mcp.tool()
+def marcar_impresa(proyecto: str, nodo: str, nota: str = "") -> dict:
+    """El usuario imprimió y probó una pieza ya dada por buena: se apunta,
+    con su nota («entró justo»). No relanza nada."""
+    from orchestrator import obra
+    try:
+        obra.marcar_impresa(_store().carpeta / proyecto, nodo, nota=nota)
+    except (KeyError, ValueError) as e:
+        return {"error": str(e)}
+    return {"proyecto": proyecto, "nodo": nodo, "impresa": True}
+
+
+@mcp.tool()
+def rehacer_pieza(proyecto: str, nodo: str, cambio: str = "") -> dict:
+    """Vuelve a diseñar una pieza de un proyecto por partes, con el `cambio`
+    que pida el usuario en sus palabras. Las piezas que se diseñaron contra
+    ella se rehacen también (`rehechos`): díselo ANTES de llamarlo."""
+    try:
+        rehechos = _store().rehacer(proyecto, nodo, cambio=cambio)
+    except (KeyError, ValueError, RuntimeError) as e:
+        return {"error": str(e)}
+    return {"proyecto": proyecto, "rehechos": rehechos,
+            "aviso": "Rehaciendo; su concepto volverá a esperar el visto bueno."}
+
+
+@mcp.tool()
 def disenar_mecanismo(peticion: str, referencias: list[str] | None = None) -> dict:
     """Diseña un mecanismo a partir de una petición en texto y lo verifica.
 
@@ -186,7 +257,24 @@ def estado_proyecto(proyecto: str = "") -> dict:
     estado = estado_de(carpeta)
     # De qué encargo es versión: Crafty habla de proyectos, no de carpetas.
     estado["proyecto"] = raices(_proyectos().parent).get(carpeta.name, carpeta.name)
-    if estado["estado"] == "por aprobar" and (carpeta / "concepto.md").exists():
+    from orchestrator import obra
+    if obra.es_obra(carpeta):
+        # F7.3 (arbol): el árbol, y lo que espera a la persona en él.
+        ob = obra.cargar_obra(carpeta)
+        estados = obra.estados(carpeta) if obra.aprobada(carpeta) else {}
+        estado["nodos"] = [{"id": n.id, "nombre": n.nombre, "que_hace": n.que_hace,
+                            "estado": estados.get(n.id, "desglose por aprobar"),
+                            "impresa": bool((obra.lista(carpeta, n.id) or {}).get("impresa"))}
+                           for n in (ob.nodo(i) for i in ob.orden())]
+        if not obra.aprobada(carpeta):
+            estado["desglose"] = obra.presentar(ob)
+        else:
+            estado["siguiente"] = obra.siguiente(carpeta)
+            concepto = carpeta / obra.NODOS / (estado["siguiente"] or "") / "concepto.md"
+            if estado["siguiente"] and estados[estado["siguiente"]] == "concepto por aprobar" \
+                    and concepto.is_file():
+                estado["concepto"] = concepto.read_text(encoding="utf-8", errors="ignore")
+    elif estado["estado"] == "por aprobar" and (carpeta / "concepto.md").exists():
         # F3.20 (concepto): lo que Crafty tiene que enseñar, y esperar.
         estado["concepto"] = (carpeta / "concepto.md").read_text(encoding="utf-8", errors="ignore")
     registro = carpeta / "run.log"

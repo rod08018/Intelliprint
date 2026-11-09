@@ -74,7 +74,11 @@ def _ficha(carpeta: Path) -> dict:
     """Lo que el sistema dijo de la versión: `mechanism.json` en un
     mecanismo, `pieza.json` en una pieza suelta (F5.17 (pieza)). Leyendo
     solo el primero, dos soportes del 608ZZ distintos se llamaban igual y
-    caían en «Otros» (2026-11-08)."""
+    caían en «Otros» (2026-11-08). Una obra (F7.2 (desglose)) lleva su
+    título en el desglose."""
+    obra = _leer(carpeta / "obra.json")
+    if obra:
+        return {"title": obra.get("titulo")}
     return _leer(carpeta / "mechanism.json") or _leer(carpeta / "pieza.json") or {}
 
 
@@ -215,7 +219,7 @@ def galeria(grupos: list[dict], workspace: Path, hay_puente: bool, puede_pedir: 
   </header>
   <dialog id="nuevo">
     <form method="dialog" class="cabeza-dialogo"><h2>Nuevo diseño</h2><button class="cerrar" aria-label="Cerrar">✕</button></form>
-    <label class="partir">Qué es <select id="tipo"><option value="pieza" data-ejemplo="{e(EJEMPLOS['pieza'])}">una pieza (soporte, gancho, adaptador…)</option><option value="mecanismo" data-ejemplo="{e(EJEMPLOS['mecanismo'])}">un mecanismo (piezas que se mueven)</option></select></label>
+    <label class="partir">Qué es <select id="tipo"><option value="pieza" data-ejemplo="{e(EJEMPLOS['pieza'])}">una pieza (soporte, gancho, adaptador…)</option><option value="mecanismo" data-ejemplo="{e(EJEMPLOS['mecanismo'])}">un mecanismo (piezas que se mueven)</option><option value="obra" data-ejemplo="{e(EJEMPLOS['obra'])}">un proyecto de varias piezas, pieza a pieza</option></select></label>
     <label for="peticion" class="partir">Qué quieres</label>
     <textarea id="peticion" rows="9" placeholder="{e(EJEMPLOS['pieza'])}"></textarea>
     <label class="partir">Partir de <select id="basado_en"><option value="">nada, empezar de cero</option>{opciones}</select></label>
@@ -429,6 +433,135 @@ def _calculo(x: dict) -> str:
         return str(x.get("que", ""))
 
 
+def _visto_bueno(vid: str, bloqueo: str, si: str = "Aprobar y diseñar",
+                 ejemplo: str = "los transductores miden 16 mm de diámetro") -> str:
+    return (f'<form class="visto-bueno" data-aprobar="{vid}">'
+            '<label><b>¿Algo mal o que contestar?</b> Escríbelo y pulsa '
+            '«Contestar»: propondrá otra vez con tu corrección.'
+            f'<textarea name="respuestas" rows="2" placeholder="Por ejemplo: «{e(ejemplo)}»"'
+            f'{bloqueo}></textarea></label>'
+            f'<div class="pie-cambiar"><button class="btn" data-contestar{bloqueo}>Contestar</button>'
+            f'<button class="btn pri" data-si{bloqueo}>{e(si)}</button></div></form>')
+
+
+def _revision_del_concepto(carpeta: Path, formulario: str) -> str:
+    revision = _concepto(carpeta)
+    if revision is not None:
+        return f'<div class="revision">{revision}{formulario}</div>'
+    concepto = carpeta / "concepto.md"
+    # Sin su título: la página ya lleva el nombre del proyecto encima.
+    texto = (a_html(re.sub(r"\A#[^\n]*\n", "", concepto.read_text(encoding="utf-8", errors="ignore")))
+             if concepto.is_file() else "")
+    return f'<div class="aviso ambar concepto"><b>Así lo resolvería</b>{texto}{formulario}</div>'
+
+
+# --- La obra, nodo a nodo (F7.3 (arbol)) -------------------------------------------
+
+ESTADOS_DE_NODO = {
+    "lista": ("Lista", "ok"),
+    "pendiente": ("Por empezar", "suave"),
+    "concepto por aprobar": ("Su concepto espera tu visto bueno", "ambar"),
+    "concepto aprobado": ("Concepto aprobado", "suave"),
+    "diseñando": ("Diseñando…", "vivo"),
+    "diseñada": ("Diseñada: revísala", "ambar"),
+    "con fallos": ("No salió del todo", "mal"),
+    "sin verificar": ("Conjunto: su verificación aún no existe", "suave"),
+}
+
+
+def _arbol(carpeta: Path, vid: str, bloqueo: str, hay_puente: bool) -> tuple[str, str]:
+    """(lo de arriba, la sección del árbol). Cada nodo es una tarjeta con su
+    estado, lo que hace, su pieza y los botones de lo que le toca. Lo
+    bloqueado dice a qué espera: sin eso, una pieza sin botones parecía rota."""
+    from orchestrator import obra as O
+    ob = O.cargar_obra(carpeta)
+    if not O.aprobada(carpeta):
+        # HTML propio y no obra.md: el markdown anidado salía como «- compra:
+        # sg90» suelto, sin decir de qué pieza era.
+        filas = []
+        for i in ob.orden():
+            n = ob.nodo(i)
+            detalles = [(t, x) for t, xs in (
+                ("Lleva", n.compra), ("Va sobre", [ob.nodo(d).nombre for d in n.depende_de]),
+                ("Da", n.ofrece), ("Necesita", n.necesita)) for x in xs]
+            filas.append(f'<li><b>{e(n.nombre)}</b>: {e(n.que_hace)}'
+                         + ('<ul class="interfaz">' + "".join(
+                             f"<li><b>{t}:</b> {e(x)}</li>" for t, x in detalles) + "</ul>"
+                            if detalles else "") + "</li>")
+        return (f'<div class="revision"><p class="lead">Así lo partiría: <b>una pieza cada '
+                'vez</b>, y cada una contra las que ya estén terminadas. Revisa qué hace cada '
+                f'una y sobre cuál va.</p><ol class="desglose">{"".join(filas)}</ol>'
+                + _visto_bueno(vid, bloqueo, "Aprobar el desglose",
+                               ejemplo="que la base se atornille a la mesa con dos M3")
+                + "</div>"), ""
+
+    estados = O.estados(carpeta)
+    siguiente = O.siguiente(carpeta)
+    arriba = (f'<div class="aviso ambar"><b>Siguiente: {e(ob.nodo(siguiente).nombre)}</b></div>'
+              if siguiente else '<div class="aviso"><b>Todas las piezas están listas.</b></div>')
+    tarjetas = []
+    for i in ob.orden():
+        n, estado = ob.nodo(i), estados[i]
+        dir_nodo = carpeta / O.NODOS / i
+        if estado == "bloqueado":
+            espera = [ob.nodo(d).nombre for d in n.depende_de if estados[d] != "lista"]
+            frase, clase = f"Espera a {', '.join(espera)}", "suave"
+        else:
+            frase, clase = ESTADOS_DE_NODO.get(estado, (estado, "suave"))
+        partes = [f'<div class="nombre-pieza">{e(n.nombre)} '
+                  f'<span class="estado-nodo {clase}">{e(frase)}</span></div>',
+                  f'<p class="que-hace">{e(n.que_hace)}</p>']
+        detalles = [(t, x) for t, xs in (("Lleva", n.compra), ("Da", n.ofrece),
+                                          ("Necesita", n.necesita)) for x in xs]
+        if detalles:
+            partes.append('<ul class="interfaz">' + "".join(
+                f"<li><b>{t}:</b> {e(x)}</li>" for t, x in detalles) + "</ul>")
+        for stl in piezas_de(dir_nodo):
+            partes.insert(0, f'<div class="foto-pieza"><img src="/proyectos/{vid}/piezas/'
+                             f'{e(stl.stem)}.png" alt="{e(n.nombre)}" loading="lazy"></div>')
+        if estado == "concepto por aprobar":
+            partes.append(_revision_del_concepto(dir_nodo, _visto_bueno(vid, bloqueo)))
+        if estado == "con fallos":
+            motivo = (_leer(dir_nodo / "pieza_report.json") or {}).get("motivo", "")
+            partes.append(f'<div class="aviso mal"><b>Qué falla</b>'
+                          f'<p>{e(_recortar(motivo, 400))}</p></div>')
+        if estado in ("diseñada", "con fallos"):
+            partes.append(_impresion(dir_nodo))
+            sin_puente = "" if hay_puente else " disabled"
+            partes.append(
+                f'<div class="acciones"><button class="btn pri" data-lista="{e(i)}" '
+                f'data-proyecto-obra="{vid}"{bloqueo}>Está bien, la siguiente</button>'
+                f'<button class="btn" data-abrir="{vid}" data-nodo="{e(i)}"{sin_puente}>'
+                'Abrir en PrusaSlicer</button></div>')
+        marca = O.lista(carpeta, i)
+        if marca:
+            if marca.get("impresa"):
+                nota = f": {e(marca['nota'])}" if marca.get("nota") else ""
+                partes.append(f'<p class="impresa">✓ Impresa y probada{nota}</p>')
+            else:
+                partes.append(
+                    f'<form class="cambiar-pieza" data-impresa="{e(i)}" data-proyecto-obra="{vid}">'
+                    f'<input name="nota" placeholder="Cómo entró (opcional)" '
+                    f'aria-label="Nota de la prueba de {e(n.nombre)}">'
+                    '<button class="btn">Impresa y probada</button></form>')
+        if marca or estado in ("diseñada", "con fallos"):
+            # El aviso antes de pulsar: lo diseñado contra esta pieza se rehace con ella.
+            arrastra = [ob.nodo(d).nombre for d in ob.dependientes(i)
+                        if (carpeta / O.NODOS / d).exists()]
+            aviso = f" (se rehace también {', '.join(arrastra)})" if arrastra else ""
+            partes.append(
+                f'<form class="cambiar-pieza" data-rehacer="{e(i)}" data-proyecto-obra="{vid}">'
+                f'<input name="cambio" placeholder="Qué cambiar" '
+                f'aria-label="Qué cambiar de {e(n.nombre)}{e(aviso)}"{bloqueo}>'
+                f'<button class="btn"{bloqueo}>Rehacer</button></form>'
+                + (f'<p class="nota-grupo">Rehacerla deshace también {e(", ".join(arrastra))}: '
+                   'se diseñó contra esta.</p>' if arrastra else ""))
+        actual = ' aria-current="step"' if i == siguiente else ""
+        tarjetas.append(f'<div class="pieza nodo"{actual}>{"".join(partes)}</div>')
+    return arriba, (f'<section><h2>Las piezas, una a una</h2>'
+                    f'<div class="piezas arbol">{"".join(tarjetas)}</div></section>')
+
+
 # --- La página de un proyecto -------------------------------------------------------
 
 
@@ -461,7 +594,14 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
 
     # Qué es, en una frase, y lo que no salió como se pidió.
     explicacion = ""
-    if v["estado"] == "con reparos":
+    es_obra = (carpeta / "obra.json").is_file()
+    bloqueo = "" if puede_pedir and not ocupado else " disabled"
+    arbol = ""
+    if es_obra:
+        # F7.3 (arbol): lo que espera a la persona está en el árbol, nodo a
+        # nodo; arriba, el desglose mientras no se apruebe, o lo que toca.
+        explicacion, arbol = _arbol(carpeta, vid, bloqueo, hay_puente)
+    elif v["estado"] == "con reparos":
         lista = "".join(f"<li>{e(d)}</li>" for d in diferencias(carpeta))
         explicacion = f'<div class="aviso ambar"><b>Lo que no salió como pediste</b><ul>{lista}</ul></div>'
     elif v["estado"] == "fallido":
@@ -472,24 +612,7 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
         # F3.20 (concepto): lo primero que hay que ver es la idea, y con qué
         # aprobarla o contestar a sus preguntas. Sin botones, el proyecto se
         # quedaba parado sin que la página dijera por qué.
-        bloqueo = "" if puede_pedir and not ocupado else " disabled"
-        formulario = (
-            f'<form class="visto-bueno" data-aprobar="{vid}">'
-            '<label for="respuestas"><b>¿Algo mal o que contestar?</b> Escríbelo y pulsa '
-            '«Contestar»: propondrá otra vez con tu corrección.</label>'
-            '<textarea id="respuestas" name="respuestas" rows="2" placeholder="Por ejemplo: '
-            f'«los transductores miden 16 mm de diámetro»"{bloqueo}></textarea>'
-            f'<div class="pie-cambiar"><button class="btn" data-contestar{bloqueo}>Contestar</button>'
-            f'<button class="btn pri" data-si{bloqueo}>Aprobar y diseñar</button></div></form>')
-        revision = _concepto(carpeta)
-        if revision is None:
-            concepto = carpeta / "concepto.md"
-            # Sin su título: la página ya lleva el nombre del proyecto encima.
-            texto = (a_html(re.sub(r"\A#[^\n]*\n", "", concepto.read_text(encoding="utf-8", errors="ignore")))
-                     if concepto.is_file() else "")
-            explicacion = f'<div class="aviso ambar concepto"><b>Así lo resolvería</b>{texto}{formulario}</div>'
-        else:
-            explicacion = f'<div class="revision">{revision}{formulario}</div>'
+        explicacion = _revision_del_concepto(carpeta, _visto_bueno(vid, bloqueo))
     elif v["estado"] == "incompleto":
         explicacion = '<div class="aviso"><p>Este diseño se detuvo antes de terminar.</p></div>'
 
@@ -560,8 +683,9 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
         piezas.append(f"""<div class="pieza"><div class="foto-pieza">
             <img src="/proyectos/{vid}/piezas/{e(n)}.png" alt="{e(_legible(n))}" loading="lazy"></div>
           <div class="nombre-pieza">{e(_legible(n))} {etiqueta}</div>{cambiar}</div>""")
+    # Las de una obra ya salen en su nodo, con sus botones.
     seccion_piezas = (f'<section><h2>Piezas</h2><div class="piezas">{"".join(piezas)}</div></section>'
-                      if piezas else "")
+                      if piezas and not es_obra else "")
 
     cambiar_todo = (f"""<section class="cambiar"><h2>Cambiar algo</h2>
       <form class="cambiar-todo" data-modificar="{raiz}" data-base="{vid}">
@@ -593,7 +717,7 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
         <p class="suave meta">Versión {v["version"]} de {len(versiones)} · {e(_fecha(v["id"]))}</p>
       </div>
     </div>
-    {seccion_piezas}{cambiar_todo}{docs}
+    {arbol}{seccion_piezas}{cambiar_todo}{docs}
     <details class="tecnico" data-version="{vid}"><summary>Detalles técnicos</summary><div class="contenido"></div></details>
   </main>"""
     return _documento(f"{nombre} · Intelliprint", cuerpo, GUION_PROYECTO)
@@ -616,6 +740,12 @@ def _documento(titulo: str, cuerpo: str, guion: str) -> str:
 EJEMPLOS = {
     # Uno por tipo: con «una pieza» elegida se enseñaba un sargento, que es
     # un mecanismo, y no se sabía qué tipo había que elegir (2026-11-08).
+    "obra": (
+        "El proyecto entero; se partirá en piezas y se diseñará una cada vez, "
+        "con tu visto bueno en cada paso. Por ejemplo:\n\n"
+        "Un pan-tilt con dos servos SG90 para una cámara de 40 g: el de abajo "
+        "gira, el de arriba inclina, y la base se atornilla a la mesa con dos M3."
+    ),
     "pieza": (
         "Qué quieres que haga, con todo lo que sepas. Por ejemplo:\n\n"
         "Un soporte para un servo SG90 que se atornille a una placa con dos "
@@ -779,6 +909,25 @@ ESTILO = """
   .impresion { display:flex; flex-wrap:wrap; gap:8px; list-style:none; padding:0; margin:16px 0 0; }
   .impresion li { font-size:14px; font-weight:500; padding:5px 11px; border-radius:999px;
                   background:var(--tarjeta); border:1px solid var(--linea); font-variant-numeric:tabular-nums; }
+  /* La obra (F7.3 (arbol)): el nodo que toca ocupa toda la fila, que es donde
+     se lee su concepto o se decide si vale. */
+  .piezas.arbol { grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); }
+  .nodo { padding-bottom:12px; }
+  .nodo[aria-current] { grid-column:1 / -1; border-color:var(--acento); }
+  /* A toda la fila, la foto 4:3 medía más que la pantalla. */
+  .nodo[aria-current] .foto-pieza { aspect-ratio:auto; height:280px; }
+  .nodo > p, .nodo > ul, .nodo > .acciones, .nodo > .aviso, .nodo > .revision, .nodo > .impresion { margin:8px 12px 0; }
+  .nodo .acciones { margin-top:12px; }
+  .estado-nodo { display:inline-block; font-size:12px; font-weight:600; padding:2px 9px; border-radius:999px; background:var(--linea); margin-left:4px; }
+  .estado-nodo.ok { background:var(--ok-bg); color:var(--ok); } .estado-nodo.mal { background:var(--mal-bg); color:var(--mal); }
+  .estado-nodo.ambar { background:var(--ambar-bg); color:var(--ambar); } .estado-nodo.vivo { background:var(--vivo-bg); }
+  .estado-nodo.suave { color:var(--suave); }
+  .que-hace { font-size:14px; }
+  .desglose { padding-left:22px; margin:18px 0 0; } .desglose > li { margin-bottom:12px; }
+  .desglose .interfaz { margin:4px 0 0; padding-left:18px; }
+  .interfaz { font-size:13px; color:var(--suave); padding-left:18px; }
+  .impresa { font-size:14px; color:var(--ok); font-weight:600; }
+  .visto-bueno textarea { display:block; width:100%; margin-top:8px; }
   .aprobado { margin-top:20px; border-top:1px solid var(--linea); padding-top:12px; }
   .aprobado > summary { cursor:pointer; color:var(--acento); font-size:14px; }
   .aprobado .revision { margin-top:4px; }
@@ -859,9 +1008,29 @@ GUION_PROYECTO = r"""
   const pagina = document.querySelector(".proyecto");
   document.querySelectorAll("[data-abrir]").forEach(b => b.addEventListener("click", async () => {
     b.disabled = true; const antes = b.textContent; b.textContent = "Abriendo…";
-    const [ok, d] = await enviar("/proyectos/" + encodeURIComponent(b.dataset.abrir) + "/abrir");
+    const nodo = b.dataset.nodo ? "?nodo=" + encodeURIComponent(b.dataset.nodo) : "";
+    const [ok, d] = await enviar("/proyectos/" + encodeURIComponent(b.dataset.abrir) + "/abrir" + nodo);
     avisar(ok ? "PrusaSlicer abierto con " + d.abiertas + " piezas" : (detalle(d) || "No se pudo abrir"));
     b.disabled = false; b.textContent = antes;
+  }));
+  // La obra (F7.3 (arbol)): cada botón de un nodo llama a su ruta y recarga.
+  const obra = (el, accion) => "/api/proyectos/" + encodeURIComponent(el.dataset.proyectoObra) +
+    "/nodos/" + encodeURIComponent(el.dataset[accion]) + "/" + accion;
+  document.querySelectorAll("[data-lista]").forEach(b => b.addEventListener("click", async () => {
+    b.disabled = true; b.textContent = "Fichándola…";
+    const [ok, d] = await enviar(obra(b, "lista"), {});
+    if (ok) { location.reload(); return; }
+    avisar(detalle(d) || "No se pudo."); b.disabled = false; b.textContent = "Está bien, la siguiente";
+  }));
+  document.querySelectorAll("form[data-impresa], form[data-rehacer]").forEach(f => f.addEventListener("submit", async ev => {
+    ev.preventDefault();
+    const accion = f.dataset.impresa ? "impresa" : "rehacer";
+    const caja = f.querySelector("input"), b = f.querySelector("button");
+    if (accion === "rehacer" && !caja.value.trim() && !confirm("¿Rehacerla sin decir qué cambiar?")) return;
+    b.disabled = true;
+    const [ok, d] = await enviar(obra(f, accion), accion === "impresa" ? {nota: caja.value} : {cambio: caja.value});
+    if (ok) { location.reload(); return; }
+    avisar(detalle(d) || "No se pudo."); b.disabled = false;
   }));
   document.querySelectorAll("form[data-modificar]").forEach(f => f.addEventListener("submit", async ev => {
     ev.preventDefault();

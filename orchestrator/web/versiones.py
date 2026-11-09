@@ -61,8 +61,10 @@ def resolver_proyecto(id: str, workspace: Path) -> Path:
 
 def piezas_de(carpeta: Path) -> list[Path]:
     """Las STL que construyó el sistema. Las dos rutas del diseño —pieza
-    única y mecanismo— las dejan en parts/<nombre>/<nombre>.stl."""
-    return sorted(Path(carpeta).glob("parts/*/*.stl"))
+    única y mecanismo— las dejan en parts/<nombre>/<nombre>.stl; una obra,
+    en la carpeta de cada nodo (F7.2 (desglose))."""
+    carpeta = Path(carpeta)
+    return sorted([*carpeta.glob("parts/*/*.stl"), *carpeta.glob("nodos/*/parts/*/*.stl")])
 
 
 def ejecuciones(workspace: Path) -> list[dict]:

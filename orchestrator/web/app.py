@@ -100,9 +100,17 @@ class VistoBueno(BaseModel):
     preguntas del ingeniero, y vuelve a proponer (F3.20 (concepto))."""
 
 
+class Lista(BaseModel):
+    nota: str = Field(default="", max_length=500)
+
+
+class Rehacer(BaseModel):
+    cambio: str = Field(default="", max_length=2000)
+
+
 class Pedido(Modificacion):
     basado_en: str | None = None
-    tipo: Literal["pieza", "mecanismo"]
+    tipo: Literal["pieza", "mecanismo", "obra"]
     """F5.17 (pieza): una pieza suelta no pasa por el flujo de mecanismos,
     que exige dos piezas como mínimo. Obligatorio: con «mecanismo» por
     omisión, una página abierta antes del selector mandó el soporte de la
@@ -111,7 +119,8 @@ class Pedido(Modificacion):
 
 def crear_app(workspace: Path, puente=None, host_workspace: str = "",
               trabajos: JobStore | None = None, raiz: Path = Path("."),
-              orden_pieza: list[str] | None = None) -> FastAPI:
+              orden_pieza: list[str] | None = None,
+              orden_obra: list[str] | None = None) -> FastAPI:
     """La aplicación. `puente` es la URL del MCP del host, o en los tests el
     propio servidor; None si no hay puente configurado. `trabajos` lanza los
     diseños que se piden desde la página; None si esta web no puede. `raiz`
@@ -137,9 +146,9 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
             raise HTTPException(
                 409, f"ya hay un proyecto en marcha ({otro}); espera a que termine")
         try:
-            comando = orden_pieza if pedido.tipo == "pieza" else None
-            if pedido.tipo == "pieza" and not orden_pieza:
-                raise HTTPException(503, "esta web no tiene con qué diseñar piezas sueltas")
+            comando = {"pieza": orden_pieza, "obra": orden_obra}.get(pedido.tipo)
+            if pedido.tipo != "mecanismo" and not comando:
+                raise HTTPException(503, f"esta web no tiene con qué diseñar «{pedido.tipo}»")
             return {"id": trabajos.start(pedido.peticion, referencias=referencias,
                                          comando=comando)}
         except RuntimeError as e:
@@ -184,6 +193,54 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
             raise HTTPException(409, str(e))
         except RuntimeError as e:
             raise HTTPException(409, str(e))
+
+    # --- La obra, nodo a nodo (F7.3 (arbol)) ------------------------------------
+
+    def _obra_en_curso(id: str) -> Path:
+        from orchestrator import obra
+        if trabajos is None:
+            raise HTTPException(503, "esta web no tiene con qué lanzar diseños")
+        carpeta = _proyecto(id)
+        if carpeta.parent != trabajos.carpeta or not obra.es_obra(carpeta):
+            raise HTTPException(409, f"{id} no es un proyecto por partes en curso")
+        return carpeta
+
+    def _nodo(carpeta: Path, nodo: str) -> str:
+        from orchestrator import obra
+        try:
+            return obra.cargar_obra(carpeta).nodo(nodo).id
+        except KeyError as e:
+            raise HTTPException(404, str(e))
+
+    @app.post("/api/proyectos/{id}/nodos/{nodo}/lista")
+    def dar_por_lista(id: str, nodo: str) -> dict:
+        """«Está bien, la siguiente»: congela la pieza, la ficha y sigue."""
+        carpeta = _obra_en_curso(id)
+        try:
+            trabajos.dar_por_lista(carpeta.name, _nodo(carpeta, nodo), por="web")
+        except (ValueError, RuntimeError) as e:
+            raise HTTPException(409, str(e))
+        return {"id": carpeta.name, "nodo": nodo}
+
+    @app.post("/api/proyectos/{id}/nodos/{nodo}/impresa")
+    def marcar_impresa(id: str, nodo: str, pedido: Lista) -> dict:
+        """La prueba física: se apunta y no relanza nada."""
+        from orchestrator import obra
+        carpeta = _obra_en_curso(id)
+        try:
+            obra.marcar_impresa(carpeta, _nodo(carpeta, nodo), nota=pedido.nota)
+        except ValueError as e:
+            raise HTTPException(409, str(e))
+        return {"id": carpeta.name, "nodo": nodo}
+
+    @app.post("/api/proyectos/{id}/nodos/{nodo}/rehacer")
+    def rehacer(id: str, nodo: str, pedido: Rehacer) -> dict:
+        carpeta = _obra_en_curso(id)
+        try:
+            rehechos = trabajos.rehacer(carpeta.name, _nodo(carpeta, nodo), cambio=pedido.cambio)
+        except (ValueError, RuntimeError) as e:
+            raise HTTPException(409, str(e))
+        return {"id": carpeta.name, "rehechos": rehechos}
 
     @app.get("/api/proyectos")
     def proyectos() -> list[dict]:
@@ -237,9 +294,14 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
         )
 
     @app.post("/proyectos/{id}/abrir")
-    def abrir(id: str) -> dict:
+    def abrir(id: str, nodo: str | None = None) -> dict:
+        """`nodo`: solo las piezas de ese nodo de una obra, para imprimirlo y
+        probarlo antes de seguir con la siguiente."""
         carpeta = _proyecto(id)
         piezas = piezas_de(carpeta)
+        if nodo:
+            piezas = [p for p in piezas if p.parent.parent.parent.name == nodo
+                      and p.parent.parent.parent.parent.name == "nodos"]
         if not piezas:
             raise HTTPException(409, "este proyecto no tiene ninguna pieza construida")
         if puente is None:
@@ -338,6 +400,7 @@ def main() -> None:
         trabajos=JobStore(workspace / "projects", ["intelliprint", "mecanismo"],
                           comando_pieza=["intelliprint", "pieza"]),
         orden_pieza=["intelliprint", "pieza"],
+        orden_obra=["intelliprint", "obra"],
     )
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("WEB_PORT", "8080")))
 
