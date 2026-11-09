@@ -185,6 +185,18 @@ class ComponenteEntra(_Sonda):
     entra_por: Literal["+x", "-x", "+y", "-y", "+z", "-z"]
 
 
+class AccesoTornillo(_Sonda):
+    """La cabeza del tornillo «nombre» llega a su sitio desde fuera: un
+    cilindro de `diametro_mm` desde la entrada del agujero, hacia atrás por
+    su eje, no toca la pieza. Proyecto del 608ZZ (2026-11-09): el tornillo de
+    abajo quedó a 1 mm detrás del alojamiento y no había cómo apretarlo."""
+    tipo: Literal["acceso_tornillo"]
+    nombre: str
+    entrada: list[float]
+    eje: list[float]
+    diametro_mm: float
+
+
 class Componente(BaseModel):
     """El componente de la biblioteca cabe en la pieza y se puede meter
     (F6.11 (biblioteca)). La forma sale de la ficha; dónde va y por dónde
@@ -213,7 +225,8 @@ class Pendiente(BaseModel):
 
 Asercion = Annotated[Agujeros | Cilindro | Envolvente | SinSoportes | Pendiente | AristasVivas
                      | Resistencia | Ventana | Coaxiales | PasoLibre | ParedMinima | Ranura
-                     | Retencion | ComponenteCabe | ComponenteEntra | Componente,
+                     | Retencion | ComponenteCabe | ComponenteEntra | AccesoTornillo
+                     | Componente,
                      Field(discriminator="tipo")]
 
 

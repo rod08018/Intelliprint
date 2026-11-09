@@ -483,10 +483,30 @@ def componente_entra(forma, ficha, en, giros=(), entra_por="+z"):
     return {"cumple": True, "detalle": f"entra viniendo desde {entra_por} sin tocar nada"}
 
 
+def acceso_tornillo(forma, nombre, entrada, eje, diametro_mm):
+    """La cabeza del tornillo `nombre` (Ø`diametro_mm`) llega a la entrada
+    del agujero viniendo de fuera por su eje: por ahí entra el tornillo y por
+    ahí llega la llave."""
+    e = FreeCAD.Vector(*eje)
+    e.normalize()
+    fuera = e * -1
+    largo = forma.BoundBox.DiagonalLength + 2
+    camino = Part.makeCylinder(diametro_mm / 2, largo, FreeCAD.Vector(*entrada), fuera)
+    comun = forma.common(camino)
+    if comun.Volume <= TOL_CHOQUE_MM3:
+        return {"cumple": True, "detalle": f"la cabeza de «{nombre}» llega desde fuera"}
+    cerca = comun.distToShape(Part.Vertex(FreeCAD.Vector(*entrada)))[0]
+    return {"cumple": False,
+            "detalle": f"la cabeza del tornillo «{nombre}» (Ø{diametro_mm:g}) no llega a su "
+                       f"sitio: el camino desde fuera, por el eje del agujero, choca con "
+                       f"{comun.Volume:.0f} mm³ de pieza a {cerca:.1f} mm de la entrada; ni el "
+                       "tornillo entra ni la llave lo aprieta"}
+
+
 SONDAS = {"aristas_vivas": aristas_vivas, "resistencia": resistencia, "ventana": ventana,
           "coaxiales": coaxiales, "paso_libre": paso_libre, "pared_minima": pared_minima,
           "ranura": ranura, "retencion": retencion, "componente_cabe": componente_cabe,
-          "componente_entra": componente_entra}
+          "componente_entra": componente_entra, "acceso_tornillo": acceso_tornillo}
 
 
 def medir(forma, especificaciones: list[dict], material: dict) -> list[dict]:

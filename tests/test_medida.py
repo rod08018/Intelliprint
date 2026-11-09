@@ -143,3 +143,16 @@ def test_un_diametro_que_no_es_la_metrica_se_sigue_midiendo_literal():
     rasgos = [_agujero("a", 3.3, 0, 0)]
     req = _req(3.3, 1, texto="agujero de 3.3 mm para un M3")
     assert defectos([req], rasgos, AGUJEROS) == []
+
+
+def test_cada_tornillo_lleva_su_sonda_de_acceso_con_la_cabeza_iso_4762():
+    """La cabeza Allen de un M5 mide Ø8.5 (ISO 4762, dk máx.); la de un M3,
+    Ø5.5. Con avellanado, la cabeza es el avellanado."""
+    from orchestrator.banco import AccesoTornillo
+    from orchestrator.medida import sondas_de
+    rasgos = [{**_agujero("m5", 5.5, 0, 4), "tornillo": "M5"},
+              {**_agujero("m3", 3.3, 9, 4), "tornillo": "M3", "avellanado_mm": 6.5},
+              _agujero("suelto", 2, 20, 4)]
+    acceso = {s.nombre: s.diametro_mm for s in sondas_de([], rasgos)
+              if isinstance(s, AccesoTornillo)}
+    assert acceso == {"m5": 8.5, "m3": 6.5}

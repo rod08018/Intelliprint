@@ -563,3 +563,29 @@ def test_el_reborde_apoya_en_un_solo_aro_del_rodamiento(tmp_path, taladro, cumpl
     assert (cabe.estado == "cumple") == cumple, cabe.detalle
     if not cumple:
         assert "aro interior" in cabe.detalle and "aro exterior" in cabe.detalle
+
+
+# --- se llega al tornillo -------------------------------------------------------------
+# Proyecto del 608ZZ (2026-11-09): salió «resuelto» con el tornillo de abajo
+# detrás del alojamiento del rodamiento: 1 mm entre la cabeza y la pieza, y
+# ni la cabeza ni la llave llegaban. Nada preguntaba si se puede atornillar.
+PLACA_CON_TORNILLO = """
+def construir(kit):
+    pieza = kit.caja(30, 4, 30, en=(-15, 0, 0))
+    if {tapado}:
+        pieza = pieza + kit.caja(5, 8, 12, en=(10, 3, 0)) + kit.caja(30, 10, 12, en=(-15, 10, 0))
+    return pieza.tornillo("m5", "M5", en=(0, 4, 6), eje="-y", tipo="pasante")
+"""
+"""Una placa de 4 mm con un M5 pasante. Tapado: un bloque a 1 mm por
+encima del agujero, unido a la placa, como el alojamiento del 608ZZ."""
+
+
+@pytest.mark.parametrize("tapado", [False, True])
+def test_la_cabeza_del_tornillo_tiene_que_llegar_desde_fuera(tmp_path, tapado):
+    from orchestrator.banco import AccesoTornillo
+    sonda = AccesoTornillo(tipo="acceso_tornillo", nombre="m5", entrada=[0, 4, 6],
+                           eje=[0, -1, 0], diametro_mm=8.5)
+    [m] = _medir(PLACA_CON_TORNILLO.format(tapado=tapado), [sonda], tmp_path)
+    assert m.estado == ("no_cumple" if tapado else "cumple"), m.detalle
+    if tapado:
+        assert "«m5»" in m.detalle and "Ø8.5" in m.detalle

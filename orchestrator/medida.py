@@ -103,6 +103,12 @@ cuenta antes los de función. Una pieza bien acabada donde el servo no
 entra es peor que una con aristas vivas donde sí."""
 
 
+CABEZA_ISO_4762_MM = {"M2": 3.8, "M2.5": 4.5, "M3": 5.5, "M4": 7.0, "M5": 8.5, "M6": 10.0,
+                      "M8": 13.0}
+"""Diámetro de la cabeza Allen (ISO 4762, dk máx.): lo que tiene que poder
+llegar desde fuera hasta la entrada del agujero."""
+
+
 def sondas_de(requisitos, rasgos=(), pared_min_mm=None) -> list:
     """Las sondas del banco (F6.12 (techo)) que se pueden pedir desde los
     requisitos. Rejuzgada con ellas, la corrida del 62 % daba 81 %, y lo que
@@ -120,7 +126,8 @@ def sondas_de(requisitos, rasgos=(), pared_min_mm=None) -> list:
     Con `pared_min_mm` (el `walls.min_mm` del perfil), también la pared más
     fina: el soporte del MG996R del banco `1105-2120` salió con 0.15 mm y
     solo lo vio el banco."""
-    from orchestrator.banco import AristasVivas, ParedMinima, Ventana, sondas_del_rasgo
+    from orchestrator.banco import (AccesoTornillo, AristasVivas, ParedMinima, Ventana,
+                                    sondas_del_rasgo)
 
     sondas = [AristasVivas(tipo="aristas_vivas", max_fraccion=0.1)]
     if pared_min_mm:
@@ -133,6 +140,11 @@ def sondas_de(requisitos, rasgos=(), pared_min_mm=None) -> list:
     for r in rasgos:
         if r.get("tipo") == "componente":
             sondas += sondas_del_rasgo(r)
+        cabeza = r.get("avellanado_mm") or CABEZA_ISO_4762_MM.get(r.get("tornillo"))
+        if r.get("tipo") == "agujero" and r.get("tornillo") and cabeza:
+            sondas.append(AccesoTornillo(tipo="acceso_tornillo", nombre=r["nombre"],
+                                         entrada=r["entrada"], eje=r["eje"],
+                                         diametro_mm=float(cabeza)))
     return sondas
 
 
@@ -152,8 +164,8 @@ def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
     """Lo que la pieza construida no cumple: agujeros (con los rasgos del
     kit), componentes que no caben o no entran, y sondas sobre el STEP. Los
     de acabado van con su prefijo."""
-    from orchestrator.banco import (AristasVivas, ComponenteCabe, ComponenteEntra,
-                                    ParedMinima, medir_sondas)
+    from orchestrator.banco import (AccesoTornillo, AristasVivas, ComponenteCabe,
+                                    ComponenteEntra, ParedMinima, medir_sondas)
 
     fallos = defectos(requisitos, resultado.rasgos, agujeros_del_perfil)
     fallos += componentes_sin_colocar(componentes, resultado.rasgos)
@@ -175,6 +187,10 @@ def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
             fallos.append(f"pared: {medida.detalle} (el mínimo que imprime la impresora). "
                           "Engrosa esa pared o aparta lo que la adelgaza; suele ser un hueco "
                           "o un agujero demasiado cerca de una cara")
+        elif isinstance(sonda, AccesoTornillo):
+            fallos.append(f"{medida.detalle}. Mueve el tornillo a donde se llegue desde "
+                          "fuera, aparta lo que tapa su camino, o atorníllalo desde el otro "
+                          "lado (la `en` del agujero es donde va la cabeza)")
         elif isinstance(sonda, ComponenteEntra):
             fallos.append(f"{medida.detalle}. El camino de entrada tiene que quedar abierto: "
                           "el `hueco()` lo abre, o cambia `entra_por` a un lado sin pared")

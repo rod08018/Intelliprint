@@ -438,7 +438,7 @@ class Cuerpo:
     # --- rasgos con nombre --------------------------------------------------------
 
     def taladrar(self, nombre, diametro, en, eje="-z", profundidad=None,
-                 lagrima=False, avellanado=None) -> "Cuerpo":
+                 lagrima=False, avellanado=None, _tornillo=None) -> "Cuerpo":
         """Agujero de `diametro` que entra por el punto `en` y avanza en la
         dirección `eje`. Sin `profundidad` atraviesa todo lo que encuentra.
         `lagrima=True` para agujeros horizontales: se imprimen sin soporte.
@@ -474,7 +474,8 @@ class Cuerpo:
         self._kit._registrar(nombre, "agujero", diametro_mm=float(diametro),
                              entrada=list(base), eje=list(d),
                              profundidad_mm=None if profundidad is None else float(profundidad),
-                             lagrima=bool(lagrima), avellanado_mm=avellanado)
+                             lagrima=bool(lagrima), avellanado_mm=avellanado,
+                             **({"tornillo": str(_tornillo)} if _tornillo else {}))
         return self._cortar(nombre, broca)
 
     def tornillo(self, nombre, metrica, en, eje="-z", tipo="pasante", profundidad=None,
@@ -486,8 +487,10 @@ class Cuerpo:
         if sufijo is None:
             raise KitError(f"«{nombre}»: `tipo` es «pasante», «rosca» o «inserto», no {tipo!r}")
         d = self._kit.agujero_mm(f"{metrica}_{sufijo}")
+        # La métrica va en el rasgo: con ella se comprueba que la cabeza
+        # llega (proyecto del 608ZZ, 2026-11-09).
         return self.taladrar(nombre, d, en, eje=eje, profundidad=profundidad,
-                             lagrima=lagrima, avellanado=avellanado)
+                             lagrima=lagrima, avellanado=avellanado, _tornillo=metrica)
 
     def tuerca(self, nombre, metrica, en, eje="-z", profundidad=None) -> "Cuerpo":
         """Alojamiento hexagonal para una tuerca cautiva, con la entrecaras del
