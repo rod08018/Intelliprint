@@ -19,10 +19,11 @@ Plan de implementación del sistema descrito en [SISTEMA_MULTIAGENTE.md](SISTEMA
 - **Fase de admisión conversacional**: el sistema pregunta lo que falte antes de empezar a diseñar, aceptando fotos, croquis y medidas.
 - **Multiproyecto**: registro global, proyectos de clases distintas (`static_part`, `mechanism`, `robot`) conviviendo, con fases condicionales según la clase.
 - Proyectos de referencia: soporte NEMA17 y soporte de vaso (`static_part`), garra con MG996R (`mechanism`), brazo de 3 GDL y brazo de 6 GDL (`robot`).
+- **Probar el control ROS 2 del robot en Gazebo antes de imprimir** (ADR-017): el código lo escribe la persona; el sistema le da el robot simulado con el par real de sus servos, un informe y un vídeo.
 
 **Fuera del alcance (por ahora)**
 
-- Diseño de PCB y firmware (solo se reservan espacios y rutas de cables).
+- Diseño de PCB y firmware (solo se reservan espacios y rutas de cables). El **control en ROS 2 sí entra** (ADR-017); el firmware del microcontrolador que hace de puente a los servos, no.
 - Análisis FEM completo (se usan reglas y cálculos estáticos simples).
 - Impresoras distintas de las configuradas en `config/printers/`.
 - Envío automático a la impresora: la impresión la lanza siempre el humano.
@@ -261,8 +262,15 @@ Un solo proyecto cada vez y una sola vía de entrada (consola). El multiproyecto
 | F4.8 | `stability_test` con carga máxima | Detecta vuelco de una base demasiado pequeña |
 | F4.9 | **Test/Sim Agent**: ejecuta la batería y traduce fallos a defectos por pieza/interfaz | Un fallo de torque reabre Actuation; una colisión reabre las piezas implicadas |
 | F4.10 | Integrar al grafo con **fases condicionales por clase** (§ 4.2): `static_part` salta la Fase 2 entera, `mechanism` corre la cinemática determinista y Actuation (ADR-010, enmienda), `robot` las tres | Un `static_part` no invoca Kinematics ni Electronics (verificado en el log); el brazo de 3 GDL corre el flujo completo sin intervención salvo gates |
+| F4.11 | **Contenedor `sim-ros`** (gazebo): ROS 2 con Gazebo sin ventana, `gz_ros2_control` y `joint_trajectory_controller`, servicio propio en el compose. Versión fijada al construir la imagen con la fuente citada (ADR-017: Jazzy + Harmonic es la pareja confirmada; Lyrical + Jetty, sin confirmar por Gazebo el 2026-11-08) | `docker compose run --rm sim-ros` carga un URDF de dos eslabones escrito a mano, mueve la articulación a un ángulo y `/joint_states` lo devuelve dentro de ±1° |
+| F4.12 | **Par de los servos en sus fichas** (par): `par_Nm` a cada tensión, con la hoja de datos citada como el resto de la ficha (ADR-016), en SG90, MG90S, MG996R y DS3218. El `export_urdf` lo pone como límite de esfuerzo de la articulación que mueve ese servo | Test de esquema: ninguna ficha de servo sin par ni sin fuente; el URDF de un brazo con MG996R lleva en `<limit effort>` el valor de la ficha |
+| F4.13 | **Probar el código del usuario** (código): el paquete ROS 2 que la persona deja en `control/` del proyecto se lanza contra el URDF de F4.6 en `sim-ros`, con una lista de objetivos (poses y trayectorias). Se graban `/joint_states` y los contactos, y sale `simulacion.md`: pose pedida y alcanzada, choques entre eslabones, par saturado y vuelco | Tres casos sembrados, cada uno con su oráculo hecho a mano: un control correcto llega a todas las poses; uno que manda una articulación fuera de rango sale con el choque nombrado; con un servo demasiado débil para la carga la pose **no se alcanza** y el informe dice qué articulación saturó |
+| F4.14 | **Vídeo de la simulación** (vídeo): la grabación de F4.13 se dibuja con la ruta de `orchestrator/animation.py`, sin GPU, y queda junto al informe | El vídeo de un caso sembrado muestra en cada fotograma el ángulo grabado (test con dos fotogramas comparados contra la pose calculada a mano) |
+| F4.15 | **Pestaña «Simulación» en la web** (pestaña): en la página de cada proyecto `robot`, el vídeo, el informe y la fecha y versión del código probado. Sin simulación, la pestaña lo dice en vez de esconderse | La pestaña de un proyecto simulado muestra el vídeo y el informe; la de uno sin simular dice que falta y por qué |
+| F4.16 | **Botón «Abrir en Gazebo»** (botón): en la pestaña Simulación. Va por el puente del host (`scripts/host_bridge.py`, nueva herramienta junto a `abrir_en_prusaslicer`), que recibe el **nombre** del proyecto, comprueba que está dentro de `workspace/` y lanza el contenedor con interfaz (`--gpus all`, WSLg). El contenedor web nunca monta el socket de Docker (ADR-017) | Test del puente: un nombre con `..` o fuera de `workspace/` se rechaza; uno válido produce la orden con la carpeta del proyecto. Prueba en el host: la ventana de Gazebo se abre con el robot del proyecto |
+| F4.17 | **El mismo código en el robot real** (real): interfaz de hardware de `ros2_control` para los servos (PCA9685 en una Pi, o ESP32 con micro-ROS como puente). Lo único que cambia entre simulación y robot es esa interfaz | El paquete que pasó F4.13, sin tocar una línea, mueve el brazo impreso a las mismas poses |
 
-**Entregable:** brazo de 3 GDL con torque validado, sin colisiones en su rango, impreso y movido con servos.
+**Entregable:** brazo de 3 GDL con torque validado, sin colisiones en su rango, **con su control ROS 2 probado en Gazebo antes de imprimir** y visible en la pestaña Simulación, impreso y movido con servos por ese mismo código.
 
 ---
 
@@ -450,6 +458,8 @@ Todas se calculan desde `workspace/state.sqlite`, el registro de proyectos y los
 | Puente stdio→HTTP inestable | Media | Alto | Reintentos y health checks en el cliente | Correr los MCP dentro de Docker apuntando al RPC de FreeCAD |
 | Decomposition produce árboles incoherentes | Media | Alto | Validador de consistencia + gate humano #1 | Escalar siempre la descomposición a DeepSeek |
 | Simulación lenta o inexacta con mallas complejas | Media | Medio | Mallas simplificadas / primitivas para colisión | Solo chequeo de interferencias estático por pasos |
+| El robot pasa en Gazebo y falla impreso (servo ideal, masas estimadas, plástico rígido; ADR-017) | Media | Medio | El par sale de la ficha citada y un servo débil sembrado tiene que quedarse corto (F4.13); el informe dice lo que no simula | Margen de par ≥ 1.5× (F4.4) y primera prueba real sin carga |
+| La ventana de Gazebo no abre por WSLg o no hay GPU libre (la 5090 va casi llena) | Media | Bajo | La comprobación corre sin ventana y sin GPU; la ventana es solo para mirar (F4.16) | Ver el vídeo de la pestaña Simulación |
 | Holguras no transferibles entre materiales | Alta | Medio | Perfil por impresora + material, pieza de calibración | Ajuste manual del perfil tras cada impresión |
 | Alcance crece (FEM, PCB, firmware) | Media | Medio | Fuera de alcance explícito (sección 1) | Registrar como mejoras futuras |
 

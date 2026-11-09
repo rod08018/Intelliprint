@@ -503,3 +503,51 @@ Ahora `quitar` rehace el hueco contra la pieza:
 - la que se mete en la pieza (el resalte del motor, un PCB entre guías) talla su propio alojamiento y la lleva en todas sus caras.
 
 Un componente que solo se apoya no quita nada, y no es error; uno que ni toca la pieza sí lo es. Y `acabar()` achaflana con un corte booleano las aristas rectas que OCC no redondea: el chaflán de 45° no cuenta como arista viva.
+
+---
+
+## ADR-017 · El código ROS 2 del robot se prueba en Gazebo antes de imprimir
+
+**Estado:** aceptada (2026-11-08) · **Afecta a:** § 1 del plan, Fase 4; F4.6, F4.7, F4.8, F4.11–F4.17, ADR-014, ADR-016
+
+**Problema.** Para la clase `robot` el plan comprobaba la **mecánica**: URDF, autocolisiones y vuelco con PyBullet (F4.6–F4.8). Nada comprobaba el **programa** que va a mover el robot. Un brazo puede pasar todas esas pruebas y aun así:
+- su control mandar una articulación fuera de rango y chocar contra su propia base;
+- pedir una trayectoria que el servo no aguanta con la carga, y quedarse a medio camino;
+- volcar al frenar de golpe, aunque estático no vuelque.
+
+Eso se descubre hoy con el robot ya impreso, que es justo lo que Intelliprint existe para evitar: **demostrar que funciona antes de que nadie imprima nada**.
+
+Y una realidad del punto de partida: la clase `robot` solo existe en `spec.py`. La Fase 4 está sin empezar.
+
+**Decisión.** Decidida con el usuario el 2026-11-08.
+
+1. **El código que se prueba es el del usuario: nodos ROS 2 (Python).** El mismo paquete mueve el robot simulado y el real. Lo que cambia entre uno y otro es solo la interfaz de hardware de `ros2_control`: en simulación, `gz_ros2_control`; en el robot, un puente a los servos (PCA9685 en una Pi, o un ESP32 con micro-ROS). El ESP32 solo hace de puente; la lógica vive en ROS 2. Así lo que pasa en Gazebo es lo mismo que se ejecutará después, no una reescritura.
+2. **Dos simuladores, cada uno para una cosa.**
+
+   | | Para qué | Dónde corre |
+   |---|---|---|
+   | **PyBullet** | Comprobaciones rápidas **dentro del bucle de diseño**: colisiones en el rango, vuelco, par (F4.6–F4.8). Sin ROS | En el contenedor del orquestador |
+   | **Gazebo** | Ejecutar **el código del usuario** contra el URDF exportado, con `joint_trajectory_controller` | En un contenedor propio, `sim-ros` |
+
+   Los dos leen **el mismo URDF** (F4.6), que es la única fuente del robot simulado.
+3. **El servo simulado tiene el par de su ficha.** El límite de esfuerzo de cada articulación del URDF sale del par del servo que la mueve, con fuente citada (ADR-016). Un servo que no puede con la carga **no llega** a la pose: el fallo lo produce la física, no una cuenta aparte. Las fichas de servos aún no llevan par (F4.12).
+4. **Gazebo corre sin ventana**, como FreeCAD (ADR-014): es una herramienta que comprueba y calla. Deja:
+   - un **informe** (`simulacion.md`): por cada objetivo, la pose pedida y la alcanzada, choques entre eslabones, articulaciones con el par saturado y vuelco;
+   - un **vídeo**: se graban `/joint_states` y los contactos, y se dibujan con la misma ruta que las animaciones de mecanismos (`orchestrator/animation.py`), sin GPU. Lo que se ve es lo que Gazebo calculó.
+5. **La persona lo ve en la web, y con GPU solo si quiere.** Cada proyecto tiene una pestaña «Simulación» con el vídeo y el informe, y un botón «Abrir en Gazebo» que lanza la interfaz de Gazebo **en el escritorio**, con la GPU. Va por el puente del host (`scripts/host_bridge.py`), como «Slice in PrusaSlicer»: el puente recibe el **nombre** del proyecto, comprueba que está dentro de `workspace/` y lanza el contenedor con interfaz (`--gpus all`, pantalla por WSLg). El contenedor web **nunca** monta el socket de Docker: quien pudiera escribir en esa página tendría la máquina entera.
+
+**Por qué sin ventana por defecto.** La 5090 está casi llena (31 de 32 GB, con vllm y hunyuan3d). Una simulación que necesitara la GPU para comprobar dependería de qué más esté corriendo; dibujando las poses grabadas, la prueba es la misma esté la tarjeta como esté. La GPU es para mirar, cuando la persona decida dejársela.
+
+**Versiones.** ROS 2 Jazzy con Gazebo Harmonic es la pareja oficial confirmada. Lyrical (la LTS de 2026) aparece con Jetty en la tabla de plataformas de Lyrical, pero la guía de Gazebo aún no la recoge (comprobado el 2026-11-08). Se fija al construir la imagen (F4.11), con la fuente citada en el Dockerfile.
+
+**Alternativas descartadas.**
+- **Solo Gazebo**, sustituyendo a PyBullet. Un solo motor de física es más coherente, pero arrancar Gazebo en cada ronda del bucle de diseño es lento y mete ROS donde no hace falta. La decisión del usuario fue tener los dos.
+- **Probar el firmware del ESP32.** Gazebo no ejecuta firmware de un microcontrolador. Emularlo sería otro proyecto; con la lógica en ROS 2, el firmware queda en un puente fino.
+- **La ventana de Gazebo dentro de la página web** (gzweb y similares). Más piezas y la GPU igualmente ocupada; la persona ya tiene escritorio.
+
+**Lo que no cubre.**
+- **El servo es ideal**: control de posición con un límite de esfuerzo. Sin holgura del engranaje, sin zona muerta, sin caída de velocidad con la carga ni calentamiento.
+- **Las masas son estimadas**: el volumen de FreeCAD por la densidad del material y el relleno del perfil. No se pesan piezas.
+- **El plástico no flexa**: los eslabones son rígidos. Un brazo largo de PLA que cede no se ve aquí; es lo que mide la sección (F6.12) con su factor de seguridad.
+- **Sin sensores** (cámaras, lidar) de momento: el robot de referencia (H4) solo tiene servos.
+- Que el límite de esfuerzo del URDF frene de verdad a una articulación mandada **en posición** depende de cómo `gz_ros2_control` lo traslade al motor de física. Por eso F4.13 lo comprueba con un servo sembrado demasiado débil, que tiene que quedarse corto; si no se queda, la articulación se manda en esfuerzo con un PID.
