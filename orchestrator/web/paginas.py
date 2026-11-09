@@ -12,6 +12,7 @@ escribió un modelo (títulos, motivos, frases del revisor) se escapa: es
 dato, no HTML.
 """
 
+import datetime as dt
 import html
 import json
 import re
@@ -137,7 +138,7 @@ def _progreso(v: dict) -> str:
     # «pieza «x»» es la etapa de coste de un mecanismo; «dibuja «x»», la
     # línea del registro de una pieza suelta.
     if m := re.search(r"(?:pieza|dibuja) «([^»]+)»", etapa):
-        que = f"dibujando «{m.group(1)}»"
+        que = f"dibujando «{_legible(m.group(1))}»"
     elif "laminado" in etapa:
         que = "preparando la impresión"
     elif "ingeniero" in etapa:
@@ -200,9 +201,12 @@ def galeria(grupos: list[dict], workspace: Path, hay_puente: bool, puede_pedir: 
     ocupado = any(g.get("en_marcha") for g in grupos)
     opciones = "".join(f'<option value="{e(g["mejor"])}">{e(_recortar(nombre_de(workspace, g), 60))}</option>'
                        for g in grupos)
+    # Lo que tarda y cuesta va siempre: con algo en marcha desaparecía, y es
+    # justo cuando la persona decide si esperar o volver luego.
+    coste = "Tarda de 5 a 60 minutos y cuesta hasta 5 USD."
     nota = ("Esta web no tiene con qué lanzar diseños." if not puede_pedir else
-            "Hay un diseño en marcha: espera a que termine." if ocupado else
-            "Tarda de 5 a 60 minutos y cuesta hasta 5 USD. Lo verás aparecer en la galería.")
+            f"{coste} Hay un diseño en marcha: espera a que termine." if ocupado else
+            f"{coste} Lo verás aparecer en la galería.")
     return _documento("Intelliprint", f"""
   <header class="barra">
     <a class="marca" href="/">Intelliprint</a>
@@ -211,8 +215,9 @@ def galeria(grupos: list[dict], workspace: Path, hay_puente: bool, puede_pedir: 
   </header>
   <dialog id="nuevo">
     <form method="dialog" class="cabeza-dialogo"><h2>Nuevo diseño</h2><button class="cerrar" aria-label="Cerrar">✕</button></form>
-    <label class="partir">Qué es <select id="tipo"><option value="pieza">una pieza (soporte, gancho, adaptador…)</option><option value="mecanismo">un mecanismo (piezas que se mueven)</option></select></label>
-    <textarea id="peticion" rows="9" placeholder="{e(EJEMPLO)}"></textarea>
+    <label class="partir">Qué es <select id="tipo"><option value="pieza" data-ejemplo="{e(EJEMPLOS['pieza'])}">una pieza (soporte, gancho, adaptador…)</option><option value="mecanismo" data-ejemplo="{e(EJEMPLOS['mecanismo'])}">un mecanismo (piezas que se mueven)</option></select></label>
+    <label for="peticion" class="partir">Qué quieres</label>
+    <textarea id="peticion" rows="9" placeholder="{e(EJEMPLOS['pieza'])}"></textarea>
     <label class="partir">Partir de <select id="basado_en"><option value="">nada, empezar de cero</option>{opciones}</select></label>
     <div class="pie-dialogo"><span class="nota" id="nota-pedir">{e(nota)}</span>
       <button class="btn pri" id="disenar" {"" if puede_pedir and not ocupado else "disabled"}>Diseñar</button></div>
@@ -302,8 +307,10 @@ def _componente(x: dict) -> str:
             f'<td class="fuente">{fuentes}<br><small>{medido}</small></td></tr>')
 
 
-def _concepto(carpeta: Path) -> str | None:
-    """Lo que se aprueba, para que se vea qué se aprueba.
+def _concepto(carpeta: Path, aprobado: bool = False) -> str | None:
+    """Lo que se aprueba, para que se vea qué se aprueba. Con `aprobado`, lo
+    que ya se aprobó: sin pedir el visto bueno ni las preguntas, que se
+    contestaron antes.
 
     Antes se pegaba `concepto.md` entero en una caja ámbar: idea, camino de
     carga, orientación, cálculo, descartes y catorce medidas con URLs de 250
@@ -324,10 +331,11 @@ def _concepto(carpeta: Path) -> str | None:
     investigacion = _leer(carpeta / "investigacion.json") or {}
     encontrados = investigacion.get("datos") or []
 
-    partes = ['<p class="lead">Si lo apruebas, se dibuja <b>esta idea</b> con <b>estas '
-              'medidas</b>. Una medida mal aquí es una pieza mal: revísalas.</p>',
-              f'<h3>La idea</h3><p class="idea">{e(c["idea"])}</p>']
-    if c.get("preguntas"):
+    partes = ([] if aprobado else
+              ['<p class="lead">Si lo apruebas, se dibuja <b>esta idea</b> con <b>estas '
+               'medidas</b>. Una medida mal aquí es una pieza mal: revísalas.</p>'])
+    partes.append(f'<h3>La idea</h3><p class="idea">{e(c["idea"])}</p>')
+    if c.get("preguntas") and not aprobado:
         partes.append('<div class="preguntas"><b>Antes, contéstame</b><ol>'
                       + "".join(f"<li>{e(p)}</li>" for p in c["preguntas"]) + "</ol></div>")
 
@@ -370,6 +378,47 @@ def _concepto(carpeta: Path) -> str | None:
         partes.append('<details class="razonamiento"><summary>Cómo lo ha pensado: carga, '
                       f'impresión, fijaciones y cálculo</summary>{"".join(razonamiento)}</details>')
     return "".join(partes)
+
+
+def _duracion(segundos: float) -> str:
+    """«25 min», «1 h», «1 h 23 min»: como lo dice una persona."""
+    minutos = max(1, round(segundos / 60))
+    h, m = divmod(minutos, 60)
+    return f"{m} min" if not h else f"{h} h" + (f" {m} min" if m else "")
+
+
+def _impresion(carpeta: Path) -> str:
+    """Lo que cuesta imprimirla, tal como lo calculó el laminado: gramos,
+    tiempo, soportes y caja. Antes no salía en ningún sitio y era lo primero
+    que hay que saber antes de mandarla a la impresora (2026-11-08). Sin
+    laminado no se pone nada: una cifra estimada aquí parecería medida."""
+    lamina = _leer(carpeta / "fabrication" / "slicing_report.json")
+    if not lamina:
+        return ""
+    datos = [f"{lamina['grams']:.0f} g", _duracion(lamina["time_s"]),
+             "con soportes" if lamina.get("needs_supports") else "sin soportes"]
+    caja = (_leer(carpeta / "pieza_report.json") or {}).get("bbox_mm") or []
+    if len(caja) == 3:
+        datos.append(" × ".join(f"{round(x):g}" for x in caja) + " mm")
+    return ('<ul class="impresion" aria-label="Lo que cuesta imprimirla">'
+            + "".join(f"<li>{e(d)}</li>" for d in datos) + "</ul>")
+
+
+def _legible(nombre: str) -> str:
+    """«soporte_de_rodamiento» → «Soporte de rodamiento». El nombre de la
+    carpeta es para el sistema; la persona lee castellano."""
+    texto = nombre.replace("_", " ").strip()
+    return texto[:1].upper() + texto[1:]
+
+
+def _lleva(carpeta: Path) -> str:
+    """Cuánto lleva trabajando, de la hora en que se lanzó (job.json)."""
+    inicio = (_leer(carpeta / "job.json") or {}).get("inicio")
+    try:
+        segundos = (dt.datetime.now() - dt.datetime.fromisoformat(inicio)).total_seconds()
+    except (TypeError, ValueError):
+        return ""
+    return f" · lleva {_duracion(segundos)}" if segundos >= 0 else ""
 
 
 def _calculo(x: dict) -> str:
@@ -449,23 +498,37 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
         corriendo = next(x for x in versiones if x["id"] == g["en_marcha"])
         vivo = (f'<div class="aviso vivo" id="en-marcha" data-version="{e(corriendo["id"])}">'
                 f'<b>Diseñando la versión {corriendo["version"]}</b>'
-                f'<p>{e(_progreso(corriendo))}. Esta página se actualiza sola.</p></div>')
+                f'<p>{e(_progreso(corriendo) + _lleva(_carpeta(workspace, corriendo)))}. '
+                'Esta página se actualiza sola.</p></div>')
 
-    # Las acciones.
+    # Lo que se aprobó, a la vista después de aprobarlo: es contra lo que se
+    # juzga la pieza, y antes desaparecía al darle el visto bueno.
+    aprobado = ""
+    if v["estado"] != "por aprobar" and (carpeta / "concepto_aprobado").exists():
+        lo_aprobado = _concepto(carpeta, aprobado=True)
+        if lo_aprobado:
+            aprobado = (f'<details class="aprobado"><summary>Lo que aprobaste: la idea y '
+                        f'las medidas</summary><div class="revision">{lo_aprobado}</div></details>')
+
+    # Las acciones. «Abrir», no «Imprimir»: el botón abre las piezas en el
+    # PrusaSlicer del PC, y desde el móvil «Imprimir» prometía otra cosa.
     sin_piezas = not v.get("piezas")
     imprimir_titulo = ("Este diseño no tiene piezas" if sin_piezas else
                        "Arranca el puente en el PC para abrir PrusaSlicer" if not hay_puente else
-                       "Abre las piezas en tu PrusaSlicer con el perfil de la impresora")
+                       "Abre las piezas en el PrusaSlicer de tu PC, con el perfil de la impresora")
     acciones = (f'<button class="btn pri" data-abrir="{vid}" title="{e(imprimir_titulo)}"'
-                f'{" disabled" if sin_piezas or not hay_puente else ""}>Imprimir en PrusaSlicer</button>'
+                f'{" disabled" if sin_piezas or not hay_puente else ""}>Abrir en PrusaSlicer</button>'
                 f'<a class="btn" href="/proyectos/{vid}.zip" download>Descargar</a>')
     # Un concepto por aprobar no tiene nada que imprimir ni que bajar, y una
     # caja vacía de «Todavía no hay imagen» se comía media pantalla.
     revisando = v["estado"] == "por aprobar" and sin_piezas
-    if revisando:
+    # Lo que se está diseñando tampoco: «Descargar» bajaba un zip a medias de
+    # 7 KB con la petición y el concepto (2026-11-08).
+    if revisando or v["id"] == g.get("en_marcha"):
         acciones = ""
     nav_tira = f'<nav class="tira" aria-label="Versiones">{"".join(tira)}</nav>'
-    visor = (f'<div class="visor"><div class="foto grande">{foto}</div>{nav_tira}</div>'
+    vacia = "" if imagen else " vacia"
+    visor = (f'<div class="visor"><div class="foto grande{vacia}">{foto}</div>{nav_tira}</div>'
              if imagen or not revisando else
              (f'<div class="visor">{nav_tira}</div>' if len(versiones) > 1 else ""))
 
@@ -495,8 +558,8 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
             <input name="cambio" placeholder="Qué cambiar" aria-label="Qué cambiar de {e(n)}"{desactivado}>
             <button class="btn"{desactivado}>Cambiar</button></form>""" if es_mecanismo else "")
         piezas.append(f"""<div class="pieza"><div class="foto-pieza">
-            <img src="/proyectos/{vid}/piezas/{e(n)}.png" alt="{e(n)}" loading="lazy"></div>
-          <div class="nombre-pieza">{e(n)} {etiqueta}</div>{cambiar}</div>""")
+            <img src="/proyectos/{vid}/piezas/{e(n)}.png" alt="{e(_legible(n))}" loading="lazy"></div>
+          <div class="nombre-pieza">{e(_legible(n))} {etiqueta}</div>{cambiar}</div>""")
     seccion_piezas = (f'<section><h2>Piezas</h2><div class="piezas">{"".join(piezas)}</div></section>'
                       if piezas else "")
 
@@ -524,7 +587,9 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
         <h1>{e(nombre)}</h1>
         <div class="estado-grande {clase}">{e(frase)}</div>
         {vivo}{explicacion}
+        {_impresion(carpeta)}
         {f'<div class="acciones">{acciones}</div>' if acciones else ""}
+        {aprobado}
         <p class="suave meta">Versión {v["version"]} de {len(versiones)} · {e(_fecha(v["id"]))}</p>
       </div>
     </div>
@@ -548,12 +613,22 @@ def _documento(titulo: str, cuerpo: str, guion: str) -> str:
             f"<script>{GUION_COMUN}{guion}</script>\n</body></html>")
 
 
-EJEMPLO = (
-    "Qué quieres que haga, con todo lo que sepas. Por ejemplo:\n\n"
-    "Un sargento de banco para piezas de hasta 40 mm, con tornillo M8 de ferretería. "
-    "La mordaza móvil desliza sobre dos guías.\n\n"
-    "Medidas, qué se mueve y cuánto, y qué sacrificar si algo no se puede."
-)
+EJEMPLOS = {
+    # Uno por tipo: con «una pieza» elegida se enseñaba un sargento, que es
+    # un mecanismo, y no se sabía qué tipo había que elegir (2026-11-08).
+    "pieza": (
+        "Qué quieres que haga, con todo lo que sepas. Por ejemplo:\n\n"
+        "Un soporte para un servo SG90 que se atornille a una placa con dos "
+        "tornillos M3 separados 30 mm. El eje del servo, a 20 mm de la placa.\n\n"
+        "Medidas, qué aloja, cómo se sujeta y qué carga aguanta."
+    ),
+    "mecanismo": (
+        "Qué quieres que haga, con todo lo que sepas. Por ejemplo:\n\n"
+        "Un sargento de banco para piezas de hasta 40 mm, con tornillo M8 de ferretería. "
+        "La mordaza móvil desliza sobre dos guías.\n\n"
+        "Medidas, qué se mueve y cuánto, y qué sacrificar si algo no se puede."
+    ),
+}
 
 
 ESTILO = """
@@ -699,6 +774,25 @@ ESTILO = """
     #buscar { width:auto; flex:1; min-width:0; }
     .barra .btn.pri { padding:9px 12px; }
   }
+  /* Un hueco sin imagen no es un rectángulo blanco: en modo oscuro deslumbraba. */
+  .foto.vacia, .version i { background:var(--tarjeta); border:1px dashed var(--linea); }
+  .impresion { display:flex; flex-wrap:wrap; gap:8px; list-style:none; padding:0; margin:16px 0 0; }
+  .impresion li { font-size:14px; font-weight:500; padding:5px 11px; border-radius:999px;
+                  background:var(--tarjeta); border:1px solid var(--linea); font-variant-numeric:tabular-nums; }
+  .aprobado { margin-top:20px; border-top:1px solid var(--linea); padding-top:12px; }
+  .aprobado > summary { cursor:pointer; color:var(--acento); font-size:14px; }
+  .aprobado .revision { margin-top:4px; }
+  /* Con el dedo, 44 px: «← Proyectos» medía 23 en el móvil. WCAG 2.2 pide 24
+     como mínimo (2.5.8); 44 es lo que recomiendan Apple y la WCAG AAA (2.5.5). */
+  @media (pointer:coarse) {
+    .btn, .filtro, .volver, select, .version, .cerrar { min-height:44px; }
+    .volver { display:inline-flex; align-items:center; }
+  }
+  /* Quien pide menos movimiento al sistema no ve latir ni saltar nada (WCAG 2.3.3). */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation:none !important; transition:none !important; }
+    .tarjeta:hover { transform:none; }
+  }
 """
 
 GUION_COMUN = r"""
@@ -734,6 +828,10 @@ GUION_GALERIA = r"""
     aplicarFiltro();
   }));
   document.querySelector("#buscar").addEventListener("input", aplicarFiltro);
+  const tipo = document.querySelector("#tipo");
+  tipo.addEventListener("change", () => {
+    document.querySelector("#peticion").placeholder = tipo.selectedOptions[0].dataset.ejemplo;
+  });
   const dialogo = document.querySelector("#nuevo");
   document.querySelector("#abrir-nuevo").addEventListener("click", () => { dialogo.showModal(); document.querySelector("#peticion").focus(); });
   document.querySelector("#disenar").addEventListener("click", async () => {

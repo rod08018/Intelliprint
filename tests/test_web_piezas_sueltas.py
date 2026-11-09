@@ -101,7 +101,8 @@ def test_lo_que_hace_una_pieza_sale_de_su_registro_de_ejecucion(tmp_path):
 
     etapa = estadisticas(carpeta, en_marcha=True)["ultima_etapa"]
 
-    assert _progreso({"ultima_etapa": etapa}) == "dibujando «soporte»"
+    # Con el nombre legible, no el de la carpeta (test_web_ux).
+    assert _progreso({"ultima_etapa": etapa}) == "dibujando «Soporte»"
 
 
 def test_mientras_lamina_lo_dice(tmp_path):
