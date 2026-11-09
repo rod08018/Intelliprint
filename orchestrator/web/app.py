@@ -224,6 +224,16 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
             raise HTTPException(409, str(e))
         return {"id": carpeta.name, "nodo": nodo}
 
+    @app.post("/api/proyectos/{id}/seguir")
+    def seguir(id: str) -> dict:
+        """Lanza lo siguiente de la obra si no espera a nadie."""
+        carpeta = _obra_en_curso(id)
+        try:
+            trabajos.seguir(carpeta.name)
+        except (ValueError, RuntimeError) as e:
+            raise HTTPException(409, str(e))
+        return {"id": carpeta.name}
+
     @app.post("/api/proyectos/{id}/nodos/{nodo}/impresa")
     def marcar_impresa(id: str, nodo: str, pedido: Lista) -> dict:
         """La prueba física: se apunta y no relanza nada."""

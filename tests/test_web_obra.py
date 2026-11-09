@@ -250,6 +250,8 @@ def _conjunto_movido(ws, ok):
         (carpeta / "nodos" / i / "lista.json").write_text('{"por": "web"}', encoding="utf-8")
     choque = ("«Soporte de inclinación» y «Soporte de giro» chocan con «Soporte de inclinación» "
               "girada de -90° a -60° (se meten 41.0 mm³ una en otra)")
+    if ok is None:
+        return carpeta
     (carpeta / "nodos" / "pan-tilt").mkdir()
     (carpeta / "nodos" / "pan-tilt" / "verificacion.json").write_text(json.dumps({
         "ok": ok, "resumen": [] if ok else [choque], "choques": [],
@@ -274,3 +276,25 @@ def test_el_conjunto_que_se_mueve_libre_lo_dice_y_la_obra_esta_terminada(tmp_pat
     assert "Se mueve entero sin chocar" in texto
     assert "Todas las piezas están listas" in texto
     assert "Espera a" not in texto
+
+
+def test_lo_siguiente_que_no_espera_a_nadie_se_lanza_desde_arriba(tmp_path):
+    """Con las piezas del pan-tilt listas (2026-11-09) la orden murió antes de
+    mover el conjunto, y la página decía «Siguiente: Conjunto pan-tilt» sin
+    ningún botón: no había forma de seguir desde la web."""
+    carpeta = _conjunto_movido(tmp_path, ok=None)
+    web = _ws_con_trabajos(tmp_path)
+    html = web.get(f"/p/{ID}").text
+    assert f'data-seguir="{ID}"' in html and "Moverlo entero" in _visible(html)
+
+    r = web.post(f"/api/proyectos/{ID}/seguir", json={})
+    assert r.status_code == 200, r.text
+    assert "--continuar" in _esperar_registro(carpeta)
+
+
+def test_lo_que_espera_tu_visto_bueno_no_se_lanza_desde_arriba(tmp_path):
+    carpeta = _empezar(tmp_path, aprobada=True)
+    _disenar_nodo(carpeta, "base")
+    web = _ws_con_trabajos(tmp_path)
+    assert "data-seguir=" not in web.get(f"/p/{ID}").text
+    assert web.post(f"/api/proyectos/{ID}/seguir", json={}).status_code == 409

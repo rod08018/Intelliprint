@@ -253,6 +253,9 @@ def estados(carpeta: Path) -> dict[str, str]:
     return salida
 
 
+SE_LANZAN = ("pendiente", "concepto aprobado", "por verificar")
+"""Lo que no espera a la persona: basta con lanzar la orden."""
+
 HECHOS = ("lista", "verificado")
 """Lo que ya no hay que tocar: una pieza con su visto bueno, o un conjunto
 que se movió entero sin chocar."""

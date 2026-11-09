@@ -526,7 +526,13 @@ def _arbol(carpeta: Path, vid: str, bloqueo: str, hay_puente: bool) -> tuple[str
 
     estados = O.estados(carpeta)
     siguiente = O.siguiente(carpeta)
-    arriba = (f'<div class="aviso ambar"><b>Siguiente: {e(ob.nodo(siguiente).nombre)}</b></div>'
+    boton = ""
+    if siguiente and estados[siguiente] in O.SE_LANZAN:
+        # Sin esto, si la orden moría a medias la página decía «Siguiente:
+        # Conjunto pan-tilt» y no había por dónde seguir (2026-11-09).
+        que = "Moverlo entero" if ob.nodo(siguiente).tipo == "conjunto" else "Empezar"
+        boton = f' <button class="btn pri" data-seguir="{vid}"{bloqueo}>{que}</button>'
+    arriba = (f'<div class="aviso ambar"><b>Siguiente: {e(ob.nodo(siguiente).nombre)}</b>{boton}</div>'
               if siguiente else '<div class="aviso"><b>Todas las piezas están listas.</b></div>')
     tarjetas = []
     for i in ob.orden():
@@ -1088,6 +1094,12 @@ GUION_PROYECTO = r"""
     const [ok, d] = await enviar(obra(b, "lista"), {});
     if (ok) { location.reload(); return; }
     avisar(detalle(d) || "No se pudo."); b.disabled = false; b.textContent = "Está bien, la siguiente";
+  }));
+  document.querySelectorAll("[data-seguir]").forEach(b => b.addEventListener("click", async () => {
+    const antes = b.textContent; b.disabled = true; b.textContent = "Lanzando…";
+    const [ok, d] = await enviar("/api/proyectos/" + encodeURIComponent(b.dataset.seguir) + "/seguir", {});
+    if (ok) { location.reload(); return; }
+    avisar(detalle(d) || "No se pudo."); b.disabled = false; b.textContent = antes;
   }));
   document.querySelectorAll("form[data-impresa], form[data-rehacer]").forEach(f => f.addEventListener("submit", async ev => {
     ev.preventDefault();

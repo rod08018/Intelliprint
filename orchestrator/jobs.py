@@ -208,6 +208,18 @@ class JobStore:
         obra.dar_por_lista(self.carpeta / job_id, nodo, por=por, impresa=impresa, nota=nota)
         return self._relanzar(job_id)
 
+    def seguir(self, job_id: str) -> str:
+        """Lanza lo siguiente de la obra cuando no espera a nadie: una pieza
+        por empezar o un conjunto por mover. Si la orden muere a medias, la
+        persona sigue desde la web (pan-tilt, 2026-11-09)."""
+        from orchestrator import obra
+        self._libre()
+        destino = self.carpeta / job_id
+        nodo = obra.siguiente(destino)
+        if nodo is None or obra.estados(destino)[nodo] not in obra.SE_LANZAN:
+            raise ValueError("lo siguiente espera tu visto bueno, no un empujón")
+        return self._relanzar(job_id)
+
     def rehacer(self, job_id: str, nodo: str, cambio: str = "",
                 desde_cero: bool = False) -> list[str]:
         """Cambia un nodo, y lo que se diseñó contra él, y sigue. Si la pieza
