@@ -120,6 +120,26 @@ def test_sg90_cubre_los_dos_planos():
     assert orejas.en[2] <= 15.6 and orejas.en[2] + orejas.caja[2] >= 16
 
 
+def test_sg90_con_el_eje_y_las_orejas_del_plano_ta0233():
+    """Plano de AusElectronicsDirect (TA0233): cuerpo de 22.7, orejas de
+    4.85 con la muesca R1.1 a 1.9 de la punta (2.95 del cuerpo), eje a 8.75
+    de esa muesca (5.8 del extremo del cuerpo), centrado en el ancho; la
+    carcasa llega a 27.1 y el eje a 30.7; el cubo del cuerno es de Ø6.9.
+    La base del pan-tilt (2026-11-09) puso los agujeros guía en el centro de
+    la oreja, a 2.35 del cuerpo: la muesca se abre hacia la punta, y un
+    tornillo 0.6 más adentro choca con su fondo."""
+    cuerpo = _cuerpo("sg90", "cuerpo")
+    f = cargar("sg90").fijacion
+    assert sorted(a.en[0] for a in f) == pytest.approx([-2.95, cuerpo.caja[0] + 2.95])
+    assert {a.diametro for a in f} == {2.2}
+    assert all(a.en[1] == pytest.approx(cuerpo.caja[1] / 2) for a in f)
+    cubo = next(c for c in cargar("sg90").despejar if c.cilindro)
+    assert cubo.en[:2] == pytest.approx([5.8, cuerpo.caja[1] / 2])
+    assert cubo.cilindro.diametro == 6.9 and cubo.cilindro.eje == "+z"
+    assert cubo.en[2] == 27.1 and cubo.en[2] + cubo.cilindro.alto == pytest.approx(30.7)
+    assert cuerpo.caja[2] >= 27.1
+
+
 def test_mg996r_como_su_plano():
     """TowerPro: orejas de 53.6, a 26.6 del fondo, 36.6 de cuerpo y 20 de ancho."""
     cuerpo, orejas = _cuerpo("mg996r", "cuerpo"), _cuerpo("mg996r", "orejas")

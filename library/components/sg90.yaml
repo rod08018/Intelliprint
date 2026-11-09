@@ -1,8 +1,14 @@
 # Micro servo SG90 (F6.11 (biblioteca)).
 #
-# Hay SG90 de muchos fabricantes y no miden igual: TowerPro da 22.2 × 11.8 y
-# Luxorparts 22.8 × 12.4. La ficha toma lo mayor de los dos para que quepa
-# cualquiera (la holgura sobrante se compensa con la de «slide»).
+# Hay SG90 de muchos fabricantes y no miden igual: TowerPro da 22.2 × 11.8,
+# Luxorparts 22.8 × 12.4 y AusElectronicsDirect 22.7 × 12.1. La ficha toma lo
+# mayor para que quepa cualquiera (la holgura sobrante se compensa con la de
+# «slide»).
+#
+# El eje de salida y las muescas de las orejas salen del plano de TA0233, el
+# único de los tres que los acota. Sin ellos, la base del pan-tilt
+# (2026-11-09) puso los agujeros guía en el centro de la oreja, 0.6 mm por
+# dentro de la muesca, y el soporte de giro se pensó sobre un eje sin sitio.
 id: sg90
 nombre: Micro servo SG90 (9 g)
 alias: ["SG90", "SG-90", "SG 90"]
@@ -12,21 +18,46 @@ fuentes:
     cita: "Dimension: 22.2 x 11.8 x 31 mm approx.; dibujo: 32.2 entre orejas, 16 del fondo a la oreja"
   - url: https://www.kjell.com/globalassets/mediaassets/701916_87897_datasheet_en.pdf
     cita: "dibujo de Luxorparts: 22.8, 12.4, 32.0 entre orejas, 15.6 del fondo a la oreja, 26.7 de alto"
+  - url: https://www.auselectronicsdirect.com.au/assets/brochures/TA0233.pdf
+    cita: "plano TA0233: 22.7 de cuerpo, 4.85 de oreja, 32.4 entre puntas, muesca R1.1 a 1.9 de la punta, eje a 8.75 de la muesca y centrado (6.05/6.05), 27.1 de carcasa, 30.7 hasta el eje; cuernos con cubo de Ø6.9 × 2.5 y brazos de 1.5"
 marco: >
   Origen en la esquina del fondo del cuerpo: x a lo largo (22.8 mm), y a lo
-  ancho (12.4 mm) y z hacia arriba, hacia el eje de salida.
+  ancho (12.4 mm) y z hacia arriba, hacia el eje de salida. El eje de salida
+  está cerca del extremo x = 0 (a 5.8 mm de él), centrado en el ancho.
 mira: "+z"
 cuerpos:
   - nombre: cuerpo
-    caja: [22.8, 12.4, 26.7]
+    caja: [22.8, 12.4, 27.1]
     en: [0, 0, 0]
-    porque: "envolvente de los dos planos; de alto, hasta la torre del eje (26.7, Luxorparts)"
+    porque: "envolvente de los planos; de alto, hasta la carcasa del eje (27.1, TA0233)"
   - nombre: orejas
     caja: [32.2, 12.4, 2.9]
     en: [-4.7, 0, 15.6]
     porque: "las orejas empiezan a 15.6 (Luxorparts) o a 16 (TowerPro): se cubren las dos; el grosor no viene acotado (unos 2.5 a escala)"
+despejar:
+  - nombre: eje_y_cubo_del_cuerno
+    cilindro: {diametro: 6.9, alto: 3.6, eje: "+z"}
+    en: [5.8, 6.2, 27.1]
+    porque: "el eje de salida (TA0233: a 8.75 de la muesca, 5.8 del extremo del cuerpo) sale de 27.1 a 30.7, y en él encaja el cubo del cuerno, de Ø6.9: lo que se acople al eje deja este sitio al cuerno"
+fijacion:
+  - nombre: muesca_oreja_eje
+    diametro: 2.2
+    en: [-2.95, 6.2, 18.5]
+    eje: "-z"
+  - nombre: muesca_oreja_cable
+    diametro: 2.2
+    en: [25.75, 6.2, 18.5]
+    eje: "-z"
 notas: >
-  Ninguno de los dos planos acota dónde está el eje de salida ni los
-  agujeros de las orejas (los tornillos que trae son autorroscantes de unos
-  2 mm), ni por qué canto sale el cable: mídelo con calibre. El brazo gira
-  por encima del cuerpo; no pongas nada en ese círculo.
+  Las muescas de las orejas (R1.1, TA0233) están abiertas hacia la punta: el
+  tornillo (autorroscante de unos 2 mm, viene con el servo) puede ir algo más
+  afuera, nunca más adentro, o choca con el fondo de la muesca. Los cuernos
+  (TA0233) tienen un cubo de Ø6.9 y 2.5 de alto y brazos de 1.5 de grueso con
+  agujeros de Ø1.0: el de cruz (#2) mide 20.3 de punta a punta en los dos
+  sentidos, con agujeros a R4.3, R6.3 y R8.3; el doble (#1) 32 (16 + 16), el
+  de tres brazos (#3) 34.5 × 16.3 y el simple (#4) 19.5. El ancho de los
+  brazos no viene acotado, ni el diámetro del estriado (23 dientes): una pieza
+  que se acople al cuerno se fija con los tornillos del cuerno en sus
+  agujeros o con el tornillo central, no a presión. Ningún plano dice por qué
+  canto sale el cable: mídelo con calibre. El brazo gira por encima del
+  cuerpo; no pongas nada en ese círculo.
