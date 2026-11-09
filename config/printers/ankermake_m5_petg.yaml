@@ -48,6 +48,11 @@ holes:
   M3_selftap_mm: 2.8         # rosca directa en plástico
   M3_insert_mm: 4.1          # inserto térmico; confirmar con el fabricante
   M3_nut_af_mm: 5.9          # entrecaras 5.7 + 0.2 de holgura
+  # M4 y M5: la serie media de la ISO 273, sin calibrar como todo lo demás.
+  # Sin ellos, `tornillo("M5")` no existía y el diseñador taladraba Ø5, por
+  # donde un M5 no pasa (proyecto del 608ZZ, 2026-11-08).
+  M4_through_mm: 4.5
+  M5_through_mm: 5.5
 
 # Reglas estructurales
 walls:

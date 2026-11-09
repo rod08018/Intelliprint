@@ -600,8 +600,12 @@ class Componente:
                      "alto": c["alto"] + lo + hi,
                      "base": [b - e * lo for b, e in zip(c["base"], c["eje"])]}
             formas.append(barrido(c, d, LARGO))
+        # Las caras de lo que gira (`gira_con`) no se tallan: tallar las de los
+        # dos aros dejaría el rodamiento sin apoyo; cuál se libra lo decide
+        # el diseño, y la sonda lo comprueba.
         formas += [solido({**c, "interior": None})
-                   for c in primitivas(self._ficha, self._en, self._giros, "despejar")]
+                   for c in primitivas(self._ficha, self._en, self._giros, "despejar")
+                   if not c.get("gira_con")]
         forma = formas[0]
         for f in formas[1:]:
             forma = forma.fuse(f)

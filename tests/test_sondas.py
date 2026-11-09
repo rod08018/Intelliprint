@@ -354,11 +354,13 @@ def test_un_componente_que_no_toca_la_pieza_no_cuenta(tmp_path):
 
 RODAMIENTO_EN_SU_EJE = """
 def construir(kit):
-    base = kit.cilindro(30, 2, en=(0, 0, -2))
-    return base + kit.tubo(30, 22, 7) + kit.cilindro(7.6, 15, en=(0, 0, -1))
+    base = kit.cilindro(30, 2, en=(0, 0, -2.6))
+    return base + kit.tubo(30, 22, 7.6, en=(0, 0, -0.6)) + kit.cilindro(7.6, 15, en=(0, 0, -1))
 """
 """Un alojamiento de Ø22 con un eje impreso de Ø7.6 que atraviesa el
-agujero del rodamiento: lo normal en una polea o una ruedita."""
+agujero del rodamiento: lo normal en una polea o una ruedita. La base queda
+0.6 mm por debajo del rodamiento: pegada a él tocaría los dos aros, y uno
+de ellos gira."""
 
 
 def test_el_eje_que_pasa_por_dentro_del_rodamiento_no_choca(tmp_path):
@@ -538,3 +540,26 @@ def test_una_pieza_sin_caras_planas_deja_la_pared_sin_medir(tmp_path):
     [r] = _medir("def construir(kit):\n    return kit.esfera(20)\n",
                  [ParedMinima(tipo="pared_minima", min_mm=0.8)], tmp_path)
     assert r.estado == "sin_medir", r.detalle
+
+
+REBORDE_608 = """
+def construir(kit):
+    rodamiento = kit.componente("608zz", en=(0, 0, 2), entra_por="+z")
+    pieza = kit.cilindro(32, 9).quitar("alojamiento", rodamiento.hueco(holgura="press"))
+    return pieza.taladrar("paso del eje", {d}, en=(0, 0, 0), eje="z")
+"""
+"""Un alojamiento con reborde de 2 mm abajo, como el soporte del 608ZZ."""
+
+
+@pytest.mark.parametrize("taladro, cumple", [(12, False), (16, True)])
+def test_el_reborde_apoya_en_un_solo_aro_del_rodamiento(tmp_path, taladro, cumple):
+    """Proyecto del 608ZZ (2026-11-08): el reborde llevaba un taladro de Ø12
+    y apoyaba en los dos aros. SKF 608-2Z: el aro interior llega a d1 ≈ 12.15
+    y el apoyo del alojamiento a Da max 20, así que un Ø12 roza el aro que
+    gira y un Ø16 apoya solo en el exterior."""
+    from orchestrator.componentes import cargar
+    [cabe] = _medir(REBORDE_608.format(d=taladro), [ComponenteCabe(
+        tipo="componente_cabe", ficha=cargar("608zz").model_dump(), en=[0, 0, 2])], tmp_path)
+    assert (cabe.estado == "cumple") == cumple, cabe.detalle
+    if not cumple:
+        assert "aro interior" in cabe.detalle and "aro exterior" in cabe.detalle

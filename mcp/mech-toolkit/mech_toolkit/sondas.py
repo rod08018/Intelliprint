@@ -431,12 +431,24 @@ def componente_cabe(forma, ficha, en, giros=()):
 
     fallos = []
     cuerpos = primitivas(ficha, en, giros, "cuerpos")
+    tocadas = {}
     for de, que in (("cuerpos", "choca"), ("despejar", "tapa")):
         for p in primitivas(ficha, en, giros, de):
             v = _choca(forma, solido(p))
+            if p.get("gira_con"):
+                # Una cara de algo que puede girar: tocarla es apoyarse en
+                # esa parte, y vale si es la única que se toca.
+                if v > TOL_CHOQUE_MM3:
+                    tocadas.setdefault(p["gira_con"], []).append(f"«{p['nombre']}» {v:.1f} mm³")
+                continue
             if v > TOL_CHOQUE_MM3:
                 porque = f" ({p['porque']})" if de == "despejar" and p["porque"] else ""
                 fallos.append(f"«{p['nombre']}» {que} {v:.1f} mm³{porque}")
+    if len(tocadas) > 1:
+        fallos.append(
+            f"la pieza apoya a la vez en {' y en '.join(sorted(tocadas))} "
+            f"({'; '.join(t for v in tocadas.values() for t in v)}), y uno de los dos gira: "
+            "roza. Apoya solo en el que va fijo y aparta la pieza de las caras del otro")
     if fallos:
         return {"cumple": False, "detalle": f"{ficha.get('nombre', ficha['id'])} no cabe: "
                                             + "; ".join(fallos)}

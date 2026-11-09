@@ -6,7 +6,7 @@ alias: ["608ZZ", "608-2Z", "608 2RS", "608RS", "rodamiento 608", "608 bearing"]
 verificado: false
 fuentes:
   - url: https://www.coolenbearings.com/skf/ball-bearings/deep-groove/608-2z
-    cita: "SKF 608-2Z: d 8 mm, D 22 mm, B 7 mm"
+    cita: "SKF 608-2Z: d 8 mm, D 22 mm, B 7 mm; d1 ≈ 12.15, D2 ≈ 19.2, da max 12, Da max 20"
   - url: https://uk.rubix.com/en/deep-groove-ball-bearing-608-series/p-G1321009950
     cita: "Miniature ball bearing SKF 608-2Z, Outer diameter: 22 mm | Width: 7 mm | Inner diameter: 8 mm"
 marco: >
@@ -18,7 +18,32 @@ cuerpos:
     cilindro: {diametro: 22, interior: 8, alto: 7, eje: "+z"}
     en: [0, 0, 0]
     porque: "es un anillo: por el agujero de 8 pasa el eje"
+# Las caras de los dos aros, medio milímetro hacia fuera. Uno de los dos
+# gira —el interior en un soporte de eje, el exterior en una polea sobre un
+# pasador— y lo que apoye en él roza: la pieza puede tocar las de UN solo
+# aro (`gira_con`). Proyecto del 608ZZ (2026-11-08): un reborde con taladro
+# de Ø12 apoyaba en los dos. SKF 608-2Z: aro interior hasta d1 ≈ 12.15, aro
+# exterior desde D2 ≈ 19.2; se les da 0.4 mm de margen en el radio.
+despejar:
+  - nombre: cara de abajo del aro interior
+    cilindro: {diametro: 13, interior: 8, alto: 0.5, eje: "+z"}
+    en: [0, 0, -0.5]
+    gira_con: aro interior
+  - nombre: cara de arriba del aro interior
+    cilindro: {diametro: 13, interior: 8, alto: 0.5, eje: "+z"}
+    en: [0, 0, 7]
+    gira_con: aro interior
+  - nombre: cara de abajo del aro exterior
+    cilindro: {diametro: 22, interior: 18.4, alto: 0.5, eje: "+z"}
+    en: [0, 0, -0.5]
+    gira_con: aro exterior
+  - nombre: cara de arriba del aro exterior
+    cilindro: {diametro: 22, interior: 18.4, alto: 0.5, eje: "+z"}
+    en: [0, 0, 7]
+    gira_con: aro exterior
 notas: >
   El aro exterior va a presión en un alojamiento de Ø22 (con la holgura de
   «press» del perfil) y el interior en un eje de 8. Si algo apoya en una cara,
-  que apoye solo en el aro que no gira.
+  que apoye solo en el aro que no gira: un reborde en el alojamiento deja un
+  taladro de Ø13 a Ø20 (SKF: el apoyo del alojamiento, Da max 20), y un
+  separador en el eje no pasa de Ø12 (da max 12).

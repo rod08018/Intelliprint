@@ -230,3 +230,13 @@ def test_la_tuerca_en_t_es_del_perfil_y_no_algo_que_buscar():
     assert de_la_ficha("T-nut M5 for 2020 extrusion") == ["perfil-2020"]
     assert de_la_ficha("rodamiento 608ZZ") == ["608zz"]
     assert de_la_ficha("tornillo M5 de 10 mm") == []
+
+
+def test_el_resumen_del_608_dice_que_se_apoya_en_un_solo_aro():
+    """El ingeniero y el diseñador leen la ficha por su resumen: si no dice
+    que uno de los aros gira, dibujan un reborde que toca los dos (proyecto
+    del 608ZZ, 2026-11-08)."""
+    from orchestrator.componentes import resumen
+    texto = resumen(cargar("608zz"))
+    assert "aro interior" in texto and "aro exterior" in texto
+    assert "uno solo" in texto

@@ -12,6 +12,7 @@ para F6.12 (techo).
 """
 
 import math
+import re
 
 TOL_DIAMETRO_MM = 0.05
 """El diámetro tiene que ser el pedido: la trazabilidad ya exige que el
@@ -32,15 +33,50 @@ def _separacion(a: dict, b: dict) -> float:
     return math.sqrt(sum(c * c for c in perpendicular))
 
 
-def defectos(requisitos, rasgos: list[dict]) -> list[str]:
+def _para_tornillo(req, del_perfil: dict) -> tuple[str, list[float]] | None:
+    """Si el requisito nombra un tornillo («dos tornillos M5») y su valor es
+    la métrica, el agujero es el del perfil para ese tornillo, no un Ø5.
+
+    Proyecto del 608ZZ (2026-11-08): «M5» salió como agujero de valor 5, y
+    el bucle exigía un Ø5 por el que el M5 no pasa."""
+    for m in re.findall(r"\bM(\d+(?:[.,]\d+)?)\b", req.texto):
+        if abs(float(m.replace(",", ".")) - req.valor) < 1e-9:
+            metrica = f"M{m.replace(',', '.')}"
+            validos = [float(v) for k, v in del_perfil.items()
+                       if k.startswith(f"{metrica}_") and k.endswith(
+                           ("_through_mm", "_selftap_mm", "_insert_mm"))]
+            return metrica, sorted(validos)
+    return None
+
+
+def defectos(requisitos, rasgos: list[dict], agujeros_del_perfil: dict | None = None
+             ) -> list[str]:
     agujeros = [r for r in rasgos if r.get("tipo") == "agujero"]
     hay = sorted({round(a["diametro_mm"], 2) for a in agujeros})
     fallos = []
     for req in requisitos:
         if req.tipo != "agujero" or req.valor is None or req.unidad != "mm":
             continue
-        iguales = [a for a in agujeros if abs(a["diametro_mm"] - req.valor) <= TOL_DIAMETRO_MM]
         pedidos = req.cantidad or 1
+        tornillo = _para_tornillo(req, agujeros_del_perfil or {})
+        if tornillo:
+            metrica, validos = tornillo
+            iguales = [a for a in agujeros
+                       if any(abs(a["diametro_mm"] - v) <= TOL_DIAMETRO_MM for v in validos)]
+            if len(iguales) < pedidos:
+                como = (f"Ø{validos[0]:g}" if len(validos) == 1
+                        else " o ".join(f"Ø{v:g}" for v in validos))
+                fallos.append(
+                    f"{req.id} («{req.texto}»): pide {pedidos} agujero(s) para un {metrica}, "
+                    f"que en esta impresora es {como if validos else '(el perfil no lo tiene)'}, "
+                    f"y hay {len(iguales)}. Diámetros de agujero en la pieza: "
+                    f"{', '.join(f'Ø{d:g}' for d in hay) or 'ninguno'}. Hazlos con "
+                    f'`tornillo("{metrica}", ...)`, que pone el diámetro del perfil: un agujero '
+                    f"de Ø{req.valor:g} es el del tornillo, y no pasa")
+                continue
+        else:
+            iguales = [a for a in agujeros
+                       if abs(a["diametro_mm"] - req.valor) <= TOL_DIAMETRO_MM]
         if len(iguales) < pedidos:
             fallos.append(
                 f"{req.id} («{req.texto}»): pide {pedidos} agujero(s) de Ø{req.valor:g} y hay "
@@ -111,14 +147,15 @@ def componentes_sin_colocar(componentes, rasgos) -> list[str]:
 
 
 def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
-                         material: dict, componentes=(), pared_min_mm=None) -> list[str]:
+                         material: dict, componentes=(), pared_min_mm=None,
+                         agujeros_del_perfil=None) -> list[str]:
     """Lo que la pieza construida no cumple: agujeros (con los rasgos del
     kit), componentes que no caben o no entran, y sondas sobre el STEP. Los
     de acabado van con su prefijo."""
     from orchestrator.banco import (AristasVivas, ComponenteCabe, ComponenteEntra,
                                     ParedMinima, medir_sondas)
 
-    fallos = defectos(requisitos, resultado.rasgos)
+    fallos = defectos(requisitos, resultado.rasgos, agujeros_del_perfil)
     fallos += componentes_sin_colocar(componentes, resultado.rasgos)
     sondas = sondas_de(requisitos, resultado.rasgos, pared_min_mm)
     for sonda, medida in zip(sondas, medir_sondas(step, sondas, freecadcmd, material)):

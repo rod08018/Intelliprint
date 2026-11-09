@@ -160,3 +160,13 @@ def test_el_banco_con_su_propio_workspace_lamina_lo_que_hay_en_el_host(puente):
     laminar(Path("/workspace/banco/1105/01/projects/x/cubo.stl"),
             Path("/workspace/banco/1105/01/projects/x/cubo.gcode"))
     assert puente.recibido["stl"] == HOST + r"\banco\1105\01\projects\x\cubo.stl"
+
+
+def test_un_puente_apagado_es_un_laminado_fallido_que_dice_como_arrancarlo():
+    """Proyecto del 608ZZ (2026-11-08): el PC se había reiniciado, nadie
+    arrancó el puente, y la excepción de red tumbó el proceso con la pieza
+    ya construida: sin informe y sin decir qué hacer."""
+    laminar = elegir_laminador(Path("."), {
+        "PRUSASLICER_BRIDGE": "http://127.0.0.1:9/mcp", "HOST_WORKSPACE": HOST})
+    with pytest.raises(LaminadoFallido, match="start-host-mcps"):
+        laminar(Path("/workspace/p/cubo.stl"), Path("/workspace/p/cubo.gcode"))

@@ -77,6 +77,7 @@ def _disenar_con_kit(raiz: Path, env: dict, cliente):
                                   reserva=cliente)
     material = perfil_activo(raiz).datos["resistencia"]
     pared_min = (perfil_activo(raiz).datos.get("walls") or {}).get("min_mm")
+    agujeros = perfil_activo(raiz).datos.get("holes") or {}
 
     def disenar(spec, carpeta, part, concepto=None):
         # F6.7 (lazo): lo que la pieza construida no cumple de los requisitos
@@ -90,7 +91,7 @@ def _disenar_con_kit(raiz: Path, env: dict, cliente):
         def requisitos_medidos(resultado):
             return "\n".join(defectos_de_la_pieza(
                 spec.requisitos, resultado, Path(carpeta) / f"{part}.step", freecad,
-                material, componentes, pared_min)) or None
+                material, componentes, pared_min, agujeros)) or None
 
         return design_and_build(
             disenador, spec_to_task(spec, concepto).brief, None, carpeta,

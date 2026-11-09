@@ -107,3 +107,39 @@ def test_con_el_minimo_del_perfil_el_bucle_mide_la_pared_mas_fina():
     from orchestrator.medida import sondas_de
     [p] = [s for s in sondas_de([], [], pared_min_mm=0.8) if isinstance(s, ParedMinima)]
     assert p.min_mm == 0.8
+
+
+# --- «M5» es un tornillo, no un diámetro --------------------------------------------
+# Proyecto del 608ZZ (2026-11-08): «dos tornillos M5 separados 20 mm» salió
+# como requisito `agujero` de valor 5, y el bucle exigía un agujero de Ø5 por
+# el que un M5 no pasa (un agujero FDM sale aún más pequeño). El agujero para
+# un M5 es el pasante del perfil; la ISO 273 da 5.5 en la serie media.
+AGUJEROS = {"M3_through_mm": 3.3, "M3_selftap_mm": 2.8, "M5_through_mm": 5.5}
+
+
+def _m5(**kw):
+    return _req(5.0, 2, [20.0], id="R4", texto="dos tornillos M5 separados 20 mm", **kw)
+
+
+def test_el_agujero_de_un_m5_es_el_pasante_del_perfil():
+    rasgos = [_agujero("a", 5.5, -10, 0), _agujero("b", 5.5, 10, 0)]
+    assert defectos([_m5()], rasgos, AGUJEROS) == []
+
+
+def test_un_agujero_de_5_para_un_m5_es_un_defecto_y_dice_como_hacerlo():
+    rasgos = [_agujero("a", 5.0, -10, 0), _agujero("b", 5.0, 10, 0)]
+    [d] = defectos([_m5()], rasgos, AGUJEROS)
+    assert "Ø5.5" in d and 'tornillo("M5"' in d
+
+
+def test_la_rosca_directa_tambien_vale_para_un_tornillo():
+    rasgos = [_agujero("a", 2.8, 0, 0), _agujero("b", 2.8, 20, 0)]
+    req = _req(3.0, 2, [20.0], texto="dos tornillos M3 a 20 mm")
+    assert defectos([req], rasgos, AGUJEROS) == []
+
+
+def test_un_diametro_que_no_es_la_metrica_se_sigue_midiendo_literal():
+    """«agujeros de 3.3 para M3»: el 3.3 lo escribió el usuario."""
+    rasgos = [_agujero("a", 3.3, 0, 0)]
+    req = _req(3.3, 1, texto="agujero de 3.3 mm para un M3")
+    assert defectos([req], rasgos, AGUJEROS) == []

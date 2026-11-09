@@ -138,7 +138,7 @@ def elegir_laminador(raiz: Path, env) -> "Callable[[Path, Path], SlicingReport]"
             stl, catalogo / perfil, salida, ajustes=ajustes_de_uso(uso, catalogo))
 
     from orchestrator.hostpaths import a_ruta_del_host
-    from orchestrator.mcp.client import ClienteMCP
+    from orchestrator.mcp.client import ClienteMCP, PuenteInalcanzable
 
     # La carpeta MONTADA, no el workspace lógico de esta ejecución: el banco
     # da a cada encargo `/workspace/banco/<corrida>/01`, y traduciendo desde
@@ -155,7 +155,28 @@ def elegir_laminador(raiz: Path, env) -> "Callable[[Path, Path], SlicingReport]"
         # tabla. Y solo si no es «general», para que un puente sin
         # reiniciar siga laminando lo de siempre.
         extra = {"uso": uso} if uso != "general" else {}
-        respuesta = cliente.llamar(
+        try:
+            respuesta = _llamar(**extra, stl=stl, salida=salida)
+        except PuenteInalcanzable as e:
+            # Proyecto del 608ZZ (2026-11-08): el PC se había reiniciado, nadie
+            # arrancó el puente y la excepción de red tumbó el proceso con la
+            # pieza construida, sin informe ni pista de qué hacer.
+            raise LaminadoFallido(
+                f"{e}. El PrusaSlicer del host no está escuchando: arráncalo en el PC "
+                "con `powershell -ExecutionPolicy Bypass -File scripts\\start-host-mcps.ps1`"
+            ) from e
+        if not respuesta.get("ok"):
+            # Traducirlo aquí: dejar pasar el diccionario reventaría más
+            # tarde con un KeyError que no dice qué falló.
+            raise LaminadoFallido(
+                respuesta.get("error") or "el host no dijo por qué falló"
+            )
+        return SlicingReport(**{
+            c: respuesta[c] for c in SlicingReport.model_fields if c in respuesta
+        })
+
+    def _llamar(stl, salida, **extra):
+        return cliente.llamar(
             herramienta,
             **extra,
             # as_posix() y no str(): la ruta del contenedor es POSIX
@@ -168,14 +189,5 @@ def elegir_laminador(raiz: Path, env) -> "Callable[[Path, Path], SlicingReport]"
             # (/app/config/…) allí no existe.
             perfil=perfil,
         )
-        if not respuesta.get("ok"):
-            # Traducirlo aquí: dejar pasar el diccionario reventaría más
-            # tarde con un KeyError que no dice qué falló.
-            raise LaminadoFallido(
-                respuesta.get("error") or "el host no dijo por qué falló"
-            )
-        return SlicingReport(**{
-            c: respuesta[c] for c in SlicingReport.model_fields if c in respuesta
-        })
 
     return laminar

@@ -59,7 +59,8 @@ def primitivas(ficha, en=(0, 0, 0), giros=(), de="cuerpos") -> list[dict]:
     diametro, alto}."""
     salida = []
     for c in _ficha(ficha).get(de) or []:
-        base = {"nombre": c["nombre"], "porque": c.get("porque") or ""}
+        base = {"nombre": c["nombre"], "porque": c.get("porque") or "",
+                "gira_con": c.get("gira_con") or ""}
         if c.get("caja"):
             x, y, z = c["caja"]
             o = c["en"]

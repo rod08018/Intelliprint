@@ -50,6 +50,11 @@ class Cuerpo(BaseModel):
     cilindro: Cilindro | None = None
     en: list[float]
     porque: str = ""
+    gira_con: str = ""
+    """Solo en `despejar`: la cara de una parte que puede girar (un aro del
+    rodamiento). La pieza puede tocar las zonas de una sola de esas partes,
+    la que va fija; cuál es depende del uso. Proyecto del 608ZZ (2026-11-08):
+    el reborde apoyaba en los dos aros."""
 
     @model_validator(mode="after")
     def _una_forma(self):
@@ -173,10 +178,17 @@ def resumen(ficha: Ficha) -> str:
         "Lo que choca:",
         *(f"- {c.nombre}: {_forma(c)}" + (f" ({c.porque})" if c.porque else "")
           for c in ficha.cuerpos)]
-    if ficha.despejar:
+    libres = [c for c in ficha.despejar if not c.gira_con]
+    if libres:
         lineas += ["Lo que hay que dejar libre:",
                    *(f"- {c.nombre}: {_forma(c)}" + (f" ({c.porque})" if c.porque else "")
-                     for c in ficha.despejar)]
+                     for c in libres)]
+    giran = [c for c in ficha.despejar if c.gira_con]
+    if giran:
+        partes = sorted({c.gira_con for c in giran})
+        lineas += [f"Uno de estos gira: {', '.join(partes)}. La pieza apoya en uno solo, "
+                   "el que va fijo, y deja libres las caras del otro:",
+                   *(f"- {c.nombre}: {_forma(c)}" for c in giran)]
     if ficha.fijacion:
         lineas += ["Agujeros de fijación:",
                    *(f"- {h.nombre}: Ø{_g(h.diametro)} en ({', '.join(_g(v) for v in h.en)}), "
