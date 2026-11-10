@@ -235,7 +235,7 @@ def test_un_proyecto_de_varias_piezas_se_pide_desde_la_portada(tmp_path):
 
 # --- el conjunto, moviéndolo (F7.4 (conjunto)) ---------------------------------------------
 
-def _conjunto_movido(ws, ok):
+def _conjunto_movido(ws, ok, correcciones=None):
     from orchestrator.schemas.obra import Obra
     from tests.test_obra import PANTILT
     carpeta = ws / "projects" / ID
@@ -255,6 +255,7 @@ def _conjunto_movido(ws, ok):
     (carpeta / "nodos" / "pan-tilt").mkdir()
     (carpeta / "nodos" / "pan-tilt" / "verificacion.json").write_text(json.dumps({
         "ok": ok, "resumen": [] if ok else [choque], "choques": [],
+        "correcciones": correcciones or {},
         "articulaciones": [
             {"pieza": "giro", "padre": "base", "de": "sg90", "recorrido": [-90, 90]},
             {"pieza": "inclinacion", "padre": "giro", "de": "sg90", "recorrido": [-90, 90]}]}),
@@ -298,3 +299,67 @@ def test_lo_que_espera_tu_visto_bueno_no_se_lanza_desde_arriba(tmp_path):
     web = _ws_con_trabajos(tmp_path)
     assert "data-seguir=" not in web.get(f"/p/{ID}").text
     assert web.post(f"/api/proyectos/{ID}/seguir", json={}).status_code == 409
+
+
+# --- lo que se ve (F7.6 (animacion)) ---------------------------------------------------------
+
+def test_el_conjunto_se_ve_moverse_en_su_tarjeta_y_arriba(tmp_path):
+    """El pan-tilt del 9 de noviembre «se movía entero sin chocar» y arriba
+    salían sus tres piezas tiradas una al lado de otra: nadie lo vio
+    moverse. Arriba va la animación de la obra; en la tarjeta, la suya."""
+    _conjunto_movido(tmp_path, ok=True)
+    carpeta = tmp_path / "projects" / ID
+    for gif in (carpeta / "nodos" / "pan-tilt" / "animation.gif", carpeta / "animation.gif"):
+        gif.write_bytes(b"GIF89a")
+    web = _ws_con_trabajos(tmp_path)
+    html = web.get(f"/p/{ID}").text
+    assert f'src="/proyectos/{ID}/nodos/pan-tilt/animation.gif"' in html
+    assert f'<img src="/proyectos/{ID}/animation.gif"' in html
+    r = web.get(f"/proyectos/{ID}/nodos/pan-tilt/animation.gif")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/gif"
+    assert web.get(f"/proyectos/{ID}/nodos/no-existe/animation.gif").status_code == 404
+
+
+def test_el_conjunto_que_choca_ofrece_corregir_la_pieza_que_lo_causa(tmp_path):
+    """La corrección viene escrita (F7.7 (culpable)); la persona la lee, la
+    cambia si quiere y la manda. La web no corrige nada sola."""
+    _conjunto_movido(tmp_path, ok=False,
+                     correcciones={"inclinacion": "Choca al moverse: despégala 2 mm."})
+    html = _ws_con_trabajos(tmp_path).get(f"/p/{ID}").text
+    # El de su tarjeta del conjunto; la tarjeta de la pieza tiene el suyo, vacío.
+    formularios = re.findall(r'<form class="cambiar-pieza" data-rehacer="inclinacion"[^>]*>'
+                             r'(.*?)</form>', html, re.S)
+    escrito = [f for f in formularios if "con esto" in f]
+    assert len(escrito) == 1, formularios
+    assert "Choca al moverse: despégala 2 mm.</textarea>" in escrito[0]
+    assert "Corregir «Soporte de inclinación» con esto" in escrito[0]
+
+
+def test_lo_corregido_se_lee_en_una_frase_y_el_resto_se_despliega(tmp_path):
+    """La plataforma del pan-tilt enseñaba un párrafo de doce líneas bajo
+    «Corregida»: la tarjeta era un muro de texto."""
+    carpeta = _empezar(tmp_path, aprobada=True)
+    _disenar_nodo(carpeta, "base")
+    (carpeta / "nodos" / "base" / "parts" / "base" / "programa.py").write_text(
+        "CODIGO", encoding="utf-8")
+    O.corregir(carpeta, "base", cambio="Sube la placa 19 mm. Quita la columna. Lo demás igual.")
+    _disenar_nodo(carpeta, "base")
+    html = _ws_con_trabajos(tmp_path).get(f"/p/{ID}").text
+    assert re.search(r"<b>Corregida:</b> Sube la placa 19 mm\.</p>\s*<details>", html), html
+    assert "Quita la columna. Lo demás igual.</details>" in html
+
+
+def test_lo_de_una_pieza_ya_lista_va_plegado(tmp_path):
+    """«Impresa y probada» y «Corregir» en cada tarjeta: en las que ya están
+    listas van bajo «Más», y abiertos solo en la que toca."""
+    carpeta = _empezar(tmp_path, aprobada=True)
+    _disenar_nodo(carpeta, "base")
+    O.dar_por_lista(carpeta, "base", por="prueba")
+    _disenar_nodo(carpeta, "giro")
+    html = _ws_con_trabajos(tmp_path).get(f"/p/{ID}").text
+    tarjetas = html.split('<div class="pieza nodo"')
+    [base] = [t for t in tarjetas if 'data-impresa="base"' in t]
+    [giro] = [t for t in tarjetas if 'data-lista="giro"' in t]
+    assert re.search(r'<details class="mas"><summary>Más</summary>\s*'
+                     r'<form class="cambiar-pieza" data-impresa="base"', base), base
+    assert '<details class="mas">' not in giro

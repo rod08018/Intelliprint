@@ -215,6 +215,7 @@ def galeria(grupos: list[dict], workspace: Path, hay_puente: bool, puede_pedir: 
   <header class="barra">
     <a class="marca" href="/">Intelliprint</a>
     <input id="buscar" type="search" placeholder="Buscar" aria-label="Buscar proyectos">
+    <a class="btn" href="/banco">Banco</a>
     <a class="btn" href="/impresora">Impresora</a>
     <button class="btn pri" id="abrir-nuevo">＋ Nuevo diseño</button>
   </header>
@@ -561,12 +562,24 @@ def _arbol(carpeta: Path, vid: str, bloqueo: str, hay_puente: bool) -> tuple[str
         retoque = _leer(dir_nodo / "retoque.json")
         if retoque and retoque.get("cambio"):
             rotulo = "Se corrige" if estado == "corrigiendo" else "Corregida"
-            partes.append(f'<p class="corregida"><b>{rotulo}:</b> {e(retoque["cambio"])}</p>')
+            # La primera frase, y el resto desplegable: la de la plataforma
+            # del pan-tilt eran doce líneas y la tarjeta era un muro de texto.
+            primera, resto = _primera_frase(retoque["cambio"])
+            mas = f"<details><summary>Ver todo</summary>{e(resto)}</details>" if resto else ""
+            partes.append(f'<p class="corregida"><b>{rotulo}:</b> {e(primera)}</p>{mas}')
         for stl in piezas_de(dir_nodo):
             partes.insert(0, f'<div class="foto-pieza"><img src="/proyectos/{vid}/piezas/'
                              f'{e(stl.stem)}.png" alt="{e(n.nombre)}" loading="lazy"></div>')
         if n.tipo == "conjunto" and estado in ("verificado", "con choques"):
-            partes.append(_movimiento(ob, _leer(dir_nodo / "verificacion.json") or {}))
+            # F7.6 (animacion): moviéndose, con lo que choca en rojo.
+            if (dir_nodo / "animation.gif").is_file():
+                partes.insert(0, f'<div class="foto-pieza"><img src="/proyectos/{vid}/nodos/'
+                                 f'{e(i)}/animation.gif" alt="{e(n.nombre)} moviéndose" '
+                                 'loading="lazy"></div>')
+            verificacion = _leer(dir_nodo / "verificacion.json") or {}
+            partes.append(_movimiento(ob, verificacion))
+            if estado == "con choques":
+                partes.append(_corregir_choques(ob, vid, verificacion, bloqueo))
         if estado == "concepto por aprobar":
             partes.append(_revision_del_concepto(dir_nodo, _visto_bueno(vid, bloqueo)))
         if estado == "con fallos":
@@ -582,12 +595,15 @@ def _arbol(carpeta: Path, vid: str, bloqueo: str, hay_puente: bool) -> tuple[str
                 f'<button class="btn" data-abrir="{vid}" data-nodo="{e(i)}"{sin_puente}>'
                 'Abrir en PrusaSlicer</button></div>')
         marca = O.lista(carpeta, i)
+        # Lo que no es lo que toca ahora va plegado bajo «Más»: «Impresa y
+        # probada» y «Corregir» en cada tarjeta hacían un muro de botones.
+        extra = []
         if marca:
             if marca.get("impresa"):
                 nota = f": {e(marca['nota'])}" if marca.get("nota") else ""
                 partes.append(f'<p class="impresa">✓ Impresa y probada{nota}</p>')
             else:
-                partes.append(
+                extra.append(
                     f'<form class="cambiar-pieza" data-impresa="{e(i)}" data-proyecto-obra="{vid}">'
                     f'<input name="nota" placeholder="Cómo entró (opcional)" '
                     f'aria-label="Nota de la prueba de {e(n.nombre)}">'
@@ -597,7 +613,7 @@ def _arbol(carpeta: Path, vid: str, bloqueo: str, hay_puente: bool) -> tuple[str
             arrastra = [ob.nodo(d).nombre for d in ob.dependientes(i)
                         if (carpeta / O.NODOS / d).exists()]
             aviso = f" (se rehace también {', '.join(arrastra)})" if arrastra else ""
-            partes.append(
+            extra.append(
                 f'<form class="cambiar-pieza" data-rehacer="{e(i)}" data-proyecto-obra="{vid}">'
                 # Un textarea: el cambio de la brida del pan-tilt eran tres
                 # frases, y en una línea no se leía lo que se escribía.
@@ -607,10 +623,38 @@ def _arbol(carpeta: Path, vid: str, bloqueo: str, hay_puente: bool) -> tuple[str
                 f'<button class="btn"{bloqueo}>Corregir</button></form>'
                 + (f'<p class="nota-grupo">Cambiarla deshace también {e(", ".join(arrastra))}: '
                    'se diseñó contra esta.</p>' if arrastra else ""))
+        if extra and i != siguiente and estado not in ("diseñada", "con fallos"):
+            partes.append('<details class="mas"><summary>Más</summary>' + "".join(extra)
+                          + "</details>")
+        else:
+            partes.extend(extra)
         actual = ' aria-current="step"' if i == siguiente else ""
         tarjetas.append(f'<div class="pieza nodo"{actual}>{"".join(partes)}</div>')
     return arriba, (f'<section><h2>Las piezas, una a una</h2>'
                     f'<div class="piezas arbol">{"".join(tarjetas)}</div></section>')
+
+
+def _primera_frase(texto: str) -> tuple[str, str]:
+    m = re.match(r"(.+?[.!?])\s+(\S.*)", texto.strip(), re.S)
+    return (m.group(1), m.group(2)) if m else (texto.strip(), "")
+
+
+def _corregir_choques(ob, vid: str, v: dict, bloqueo: str) -> str:
+    """Un formulario por pieza que causa un choque, con su corrección ya
+    escrita (F7.7 (culpable)). La persona la lee, la cambia si quiere y la
+    manda: la web no corrige nada sola."""
+    formularios = []
+    for nodo, texto in (v.get("correcciones") or {}).items():
+        try:
+            nombre = ob.nodo(nodo).nombre
+        except KeyError:
+            continue
+        formularios.append(
+            f'<form class="cambiar-pieza" data-rehacer="{e(nodo)}" data-proyecto-obra="{vid}">'
+            f'<textarea name="cambio" rows="5" aria-label="Qué cambiar de {e(nombre)}"{bloqueo}>'
+            f'{e(texto)}</textarea>'
+            f'<button class="btn pri"{bloqueo}>Corregir «{e(nombre)}» con esto</button></form>')
+    return "".join(formularios)
 
 
 def _movimiento(ob, v: dict) -> str:
@@ -638,7 +682,9 @@ def _movimiento(ob, v: dict) -> str:
 
 
 def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
-             puede_pedir: bool, ocupado: bool) -> str:
+             puede_pedir: bool, ocupado: bool, del_banco: str = "") -> str:
+    """`del_banco`: la corrida del banco de la que es; entonces se mira sin
+    tocarlo (ver `banco`)."""
     versiones = g["versiones"]
     v = next((x for x in versiones if x["id"] == elegida), None) or \
         next(x for x in versiones if x["id"] == g["mejor"])
@@ -777,7 +823,7 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
     opciones = "".join(f'<option value="{e(c)}"{" selected" if c == categoria else ""}>{e(c.capitalize())}</option>'
                        for c in CATEGORIAS)
     cuerpo = f"""
-  <header class="barra"><a class="volver" href="/">← Proyectos</a><span class="estado-puente">{_puente(hay_puente)}</span></header>
+  <header class="barra"><a class="volver" href="{"/banco" if del_banco else "/"}">← {"Banco" if del_banco else "Proyectos"}</a><span class="estado-puente">{_puente(hay_puente)}</span></header>{_aviso_del_banco(del_banco)}
   <main class="proyecto" data-proyecto="{raiz}" data-version="{vid}">
     <div class="cabeza{" sin-visor" if revisando and not imagen else ""}">
       {visor}
@@ -796,6 +842,38 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
     <details class="tecnico" data-version="{vid}"><summary>Detalles técnicos</summary><div class="contenido"></div></details>
   </main>"""
     return _documento(f"{nombre} · Intelliprint", cuerpo, GUION_PROYECTO)
+
+
+def _aviso_del_banco(corrida: str) -> str:
+    if not corrida:
+        return ""
+    return (f'<p class="del-banco">Del banco, corrida {e(corrida)}: es una medida del sistema, '
+            'no un proyecto tuyo. Se mira y se baja, pero no se toca.</p>')
+
+
+# --- El banco (F7.6 (animacion)) ---------------------------------------------------
+
+
+def banco(corridas: list[dict], hay_puente: bool) -> str:
+    """Cada corrida del banco con su nota y la de cada encargo, enlazado a su
+    proyecto. La ronda de arreglos del 2026-11-10 no se veía en ninguna
+    parte de la web: el banco escribe en `workspace/banco/`."""
+    filas = []
+    for c in corridas:
+        encargos = "".join(
+            f'<li><a href="/p/{e(x["proyecto"])}">{e(x["nombre"])}</a> <b>{e(x["nota"])}</b></li>'
+            if x["proyecto"] else f'<li>{e(x["nombre"])} <b>{e(x["nota"])}</b></li>'
+            for x in c["encargos"])
+        filas.append(f'<section class="corrida"><h2>{e(c["id"])} <span class="nota-banco">'
+                     f'{e(c["nota"])}</span></h2><p class="suave">{e(c["informe"])}</p>'
+                     f'<ul class="encargos">{encargos}</ul></section>')
+    vacio = "" if corridas else '<p class="vacio">Todavía no hay ninguna corrida del banco.</p>'
+    return _documento("Banco · Intelliprint", f"""
+  <header class="barra"><a class="volver" href="/">← Proyectos</a><span class="estado-puente">{_puente(hay_puente)}</span></header>
+  <main class="banco"><h1>El banco</h1>
+    <p class="lead">Lo que mide si el sistema mejora: encargos fijos, juzgados sin el propio
+    sistema. Cada encargo abre su proyecto para verlo.</p>
+    {"".join(filas)}{vacio}</main>""", "")
 
 
 def _puente(hay_puente: bool) -> str:

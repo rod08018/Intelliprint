@@ -834,10 +834,25 @@ def rejuzgar(encargos: list[Encargo], corrida: Path, freecadcmd: str,
     return resultados, fallos
 
 
+def correcciones_del_conjunto(proyecto: Path) -> dict[str, str]:
+    """Lo que la verificación del primer conjunto que choca le pide a cada
+    pieza que lo causa (F7.7 (culpable)), en el orden de la obra."""
+    from orchestrator import obra
+    from orchestrator.conjunto import VERIFICACION
+    proyecto = Path(proyecto)
+    for i, estado in obra.estados(proyecto).items():
+        if estado == "con choques":
+            v = json.loads((proyecto / obra.NODOS / i / VERIFICACION).read_text(encoding="utf-8"))
+            return v.get("correcciones") or {}
+    return {}
+
+
 def nodo_a_rehacer(proyecto: Path) -> str | None:
     """La primera pieza, en orden, que no salió bien: sin construir, o dada
-    por lista por el banco con defectos. Un conjunto que choca no dice qué
-    pieza lo causa, y no se elige una a ciegas: None."""
+    por lista por el banco con defectos. Si todas salieron y el conjunto
+    choca, la primera que lo causa: hasta el 2026-11-10 el banco se paraba
+    ahí porque «un choque no dice qué pieza lo causa», y el pan-tilt 1110-0313
+    se quedó con sus tres piezas bien y sin moverse entero."""
     from orchestrator import obra
     proyecto = Path(proyecto)
     arbol = obra.cargar_obra(proyecto)
@@ -845,7 +860,7 @@ def nodo_a_rehacer(proyecto: Path) -> str | None:
         if estado in ("verificado", "bloqueado"):
             continue
         if arbol.nodo(i).tipo == "conjunto":
-            return None
+            return next(iter(correcciones_del_conjunto(proyecto)), None)
         informe = proyecto / obra.NODOS / i / "pieza_report.json"
         if estado == "lista" and informe.is_file() and json.loads(
                 informe.read_text(encoding="utf-8")).get("resuelto"):
@@ -863,6 +878,7 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
     lo diseñado contra ella, se archivan (`obra.rehacer`), no se borran."""
     from orchestrator import obra
     from orchestrator.build import carpeta_libre
+    from orchestrator.pieza import CAMBIOS
     for i, e in enumerate(encargos, 1):
         carpeta = Path(corrida) / f"{i:02d}"
         hecho = next(carpeta.glob(f"projects/*/{obra.OBRA}"), None) if e.obra else None
@@ -870,7 +886,19 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
         if nodo is None:
             continue
         proyecto = hecho.parent
-        obra.rehacer(proyecto, nodo)
+        correcciones = correcciones_del_conjunto(proyecto)
+        if nodo in correcciones and obra.programa_construido(proyecto, nodo):
+            # Se corrige la pieza que hay, como la corrigió la persona en la
+            # web el 9 de noviembre. Las otras que chocan se diseñaron contra
+            # ella y se rehacen: su corrección va apuntada para el ingeniero.
+            for otro in obra.corregir(proyecto, nodo, correcciones[nodo])[1:]:
+                if otro in correcciones:
+                    cambios = proyecto / obra.NODOS / otro / CAMBIOS
+                    cambios.parent.mkdir(parents=True, exist_ok=True)
+                    with cambios.open("a", encoding="utf-8") as f:
+                        f.write(correcciones[otro].strip() + "\n")
+        else:
+            obra.rehacer(proyecto, nodo)
         salida = carpeta / "salida.txt"
         if salida.exists():
             salida.rename(carpeta_libre(carpeta / "salida-anterior.txt"))

@@ -220,8 +220,12 @@ def test_rehacer_un_nodo_archiva_tambien_lo_que_se_diseno_contra_el(tmp_path):
     _disenar_nodo(tmp_path, "base")
     O.dar_por_lista(tmp_path, "base", por="web")
     _disenar_nodo(tmp_path, "giro")
+    # La animación de la obra entera (F7.6 (animacion)) ya no es de lo que hay.
+    (tmp_path / "animation.gif").write_bytes(b"GIF89a")
 
     rehechos = O.rehacer(tmp_path, "base", cambio="más alta")
+    assert not (tmp_path / "animation.gif").exists()
+    assert list((tmp_path / "archivo").rglob("animation.gif"))
     assert rehechos == ["base", "giro"]
     assert O.estados(tmp_path) == {"base": "pendiente", "giro": "bloqueado",
                                    "inclinacion": "bloqueado"}
@@ -280,8 +284,11 @@ def test_corregir_una_pieza_disenada_parte_de_ella_y_no_de_cero(tmp_path):
     (nodo / "spec.yaml").write_text("title: base\n", encoding="utf-8")
     O.dar_por_lista(tmp_path, "base", por="web")
     _disenar_nodo(tmp_path, "giro")
+    (tmp_path / "animation.gif").write_bytes(b"GIF89a")
 
     rehechos = O.corregir(tmp_path, "base", cambio="la tuerca, 2 mm más adentro")
+    assert list((tmp_path / "archivo").rglob("animation.gif"))
+    assert not (tmp_path / "animation.gif").exists()
 
     assert rehechos == ["base", "giro"]
     for queda in ("spec.yaml", "concepto.json", "concepto_aprobado"):

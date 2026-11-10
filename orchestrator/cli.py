@@ -346,7 +346,11 @@ def _animar(args, raiz: Path, env: dict, nombre: str) -> None:
     from orchestrator.mechanisms.spec_layout import SpecLayout
     from orchestrator.schemas.mechanism import MechanismSpec
 
+    from orchestrator import obra
+
     carpeta = Path(args.carpeta)
+    if obra.es_obra(carpeta):
+        return _animar_obra(carpeta, raiz, env, nombre)
     spec = MechanismSpec.model_validate_json((carpeta / "mechanism.json").read_text(encoding="utf-8"))
     perfil = _perfil(raiz, env).impresora
     informe = build_mechanism(
@@ -355,6 +359,24 @@ def _animar(args, raiz: Path, env: dict, nombre: str) -> None:
     print(f"[{nombre}] {spec.title}")
     print(f"  ensamble:  {informe.assembly}")
     print(f"  animación: {informe.animation}")
+
+
+def _animar_obra(carpeta: Path, raiz: Path, env: dict, nombre: str) -> None:
+    """Vuelve a mover cada conjunto ya verificado, ahora con su animación
+    (F7.6 (animacion)). Las obras verificadas antes no tenían ninguna."""
+    from orchestrator import conjunto, obra
+    from orchestrator.build import carpeta_libre
+    holgura = _perfil(raiz, env).impresora.fit_mm("slide") / 2
+    for i, estado in obra.estados(carpeta).items():
+        if estado not in ("verificado", "con choques"):
+            continue
+        anterior = carpeta / obra.NODOS / i / conjunto.VERIFICACION
+        # Copia y no mueve: si se corta a medias, el conjunto sigue verificado
+        # (pasó con el pan-tilt del banco, 2026-11-10).
+        shutil.copy2(anterior, carpeta_libre(anterior.with_name("verificacion-anterior.json")))
+        v = conjunto.verificar_conjunto(carpeta, i, _freecadcmd(env), min_gap_mm=holgura)
+        print(f"[{nombre}] «{i}»: {'se mueve sin chocar' if v['ok'] else 'choca al moverse'}")
+        print(f"  animación: {carpeta / obra.NODOS / i / 'animation.gif'}")
 
 
 def _proyectos(args, raiz: Path, env: dict, nombre: str) -> None:

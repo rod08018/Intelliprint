@@ -21,8 +21,8 @@ import json
 import pytest
 
 from mech_toolkit.geometry import _rotacion
-from orchestrator.conjunto import (_angulos_freecad, _rodrigues, articulaciones, leer_piezas,
-                                   verificar_conjunto)
+from orchestrator.conjunto import (Articulacion, _angulos_freecad, _rodrigues, articulaciones,
+                                   chocan_en, fotogramas, leer_piezas, verificar_conjunto)
 from orchestrator.build import build_part
 from orchestrator.schemas.programa import Programa
 from tests.test_generators import _freecadcmd
@@ -120,6 +120,72 @@ def test_una_pieza_que_no_toca_el_eje_va_fija(tmp_path):
     assert articulaciones(leer_piezas(carpeta, "conjunto")) == []
 
 
+def test_la_polea_gira_con_el_rodamiento_del_soporte(tmp_path):
+    """La petición del banco: «una polea impresa que gira en ese rodamiento».
+    Sin salida en la ficha del 608ZZ el conjunto solo se comprobaba en
+    reposo, y el banco lo daba por «sin medir» (1110-0313). El 608ZZ va en
+    (0, 0, 5) del soporte con su eje en z; la polea colocó el soporte en
+    (0, 0, -12), así que el eje pasa por (0, 0, -7) de la polea, que está
+    dentro de su caja. Un rodamiento gira libre: la vuelta entera."""
+    rodamiento = {"nombre": "608zz", "tipo": "componente", "ficha": "608zz", "en": [0, 0, 5],
+                  "giros": [], "entra_por": "+z"}
+    carpeta = _obra(tmp_path, {
+        "soporte": ([], [rodamiento], ([-20, -20, 0], [20, 20, 12])),
+        "polea": (["soporte"], [_sobre("soporte", (0, 0, -12))], ([-15, -15, -7], [15, 15, 10])),
+    })
+    [a] = articulaciones(leer_piezas(carpeta, "conjunto"))
+    assert (a.pieza, a.padre, a.de) == ("polea", "soporte", "608zz")
+    assert a.punto == pytest.approx([0, 0, 5])
+    assert a.eje == pytest.approx([0, 0, 1])
+    assert a.recorrido == (0, 360)
+
+
+# --- Lo que se ve: la animación del conjunto ------------------------------------------------
+
+def _art(pieza, recorrido):
+    return Articulacion(pieza, "base", "sg90", [0, 0, 0], [0, 0, 1], recorrido)
+
+
+def test_cada_articulacion_va_de_reposo_a_un_extremo_al_otro_y_vuelve():
+    """[-90, 90] de 10 en 10, contados a mano: 0, -10 … -90 son 10; -80 … 90
+    son 18; 80 … 0 son 9. Total 37, y empieza y acaba en reposo."""
+    cuadros = fotogramas({"brazo": _art("brazo", (-90, 90))}, paso=10)
+    valores = [c["brazo"] for c in cuadros]
+    assert len(valores) == 37
+    assert valores[:3] == [0, -10, -20] and valores[9] == -90
+    assert valores[27] == 90 and valores[-1] == 0
+
+
+def test_un_rodamiento_da_una_vuelta_entera():
+    """[0, 360] de 10 en 10: 0, 10 … 360, 37 cuadros, sin ir y volver."""
+    valores = [c["polea"] for c in fotogramas({"polea": _art("polea", (0, 360))}, paso=10)]
+    assert valores == list(range(0, 361, 10))
+
+
+def test_con_dos_articulaciones_se_ve_cada_una_y_luego_las_dos_juntas():
+    """Primero una (la otra quieta), luego la otra, y al final las dos a la
+    vez: en el pan-tilt, la plataforma chocaba con la base solo al girar e
+    inclinar juntas (2026-11-09)."""
+    cuadros = fotogramas({"giro": _art("giro", (-90, 90)), "incl": _art("incl", (-90, 90))},
+                         paso=10)
+    assert all(c["incl"] == 0 for c in cuadros[:37])
+    assert all(c["giro"] == 0 for c in cuadros[37:74])
+    juntas = cuadros[74:]
+    assert juntas and all(c["giro"] == c["incl"] for c in juntas)
+    assert {-90, 90} <= {c["giro"] for c in juntas}
+
+
+def test_en_cada_cuadro_se_resalta_solo_lo_que_choca_en_ese_angulo():
+    """Los choques del brazo y el poste, calculados a mano en el test de
+    abajo: a 80° y 90°, no a 70°. Un choque entre dos piezas que no dependen
+    de una articulación cuenta en cualquier ángulo de ella."""
+    choques = [{"solido_a": "base", "solido_b": "brazo", "angulos": {"brazo": a}}
+               for a in (80, 90)]
+    choques.append({"solido_a": "base: montado", "solido_b": "tapa", "angulos": {}})
+    assert chocan_en({"brazo": 80.0}, choques) == {"base", "brazo", "base: montado", "tapa"}
+    assert chocan_en({"brazo": 70}, choques) == {"base: montado", "tapa"}
+
+
 # --- Moviéndolo de verdad, con FreeCAD -----------------------------------------------------
 
 BASE = """
@@ -167,6 +233,24 @@ def test_el_brazo_que_choca_con_el_poste_al_girar_se_ve_en_que_angulos(tmp_path)
     assert json.loads((carpeta / "nodos" / "conjunto" / "verificacion.json")
                       .read_text(encoding="utf-8"))["ok"] is False
 
+    # Y se ve: el GIF en el nodo, y en la raíz porque es el conjunto de toda
+    # la obra (la web, Crafty y Telegram buscan ahí). En rojo a 80°, no a
+    # -30°: en el orden de `fotogramas`, 80° es el cuadro 26 y -30°, el 3.
+    from PIL import Image
+    gif = carpeta / "nodos" / "conjunto" / "animation.gif"
+    assert (carpeta / "animation.gif").read_bytes() == gif.read_bytes()
+    with Image.open(gif) as imagen:
+        assert imagen.n_frames == 37
+        assert _rojos(imagen, 26) > 50
+        assert _rojos(imagen, 3) == 0
+
+
+def _rojos(imagen, cuadro: int) -> int:
+    """Los píxeles del rojo de un choque, con cualquier sombra."""
+    imagen.seek(cuadro)
+    return sum(1 for r, g, b in imagen.convert("RGB").getdata()
+               if r > 100 and g < 0.35 * r and b < 0.35 * r)
+
 
 def test_los_angulos_de_un_choque_salen_por_tramos_y_no_de_punta_a_punta():
     """El pan-tilt (2026-11-09) chocaba con la inclinación en ±40–50°, y el
@@ -190,3 +274,71 @@ def test_el_brazo_que_no_llega_al_poste_se_mueve_libre(tmp_path):
     v = verificar_conjunto(carpeta, "conjunto", _freecadcmd(), min_gap_mm=0.2)
     assert v["ok"], v["resumen"]
     assert v["choques"] == []
+
+
+def test_animar_una_obra_vuelve_a_mover_sus_conjuntos_sin_modelo(tmp_path, monkeypatch):
+    """Los conjuntos ya verificados antes de que hubiera animación (el
+    pan-tilt de la web, los del banco 1110-0313) se animan sin volver a
+    diseñar nada. La verificación anterior se guarda: archivar no es borrar."""
+    from types import SimpleNamespace
+
+    from orchestrator import cli
+
+    carpeta = _obra(tmp_path, {"base": ([], [], ([0, 0, 0], [1, 1, 1]))})
+    (carpeta / "nodos" / "base" / "lista.json").write_text('{"por": "banco"}', encoding="utf-8")
+    anterior = '{"ok": false, "choques": [1]}'
+    (carpeta / "nodos" / "conjunto").mkdir()
+    (carpeta / "nodos" / "conjunto" / "verificacion.json").write_text(anterior, encoding="utf-8")
+    movidos = []
+    monkeypatch.setattr("orchestrator.conjunto.verificar_conjunto",
+                        lambda c, n, f, min_gap_mm: movidos.append((n, min_gap_mm)) or
+                        {"ok": True, "articulaciones": [], "resumen": []})
+    monkeypatch.setattr(cli, "_freecadcmd", lambda env: "freecadcmd")
+    monkeypatch.setattr(cli, "_perfil", lambda raiz, env: SimpleNamespace(
+        impresora=SimpleNamespace(fit_mm=lambda tipo: 0.2)))
+
+    cli._animar(SimpleNamespace(carpeta=str(carpeta)), tmp_path, {}, "t")
+
+    assert movidos == [("conjunto", 0.1)]
+    assert (carpeta / "nodos" / "conjunto" / "verificacion-anterior.json").read_text(
+        encoding="utf-8") == anterior
+
+
+# --- El choque va a la pieza que lo causa (F7.7 (culpable)) ------------------------------------
+
+def _inclina():
+    """Una base de 100 × 100 con la cara de arriba en z = 0, y una placa de
+    60 × 10 × 6 (z 20 a 26) que se inclina alrededor de una recta paralela a
+    y que pasa por (0, 0, 25), como la plataforma del pan-tilt."""
+    from orchestrator.conjunto import Pieza
+    base = Pieza("base", "Base", None, ([-50, -50, -20], [50, 50, 0]))
+    placa = Pieza("placa", "Plataforma", None, ([-30, -5, 20], [30, 5, 26]), padre="base",
+                  al_padre=([[1, 0, 0], [0, 1, 0], [0, 0, 1]], [0, 0, 0]))
+    art = Articulacion("placa", "base", "sg90", [0, 0, 25], [0, 1, 0], (-90, 90))
+    return {"base": base, "placa": placa}, {"placa": art}
+
+
+def test_choca_la_pieza_que_se_diseno_contra_la_otra():
+    """La que va después en la obra se diseñó contra la de antes, y es la que
+    puede cambiar sin deshacer nada: en el pan-tilt, la plataforma y no la
+    base; el soporte de giro y no el SG90 que monta la base."""
+    from orchestrator.conjunto import Pieza, culpable
+    piezas = {i: Pieza(i, i, None, ([0, 0, 0], [1, 1, 1])) for i in ("base", "giro", "plataforma")}
+    assert culpable(piezas, "base", "plataforma") == "plataforma"
+    assert culpable(piezas, "plataforma", "base") == "plataforma"
+    assert culpable(piezas, "giro", "base") == "giro"
+
+
+def test_la_correccion_dice_cuanto_gira_y_donde_empieza_lo_que_choca():
+    """A mano: la esquina más lejana del eje es (±30, ±5, 20), a
+    √(30² + 5²) = 30.4 mm; la cara de arriba de la base está a 25 mm del
+    eje, justo debajo. La corrección a mano del 9 de noviembre, la que
+    arregló el pan-tilt, daba esas dos cifras."""
+    from orchestrator.conjunto import correcciones
+    piezas, arts = _inclina()
+    choques = [{"a": "base", "b": "placa", "solido_a": "base", "solido_b": "placa",
+                "angulos": {"placa": a}, "hueco_mm": -12.0} for a in (-90, -80, 80, 90)]
+    [(nodo, texto)] = correcciones(piezas, arts, choques, paso=10).items()
+    assert nodo == "placa"
+    for parte in ("«Base»", "de -90° a -80° y de 80° a 90°", "30.4 mm", "25.0 mm"):
+        assert parte in texto, (parte, texto)

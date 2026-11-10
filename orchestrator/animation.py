@@ -15,17 +15,20 @@ import tempfile
 from pathlib import Path
 
 from mech_toolkit.geometry import Placement, _rotacion
+from orchestrator.assembly import SOLIDOS_FREECAD
 
 PREFIJO = "INTELLIPRINT_MALLA:"
 
 _TESELAR = '''\
 import json
+import FreeCAD
 import Part
 
 datos = json.load(open({entrada!r}))
 formas = {{n: Part.read(p) for n, p in datos["parts"].items()}}
 for n, (d, largo) in datos["pins"].items():
     formas[n] = Part.makeCylinder(d / 2, largo)
+''' + SOLIDOS_FREECAD + '''
 mallas = {{}}
 for n, forma in formas.items():
     vertices, triangulos = forma.tessellate({tolerancia!r})
@@ -50,12 +53,17 @@ def tessellate(
     pins: dict[str, tuple[float, float]],
     freecadcmd: str,
     tolerancia: float = 0.3,
+    solidos: dict[str, list[dict]] | None = None,
 ) -> dict[str, Malla]:
+    """`solidos`: lo comprado hecho de cajas y cilindros, como en
+    `assembly.build_assembly`. Sin ellos, la animación de un conjunto de la
+    obra enseñaba las piezas impresas y no los servos con los que chocan."""
     with tempfile.TemporaryDirectory() as tmp:
         entrada, salida = Path(tmp) / "entrada.json", Path(tmp) / "mallas.json"
         entrada.write_text(json.dumps({
             "parts": {n: str(Path(p).resolve()) for n, p in parts.items()},
             "pins": {n: list(v) for n, v in pins.items()},
+            "solidos": solidos or {},
         }))
         script = Path(tmp) / "teselar.py"
         script.write_text(_TESELAR.format(
@@ -107,10 +115,14 @@ def render_gif(
     colors: dict[str, str] | None = None,
     label=None,
     view: tuple[float, float] = (40, -65),
+    resaltar=None,
+    color_resaltado: str = "#e02424",
 ) -> Path:
     """`frames`: {t: poses} o lista de (t, poses), que admite repetir t
     (una bisagra que abre y vuelve a cerrar).
-    `label(t)` pone el texto de cada fotograma (por defecto "θ = t°")."""
+    `label(t)` pone el texto de cada fotograma (por defecto "θ = t°").
+    `resaltar(t)`: las mallas que se pintan de `color_resaltado` en ese
+    fotograma (lo que choca)."""
     frames = list(frames.items()) if isinstance(frames, dict) else list(frames)
     import matplotlib
 
@@ -135,23 +147,29 @@ def render_gif(
     paleta = {**COLORES, **(colors or {})}
     colores = {n: np.array(to_rgb(paleta.get(n, COLOR_EJE))) for n in meshes}
     label = label or (lambda t: f"θ = {t:g}°")
+    rojo = np.array(to_rgb(color_resaltado))
 
     imagenes = []
     for angulo, poses_frame in frames:
         todas, caras = [], []
+        rojas = resaltar(angulo) if resaltar else set()
         for nombre, pose in poses_frame.items():
             tris = _colocar(tris_locales[nombre].reshape(-1, 3), pose).reshape(-1, 3, 3)
             normales = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
             normales /= np.linalg.norm(normales, axis=1, keepdims=True) + 1e-12
             brillo = 0.45 + 0.55 * np.abs(normales @ luz)
             todas.append(tris)
-            caras.append(np.clip(brillo[:, None] * colores[nombre], 0, 1))
+            color = rojo if nombre in rojas else colores[nombre]
+            caras.append(np.clip(brillo[:, None] * color, 0, 1))
         fig = plt.figure(figsize=(9, 5), dpi=110)
         ax = fig.add_subplot(projection="3d")
         # UNA colección: matplotlib solo ordena por profundidad dentro de
         # cada colección; con una por pieza, la base tapaba a todas.
+        # Bordes del color de su cara: sin ellos, entre triángulos vecinos
+        # quedaba la costura del suavizado y la pieza se veía como una malla.
+        caras = np.concatenate(caras)
         ax.add_collection3d(Poly3DCollection(
-            np.concatenate(todas), facecolors=np.concatenate(caras), linewidths=0,
+            np.concatenate(todas), facecolors=caras, edgecolors=caras, linewidths=0.3,
         ))
         for i, eje in enumerate("xyz"):
             getattr(ax, f"set_{eje}lim")(lo[i], hi[i])
@@ -160,7 +178,11 @@ def render_gif(
         ax.set_axis_off()
         ax.set_title(f"{title}  {label(angulo)}".strip())
         buf = io.BytesIO()
-        fig.savefig(buf, format="png", bbox_inches="tight")
+        # Sin `bbox_inches="tight"`: recortaba cada cuadro a su rótulo, los
+        # cuadros salían de tamaños distintos y en el GIF quedaban restos del
+        # anterior (el pan-tilt decía «20°°», 2026-11-10).
+        fig.subplots_adjust(left=0, right=1, bottom=0, top=0.88)
+        fig.savefig(buf, format="png")
         plt.close(fig)
         buf.seek(0)
         imagenes.append(Image.open(buf).convert("RGB"))

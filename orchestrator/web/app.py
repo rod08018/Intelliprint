@@ -33,8 +33,8 @@ from orchestrator.web.estadisticas import estadisticas
 from orchestrator.categorias import CATEGORIAS
 from orchestrator.web import paginas
 from orchestrator.web.versiones import (  # noqa: F401 (los tests los importan de aquí)
-    ProyectoDesconocido, agrupar, ejecuciones, lanzar_modificacion, marca_de,
-    piezas_de, raices, resolver_proyecto)
+    ProyectoDesconocido, agrupar, corridas_del_banco, ejecuciones, lanzar_modificacion,
+    marca_de, piezas_de, raices, resolver_proyecto)
 
 
 def empaquetar(carpeta: Path) -> bytes:
@@ -132,9 +132,11 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
     app.state.trabajos = trabajos
     workspace = Path(workspace)
 
-    def _proyecto(id: str) -> Path:
+    def _proyecto(id: str, banco: bool = False) -> Path:
+        """`banco`: también los proyectos del banco, que se miran y se bajan
+        pero no se tocan; las rutas que cambian algo no lo pasan."""
         try:
-            return resolver_proyecto(id, workspace)
+            return resolver_proyecto(id, workspace, banco=banco)
         except ProyectoDesconocido:
             raise HTTPException(404, f"no hay ningún proyecto llamado {id!r}")
 
@@ -278,7 +280,7 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
     def vista(id: str) -> FileResponse:
         """Las piezas dibujadas, para lo que no tiene animación. Se guarda en
         el proyecto y solo se redibuja si alguna STL es más nueva."""
-        carpeta = _proyecto(id)
+        carpeta = _proyecto(id, banco=True)
         piezas = piezas_de(carpeta)
         if not piezas:
             raise HTTPException(404, "este proyecto no tiene piezas construidas")
@@ -293,14 +295,32 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
 
     @app.get("/proyectos/{id}/animation.gif")
     def animacion(id: str) -> FileResponse:
-        gif = _proyecto(id) / "animation.gif"
+        gif = _proyecto(id, banco=True) / "animation.gif"
         if not gif.is_file():
             raise HTTPException(404, "este proyecto todavía no tiene animación")
         return FileResponse(gif, media_type="image/gif")
 
+    @app.get("/proyectos/{id}/nodos/{nodo}/animation.gif")
+    def animacion_de_nodo(id: str, nodo: str) -> FileResponse:
+        """La de un conjunto de la obra, en su tarjeta (F7.6 (animacion))."""
+        from orchestrator import obra
+        carpeta = _proyecto(id, banco=True)
+        try:
+            nodo = obra.cargar_obra(carpeta).nodo(nodo).id   # un id del árbol, no una ruta
+        except (KeyError, OSError, ValueError):
+            raise HTTPException(404, f"este proyecto no tiene ningún conjunto {nodo!r}")
+        gif = carpeta / obra.NODOS / nodo / "animation.gif"
+        if not gif.is_file():
+            raise HTTPException(404, "este conjunto todavía no tiene animación")
+        return FileResponse(gif, media_type="image/gif")
+
+    @app.get("/banco", response_class=HTMLResponse)
+    def banco() -> str:
+        return paginas.banco(corridas_del_banco(workspace), hay_puente=puente is not None)
+
     @app.get("/proyectos/{id}.zip")
     def bajar(id: str) -> Response:
-        carpeta = _proyecto(id)
+        carpeta = _proyecto(id, banco=True)
         return Response(
             empaquetar(carpeta), media_type="application/zip",
             headers={"Content-Disposition": f'attachment; filename="{carpeta.name}.zip"'},
@@ -310,7 +330,7 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
     def abrir(id: str, nodo: str | None = None) -> dict:
         """`nodo`: solo las piezas de ese nodo de una obra, para imprimirlo y
         probarlo antes de seguir con la siguiente."""
-        carpeta = _proyecto(id)
+        carpeta = _proyecto(id, banco=True)
         piezas = piezas_de(carpeta)
         if nodo:
             piezas = [p for p in piezas if p.parent.parent.parent.name == nodo
@@ -361,22 +381,26 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
     def pagina_de_proyecto(id: str, v: str | None = None) -> str:
         """Un proyecto con sus versiones. `id` puede ser el del proyecto o el
         de cualquiera de sus versiones; `v` elige cuál se enseña."""
-        _proyecto(id)
-        grupos = agrupar(ejecuciones(workspace), workspace)
+        carpeta = _proyecto(id, banco=True)
+        partes = carpeta.relative_to(workspace).parts
+        del_banco = partes[1] if partes[0] == "banco" else ""   # la corrida
+        grupos = agrupar(ejecuciones(workspace, banco=bool(del_banco)), workspace)
         g = next((g for g in grupos if g["id"] == id or any(x["id"] == id for x in g["versiones"])),
                  None)
         if g is None:
             raise HTTPException(404, f"no hay ningún proyecto llamado {id!r}")
         elegida = v or (id if id != g["id"] else None)
         ocupado = bool((trabajos.current() if trabajos else None) or en_marcha(workspace / "projects"))
+        # Lo del banco se mira: sin botones que lancen nada.
         return paginas.proyecto(g, elegida, workspace, hay_puente=puente is not None,
-                                puede_pedir=trabajos is not None, ocupado=ocupado)
+                                puede_pedir=trabajos is not None and not del_banco,
+                                ocupado=ocupado, del_banco=del_banco)
 
     @app.get("/proyectos/{id}/piezas/{nombre}.png")
     def vista_de_pieza(id: str, nombre: str) -> FileResponse:
         """Una pieza sola, para su tarjeta. Se guarda en `vistas/` —que no
         cuenta como trabajo del proyecto— y se redibuja si la STL es nueva."""
-        carpeta = _proyecto(id)
+        carpeta = _proyecto(id, banco=True)
         stl = next((p for p in piezas_de(carpeta) if p.stem == nombre), None)
         if stl is None:
             raise HTTPException(404, f"este proyecto no tiene ninguna pieza {nombre!r}")

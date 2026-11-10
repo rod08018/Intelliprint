@@ -449,6 +449,8 @@ def rehacer(carpeta: Path, nodo: str, cambio: str = "") -> list[str]:
     # verdad aunque la pieza se rehaga por otra cosa.
     respuestas = (dir_nodo / "respuestas.md").read_text(encoding="utf-8") \
         if (dir_nodo / "respuestas.md").is_file() else ""
+    # La animación de la obra entera ya no sería de lo que hay (F7.6 (animacion)).
+    _archivar(carpeta, carpeta / ANIMACION)
     rehechos = []
     for i in [nodo, *obra.dependientes(nodo)]:
         fichas = carpeta_de_fichas(carpeta)
@@ -468,6 +470,9 @@ def rehacer(carpeta: Path, nodo: str, cambio: str = "") -> list[str]:
         _guardar_anterior(dir_nodo, anterior)
     return rehechos
 
+
+ANIMACION = "animation.gif"
+"""La de la obra entera, copia de la de su último conjunto (F7.6 (animacion))."""
 
 LO_CONSTRUIDO = ("parts", "fabrication", "pieza_report.json", "blocked.md", "rounds.json",
                  "lista.json")
@@ -511,7 +516,8 @@ def corregir(carpeta: Path, nodo: str, cambio: str) -> list[str]:
     dir_nodo = carpeta / NODOS / nodo
     fichas = carpeta_de_fichas(carpeta)
     _archivar(carpeta, *(dir_nodo / n for n in (*LO_CONSTRUIDO, RETOQUE)),
-              fichas / f"{id_de_ficha(nodo)}.yaml", fichas / f"{id_de_ficha(nodo)}.step")
+              fichas / f"{id_de_ficha(nodo)}.yaml", fichas / f"{id_de_ficha(nodo)}.step",
+              carpeta / ANIMACION)
     rehechos = [nodo]
     for i in obra.dependientes(nodo):
         rutas = [carpeta / NODOS / i, fichas / f"{id_de_ficha(i)}.yaml",

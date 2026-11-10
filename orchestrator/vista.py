@@ -14,6 +14,7 @@ from mech_toolkit.geometry import Placement
 from orchestrator.proyecto_3mf import leer_stl
 
 HUECO_MM = 10.0
+MARGEN_PX = 12
 COLORES = ("#e8833a", "#3a7be8", "#9aa5b1", "#5bb36a", "#c94f7c", "#d6b33a")
 
 
@@ -41,6 +42,14 @@ def dibujar_piezas(stls: list[Path], destino: Path, titulo: str = "") -> Path:
     gif = render_gif(mallas, [(0, poses)], destino.with_suffix(".tmp.gif"), title=titulo,
                      colors=colores, label=lambda t: "", view=(35, -60))
     with Image.open(gif) as imagen:
-        imagen.convert("RGB").save(destino, "PNG")
+        imagen = imagen.convert("RGB")
+    # Recortada a lo dibujado: los cuadros de la animación tienen tamaño fijo
+    # (F7.6 (animacion)) y las piezas quedaban pequeñas en un lienzo blanco.
+    caja = imagen.convert("L").point(lambda v: 255 if v < 240 else 0).getbbox()
+    if caja:
+        m = MARGEN_PX
+        imagen = imagen.crop((max(caja[0] - m, 0), max(caja[1] - m, 0),
+                              min(caja[2] + m, imagen.width), min(caja[3] + m, imagen.height)))
+    imagen.save(destino, "PNG")
     Path(gif).unlink(missing_ok=True)
     return destino

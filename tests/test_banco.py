@@ -546,8 +546,7 @@ def _con_informes(carpeta, resueltos):
 @pytest.mark.parametrize("resueltos, rehacer", [
     ({"base": True, "giro": False}, "giro"),
     ({"base": False, "giro": False}, "base"),
-    # Con las dos bien, lo que queda es el conjunto: un choque no dice qué
-    # pieza rehacer, así que no se elige ninguna a ciegas.
+    # Con las dos bien y el conjunto sin mover, no hay nada que rehacer.
     ({"base": True, "giro": True}, None)])
 def test_se_rehace_la_primera_pieza_que_no_salio_bien(tmp_path, resueltos, rehacer):
     """Un backlog de la corrida 1110-0128 tenía la base y el soporte bien y la
@@ -555,6 +554,47 @@ def test_se_rehace_la_primera_pieza_que_no_salio_bien(tmp_path, resueltos, rehac
     a la plataforma. Una pieza dada por lista con defectos tampoco salió bien."""
     from orchestrator.banco import nodo_a_rehacer
     assert nodo_a_rehacer(_con_informes(_obra_construida(tmp_path), resueltos)) == rehacer
+
+
+CHOCA = {"ok": False, "choques": [{"a": "base", "b": "giro"}], "resumen": ["chocan"],
+         "articulaciones": [], "correcciones": {"giro": "despégala 0.5 mm de la carcasa"}}
+
+
+def test_un_conjunto_que_choca_corrige_la_pieza_que_lo_causa(tmp_path):
+    """Hasta el 2026-11-10 un choque «no decía qué pieza rehacer» y el banco
+    se paraba: el pan-tilt 1110-0313 quedó así, con las tres piezas bien. La
+    verificación ya dice quién choca (F7.7 (culpable))."""
+    from orchestrator.banco import nodo_a_rehacer
+    p = _con_informes(_obra_construida(tmp_path, verificacion=CHOCA),
+                      {"base": True, "giro": True})
+    assert nodo_a_rehacer(p) == "giro"
+
+
+def test_reanudar_corrige_la_pieza_que_choca_partiendo_de_ella(tmp_path, monkeypatch):
+    """Se corrige la pieza que hay con el texto del choque, como hizo la
+    persona en la web el 9 de noviembre (y salió), en vez de diseñarla de
+    cero. Si otra pieza que también choca se diseñó contra ella, se rehace
+    con su corrección apuntada, que el ingeniero lee."""
+    import json
+    from orchestrator import banco
+    corrida = tmp_path / "corrida"
+    verificacion = {**CHOCA, "correcciones": {"base": "más baja", "giro": "despégala"}}
+    p = _con_informes(_obra_construida(corrida / "01", verificacion=verificacion),
+                      {"base": True, "giro": True})
+    (p / "nodos" / "base" / "concepto_aprobado").write_text("{}", encoding="utf-8")
+    (p / "nodos" / "base" / "parts" / "base" / "programa.py").write_text("PROGRAMA",
+                                                                        encoding="utf-8")
+
+    class Hecho:
+        stdout, stderr, returncode = "", "", 0
+
+    monkeypatch.setattr(banco.subprocess, "run", lambda orden, **k: Hecho())
+    monkeypatch.setattr(banco, "rejuzgar", lambda *a, **k: ({"x": []}, {}))
+    e = banco.Encargo(nombre="x", categoria="robots", peticion="un pan-tilt", obra=True,
+                      oraculo=[{"tipo": "conjunto_libre"}])
+    banco.reanudar([e], corrida, ["intelliprint", "obra", "--banco"], "fc", {})
+    assert json.loads((p / "nodos" / "base" / "retoque.json").read_text(encoding="utf-8"))         == {"programa": "PROGRAMA", "cambio": "más baja"}
+    assert "despégala" in (p / "nodos" / "giro" / "cambios.md").read_text(encoding="utf-8")
 
 
 def test_reanudar_archiva_la_pieza_y_sigue_el_backlog_en_su_carpeta(tmp_path, monkeypatch):

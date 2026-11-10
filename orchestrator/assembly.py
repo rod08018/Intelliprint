@@ -23,16 +23,7 @@ from orchestrator.fcstd import mostrar
 
 PREFIJO = "INTELLIPRINT_ENSAMBLE:"
 
-_SCRIPT = '''\
-import itertools
-import json
-import FreeCAD
-import Part
-
-datos = json.load(open({entrada!r}))
-formas = {{n: Part.read(p) for n, p in datos["parts"].items()}}
-for n, (d, largo) in datos["pins"].items():
-    formas[n] = Part.makeCylinder(d / 2, largo)
+SOLIDOS_FREECAD = '''\
 # Lo comprado que va montado en una pieza (el cuerpo de un servo), de cajas
 # y cilindros de su ficha ya colocados: se mueve con su pieza.
 for n, primitivas in (datos.get("solidos") or dict()).items():
@@ -52,7 +43,21 @@ for n, primitivas in (datos.get("solidos") or dict()).items():
     for t in trozos[1:]:
         forma = forma.fuse(t)
     formas[n] = forma
+'''
+"""Lo comparten el ensamble y la animación (`animation._TESELAR`): sin llaves,
+porque los dos guiones pasan por `str.format`."""
 
+_SCRIPT = '''\
+import itertools
+import json
+import FreeCAD
+import Part
+
+datos = json.load(open({entrada!r}))
+formas = {{n: Part.read(p) for n, p in datos["parts"].items()}}
+for n, (d, largo) in datos["pins"].items():
+    formas[n] = Part.makeCylinder(d / 2, largo)
+''' + SOLIDOS_FREECAD + '''
 
 def colocar(forma, pose):
     x, y, z = pose["origin"]

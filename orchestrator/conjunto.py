@@ -20,6 +20,7 @@ cuerpos de lo comprado, y cada choque dice en qué ángulos pasa.
 import itertools
 import json
 import math
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -256,8 +257,81 @@ def _recorrido(a: Articulacion, paso: float) -> list[float]:
     return [round(lo + (hi - lo) * k / n, 6) for k in range(n + 1)]
 
 
+def _ida_y_vuelta(a: Articulacion, paso: float) -> list[float]:
+    """De reposo a un extremo, al otro y de vuelta a reposo; una vuelta
+    entera si el recorrido lo es (un rodamiento). Siempre en la rejilla del
+    barrido: así cada cuadro se busca exacto en los choques."""
+    rejilla = _recorrido(a, paso)
+    if a.recorrido[1] - a.recorrido[0] >= 360:
+        return rejilla
+    reposo = min(range(len(rejilla)), key=lambda k: abs(rejilla[k]))
+    return (rejilla[reposo::-1] + rejilla[1:] + rejilla[-2:reposo - 1 if reposo else None:-1])
+
+
+def fotogramas(arts: dict[str, Articulacion], paso: float = PASO) -> list[dict[str, float]]:
+    """Los ángulos de cada cuadro de la animación: cada articulación por
+    turno con las demás quietas, y al final todas a la vez. La plataforma del
+    pan-tilt chocaba con la base solo al girar e inclinar juntas (2026-11-09):
+    por turnos no se habría visto."""
+    cuadros = [{**{j: 0.0 for j in arts}, i: v}
+               for i, a in arts.items() for v in _ida_y_vuelta(a, paso)]
+    if len(arts) > 1:
+        idas = {i: _ida_y_vuelta(a, paso) for i, a in arts.items()}
+        n = max(len(v) for v in idas.values())
+        # Todas a la vez: cada una avanza su ida y vuelta al mismo ritmo,
+        # tomando el cuadro de la rejilla más cercano.
+        cuadros += [{i: v[round(k * (len(v) - 1) / (n - 1))] for i, v in idas.items()}
+                    for k in range(n)]
+    return cuadros
+
+
+def chocan_en(angulos: dict[str, float], choques: list[dict]) -> set[str]:
+    """Los sólidos que chocan con la pieza en `angulos`. Cada choque guarda
+    solo las articulaciones que hay entre sus dos piezas; las demás no
+    cambian nada entre ellas."""
+    return {s for c in choques
+            if all(abs(angulos.get(j, 0.0) - v) < 1e-6 for j, v in c["angulos"].items())
+            for s in (c["solido_a"], c["solido_b"])}
+
+
+ROJO = "#e02424"
+COLOR_COMPRADO = "#5d6d7e"
+COLORES_PIEZAS = ("#9aa5b1", "#3bb273", "#3a7be8", "#9b59b6", "#f1c40f", "#1abc9c")
+"""Sin naranjas ni rosas: el rojo es solo para lo que choca."""
+
+
+def animar_conjunto(piezas: dict[str, Pieza], arts: dict[str, Articulacion],
+                    steps: dict[str, Path], solidos: dict[str, list], duenos: dict[str, str],
+                    choques: list[dict], gif: Path, freecadcmd: str, titulo: str,
+                    paso: float = PASO) -> Path:
+    """El GIF del conjunto moviéndose por lo mismo que se barrió, con lo que
+    choca en rojo en los cuadros en que choca. Hasta el 2026-11-10 la obra
+    solo dejaba el ensamble en reposo: el pan-tilt «se movía entero sin
+    chocar» y nadie lo había visto moverse."""
+    from orchestrator.animation import render_gif, tessellate
+
+    mallas = tessellate(steps, {}, freecadcmd, solidos=solidos)
+    cuadros = fotogramas(arts, paso) or [{}]
+    colores = {s: COLORES_PIEZAS[k % len(COLORES_PIEZAS)] for k, s in enumerate(piezas)}
+    colores.update({s: COLOR_COMPRADO for s in duenos if s not in piezas})
+
+    def rotulo(k):
+        partes = [f"{piezas[j].nombre} {cuadros[k][j]:g}°" for j in arts]
+        rojos = sorted({duenos[s] for s in chocan_en(cuadros[k], choques)})
+        if rojos:
+            partes.append("choca: " + " ↔ ".join(piezas[r].nombre for r in rojos))
+        return "\n".join(partes)
+
+    marcos = []
+    for k, a in enumerate(cuadros):
+        mundo = poses(piezas, arts, a)
+        marcos.append((k, {s: _placement(mundo[duenos[s]]) for s in duenos}))
+    return render_gif(mallas, marcos, gif, title=titulo, colors=colores, label=rotulo,
+                      resaltar=lambda k: chocan_en(cuadros[k], choques), color_resaltado=ROJO)
+
+
 def verificar_conjunto(carpeta: Path, conjunto: str, freecadcmd: str, min_gap_mm: float,
-                       paso: float = PASO) -> dict:
+                       paso: float = PASO, animar: bool = True) -> dict:
     """Mueve el conjunto por todo el recorrido de sus articulaciones y deja
     lo que pasa en `nodos/<conjunto>/verificacion.json`, más el ensamble en
     reposo (`assembly.FCStd`) para abrirlo en FreeCAD."""
@@ -314,14 +388,132 @@ def verificar_conjunto(carpeta: Path, conjunto: str, freecadcmd: str, min_gap_mm
                              "eje_mundo": _mv(reposo[a.padre][0], a.eje),
                              "recorrido": list(a.recorrido)}
                             for a in arts.values()],
-         "choques": choques, "resumen": _resumen(piezas, choques, paso)}
+         "choques": choques, "resumen": _resumen(piezas, choques, paso),
+         "correcciones": correcciones(piezas, arts, choques, paso)}
     dir_nodo = carpeta / O.NODOS / conjunto
     dir_nodo.mkdir(parents=True, exist_ok=True)
     build_assembly(steps, {}, {s: _placement(reposo[duenos[s]]) for s in duenos},
                    dir_nodo / "assembly.FCStd", freecadcmd, solidos)
     (dir_nodo / VERIFICACION).write_text(json.dumps(v, ensure_ascii=False, indent=1),
                                          encoding="utf-8")
+    if animar:
+        ob = O.cargar_obra(carpeta)
+        gif = animar_conjunto(piezas, arts, steps, solidos, duenos, choques,
+                              dir_nodo / "animation.gif", freecadcmd, ob.nodo(conjunto).nombre,
+                              paso)
+        # El conjunto de toda la obra es la animación del proyecto: la web,
+        # Crafty y Telegram la buscan en la raíz, como la de un mecanismo.
+        ultimo = [i for i in ob.orden() if ob.nodo(i).tipo == "conjunto"][-1]
+        if conjunto == ultimo:
+            shutil.copyfile(gif, carpeta / "animation.gif")
     return v
+
+
+# --- quién corrige un choque (F7.7 (culpable)) -----------------------------------------------
+
+def culpable(piezas: dict[str, Pieza], a: str, b: str) -> str:
+    """De dos piezas que chocan, la que se diseñó contra la otra: la que va
+    después en la obra. Es la que puede cambiar sin deshacer la otra."""
+    orden = list(piezas)
+    return a if orden.index(a) > orden.index(b) else b
+
+
+def _a_la_recta(p, punto, eje) -> float:
+    d = [x - y for x, y in zip(p, punto)]
+    n = math.sqrt(sum(c * c for c in eje))
+    e = [c / n for c in eje]
+    a = sum(x * y for x, y in zip(d, e))
+    return math.sqrt(max(sum(x * x for x in d) - a * a, 0.0))
+
+
+def _caja_de(piezas: dict[str, Pieza], solido: str):
+    """La caja de un sólido en el marco de su pieza: la envolvente si es la
+    pieza; si es lo comprado que monta, la de sus cajas y cilindros."""
+    if solido in piezas:
+        return piezas[solido].envolvente
+    lo, hi = [math.inf] * 3, [-math.inf] * 3
+    for m in piezas[solido.removesuffix(": montado")].montados:
+        if m.get("tipo") == "caja":
+            puntos = [m["min"], m["max"]]
+        else:
+            r = m["diametro"] / 2
+            fin = [b + e * m["alto"] for b, e in zip(m["base"], m["eje"])]
+            puntos = [[c + s * r for c in q] for q in (m["base"], fin) for s in (-1, 1)]
+        for q in puntos:
+            lo = [min(x, y) for x, y in zip(lo, q)]
+            hi = [max(x, y) for x, y in zip(hi, q)]
+    return lo, hi
+
+
+def _cerca_de_la_recta(caja, punto, eje) -> float:
+    """La distancia de la recta a la caja (en el marco de la caja): la
+    distancia a una recta es convexa, así que bajar coordenada a coordenada
+    recortando a la caja llega al mínimo."""
+    lo, hi = caja
+    p = [(a + b) / 2 for a, b in zip(lo, hi)]
+    n = math.sqrt(sum(c * c for c in eje))
+    e = [c / n for c in eje]
+    for _ in range(200):
+        for k in range(3):
+            # d(p) = (p-c) - ((p-c)·e) e; a lo largo de x_k es una parábola
+            # con mínimo donde su derivada se anula.
+            resto = [x - y for x, y in zip(p, punto)]
+            a = sum(x * y for x, y in zip(resto, e))
+            g = resto[k] - a * e[k]
+            curva = 1 - e[k] * e[k]
+            if curva > 1e-12:
+                p[k] = min(max(p[k] - g / curva, lo[k]), hi[k])
+    return _a_la_recta(p, punto, eje)
+
+
+def correcciones(piezas: dict[str, Pieza], arts: dict[str, Articulacion],
+                 choques: list[dict], paso: float = PASO) -> dict[str, str]:
+    """Qué decirle a cada pieza que choca, con cifras con las que se puede
+    actuar: contra qué choca y en qué ángulos, hasta dónde llega girando
+    alrededor de su eje y dónde empieza lo que choca. Así era la corrección
+    que escribió la persona el 9 de noviembre, la que arregló el pan-tilt."""
+    reposo = poses(piezas, arts, {})
+    por_pieza: dict[str, list[str]] = {}
+    pares: dict[tuple, list] = {}
+    for c in choques:
+        pares.setdefault((c["solido_a"], c["solido_b"]), []).append(c)
+    for (x, y), cs in pares.items():
+        dx, dy = (s.removesuffix(": montado") for s in (x, y))
+        quien = culpable(piezas, dx, dy)
+        otro = y if quien == dx else x
+        frase = (f"Choca al moverse (verificado en FreeCAD moviendo el conjunto entero): "
+                 f"{_resumen(piezas, cs, paso)[0]}.")
+        # Su articulación, o la de la pieza que la lleva.
+        j = quien
+        while j is not None and j not in arts:
+            j = piezas[j].padre
+        if j is not None:
+            a = arts[j]
+            r_p, t_p = reposo[a.padre]
+            punto = [x + y for x, y in zip(_mv(r_p, a.punto), t_p)]
+            eje = _mv(r_p, a.eje)
+            radio = max(_a_la_recta(q, punto, eje) for q in _esquinas(piezas[quien].envolvente,
+                                                                          reposo[quien]))
+            r_o, t_o = _inversa(reposo[otro.removesuffix(": montado")])
+            hasta = _cerca_de_la_recta(_caja_de(piezas, otro),
+                                       [x + y for x, y in zip(_mv(r_o, punto), t_o)],
+                                       _mv(r_o, eje))
+            en_su_marco = _componer(_inversa(reposo[quien]), (I3, punto))[1]
+            frase += (f" Gira alrededor del {a.de} de «{piezas[a.padre].nombre}», que en tu "
+                      f"marco pasa por ({', '.join(f'{v:.1f}' for v in en_su_marco)}); "
+                      f"tu caja llega a {radio:.1f} mm de ese eje, y {_que(piezas, otro)} "
+                      f"empieza a {hasta:.1f} mm de él.")
+        frase += (" Cámbiala para que no choque en ningún ángulo —menos radio de giro, o más "
+                  "lejos de lo que choca— sin mover dónde se acopla al eje. Lo demás se queda "
+                  "como está.")
+        por_pieza.setdefault(quien, []).append(frase)
+    return {i: "\n".join(por_pieza[i]) for i in piezas if i in por_pieza}
+
+
+def _esquinas(envolvente, t) -> list:
+    a, b = envolvente
+    return [_componer(t, (I3, [x, y, z]))[1]
+            for x in (a[0], b[0]) for y in (a[1], b[1]) for z in (a[2], b[2])]
 
 
 def _que(piezas, solido: str) -> str:

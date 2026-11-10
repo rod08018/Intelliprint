@@ -39,8 +39,22 @@ class ProyectoDesconocido(LookupError):
     """El id no nombra un proyecto del workspace."""
 
 
-def resolver_proyecto(id: str, workspace: Path) -> Path:
-    """La carpeta del proyecto `id`, en `projects/` o en `archivo/`.
+BANCO = "banco"
+
+
+def secciones_del_banco(workspace: Path) -> list[str]:
+    """`banco/<corrida>/<NN>/projects` de cada encargo de cada corrida: ahí
+    deja el banco sus proyectos, y la web no los veía (2026-11-10)."""
+    raiz = Path(workspace) / BANCO
+    if not raiz.is_dir():
+        return []
+    return sorted(str(p.relative_to(workspace)).replace("\\", "/")
+                  for p in raiz.glob("*/*/projects") if p.is_dir())
+
+
+def resolver_proyecto(id: str, workspace: Path, banco: bool = False) -> Path:
+    """La carpeta del proyecto `id`, en `projects/` o en `archivo/`; con
+    `banco`, también en las corridas del banco, que solo se miran.
 
     `id` es un NOMBRE. Lo que no sea un nombre —separadores, `..`, rutas
     absolutas— se rechaza antes de tocar el disco: si no, bajar "el
@@ -50,7 +64,7 @@ def resolver_proyecto(id: str, workspace: Path) -> Path:
             or "/" in id or "\\" in id or ":" in id or Path(id).name != id):
         raise ProyectoDesconocido(id)
     raiz = Path(workspace).resolve()
-    for seccion in SECCIONES:
+    for seccion in [*SECCIONES, *(secciones_del_banco(workspace) if banco else [])]:
         carpeta = raiz / seccion / id
         # Segunda comprobación, sobre la ruta YA resuelta: un enlace
         # simbólico dentro de projects/ podría apuntar fuera.
@@ -67,10 +81,12 @@ def piezas_de(carpeta: Path) -> list[Path]:
     return sorted([*carpeta.glob("parts/*/*.stl"), *carpeta.glob("nodos/*/parts/*/*.stl")])
 
 
-def ejecuciones(workspace: Path) -> list[dict]:
-    """Una fila por EJECUCIÓN. Lo que se enseña son proyectos: `agrupar`."""
+def ejecuciones(workspace: Path, banco: bool = False) -> list[dict]:
+    """Una fila por EJECUCIÓN. Lo que se enseña son proyectos: `agrupar`.
+    Con `banco`, las de las corridas del banco y solo esas: no son proyectos
+    de la persona y no se mezclan con los suyos."""
     filas = []
-    for seccion in SECCIONES:
+    for seccion in (secciones_del_banco(workspace) if banco else SECCIONES):
         carpeta = Path(workspace) / seccion
         if not carpeta.is_dir():
             continue
@@ -159,6 +175,38 @@ def _merito(v: dict) -> tuple:
     fraccion = r["cumplen"] / r["total"] if r.get("total") else 0
     return (MERITO_ESTADO.get(v["estado"], 0), bool(r) and not r.get("provisional"),
             fraccion, -(v.get("fallos") or 0), v["version"])
+
+
+_NOTA_GLOBAL = re.compile(r"\*\*Nota global:\*\*\s*(.+?)\s*$", re.M)
+_FILA = re.compile(r"^\| (\S+) \| (\d+ %) \|", re.M)
+
+
+def corridas_del_banco(workspace: Path) -> list[dict]:
+    """Cada corrida del banco, de la última a la primera, con su nota y la
+    de cada encargo según su último informe (el de la última reanudación,
+    si la hubo: es la última palabra), y el proyecto de cada encargo."""
+    raiz = Path(workspace) / BANCO
+    if not raiz.is_dir():
+        return []
+    corridas = []
+    for corrida in sorted((p for p in raiz.iterdir() if p.is_dir()), reverse=True):
+        informes = sorted(corrida.glob("banco_reanudado*.md"),
+                          key=lambda p: (len(p.stem), p.stem))
+        informe = informes[-1] if informes else corrida / "banco.md"
+        if not informe.is_file():
+            continue
+        texto = informe.read_text(encoding="utf-8", errors="ignore")
+        nota = _NOTA_GLOBAL.search(texto)
+        encargos = []
+        # La tabla va en el orden de los encargos, y cada uno en su carpeta
+        # numerada en ese orden (`banco.reanudar`).
+        for n, (nombre, su_nota) in enumerate(_FILA.findall(texto), 1):
+            hecho = sorted((corrida / f"{n:02d}" / "projects").glob("*"))
+            encargos.append({"nombre": nombre, "nota": su_nota,
+                             "proyecto": hecho[-1].name if hecho else None})
+        corridas.append({"id": corrida.name, "informe": informe.name,
+                         "nota": nota.group(1) if nota else "", "encargos": encargos})
+    return corridas
 
 
 def agrupar(filas: list[dict], workspace: Path) -> list[dict]:

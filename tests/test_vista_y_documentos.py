@@ -59,6 +59,18 @@ def test_un_proyecto_de_piezas_tiene_una_vista_de_ellas(web, ws):
     assert imagen.width > 200 and imagen.height > 200
 
 
+def test_la_vista_se_recorta_a_las_piezas(web, ws):
+    """Con los cuadros de la animación de tamaño fijo (F7.6 (animacion)), la
+    vista quedaba con las piezas pequeñas en medio de un lienzo blanco: en
+    la tarjeta no se veían. Se recorta a lo dibujado, con poco margen."""
+    web.get(f"/proyectos/{ID}/vista.png")
+    imagen = Image.open(ws / "projects" / ID / "vista.png").convert("L")
+    dibujado = imagen.point(lambda v: 255 if v < 240 else 0).getbbox()
+    margenes = (dibujado[0], dibujado[1], imagen.width - dibujado[2],
+                imagen.height - dibujado[3])
+    assert max(margenes) <= 24, margenes
+
+
 def test_la_vista_se_guarda_y_no_se_redibuja_en_cada_visita(web, ws):
     web.get(f"/proyectos/{ID}/vista.png")
     antes = (ws / "projects" / ID / "vista.png").stat().st_mtime_ns

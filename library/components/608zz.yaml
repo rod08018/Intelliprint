@@ -41,6 +41,16 @@ despejar:
     cilindro: {diametro: 22, interior: 18.4, alto: 0.5, eje: "+z"}
     en: [0, 0, 7]
     gira_con: aro exterior
+# Lo que gira con el aro interior (una polea en su eje) da la vuelta entera
+# alrededor del eje del agujero. Sin esto el conjunto del banco (1110-0313,
+# «una polea impresa que gira en ese rodamiento») solo se comprobaba en
+# reposo y quedaba «sin medir».
+salidas:
+  - nombre: aro interior
+    en: [0, 0, 0]
+    eje: "+z"
+    recorrido: [0, 360]
+    porque: "un rodamiento gira libre, sin tope: la vuelta entera"
 notas: >
   El aro exterior va a presión en un alojamiento de Ø22 (con la holgura de
   «press» del perfil) y el interior en un eje de 8. Si algo apoya en una cara,
