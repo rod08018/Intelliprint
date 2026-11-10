@@ -188,8 +188,14 @@ def corridas_del_banco(workspace: Path) -> list[dict]:
     raiz = Path(workspace) / BANCO
     if not raiz.is_dir():
         return []
+    def cuando(corrida: Path) -> float:
+        # Por la fecha de su informe, no por el nombre: la de 2026-11-03 se
+        # llamaba con el año y las de después no, y salía la primera.
+        primero = corrida / "banco.md"
+        return (primero if primero.is_file() else corrida).stat().st_mtime
+
     corridas = []
-    for corrida in sorted((p for p in raiz.iterdir() if p.is_dir()), reverse=True):
+    for corrida in sorted((p for p in raiz.iterdir() if p.is_dir()), key=cuando, reverse=True):
         informes = sorted(corrida.glob("banco_reanudado*.md"),
                           key=lambda p: (len(p.stem), p.stem))
         informe = informes[-1] if informes else corrida / "banco.md"

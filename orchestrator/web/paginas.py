@@ -854,6 +854,14 @@ def _aviso_del_banco(corrida: str) -> str:
 # --- El banco (F7.6 (animacion)) ---------------------------------------------------
 
 
+def _clase_de_nota(nota: str) -> str:
+    m = re.match(r"\s*(\d+)", nota or "")
+    if not m:
+        return "suave"
+    n = int(m.group(1))
+    return "ok" if n == 100 else "ambar" if n >= 60 else "mal"
+
+
 def banco(corridas: list[dict], hay_puente: bool) -> str:
     """Cada corrida del banco con su nota y la de cada encargo, enlazado a su
     proyecto. La ronda de arreglos del 2026-11-10 no se veía en ninguna
@@ -861,11 +869,15 @@ def banco(corridas: list[dict], hay_puente: bool) -> str:
     filas = []
     for c in corridas:
         encargos = "".join(
-            f'<li><a href="/p/{e(x["proyecto"])}">{e(x["nombre"])}</a> <b>{e(x["nota"])}</b></li>'
-            if x["proyecto"] else f'<li>{e(x["nombre"])} <b>{e(x["nota"])}</b></li>'
+            f'<li><a href="/p/{e(x["proyecto"])}">{e(x["nombre"])}</a> '
+            f'<span class="pastilla {_clase_de_nota(x["nota"])}">{e(x["nota"])}</span></li>'
+            if x["proyecto"] else
+            f'<li>{e(x["nombre"])} <span class="pastilla {_clase_de_nota(x["nota"])}">'
+            f'{e(x["nota"])}</span></li>'
             for x in c["encargos"])
-        filas.append(f'<section class="corrida"><h2>{e(c["id"])} <span class="nota-banco">'
-                     f'{e(c["nota"])}</span></h2><p class="suave">{e(c["informe"])}</p>'
+        filas.append(f'<section class="corrida"><h2>{e(c["id"])} <span class="pastilla '
+                     f'{_clase_de_nota(c["nota"])}">{e(c["nota"])}</span></h2>'
+                     f'<p class="suave">{e(c["informe"])}</p>'
                      f'<ul class="encargos">{encargos}</ul></section>')
     vacio = "" if corridas else '<p class="vacio">Todavía no hay ninguna corrida del banco.</p>'
     return _documento("Banco · Intelliprint", f"""
@@ -980,6 +992,15 @@ ESTILO = """
   .nota { font-size:13px; color:var(--suave); }
 
   .proyecto { max-width:1200px; margin:0 auto; padding:24px 16px 64px; }
+  .banco { max-width:900px; margin:0 auto; padding:24px 16px 64px; }
+  .banco h1 { margin:0 0 4px; } .banco > .lead { color:var(--suave); margin:0 0 20px; }
+  .corrida { background:var(--tarjeta); border:1px solid var(--linea); border-radius:14px; padding:14px 16px; margin:0 0 12px; box-shadow:var(--sombra); }
+  .corrida h2 { font-size:17px; margin:0; display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; }
+  .corrida > p { margin:2px 0 8px; font-size:13px; }
+  .encargos { list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:4px 16px; }
+  .encargos li { display:flex; justify-content:space-between; gap:8px; padding:3px 0; border-bottom:1px solid var(--linea); }
+  .encargos a { text-decoration:none; color:var(--acento); }
+  .del-banco { max-width:1200px; margin:12px auto 0; padding:8px 14px; border-radius:10px; background:var(--ambar-bg); color:var(--ambar); }
   .cabeza { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:32px; align-items:start; }
   .foto.grande { border-radius:18px; aspect-ratio:4/3; }
   .tira { display:flex; gap:8px; margin-top:12px; overflow-x:auto; }

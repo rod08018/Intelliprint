@@ -64,3 +64,17 @@ def test_lo_del_banco_no_se_toca_desde_la_web(tmp_path):
     r = _ws_con_trabajos(tmp_path).post(f"/api/proyectos/{PID}/nodos/base/rehacer",
                                         json={"cambio": "más alta"})
     assert r.status_code == 404
+
+
+def test_las_corridas_van_de_la_ultima_a_la_primera_aunque_se_llamen_distinto(tmp_path):
+    """La de 2026-11-03 se llamaba con el año («2026-11-03-203635») y las de
+    después no («1110-0313»): por nombre salía la más vieja la primera."""
+    import os
+
+    from orchestrator.web.versiones import corridas_del_banco
+    for nombre, cuando in (("2026-11-03-203635", 1_000_000), ("1110-0313", 2_000_000)):
+        (tmp_path / "banco" / nombre).mkdir(parents=True)
+        informe = tmp_path / "banco" / nombre / "banco.md"
+        informe.write_text(TABLA.format(g=50, p=50), encoding="utf-8")
+        os.utime(informe, (cuando, cuando))
+    assert [c["id"] for c in corridas_del_banco(tmp_path)] == ["1110-0313", "2026-11-03-203635"]
