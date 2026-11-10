@@ -78,3 +78,20 @@ def test_las_corridas_van_de_la_ultima_a_la_primera_aunque_se_llamen_distinto(tm
         informe.write_text(TABLA.format(g=50, p=50), encoding="utf-8")
         os.utime(informe, (cuando, cuando))
     assert [c["id"] for c in corridas_del_banco(tmp_path)] == ["1110-0313", "2026-11-03-203635"]
+
+
+def test_la_ultima_palabra_es_el_informe_mas_reciente_aunque_sea_un_rejuicio(tmp_path):
+    """La corrida 1110-0313 se reanudó (80 %) y después se rejuzgó con el
+    608ZZ ya medido (90 %): la web seguía enseñando la reanudada."""
+    import os
+
+    from orchestrator.web.versiones import corridas_del_banco
+    _corrida(tmp_path)
+    corrida = tmp_path / "banco" / "1110-0313"
+    for nombre, nota, cuando in (("banco_reanudado.md", 80, 1_000_000),
+                                 ("banco_rejuzgado.md", 90, 2_000_000)):
+        informe = corrida / nombre
+        informe.write_text(TABLA.format(g=nota, p=80), encoding="utf-8")
+        os.utime(informe, (cuando, cuando))
+    [c] = corridas_del_banco(tmp_path)
+    assert c["informe"] == "banco_rejuzgado.md" and c["nota"].startswith("90 %")

@@ -252,11 +252,18 @@ class Articulaciones(BaseModel):
     modelo: si el soporte no queda en el eje del servo, aquí no aparece."""
 
     tipo: Literal["articulaciones"]
-    ejes: list[Literal["vertical", "horizontal"]]
-    recorrido_grados: float
+    # «cualquiera»: la petición dice que gira pero no hacia dónde mira el eje
+    # (la polea del 608ZZ, en un soporte que va a un perfil en cualquier postura).
+    ejes: list[Literal["vertical", "horizontal", "cualquiera"]]
+    # «vuelta entera»: lo que gira en un rodamiento. No es una cota que haya
+    # que leer en la petición —«gira» ya la dice—, así que no se exige el 360.
+    recorrido_grados: float | Literal["vuelta entera"]
+
+    def grados(self) -> float:
+        return 360.0 if self.recorrido_grados == "vuelta entera" else self.recorrido_grados
 
     def cotas_de_la_peticion(self) -> list[float]:
-        return [self.recorrido_grados]
+        return [] if self.recorrido_grados == "vuelta entera" else [self.recorrido_grados]
 
 
 Asercion = Annotated[Agujeros | Cilindro | Envolvente | SinSoportes | Pendiente | AristasVivas
@@ -712,11 +719,15 @@ def _articulaciones(a: Articulaciones, v: list[dict]) -> Resultado:
     texto = ", ".join(f"{c} de {r:g}°" for c, r in hay) or "ninguna"
     faltan = list(a.ejes)
     for c, r in hay:
-        if c in faltan and r >= a.recorrido_grados - 1e-6:
+        if r < a.grados() - 1e-6:
+            continue
+        if c in faltan:
             faltan.remove(c)
+        elif "cualquiera" in faltan:
+            faltan.remove("cualquiera")
     if faltan:
         return Resultado(estado="no_cumple", detalle=(
-            f"falta un giro {' y uno '.join(faltan)} de {a.recorrido_grados:g}°; hay: {texto}"))
+            f"falta un giro {' y uno '.join(faltan)} de {a.grados():g}°; hay: {texto}"))
     return Resultado(estado="cumple", detalle=f"articulaciones: {texto}")
 
 

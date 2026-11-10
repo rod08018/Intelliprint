@@ -179,8 +179,12 @@ def render_gif(
         rotulo = label(angulo)
         # Un rótulo de varias líneas (un conjunto) va bajo el título, no
         # pegado a él: sumados, se salían del dibujo.
-        ax.set_title((f"{title}\n{rotulo}" if "\n" in rotulo else f"{title}  {rotulo}").strip(),
-                     fontsize=10)
+        # Colgado del borde de arriba de la figura, no encima de los ejes: con
+        # título y tres líneas de rótulo, la primera salía cortada (pan-tilt,
+        # 2026-11-10). Los ejes no se mueven: el modelo no salta de tamaño
+        # entre cuadros con y sin la línea de «choca».
+        fig.suptitle((f"{title}\n{rotulo}" if "\n" in rotulo else f"{title}  {rotulo}").strip(),
+                     fontsize=10, y=0.985, va="top")
         buf = io.BytesIO()
         # Sin `bbox_inches="tight"`: recortaba cada cuadro a su rótulo, los
         # cuadros salían de tamaños distintos y en el GIF quedaban restos del

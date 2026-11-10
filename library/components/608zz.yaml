@@ -50,6 +50,9 @@ salidas:
     en: [0, 0, 0]
     eje: "+z"
     recorrido: [0, 360]
+    # El ancho del aro (B = 7): lo que apoya en la cara de arriba también
+    # gira con él, no solo lo que toca la de abajo.
+    largo: 7
     porque: "un rodamiento gira libre, sin tope: la vuelta entera"
 notas: >
   El aro exterior va a presión en un alojamiento de Ø22 (con la holgura de

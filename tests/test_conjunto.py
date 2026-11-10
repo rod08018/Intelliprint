@@ -140,6 +140,25 @@ def test_la_polea_gira_con_el_rodamiento_del_soporte(tmp_path):
     assert a.recorrido == (0, 360)
 
 
+def test_la_polea_apoyada_en_la_cara_de_arriba_del_rodamiento_gira_con_el(tmp_path):
+    """La polea de verdad del banco (1110-0313) no entra en el rodamiento:
+    se apoya encima. El 608ZZ va en (0, 0, 6) del soporte y ocupa hasta
+    z = 13 (7 de ancho); la polea colocó el soporte en (0, 0, 22.55) volteado,
+    así que en el soporte empieza en z = 13.35, a 0.35 de la cara de arriba
+    del aro interior pero a 7.35 de la de abajo, que era el único punto que
+    se miraba: el conjunto daba «ninguna» articulación."""
+    rodamiento = {"nombre": "608zz", "tipo": "componente", "ficha": "608zz", "en": [0, 0, 6],
+                  "giros": [], "entra_por": "+z"}
+    volteado = {**_sobre("soporte", (0, 0, 22.55)), "giros": [["x", 180]]}
+    carpeta = _obra(tmp_path, {
+        "soporte": ([], [rodamiento], ([-28, -18, 0], [28, 18, 13])),
+        "polea": (["soporte"], [volteado], ([-15, -15, 0], [15, 15, 9.2])),
+    })
+    [a] = articulaciones(leer_piezas(carpeta, "conjunto"))
+    assert (a.pieza, a.padre, a.de) == ("polea", "soporte", "608zz")
+    assert a.eje == pytest.approx([0, 0, 1])
+
+
 # --- Lo que se ve: la animación del conjunto ------------------------------------------------
 
 def _art(pieza, recorrido):

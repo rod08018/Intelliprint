@@ -709,9 +709,12 @@ def _banco(args, raiz: Path, env: dict, nombre: str) -> None:
         resultados, fallos = rejuzgar(encargos, corrida, _freecadcmd(env), material,
                                       elegir_laminador(raiz, env))
         texto = informe(resultados, modelo="rejuzgada con el juez de hoy", fallos=fallos)
-        # Al lado del informe original, sin pisarlo: es la evidencia de esa corrida.
-        (corrida / "banco_rejuzgado.md").write_text(texto, encoding="utf-8")
+        # Al lado del informe original y de los rejuicios anteriores, sin pisar
+        # ninguno: cada uno es la evidencia de lo que medía el juez de ese día.
+        destino = carpeta_libre(corrida / "banco_rejuzgado.md")
+        destino.write_text(texto, encoding="utf-8")
         print(texto)
+        print(f"[{nombre}] informe en {destino}")
         return
     # Carpetas cortas: dentro van projects/<fecha-título>/parts/<pieza>/<pieza>.step
     # y FreeCAD en Windows no abre rutas de más de 260 caracteres. Con el

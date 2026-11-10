@@ -187,7 +187,8 @@ def leer_piezas(carpeta: Path, conjunto: str | None = None,
             p.propios.append(rasgo)
             p.montados += [{**x, "de": de} for x in primitivas(ficha, en, giros, "cuerpos")]
             p.salidas += [{"de": de, "nombre": s.nombre, "punto": colocar(s.en, en, giros),
-                           "eje": orientar(s.eje, giros), "recorrido": tuple(s.recorrido)}
+                           "eje": orientar(s.eje, giros), "recorrido": tuple(s.recorrido),
+                           "largo": s.largo}
                           for s in ficha.salidas]
         piezas[i] = p
     return piezas
@@ -206,6 +207,15 @@ def _a_la_caja(punto, caja) -> float:
     return math.sqrt(sum(max(lo - x, 0, x - hi) ** 2 for x, lo, hi in zip(punto, a, b)))
 
 
+def _salida_a_la_caja(s: dict, caja) -> float:
+    """Del tramo que ocupa la salida (de `punto` a `largo` por su eje) a la
+    caja: una polea puede apoyar en cualquiera de las dos caras del aro."""
+    largo = s.get("largo", 0.0)
+    n = max(1, math.ceil(largo / 0.5))
+    return min(_a_la_caja([p + e * largo * k / n for p, e in zip(s["punto"], s["eje"])], caja)
+               for k in range(n + 1))
+
+
 def articulaciones(piezas: dict[str, Pieza]) -> list[Articulacion]:
     """La pieza que llega a una salida de lo que monta la de abajo gira con
     ella; si hay varias, con la más cercana. La que no llega va fija."""
@@ -214,7 +224,7 @@ def articulaciones(piezas: dict[str, Pieza]) -> list[Articulacion]:
         if p.padre is None or not piezas[p.padre].salidas:
             continue
         caja = _caja_en(p.envolvente, p.al_padre)
-        d, s = min(((_a_la_caja(s["punto"], caja), s) for s in piezas[p.padre].salidas),
+        d, s = min(((_salida_a_la_caja(s, caja), s) for s in piezas[p.padre].salidas),
                    key=lambda x: x[0])
         if d <= ALCANCE_MM:
             salida.append(Articulacion(p.id, p.padre, s["de"], s["punto"], s["eje"],

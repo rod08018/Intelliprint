@@ -97,6 +97,11 @@ class Salida(BaseModel):
     eje: Eje
     recorrido: tuple[float, float]
     """En grados, desde el centro del recorrido. De la hoja de datos."""
+    largo: float = 0.0
+    """Cuánto ocupa lo que se mueve a lo largo del eje, desde `en`: el ancho
+    del aro de un rodamiento. Con solo el punto, la polea del banco apoyada
+    en la cara de ARRIBA del 608ZZ quedaba a 7.35 mm de su cara de abajo y
+    no giraba con él (1110-0313)."""
     porque: str = ""
 
 

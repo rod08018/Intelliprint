@@ -448,6 +448,34 @@ def test_la_obra_gira_e_inclina_lo_que_dice_la_peticion(tmp_path, articulaciones
     assert r.estado == estado, r.detalle
 
 
+@pytest.mark.parametrize("eje, recorrido, estado", [
+    ([1, 0, 0], [0, 360], "cumple"),
+    ([0, 0, 1], [0, 360], "cumple"),
+    ([1, 0, 0], [0, 180], "no_cumple")])
+def test_una_polea_que_gira_da_la_vuelta_entera_en_cualquier_eje(tmp_path, eje, recorrido,
+                                                                 estado):
+    """«Una polea que gira en ese rodamiento» no dice hacia dónde mira el
+    eje (el soporte va a un perfil 2020, en cualquier postura): cuenta
+    cualquier eje, pero la vuelta tiene que ser entera."""
+    verificacion = {**GIRA_E_INCLINA, "articulaciones": [
+        {"pieza": "polea", "eje_mundo": eje, "recorrido": recorrido}]}
+    [r], _ = _juzgar_obra(_obra_construida(tmp_path, verificacion=verificacion),
+                          [{"tipo": "articulaciones", "ejes": ["cualquiera"],
+                            "recorrido_grados": "vuelta entera"}])
+    assert r.estado == estado, r.detalle
+
+
+def test_el_608zz_ya_no_queda_pendiente_de_su_giro():
+    """La polea quedaba «pendiente» porque la ficha del 608ZZ no tenía
+    salida. Ya la tiene (F7.4 (conjunto)): ahora su giro se mide, y es la
+    vuelta entera que dice la petición."""
+    [e] = [e for e in cargar_encargos(ENCARGOS)
+           if e.nombre == "soporte_608zz_polea"]
+    assert not [a for a in e.oraculo if a.tipo == "pendiente"]
+    [giro] = [a for a in e.oraculo if a.tipo == "articulaciones"]
+    assert giro.ejes == ["cualquiera"] and giro.recorrido_grados == "vuelta entera"
+
+
 def test_el_banco_pide_una_obra_entera_sin_visto_bueno_de_nadie():
     from orchestrator.cli import _parser, orden_del_banco
     assert orden_del_banco(obra=True)[-3:] == ["orchestrator.cli", "obra", "--banco"]

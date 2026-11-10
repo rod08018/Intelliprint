@@ -196,8 +196,11 @@ def corridas_del_banco(workspace: Path) -> list[dict]:
 
     corridas = []
     for corrida in sorted((p for p in raiz.iterdir() if p.is_dir()), key=cuando, reverse=True):
-        informes = sorted(corrida.glob("banco_reanudado*.md"),
-                          key=lambda p: (len(p.stem), p.stem))
+        # El más reciente, sea una reanudación o un rejuicio: el 1110-0313 se
+        # rejuzgó con el 608ZZ ya medido y la web seguía con la reanudada.
+        informes = sorted(list(corrida.glob("banco_reanudado*.md"))
+                          + list(corrida.glob("banco_rejuzgado*.md")),
+                          key=lambda p: p.stat().st_mtime)
         informe = informes[-1] if informes else corrida / "banco.md"
         if not informe.is_file():
             continue

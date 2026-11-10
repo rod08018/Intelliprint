@@ -9,9 +9,10 @@ oraculo:
     ficha: 608zz
   - tipo: encaje
   - tipo: conjunto_libre
+  # «gira en ese rodamiento»: la vuelta entera, que no es una cota. Antes quedaba pendiente
+  # porque la ficha del 608ZZ no tenía salida; ya la tiene (F7.4 (conjunto)).
+  # El eje, cualquiera: la petición no dice en qué postura va el perfil.
+  - tipo: articulaciones
+    ejes: [cualquiera]
+    recorrido_grados: vuelta entera
   - tipo: sin_soportes
-  - tipo: pendiente
-    que: >
-      la polea gira con el anillo interior del 608ZZ: la ficha del rodamiento
-      aún no tiene salida, así que el conjunto solo se comprueba en reposo
-    fase: F7.4 (conjunto) con salidas de rodamientos

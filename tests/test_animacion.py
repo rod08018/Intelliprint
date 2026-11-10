@@ -32,6 +32,26 @@ def test_un_cuadro_no_arrastra_restos_del_anterior(tmp_path):
     assert ImageChops.difference(segundo, aparte).getbbox() is None
 
 
+def test_un_rotulo_de_varias_lineas_no_se_sale_por_arriba(tmp_path):
+    """El pan-tilt de la ronda del 2026-11-10 tenía título y tres líneas de
+    rótulo, y la primera salía cortada por el borde de arriba: la fila
+    superior del cuadro tiene que quedar en blanco."""
+    pytest.importorskip("matplotlib")
+    from PIL import Image
+
+    from orchestrator.animation import render_gif
+
+    rotulo = ("Soporte de pan con alojamiento para SG90 de inclinación 0°\n"
+              "Plataforma para cámara pequeña 0°\n"
+              "choca: Base con alojamiento para SG90 de giro ↔ Plataforma para cámara pequeña")
+    gif = render_gif({"cubo": CUBO}, [(0, QUIETO)], tmp_path / "rotulo.gif",
+                     title="Conjunto pan-tilt", label=lambda t: rotulo)
+    with Image.open(gif) as img:
+        cuadro = img.convert("L")
+        arriba = [cuadro.getpixel((x, y)) for y in range(3) for x in range(cuadro.width)]
+    assert min(arriba) > 240
+
+
 def test_lo_que_choca_se_pinta_de_rojo_solo_en_su_cuadro(tmp_path):
     pytest.importorskip("matplotlib")
     from PIL import Image
