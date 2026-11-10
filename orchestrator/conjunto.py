@@ -300,6 +300,22 @@ COLORES_PIEZAS = ("#9aa5b1", "#3bb273", "#3a7be8", "#9b59b6", "#f1c40f", "#1abc9
 """Sin naranjas ni rosas: el rojo es solo para lo que choca."""
 
 
+ANCHO_ROTULO = 80
+"""Caracteres por línea del rótulo de un cuadro: con más se sale del dibujo."""
+
+
+def rotulo(piezas: dict[str, Pieza], juntas: list[str], angulos: dict[str, float],
+           rojos: set[str]) -> str:
+    """El ángulo de cada articulación y, si algo choca, qué: una línea por
+    cosa y partida al ancho del dibujo. Con los nombres enteros en una sola
+    línea, el del pan-tilt del banco se salía por los dos lados (2026-11-10)."""
+    import textwrap
+    partes = [f"{piezas[j].nombre} {angulos[j]:g}°" for j in juntas]
+    if rojos:
+        partes.append("choca: " + " ↔ ".join(piezas[r].nombre for r in piezas if r in rojos))
+    return "\n".join(textwrap.fill(p, ANCHO_ROTULO) for p in partes)
+
+
 def animar_conjunto(piezas: dict[str, Pieza], arts: dict[str, Articulacion],
                     steps: dict[str, Path], solidos: dict[str, list], duenos: dict[str, str],
                     choques: list[dict], gif: Path, freecadcmd: str, titulo: str,
@@ -315,18 +331,15 @@ def animar_conjunto(piezas: dict[str, Pieza], arts: dict[str, Articulacion],
     colores = {s: COLORES_PIEZAS[k % len(COLORES_PIEZAS)] for k, s in enumerate(piezas)}
     colores.update({s: COLOR_COMPRADO for s in duenos if s not in piezas})
 
-    def rotulo(k):
-        partes = [f"{piezas[j].nombre} {cuadros[k][j]:g}°" for j in arts]
-        rojos = sorted({duenos[s] for s in chocan_en(cuadros[k], choques)})
-        if rojos:
-            partes.append("choca: " + " ↔ ".join(piezas[r].nombre for r in rojos))
-        return "\n".join(partes)
+    def rotular(k):
+        return rotulo(piezas, list(arts), cuadros[k],
+                      {duenos[s] for s in chocan_en(cuadros[k], choques)})
 
     marcos = []
     for k, a in enumerate(cuadros):
         mundo = poses(piezas, arts, a)
         marcos.append((k, {s: _placement(mundo[duenos[s]]) for s in duenos}))
-    return render_gif(mallas, marcos, gif, title=titulo, colors=colores, label=rotulo,
+    return render_gif(mallas, marcos, gif, title=titulo, colors=colores, label=rotular,
                       resaltar=lambda k: chocan_en(cuadros[k], choques), color_resaltado=ROJO)
 
 

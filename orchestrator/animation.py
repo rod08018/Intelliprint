@@ -176,7 +176,11 @@ def render_gif(
         ax.set_box_aspect(tuple(np.maximum(hi - lo, 1)), zoom=1.0)
         ax.view_init(elev=view[0], azim=view[1])
         ax.set_axis_off()
-        ax.set_title(f"{title}  {label(angulo)}".strip())
+        rotulo = label(angulo)
+        # Un rótulo de varias líneas (un conjunto) va bajo el título, no
+        # pegado a él: sumados, se salían del dibujo.
+        ax.set_title((f"{title}\n{rotulo}" if "\n" in rotulo else f"{title}  {rotulo}").strip(),
+                     fontsize=10)
         buf = io.BytesIO()
         # Sin `bbox_inches="tight"`: recortaba cada cuadro a su rótulo, los
         # cuadros salían de tamaños distintos y en el GIF quedaban restos del

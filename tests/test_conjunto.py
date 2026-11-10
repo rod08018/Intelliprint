@@ -175,6 +175,22 @@ def test_con_dos_articulaciones_se_ve_cada_una_y_luego_las_dos_juntas():
     assert {-90, 90} <= {c["giro"] for c in juntas}
 
 
+def test_el_rotulo_de_un_cuadro_cabe_en_el_dibujo():
+    """El del pan-tilt del banco (2026-11-10) llevaba en una línea los
+    nombres enteros de las tres piezas que chocaban y se salía por los dos
+    lados: no se leía qué chocaba."""
+    from orchestrator.conjunto import ANCHO_ROTULO, Pieza, rotulo
+    largo = "Soporte de pan con alojamiento para SG90 de inclinación"
+    piezas = {i: Pieza(i, n, None, ([0, 0, 0], [1, 1, 1])) for i, n in (
+        ("base", "Base con alojamiento para SG90 de giro"), ("giro", largo),
+        ("plataforma", "Plataforma para cámara pequeña"))}
+    texto = rotulo(piezas, ["giro", "plataforma"], {"giro": 50.0, "plataforma": -30.0},
+                   {"base", "giro", "plataforma"})
+    assert all(len(linea) <= ANCHO_ROTULO for linea in texto.splitlines()), texto
+    assert f"{largo} 50°" in texto and "Plataforma para cámara pequeña -30°" in texto
+    assert "choca:" in texto and texto.replace("\n", " ").count("Base con alojamiento") == 1
+
+
 def test_en_cada_cuadro_se_resalta_solo_lo_que_choca_en_ese_angulo():
     """Los choques del brazo y el poste, calculados a mano en el test de
     abajo: a 80° y 90°, no a 70°. Un choque entre dos piezas que no dependen
