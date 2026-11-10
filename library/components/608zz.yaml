@@ -7,6 +7,8 @@ verificado: false
 fuentes:
   - url: https://www.coolenbearings.com/skf/ball-bearings/deep-groove/608-2z
     cita: "SKF 608-2Z: d 8 mm, D 22 mm, B 7 mm; d1 ≈ 12.15, D2 ≈ 19.2, da max 12, Da max 20"
+  - url: https://www.coolenbearings.com/skf/ball-bearings/deep-groove/608-2z
+    cita: "0.013 kg"
   - url: https://uk.rubix.com/en/deep-groove-ball-bearing-608-series/p-G1321009950
     cita: "Miniature ball bearing SKF 608-2Z, Outer diameter: 22 mm | Width: 7 mm | Inner diameter: 8 mm"
 marco: >
@@ -60,3 +62,6 @@ notas: >
   que apoye solo en el aro que no gira: un reborde en el alojamiento deja un
   taladro de Ø13 a Ø20 (SKF: el apoyo del alojamiento, Da max 20), y un
   separador en el eje no pasa de Ø12 (da max 12).
+
+# SKF 608-2Z (coolenbearings): 0.013 kg.
+masa_g: 13

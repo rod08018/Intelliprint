@@ -895,6 +895,7 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
 
     tipo, como = tipo_de(carpeta)
     materiales = _lista_de_materiales(_materiales(carpeta)) if tipo != "mecanismo" else ""
+    estudio = _estudio_de_movimientos(carpeta, vid, con_visor)
     categoria = categoria_de(workspace, g)
     opciones = "".join(f'<option value="{e(c)}"{" selected" if c == categoria else ""}>{e(c.capitalize())}</option>'
                        for c in CATEGORIAS)
@@ -915,7 +916,7 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
         <p class="suave meta">Versión {v["version"]} de {len(versiones)} · {e(_fecha(v["id"]))}</p>
       </div>
     </div>
-    {materiales}{arbol}{seccion_piezas}{cambiar_todo}{docs}
+    {materiales}{estudio}{arbol}{seccion_piezas}{cambiar_todo}{docs}
     <details class="tecnico" data-version="{vid}"><summary>Detalles técnicos</summary><div class="contenido"></div></details>
   </main>"""
     if con_visor:
@@ -938,6 +939,88 @@ def _conjunto_con_ensamble(carpeta: Path) -> str | None:
         if (carpeta / "nodos" / i / "ensamble.json").is_file():
             return i
     return None
+
+
+def _kgf_cm(nm: float) -> str:
+    """El par como lo dan las hojas de servos. Con dos cifras significativas:
+    el tilt del pan-tilt pide 0.0046 kgf·cm y con dos decimales salía «0.00»."""
+    v = nm * 100 / 9.80665
+    return "0" if v < 5e-5 else f"{v:.2g}" if v < 1 else f"{v:.3g}"
+
+
+def _gramos(g) -> str:
+    if g is None:
+        return "—"
+    return f"{g / 1000:.2f} kg" if g >= 1000 else f"{g:.0f} g"
+
+
+def _estudio_de_movimientos(carpeta: Path, vid: str, conjunto: str | None) -> str:
+    """Las cinco preguntas de F7.10 (estudio), una tarjeta cada una, con la
+    cifra, si va holgada (verde), justa (ámbar) o no llega (rojo), y de
+    dónde sale. Del `estudio.json`: calcularlo al vuelo cuesta medio minuto."""
+    from orchestrator.estudio import MARGEN_SERVO
+    if not conjunto:
+        return ""
+    est = _leer(carpeta / "nodos" / conjunto / "estudio.json")
+    if not est:
+        return ""
+    tarjetas = []
+    c = est["carga_max"]
+    material = "".join(
+        f'<li>Material de «{e(m["nombre"])}»: '
+        + (f'{_gramos(m["carga_max_g"])} <span class="suave">({e(m["detalle"])})</span>'
+           if m["carga_max_g"] is not None else f'<span class="suave">{e(m["detalle"])}</span>')
+        + '</li>' for m in est.get("material") or [])
+    sin_material = "" if "material" in est else '<p class="suave">Sin medir la resistencia del material.</p>'
+    tarjetas.append(f"""<div class="tarjeta-estudio"><h3>Carga máxima</h3>
+      <p class="cifra">{_gramos(c["g"])}</p>
+      <p>{f'la limita el {e(c["limita"])}' if c["g"] is not None else "no se puede decir"},
+      puesta {e(est["carga"]["donde"])}.</p>{f'<ul>{material}</ul>' if material else ''}{sin_material}</div>""")
+
+    filas = []
+    for s in est["servos"]:
+        if s.get("aguanta") is None:
+            filas.append(f'<li><span class="pastilla ambar">sin datos</span> {e(s["nombre"])}: '
+                         f'no se sabe el par de {e(s["servo"])}</li>')
+            continue
+        clase = "mal" if not s["aguanta"] else ("ambar" if s["margen"] < 0.3 else "ok")
+        filas.append(f'<li><span class="pastilla {clase}">{"aguanta" if s["aguanta"] else "no aguanta"}</span> '
+                     f'{e(s["nombre"])} · {e(s["servo"])}: pide {_kgf_cm(s["par_max_Nm"])} kgf·cm '
+                     f'(a {s["angulo_peor"]:g}°) de {_kgf_cm(s["par_disponible_Nm"])} '
+                     f'<span class="suave">(el {MARGEN_SERVO:.0%} de su par a {s["tension_V"]:g} V)</span></li>')
+    tarjetas.append(f'<div class="tarjeta-estudio"><h3>¿Aguanta el servo?</h3><ul>{"".join(filas)}</ul></div>')
+
+    v = est["vuelco"]
+    if v["margen_mm"] is None:
+        vuelca = '<p class="suave">No se sabe: la base no tiene cara de apoyo.</p>'
+    else:
+        clase = "ok" if v["atornillada"] or v["margen_mm"] >= 5 else ("ambar" if v["margen_mm"] >= 0 else "mal")
+        vuelca = (f'<p><span class="pastilla {clase}">{"atornillada" if v["atornillada"] else ("no vuelca" if v["margen_mm"] >= 0 else "vuelca")}</span> '
+                  f'sin carga, el centro de masas queda a {v["margen_mm"]:.1f} mm del borde del apoyo en la peor pose.</p>')
+        if v["carga_max_g"] is not None:
+            vuelca += (f'<p>Con {_gramos(v["carga_max_g"])} en el punto de carga volcaría'
+                       + (", pero va atornillada." if v["atornillada"] else ".") + '</p>')
+    tarjetas.append(f'<div class="tarjeta-estudio"><h3>¿Vuelca?</h3>{vuelca}</div>')
+
+    a = est["alcance"]
+    tarjetas.append(f"""<div class="tarjeta-estudio"><h3>Alcance</h3>
+      <p>El punto de carga llega a <b>{a["radio_mm"]:.0f} mm</b> del primer eje.</p>
+      <img class="alcance" src="/proyectos/{vid}/nodos/{e(conjunto)}/alcance.png" alt="Planta y alzado del recorrido del punto de carga" loading="lazy"></div>""")
+
+    tiempos = "".join(
+        f'<li>«{e(s["nombre"])}»: {s["recorrido"][1] - s["recorrido"][0]:g}° en {s["tiempo_s"]:.2f} s; '
+        f'el punto de carga va a {s["velocidad_punta_mm_s"]:.0f} mm/s</li>'
+        for s in est["servos"] if s.get("tiempo_s") is not None)
+    tarjetas.append(f"""<div class="tarjeta-estudio"><h3>Velocidades y tiempos</h3>
+      <ul>{tiempos or '<li class="suave">Sin datos de velocidad.</li>'}</ul>
+      <p class="suave">Con la recta par-velocidad del servo, en el peor par.</p></div>""")
+
+    avisos = "".join(f"<li>{e(x)}</li>" for x in est.get("avisos") or [])
+    return f"""<section class="estudio"><h2>Estudio de movimientos</h2>
+      <p class="suave">La base apoyada como se imprimió; {est["poses"]} poses cada {est["paso"]:g}°;
+      {est["masa_total_g"]:.0f} g en total.</p>
+      <div class="tarjetas-estudio">{"".join(tarjetas)}</div>
+      {f'<ul class="avisos-estudio suave">{avisos}</ul>' if avisos else ''}</section>"""
 
 
 def _lista_de_materiales(m: dict | None) -> str:
@@ -1093,6 +1176,14 @@ ESTILO = """
   .mandos .choca { color:var(--mal); font-weight:600; font-size:13px; margin:0; min-height:1.2em; }
   .materiales .columnas { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px;
                           background:var(--tarjeta); border:1px solid var(--linea); border-radius:16px; padding:16px 18px; }
+  .tarjetas-estudio { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px; }
+  .tarjeta-estudio { background:var(--tarjeta); border:1px solid var(--linea); border-radius:12px; padding:12px 14px; }
+  .tarjeta-estudio h3 { font-size:13px; text-transform:uppercase; letter-spacing:.03em; color:var(--suave); margin:0 0 6px; }
+  .tarjeta-estudio .cifra { font-size:26px; font-weight:700; margin:0; }
+  .tarjeta-estudio p { margin:4px 0; } .tarjeta-estudio ul { margin:4px 0; padding-left:18px; } .tarjeta-estudio li { margin:4px 0; }
+  .tarjeta-estudio img.alcance { width:100%; height:auto; border-radius:8px; background:#fff; margin-top:6px; }
+  .avisos-estudio { font-size:13px; margin:10px 0 0; padding-left:18px; }
+  .mandos .par { font-size:12px; color:var(--suave); margin:-4px 0 0; min-height:1.1em; } .mandos .par.mal { color:var(--mal); font-weight:600; }
   .materiales h3 { font-size:13px; text-transform:uppercase; letter-spacing:.03em; color:var(--suave); margin:0 0 8px; }
   .materiales ul { margin:0; padding-left:18px; } .materiales li { margin:3px 0; } .materiales p { margin:0 0 4px; }
   #vivo { padding:12px max(16px, calc((100% - 1200px)/2)) 48px; }
@@ -1419,6 +1510,18 @@ async function arrancar() {
       for (const [s, m] of Object.entries(mallas)) m.material.color.copy(rojos.has(s) ? ROJO : m.userData.color);
       const choca = [...new Set(d.rojos.map(s => datos.solidos[s]?.pieza))].map(p => datos.piezas[p]?.nombre);
       aviso.textContent = choca.length ? "Choca aquí: " + choca.join(" ↔ ") : "";
+      // F7.10 (estudio): lo que pide la gravedad a cada servo en esta pose.
+      const est = d.estudio;
+      for (const [p, el] of Object.entries(pares)) {
+        const x = est?.pares?.[p];
+        el.textContent = !x ? "" : `par por gravedad ${+(x.Nm * 100 / 9.80665).toPrecision(2)} kgf·cm`
+          + (x.uso == null ? "" : ` · ${Math.round(x.uso * 100)} % de lo que puede`);
+        el.className = "par" + (x?.uso > 1 ? " mal" : "");
+      }
+      vuelco.textContent = est?.vuelco_mm == null ? "" : (est.vuelco_mm >= 0
+        ? `Centro de masas a ${est.vuelco_mm.toFixed(1)} mm del borde del apoyo`
+        : `Vuelca: el centro de masas sale ${(-est.vuelco_mm).toFixed(1)} mm del apoyo`);
+      vuelco.className = "par" + (est?.vuelco_mm < 0 ? " mal" : "");
     } catch (e) { /* sin red un momento */ }
     pidiendo = null;
     if (otra) { otra = false; poner(); }
@@ -1427,6 +1530,8 @@ async function arrancar() {
   // Un deslizador por articulación, en la rejilla del barrido: entre dos de
   // sus puntos no se comprobó nada.
   const aviso = document.createElement("p"); aviso.className = "choca";
+  const vuelco = document.createElement("p"); vuelco.className = "par";
+  const pares = {};
   for (const a of datos.articulaciones) {
     angulos[a.pieza] = 0;
     const fila = document.createElement("label");
@@ -1437,6 +1542,8 @@ async function arrancar() {
     barra.dataset.pieza = a.pieza;
     barra.addEventListener("input", () => { angulos[a.pieza] = +barra.value; valor.textContent = barra.value + "°"; poner(); });
     fila.append(nombre, barra, valor); mandos.append(fila);
+    pares[a.pieza] = Object.assign(document.createElement("p"), {className: "par"});
+    mandos.append(pares[a.pieza]);
   }
   if (datos.articulaciones.length) {
     const tocar = Object.assign(document.createElement("button"), {className: "btn", type: "button", textContent: "▶ Mover"});
@@ -1475,7 +1582,7 @@ async function arrancar() {
     texto.textContent = `Ver a través (${tornillos.length} tornillos)`;
     fila.append(marca, texto); mandos.append(fila);
   }
-  mandos.append(aviso);
+  mandos.append(vuelco, aviso);
 
   caja.replaceChildren(lienzo);
   caja.classList.add("listo"); mandos.hidden = !datos.articulaciones.length && !tornillos.length;

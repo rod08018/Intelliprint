@@ -414,6 +414,25 @@ def _animar_obra(carpeta: Path, raiz: Path, env: dict, nombre: str) -> None:
         print(f"  animación: {carpeta / obra.NODOS / i / 'animation.gif'}")
 
 
+def _estudio(args, raiz: Path, env: dict, nombre: str) -> None:
+    """El estudio de movimientos (F7.10 (estudio)) de cada conjunto que ya
+    se mueve: lo que pesa, si aguantan los servos, si vuelca, el alcance y
+    los tiempos. La resistencia del material la mide FreeCAD."""
+    from orchestrator import estudio, obra
+    carpeta = Path(args.carpeta)
+    for i, estado in obra.estados(carpeta).items():
+        if estado not in ("verificado", "con choques"):
+            continue
+        e = estudio.escribir_estudio(carpeta, i, _freecadcmd(env), raiz)
+        c = e["carga_max"]
+        print(f"[{nombre}] «{i}»: carga máxima "
+              + (f"{c['g']:.1f} g (la limita el {c['limita']})" if c["g"] is not None else "sin calcular"))
+        for s in e["servos"]:
+            ok = {True: "aguanta", False: "NO aguanta"}.get(s.get("aguanta"), "sin datos de par")
+            print(f"  {s['nombre']}: {s['servo']} {ok}")
+        print(f"  {carpeta / obra.NODOS / i / 'estudio.md'}")
+
+
 def _proyectos(args, raiz: Path, env: dict, nombre: str) -> None:
     from orchestrator.registry import archivar, escribir_indice, indice
 
@@ -676,6 +695,15 @@ def _paso_de_obra(carpeta: Path, peticion: str, raiz: Path, env: dict, nombre: s
         for a in v["articulaciones"]:
             print(f"  «{a['pieza']}» gira con el {a['de']} de «{a['padre']}», "
                   f"de {a['recorrido'][0]:g}° a {a['recorrido'][1]:g}°", flush=True)
+        # F7.10 (estudio): con las piezas en su sitio, lo que aguanta y lo
+        # que vuelca. Que falle no deshace la verificación: se dice y sigue.
+        try:
+            from orchestrator.estudio import escribir_estudio
+            c = escribir_estudio(carpeta, nodo, _freecadcmd(env), raiz)["carga_max"]
+            if c["g"] is not None:
+                print(f"  carga máxima {c['g']:.0f} g (la limita el {c['limita']})", flush=True)
+        except Exception as fallo:  # noqa: BLE001
+            print(f"  sin estudio de movimientos: {fallo}", flush=True)
         if v["ok"]:
             print(f"[{nombre}] ✓ «{nombre_nodo}» se mueve sin chocar")
         else:
@@ -787,6 +815,8 @@ def _parser() -> argparse.ArgumentParser:
     sub.add_parser("bot", help="atender peticiones por Telegram (F5.6 (telegram))")
     anim = sub.add_parser("animar", help="rehacer el ensamble y la animación de un proyecto ya diseñado")
     anim.add_argument("carpeta")
+    estu = sub.add_parser("estudio", help="estudio de movimientos: carga, servos, vuelco, alcance y tiempos")
+    estu.add_argument("carpeta")
     proy = sub.add_parser("proyectos", help="listar proyectos y ordenar el workspace")
     proy.add_argument("--archivar", action="store_true",
                       help="mover lo no aprobado a workspace/archivo (no borra nada)")
@@ -874,6 +904,9 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.comando == "animar":
         _animar(args, raiz, env, nombre)
+        return
+    if args.comando == "estudio":
+        _estudio(args, raiz, env, nombre)
         return
     if args.comando == "proyectos":
         _proyectos(args, raiz, env, nombre)

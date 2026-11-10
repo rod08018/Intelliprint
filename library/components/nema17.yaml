@@ -8,6 +8,8 @@ fuentes:
     cita: "42HD4027-01: 42.3Max, 31 ± 0.2, 4-M3 Depth 4.5Min., 39.5Max, Ø22 (resalte de 2 ± 0.2), Ø5, 23 ± 1"
   - url: https://make.epfl.ch/storage/media/1461/Nema17HS4401.pdf
     cita: "conector S6B-PH-K: 16 de ancho, a 9.6 de la cara de atrás, 7 de saliente"
+  - url: https://make.epfl.ch/storage/media/1461/Nema17HS4401.pdf
+    cita: "42HD4027-01: 9. Motor weight 275g Ref."
 marco: >
   Origen en el centro de la cara de montaje (la del eje): el motor queda
   detrás, hacia -z, y el eje sale hacia +z. El conector está en el lado -y.
@@ -43,3 +45,6 @@ notas: >
   Agujeros roscados M3 de 4.5 mm de fondo como mínimo: el tornillo no puede
   entrar más de eso en el motor. Hay NEMA 17 de otros largos (23 a 60 mm): si
   el tuyo no es de 40, cambia el largo del cuerpo.
+
+# El plano del 42HD4027-01, el de 40 mm de esta ficha: «275g Ref.».
+masa_g: 275

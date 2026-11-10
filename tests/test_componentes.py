@@ -281,3 +281,41 @@ def test_el_programa_se_construye_con_lo_que_monta_otra_pieza(monkeypatch):
                        '{"sg90": {"cuantos": 0, "mensaje": "lo monta otra"}}')
     script = compose_program_script(SimpleNamespace(part="p", codigo="x"))
     assert "lo monta otra" in script and "ajenos=" in script
+
+
+# --- par, velocidad y masa (F4.12 (par)) ---------------------------------------------------
+
+
+def test_ningun_servo_sin_par_ni_velocidad():
+    """El estudio de movimientos (F7.10 (estudio)) dice si un servo aguanta
+    con su par: una ficha de servo sin él no se puede estudiar."""
+    for i in ids():
+        f = cargar(i)
+        if "servo" in f.nombre.lower():
+            assert f.par_kgf_cm and f.velocidad_s_60, i
+            assert set(f.par_kgf_cm) == set(f.velocidad_s_60), i
+
+
+def test_el_par_del_sg90_en_newton_metro():
+    """Hoja de TowerPro: «Stall torque: 1.8 kgf·cm» a 4.8 V.
+    1.8 × 9.80665 / 100 = 0.17652 N·m."""
+    sg90 = cargar("sg90")
+    assert sg90.par_Nm(4.8) == pytest.approx(0.17652, abs=1e-5)
+    assert sg90.velocidad(4.8) == 0.1
+    assert sg90.masa_g == 9
+
+
+def test_el_mg996r_a_cada_tension_y_la_que_no_dice_su_hoja():
+    """9.4 kgf·cm y 0.17 s/60° a 4.8 V; 11 y 0.14 a 6 V. A 5 V, que su
+    hoja no da, se toma la tensión de la hoja más baja que no la pase: 4.8,
+    del lado seguro."""
+    mg = cargar("mg996r")
+    assert mg.par_Nm(6) == pytest.approx(11 * 9.80665 / 100)
+    assert mg.par_Nm(5) == pytest.approx(9.4 * 9.80665 / 100)
+    assert mg.velocidad(5) == 0.17
+
+
+def test_las_masas_que_dan_sus_fuentes():
+    assert cargar("608zz").masa_g == 13
+    assert cargar("nema17").masa_g == 275
+    assert cargar("hc-sr04").masa_g == 8.5

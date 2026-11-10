@@ -156,3 +156,87 @@ def test_el_visor_recibe_cada_tornillo_en_el_marco_de_la_pieza_donde_apoya(tmp_p
     [n] = t["tuercas"]
     assert (n["pieza"], n["alto"]) == ("base", 2.4)
     assert n["en"] == pytest.approx([10, 10, 0])
+
+
+# --- El estudio de movimientos en la web (F7.10 (estudio)) ----------------------------
+
+
+def _estudio_hecho(carpeta):
+    """Un `estudio.json` escrito a mano para el giro: 10 g de lastre en la
+    base, en (35, 17), y 20 g en el soporte, a 10 mm de su eje en x."""
+    e = {"conjunto": "conjunto", "tension_V": 4.8, "paso": 10.0, "poses": 19,
+         "masas": [{"nombre": "Lastre", "g": 10.0, "centro": [35, 17, 0], "de": "PrusaSlicer",
+                    "pieza": "base"},
+                   {"nombre": "Soporte", "g": 20.0, "centro": [10, 0, 0], "de": "estimada",
+                    "pieza": "soporte"}],
+         "masa_total_g": 30.0,
+         "carga": {"punto": [0, 0, 31], "pieza": "soporte", "donde": "en lo alto del soporte"},
+         "servos": [{"pieza": "soporte", "nombre": "Pieza soporte", "servo": "Micro servo SG90",
+                     "par_max_Nm": 0.0, "angulo_peor": 0.0, "recorrido": [-90, 90],
+                     "tension_V": 4.8, "par_bloqueo_Nm": 0.17652, "par_disponible_Nm": 0.08826,
+                     "aguanta": True, "margen": 1.0, "carga_max_g": None, "tiempo_s": 0.3,
+                     "velocidad_punta_mm_s": 0.0}],
+         "vuelco": {"margen_mm": 13.53, "pose": {"soporte": 90.0}, "atornillada": False,
+                    "carga_max_g": 250.0, "apoyo": [[0, 0], [70, 0], [70, 34], [0, 34]]},
+         "alcance": {"radio_mm": 0.0, "caja_mm": [[29.4, 12.2, 58.6], [29.4, 12.2, 58.6]],
+                     "puntos": [[29.4, 12.2, 58.6], [30.4, 12.2, 58.6]]},
+         "carga_max": {"g": 250.0, "limita": "vuelco"},
+         "material": [{"pieza": "soporte", "nombre": "Pieza soporte", "largo_mm": 31.0,
+                       "detalle": "la carga tira a lo largo: no flexa", "carga_max_g": None}],
+         "avisos": ["El invento no dice con qué tensión van los servos: se toma 4.8 V."]}
+    (carpeta / "nodos" / "conjunto" / "estudio.json").write_text(
+        json.dumps(e, ensure_ascii=False), encoding="utf-8")
+
+
+def test_las_poses_dicen_el_par_de_cada_servo_y_el_margen_de_vuelco(tmp_path):
+    """A 0° el soporte está en (29.4, 12.2): sus 20 g caen en (39.4, 12.2) y
+    el centro de masas en (37.93, 13.8), a 13.8 mm del borde y = 0. A 90°
+    caen en (29.4, 22.2): el centro, en (31.27, 20.47), a 13.53 del borde
+    y = 34. El eje es vertical: la gravedad no le pide par al servo."""
+    carpeta = _giro(tmp_path)
+    _estudio_hecho(carpeta)
+    web = _web(tmp_path)
+    a0 = web.get(f"/proyectos/{ID}/nodos/conjunto/poses", params={"soporte": 0}).json()
+    assert a0["estudio"]["vuelco_mm"] == pytest.approx(13.8, abs=1e-6)
+    assert a0["estudio"]["pares"]["soporte"] == pytest.approx({"Nm": 0.0, "uso": 0.0}, abs=1e-9)
+    a90 = web.get(f"/proyectos/{ID}/nodos/conjunto/poses", params={"soporte": 90}).json()
+    assert a90["estudio"]["vuelco_mm"] == pytest.approx(13.5333, abs=1e-3)
+
+
+def test_sin_estudio_las_poses_no_lo_inventan(tmp_path):
+    _giro(tmp_path)
+    r = _web(tmp_path).get(f"/proyectos/{ID}/nodos/conjunto/poses", params={"soporte": 0})
+    assert r.status_code == 200 and r.json().get("estudio") is None
+
+
+def test_la_pagina_responde_las_cinco_preguntas(tmp_path):
+    carpeta = _con_ensamble(tmp_path)
+    _estudio_hecho(carpeta)
+    html = _web(tmp_path).get(f"/p/{ID}").text
+    assert "Estudio de movimientos" in html
+    assert "250 g" in html and "la limita el vuelco" in html
+    assert "¿Aguanta el servo?" in html and "Micro servo SG90" in html
+    assert "¿Vuelca?" in html and "Alcance" in html and "Velocidades y tiempos" in html
+    assert "la carga tira a lo largo: no flexa" in html
+    assert f'src="/proyectos/{ID}/nodos/conjunto/alcance.png"' in html
+
+
+def test_el_alcance_se_dibuja(tmp_path):
+    carpeta = _con_ensamble(tmp_path)
+    web = _web(tmp_path)
+    assert web.get(f"/proyectos/{ID}/nodos/conjunto/alcance.png").status_code == 404
+    _estudio_hecho(carpeta)
+    r = web.get(f"/proyectos/{ID}/nodos/conjunto/alcance.png")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png"
+    assert r.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_un_par_pequeno_no_sale_como_cero():
+    """El tilt del pan-tilt pide 0.000451 N·m = 0.0046 kgf·cm: con dos
+    decimales la página decía «pide 0.00», como si no pidiera nada."""
+    from orchestrator.web.paginas import _kgf_cm
+    assert _kgf_cm(0.000451) == "0.0046"
+    assert _kgf_cm(0.08826) == "0.9"
+    assert _kgf_cm(0.17652) == "1.8"
+    assert _kgf_cm(1.0787) == "11"
+    assert _kgf_cm(0.0) == "0"

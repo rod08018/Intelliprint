@@ -148,6 +148,31 @@ class Ficha(BaseModel):
     fijacion: list[Agujero] = []
     salidas: list[Salida] = []
     notas: str = ""
+    # Lo que necesita el estudio de movimientos (F7.10 (estudio)), con la
+    # cifra literal de la hoja de datos (F4.12 (par)): sin masas ni par no
+    # se puede decir si un servo aguanta ni si algo vuelca.
+    masa_g: float | None = None
+    par_kgf_cm: dict[float, float] = {}
+    """Par de bloqueo a cada tensión, en kgf·cm como lo dan las hojas: se
+    convierte en un solo sitio (`par_Nm`)."""
+    velocidad_s_60: dict[float, float] = {}
+    """Segundos por 60° en vacío, a cada tensión."""
+
+    def _a_la_tension(self, datos: dict, voltios: float):
+        """La tensión de la hoja más alta que no pase de `voltios`: a 5 V
+        un servo de 4.8 y 6 V se cuenta como a 4.8, del lado seguro. Por
+        debajo de todas, la más baja: el estudio avisa."""
+        if not datos:
+            return None
+        bajo = [v for v in datos if v <= voltios + 1e-9]
+        return datos[max(bajo) if bajo else min(datos)]
+
+    def par_Nm(self, voltios: float) -> float | None:
+        p = self._a_la_tension(self.par_kgf_cm, voltios)
+        return None if p is None else p * 9.80665 / 100
+
+    def velocidad(self, voltios: float) -> float | None:
+        return self._a_la_tension(self.velocidad_s_60, voltios)
 
 
 def bibliotecas() -> list[Path]:

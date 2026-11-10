@@ -551,6 +551,68 @@ def acceso_tornillo(forma, nombre, entrada, eje, diametro_mm):
                        "tornillo entra ni la llave lo aprieta"}
 
 
+def carga_en_camino(forma, desde, hasta, gravedad, material, secciones=30):
+    """La fuerza que aguanta una pieza que cuelga de `desde` (el eje de su
+    servo) con la carga en `hasta` (donde se monta lo de fuera), hacia
+    `gravedad` (F7.10 (estudio)). Como `resistencia`, σ = M·c/I en cortes
+    de la pieza REAL, pero sin pedir agujeros de fijación: una pieza de un
+    robot no se atornilla a una pared, la sostiene el cuerno del servo.
+
+    Devuelve `N_max`, la fuerza en `hasta` con la que el corte peor llega a
+    la resistencia entre el factor de seguridad."""
+    a, b = V(*desde), V(*hasta)
+    largo = (b - a).Length
+    if largo < 1.0:
+        return {"cumple": True, "N_max": None, "detalle": "la carga cae sobre el eje: no flexa"}
+    n = (b - a).normalize()
+    g = V(*gravedad)
+    g = g - n * g.dot(n)                       # lo que flexa: la gravedad de través
+    if g.Length < 1e-6:
+        return {"cumple": True, "N_max": None, "detalle": "la carga tira a lo largo: no flexa"}
+    g = g.normalize()
+    b_eje = n.cross(g).normalize()
+    capas = abs(n.z) > 0.7
+    resistencia_MPa = material["z_MPa"] if capas else material["xy_MPa"]
+    peor = None
+    for k in range(1, secciones):
+        t = largo * k / secciones
+        cables = forma.slice(n, a.dot(n) + t)
+        if not cables:
+            continue
+        try:
+            cara = Part.makeFace(cables, "Part::FaceMakerBullseye")
+        except Exception:
+            continue
+        trozos = cara.Faces
+        area = sum(f.Area for f in trozos)
+        if area <= 0:
+            continue
+        cg = V(0, 0, 0)
+        for f in trozos:
+            cg = cg + f.CenterOfMass * (f.Area / area)
+        bv = [b_eje.x, b_eje.y, b_eje.z]
+        inercia = 0.0
+        for f in trozos:
+            m = f.MatrixOfInertia
+            J = [[m.A11, m.A12, m.A13], [m.A21, m.A22, m.A23], [m.A31, m.A32, m.A33]]
+            inercia += sum(bv[i] * J[i][j] * bv[j] for i in range(3) for j in range(3))
+            inercia += f.Area * ((f.CenterOfMass - cg).dot(g)) ** 2
+        c = max(abs((p - cg).dot(g)) for w in cables for p in w.discretize(60))
+        if inercia <= 0 or c <= 0:
+            continue
+        sigma_por_N = (largo - t) * c / inercia
+        if peor is None or sigma_por_N > peor[0]:
+            peor = (sigma_por_N, t)
+    if peor is None:
+        return {"cumple": None, "N_max": None, "detalle": "no se pudo cortar la pieza en ese tramo"}
+    sigma_por_N, t = peor
+    n_max = resistencia_MPa / material["factor_seguridad"] / sigma_por_N
+    return {"cumple": True, "N_max": n_max, "t_mm": t,
+            "detalle": f"{n_max:.1f} N en la punta: el corte peor, a {t:.0f} mm del eje, "
+                       f"{'entre capas' if capas else 'en el plano de capa'} "
+                       f"({resistencia_MPa:g} MPa, factor {material['factor_seguridad']:g})"}
+
+
 SONDAS = {"aristas_vivas": aristas_vivas, "resistencia": resistencia, "ventana": ventana,
           "coaxiales": coaxiales, "paso_libre": paso_libre, "pared_minima": pared_minima,
           "ranura": ranura, "retencion": retencion, "componente_cabe": componente_cabe,

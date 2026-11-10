@@ -8,6 +8,8 @@ fuentes:
     cita: "Dimension: 40.7 x 19.7 x 42.9 mm approx."
   - url: https://people.ece.cornell.edu/land/courses/ece4760/FinalProjects/f2017/kmv48_rp625/kmv48_rp625/kmv48_rp625/MG996RTowerPro.pdf
     cita: "dibujo: 53.6 entre orejas, 40.3 de cuerpo, 20 de ancho, 36.6 de alto, 26.6 del fondo a la oreja, 47.6 con el brazo"
+  - url: https://people.ece.cornell.edu/land/courses/ece4760/FinalProjects/f2017/kmv48_rp625/kmv48_rp625/kmv48_rp625/MG996RTowerPro.pdf
+    cita: "Weight: 55 g; Stall torque: 9.4 kgf·cm (4.8 V), 11 kgf·cm (6 V); Operating speed: 0.17 s/60º (4.8 V), 0.14 s/60º (6 V)"
 marco: >
   Origen en la esquina del fondo del cuerpo: x a lo largo (40.7 mm), y a lo
   ancho (20 mm) y z hacia arriba, hacia el eje de salida.
@@ -25,3 +27,8 @@ notas: >
   El plano no acota dónde está el eje de salida, ni los agujeros de las
   orejas, ni por qué canto sale el cable: mídelo con calibre. Con el brazo
   llega a 47.6 de alto, y el brazo gira: no pongas nada en ese círculo.
+
+# Par, velocidad y masa (F4.12 (par)), de la hoja de TowerPro (MG996RTowerPro.pdf).
+masa_g: 55
+par_kgf_cm: {4.8: 9.4, 6.0: 11}
+velocidad_s_60: {4.8: 0.17, 6.0: 0.14}

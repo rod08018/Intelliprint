@@ -219,8 +219,8 @@ def _atraviesa(r: dict, stl: Path | None, envolvente) -> float:
         g = _grosor_en_malla(_triangulos(str(stl), stl.stat().st_mtime), r["entrada"],
                              r["eje"], float(r.get("diametro_mm") or 3))
         if g is not None:
-            return round(g, 2)
-    return round(_grosor_en_caja(envolvente, r["entrada"], _unit(r["eje"])), 2)
+            return round(float(g), 2)
+    return round(float(_grosor_en_caja(envolvente, r["entrada"], _unit(r["eje"]))), 2)
 
 
 # --- las piezas del invento ------------------------------------------------------------------

@@ -371,7 +371,23 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
             angulos = {k: float(v) for k, v in request.query_params.items()}
         except ValueError:
             raise HTTPException(422, "cada ángulo es un número de grados")
-        return pose_para_el_visor(carpeta, nodo, angulos)
+        from orchestrator.estudio import en_la_pose
+        pose = pose_para_el_visor(carpeta, nodo, angulos)
+        # F7.10 (estudio): el par de cada servo y el vuelco en esa pose.
+        pose["estudio"] = en_la_pose(carpeta, nodo, pose["angulos"])
+        return pose
+
+    @app.get("/proyectos/{id}/nodos/{nodo}/alcance.png")
+    def alcance_del_conjunto(id: str, nodo: str) -> Response:
+        """Planta y alzado del recorrido del punto de carga (F7.10 (estudio))."""
+        from orchestrator import obra
+        from orchestrator.estudio import ESTUDIO, dibujo_del_alcance
+        carpeta, nodo = _conjunto(id, nodo)
+        ruta = carpeta / obra.NODOS / nodo / ESTUDIO
+        if not ruta.is_file():
+            raise HTTPException(404, "este conjunto todavía no tiene estudio de movimientos")
+        e = json.loads(ruta.read_text(encoding="utf-8"))
+        return Response(dibujo_del_alcance(e), media_type="image/png")
 
     @app.get("/banco", response_class=HTMLResponse)
     def banco() -> str:

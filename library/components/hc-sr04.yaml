@@ -13,6 +13,8 @@ fuentes:
   - url: https://handsontec.com/dataspecs/sensor/SR-04-Ultrasonic.pdf
     cita: "Dimension: 45mm x 20mm x 15mm"
   - url: https://handsontec.com/dataspecs/sensor/SR-04-Ultrasonic.pdf
+    cita: "Weight 8.5g."
+  - url: https://handsontec.com/dataspecs/sensor/SR-04-Ultrasonic.pdf
     cita: "Connector: 4-pins header with 2.54mm pitch."
   - url: https://handsontec.com/dataspecs/sensor/SR-04-Ultrasonic.pdf
     cita: "4.2 Mechanical Dimension: 40mm entre agujeros (cota del dibujo)"
@@ -75,3 +77,6 @@ notas: >
   El diámetro de los agujeros (1 mm) solo lo da una tienda que se equivocó en
   otras dos medidas: compruébalo con calibre antes de atornillar. Agarrarlo
   por los bordes del PCB no depende de él.
+
+# Handsontec: «Weight 8.5g.».
+masa_g: 8.5

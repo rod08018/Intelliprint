@@ -555,3 +555,28 @@ def test_lo_que_ya_monta_otra_pieza_no_se_vuelve_a_colocar(tmp_path):
     assert O.ajenos(tmp_path, "giro")["sg90"]["cuantos"] == 1
     # Lo que no compra nadie del backlog se puede colocar: no hay con qué chocar.
     assert "608zz" not in ajenos
+
+
+def test_al_moverse_el_conjunto_deja_su_estudio_de_movimientos(tmp_path, monkeypatch, capsys):
+    """F7.10 (estudio): tras verificar, el estudio. Si revienta, el conjunto
+    sigue verificado: el estudio se dice que falta, no deshace nada."""
+    from types import SimpleNamespace
+
+    from orchestrator import cli, conjunto, estudio
+    _con_conjunto(tmp_path)
+    pedidos = []
+    monkeypatch.setattr(conjunto, "verificar_conjunto", lambda c, n, f, min_gap_mm: {
+        "ok": True, "articulaciones": [], "resumen": []})
+
+    def falla(carpeta, nodo, freecadcmd, raiz=None):
+        pedidos.append(nodo)
+        raise RuntimeError("sin mallas")
+    monkeypatch.setattr(estudio, "escribir_estudio", falla)
+    monkeypatch.setattr(cli, "_freecadcmd", lambda env: "freecadcmd")
+    monkeypatch.setenv("INTELLIPRINT_FICHAS", "")
+    cli._obra(SimpleNamespace(peticion=["un pan-tilt"], archivo=False, carpeta=str(tmp_path)),
+              cli._raiz(), {}, "prueba")
+    salida = capsys.readouterr().out
+    assert pedidos == ["pan-tilt"]
+    assert "sin estudio de movimientos: sin mallas" in salida
+    assert "se mueve sin chocar" in salida

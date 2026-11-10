@@ -16,6 +16,8 @@ verificado: false
 fuentes:
   - url: https://tams.informatik.uni-hamburg.de/lehre/2023ss/vorlesung/es/doc/sg90.pdf
     cita: "Dimension: 22.2 x 11.8 x 31 mm approx.; dibujo: 32.2 entre orejas, 16 del fondo a la oreja"
+  - url: https://tams.informatik.uni-hamburg.de/lehre/2023ss/vorlesung/es/doc/sg90.pdf
+    cita: "Weight: 9 g; Stall torque: 1.8 kgf·cm; Operating speed: 0.1 s/60 degree; Operating voltage: 4.8 V (~5V)"
   - url: https://www.kjell.com/globalassets/mediaassets/701916_87897_datasheet_en.pdf
     cita: "dibujo de Luxorparts: 22.8, 12.4, 32.0 entre orejas, 15.6 del fondo a la oreja, 26.7 de alto"
   - url: https://www.auselectronicsdirect.com.au/assets/brochures/TA0233.pdf
@@ -76,3 +78,9 @@ notas: >
   agujeros o con el tornillo central, no a presión. Ningún plano dice por qué
   canto sale el cable: mídelo con calibre. El brazo gira por encima del
   cuerpo; no pongas nada en ese círculo.
+
+# Par, velocidad y masa (F4.12 (par)), de la hoja de TowerPro (sg90.pdf).
+# La hoja da una sola tensión, 4.8 V.
+masa_g: 9
+par_kgf_cm: {4.8: 1.8}
+velocidad_s_60: {4.8: 0.1}
