@@ -93,9 +93,42 @@ def primitivas(ficha, en=(0, 0, 0), giros=(), de="cuerpos") -> list[dict]:
 # --- con FreeCAD ------------------------------------------------------------------------
 
 _LEIDOS: dict = {}
+_CRECIDOS: dict = {}
 
 
-def solido(p):
+def crecida(forma, d):
+    """La forma crecida `d` mm por todas partes. El desplazamiento de OCC
+    falla en muchas piezas impresas; entonces, la unión de seis copias
+    movidas ±d por eje, que crece lo mismo en las caras alineadas.
+
+    Hay que darle la forma SIN colocar: OCC no sabe crecer una forma leída
+    de un STEP con aristas redondeadas una vez movida o girada, ni con una
+    traslación (banco 1109-2349, la base del pan-tilt)."""
+    import FreeCAD
+
+    if d <= 0:
+        return forma
+    for union in (2, 0):   # aristas vivas, como las cajas; si no sale, redondas
+        try:
+            grande = forma.makeOffsetShape(d, 0.01, join=union)
+            if grande.isValid() and grande.Volume > forma.Volume:
+                return grande
+        except Exception:   # OCC lanza Part.OCCError o RuntimeError según la versión
+            pass
+    # Una a una y no con `multiFuse`: con la base del pan-tilt, `multiFuse`
+    # tardó 114 s y dejó una forma rota; uniéndolas de una en una, 4 s.
+    grande = forma
+    for n in range(3):
+        for s in (-d, d):
+            copia = forma.copy()
+            copia.translate(FreeCAD.Vector(*[s if k == n else 0 for k in range(3)]))
+            grande = grande.fuse(copia)
+    return grande.removeSplitter()
+
+
+def solido(p, crecer=0.0):
+    """El sólido de la primitiva `p`. `crecer`, solo para una pieza impresa:
+    su forma crecida esos mm antes de colocarla (ver `crecida`)."""
     import FreeCAD
     import Part
 
@@ -106,7 +139,11 @@ def solido(p):
         # cuartos de vuelta alrededor del origen y llevada a `en`.
         if p["ruta"] not in _LEIDOS:
             _LEIDOS[p["ruta"]] = Part.read(p["ruta"])
-        forma = _LEIDOS[p["ruta"]].copy()
+        clave = (p["ruta"], round(float(crecer), 6))
+        if clave not in _CRECIDOS:
+            # Se guarda: `quitar` vuelve a pedir el hueco contra la pieza.
+            _CRECIDOS[clave] = crecida(_LEIDOS[p["ruta"]], float(crecer))
+        forma = _CRECIDOS[clave].copy()
         forma.translate(V(*p["desplazar"]))
         for eje, grados in p["giros"]:
             forma.rotate(V(0, 0, 0), V(*EJES[f"+{eje}"]), float(grados))

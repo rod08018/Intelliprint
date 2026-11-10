@@ -40,6 +40,18 @@ def construir(kit):
     assert (tmp_path / "p.stl").exists() and (tmp_path / "p.step").exists()
 
 
+def test_un_eje_con_signo_mas_es_el_mismo_que_sin_el(tmp_path):
+    """`entra_por` se escribe «+z» y `taladrar` solo aceptaba «z»: el
+    soporte de giro del pan-tilt (banco 1109-2349) taladró con «+z», como
+    había colocado su servo, y la pieza se perdió en ese error. A mano: un
+    agujero de Ø4 desde abajo atraviesa los 5 mm, igual que el de arriba."""
+    r = _construir("""
+def construir(kit):
+    return kit.caja(20, 10, 5).taladrar("centro", 4, en=(10, 5, 0), eje="+z")
+""", tmp_path)
+    assert r.volume_mm3 == pytest.approx(1000 - math.pi * 4 * 5, abs=0.01)
+
+
 def test_cada_agujero_queda_registrado_con_su_nombre(tmp_path):
     """Es lo que la medida (F2.6 (dfm), F2.12 (aserciones)) comparará con
     los requisitos: sin nombre no se sabe qué agujero es cuál."""

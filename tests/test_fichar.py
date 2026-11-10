@@ -172,6 +172,38 @@ def test_el_hueco_de_una_pieza_impresa_es_su_forma_y_no_su_envolvente_barrida(
     assert r.volume_mm3 == pytest.approx(16000 - 160 + 2.6, abs=5)
 
 
+ACABADO = SOPORTE.replace("return placa", "return placa.acabar(radio=1.0)")
+"""El soporte con sus aristas redondeadas, como sale cualquier pieza: con
+ellas OCC ya no crece la forma movida (la placa a secas sí)."""
+
+DENTRO = """
+def construir(kit):
+    soporte = kit.componente("soporte-acabado", en={en}, girar={girar}, entra_por="+z")
+    x, y, z = {en}
+    cubo = kit.caja(50, 50, 50, en=(x - 25, y - 25, z - 25))
+    return cubo.quitar("soporte", soporte.hueco(holgura=0.4))
+"""
+"""Un cubo de 50 centrado donde va el soporte, que lo encierra entero en
+cualquier giro de cuarto de vuelta: el hueco que le deja es el mismo."""
+
+
+def test_el_hueco_de_una_pieza_impresa_no_cambia_al_moverla_ni_girarla(tmp_path, monkeypatch):
+    """Banco 1109-2349: el soporte de giro del pan-tilt no se construyó en
+    cinco intentos (FreeCAD pasaba de 180 s). OCC no sabe crecer una forma
+    leída de un STEP una vez movida o girada —ni con una traslación—, y el
+    hueco caía a unir seis copias desplazadas: 114 s con la base, dos veces,
+    y una forma rota al final. Mover una pieza no cambia lo que ocupa, así
+    que su hueco tiene que restar lo mismo esté donde esté."""
+    _fichar(tmp_path, monkeypatch, ACABADO, "soporte-acabado", "Soporte acabado")
+    volumenes = [
+        build_part(Programa(part=f"cubo{i}", codigo=DENTRO.format(en=en, girar=girar)), None,
+                   tmp_path / f"cubo{i}", _freecadcmd(), perfil=PERFIL).volume_mm3
+        for i, (en, girar) in enumerate([((0, 0, 0), []), ((7, 3, 2), []),
+                                         ((7, 3, 2), [("x", 90)])])]
+    assert volumenes[1] == pytest.approx(volumenes[0], abs=0.5)
+    assert volumenes[2] == pytest.approx(volumenes[0], abs=0.5)
+
+
 @pytest.mark.parametrize("entra_por, entra", [("-z", True), ("+z", False)])
 def test_una_pieza_impresa_entra_solo_por_donde_hay_camino(tmp_path, monkeypatch,
                                                            entra_por, entra):

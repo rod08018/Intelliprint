@@ -109,7 +109,10 @@ def _v(p) -> "FreeCAD.Vector":
 
 
 _EJES = {"x": (1, 0, 0), "y": (0, 1, 0), "z": (0, 0, 1),
-         "-x": (-1, 0, 0), "-y": (0, -1, 0), "-z": (0, 0, -1)}
+         "-x": (-1, 0, 0), "-y": (0, -1, 0), "-z": (0, 0, -1),
+         # Con signo, como `entra_por`: el soporte de giro del pan-tilt
+         # (banco 1109-2349) taladró «+z» y la pieza se perdió en ese error.
+         "+x": (1, 0, 0), "+y": (0, 1, 0), "+z": (0, 0, 1)}
 
 
 def _eje(eje) -> "FreeCAD.Vector":
@@ -546,28 +549,6 @@ class Cuerpo:
         return self._cortar(nombre, forma)
 
 
-def _crecida(forma, d):
-    """La forma crecida `d` mm por todas partes. El desplazamiento de OCC
-    puede fallar en formas impresas cualesquiera; entonces, la unión de seis
-    copias movidas ±d por eje, que crece lo mismo en las caras alineadas."""
-    if d <= 0:
-        return forma
-    for union in (2, 0):   # aristas vivas, como las cajas; si no sale, redondas
-        try:
-            crecida = forma.makeOffsetShape(d, 0.01, join=union)
-            if crecida.isValid() and crecida.Volume > forma.Volume:
-                return crecida
-        except Exception:   # OCC lanza Part.OCCError o RuntimeError según la versión
-            pass
-    copias = []
-    for n in range(3):
-        for s in (-d, d):
-            copia = forma.copy()
-            copia.translate(_v([s if k == n else 0 for k in range(3)]))
-            copias.append(copia)
-    return forma.multiFuse(copias).removeSplitter()
-
-
 class Hueco(Cuerpo):
     """El hueco de un componente (`Componente.hueco`). Restado de una pieza
     con `quitar` o `-`, se rehace contra ELLA: sin holgura en las caras con
@@ -622,7 +603,7 @@ class Componente:
                 # 17 mm del cuerno, que está dentro de la envolvente del
                 # soporte. Si la pieza entra de verdad lo mide
                 # `componente_entra`, con la forma real paso a paso.
-                formas.append(_crecida(solido(c), h / 2))
+                formas.append(solido(c, crecer=h / 2))
                 continue
             lados = self._lados(c, h, pieza)
             if c["tipo"] == "caja":
