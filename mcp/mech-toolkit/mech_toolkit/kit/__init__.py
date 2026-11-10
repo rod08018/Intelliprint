@@ -542,7 +542,13 @@ class Cuerpo:
         # Un componente que solo se apoya en la pieza (la Pi sobre sus
         # separadores) no le quita nada, y está bien. Uno que ni la toca sí
         # es un error de posición, como cualquier rasgo.
-        if isinstance(herramienta, Hueco) and herramienta._componente._toca(self._forma):
+        # Una pieza vecina de la obra puede ir al lado sin tocar, como admite
+        # la sonda: la polea del 608ZZ (banco 1110-0128) va 4 mm sobre el
+        # soporte, le pedían quitar su hueco, fallaba aquí, y en cinco
+        # intentos acabó sin colocarlo y metida en él.
+        if isinstance(herramienta, Hueco) and (
+                herramienta._componente._toca(self._forma)
+                or herramienta._componente._ficha.get("origen") == "impreso"):
             resultado = self._forma.cut(forma).removeSplitter()
             if self._forma.Volume - resultado.Volume < 1e-6:
                 return self

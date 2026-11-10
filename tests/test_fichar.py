@@ -204,6 +204,29 @@ def test_el_hueco_de_una_pieza_impresa_no_cambia_al_moverla_ni_girarla(tmp_path,
     assert volumenes[2] == pytest.approx(volumenes[0], abs=0.5)
 
 
+AL_LADO = """
+def construir(kit):
+    soporte = kit.componente("soporte-impreso", en=(0, 0, -9), entra_por="-z")
+    bloque = kit.caja(40, 20, 20, en=(-20, -10, 0))
+    return bloque.quitar("soporte", soporte.hueco(holgura=0.4))
+"""
+"""Un bloque 4 mm por encima del soporte, sin tocarlo, que le resta su hueco
+como pide la comprobación de componentes colocados."""
+
+
+def test_el_hueco_de_una_pieza_vecina_que_no_toca_no_es_un_error(tmp_path, monkeypatch):
+    """Banco 1110-0128: la polea del 608ZZ va 4 mm por encima del soporte, sin
+    tocarlo. La comprobación le pedía colocarlo y quitar su hueco, y quitarlo
+    fallaba con «no toca la pieza»: en cinco intentos no lo colocó, y el
+    juez la encontró metida en el soporte. La sonda ya admite que una pieza
+    vecina vaya al lado sin tocar; su hueco no quita nada, y no es un error.
+    A mano: el bloque queda entero, 40 × 20 × 20."""
+    _fichar(tmp_path, monkeypatch, SOPORTE, "soporte-impreso", "Soporte impreso")
+    r = build_part(Programa(part="bloque", codigo=AL_LADO), None, tmp_path / "bloque",
+                   _freecadcmd(), perfil=PERFIL)
+    assert r.volume_mm3 == pytest.approx(16000, abs=0.01)
+
+
 @pytest.mark.parametrize("entra_por, entra", [("-z", True), ("+z", False)])
 def test_una_pieza_impresa_entra_solo_por_donde_hay_camino(tmp_path, monkeypatch,
                                                            entra_por, entra):

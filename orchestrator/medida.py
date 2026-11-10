@@ -337,10 +337,24 @@ def componentes_sin_colocar(componentes, rasgos) -> list[str]:
         for cuerpo in vecina.cuerpos:
             # Las fichas de antes de `monta` llevan el componente delante del nombre.
             colocados.add(cuerpo.monta or cuerpo.nombre.split(": ", 1)[0])
-    return [f"no colocaste el {c}: ponlo con `kit.componente(\"{c}\", en=..., "
-            "entra_por=...)` y quita su `hueco()` a la pieza; sin eso no se puede "
-            "comprobar que quepa ni que entre"
-            for c in componentes if c not in colocados]
+    # Banco 1110-0128: a la polea del 608ZZ se le pedía colocar el 608zz (que
+    # el kit le rechaza: lo monta el soporte) y quitar el hueco del soporte,
+    # que no toca. Con órdenes que no se podían cumplir, salió sin colocar nada.
+    import json
+    import os
+    ajenos = json.loads(os.environ.get("INTELLIPRINT_AJENOS") or "{}")
+
+    def falta(c):
+        if c in ajenos:
+            return f"no colocaste el {c}: {ajenos[c]['mensaje']}"
+        if c.startswith("obra-"):
+            return (f"no colocaste la pieza {c}: ponla con `kit.componente(\"{c}\", en=..., "
+                    "entra_por=...)`. Si la tuya la aloja o la toca, quita su `hueco()`; si "
+                    "solo va al lado, basta colocarla: así se comprueba que no choquen")
+        return (f"no colocaste el {c}: ponlo con `kit.componente(\"{c}\", en=..., "
+                "entra_por=...)` y quita su `hueco()` a la pieza; sin eso no se puede "
+                "comprobar que quepa ni que entre")
+    return [falta(c) for c in componentes if c not in colocados]
 
 
 def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,

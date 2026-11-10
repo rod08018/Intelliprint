@@ -12,6 +12,8 @@ Las distancias esperadas están hechas a mano: dos agujeros con entrada en
 27.8, no la de los puntos de entrada.
 """
 
+import json
+
 import pytest
 import yaml
 
@@ -102,6 +104,21 @@ def test_un_componente_del_concepto_que_el_programa_no_coloca_es_un_defecto():
     assert "raspberry-pi-4" in fallo and "kit.componente" in fallo
     assert [s.tipo for s in sondas_de([], [colocado])] == [
         "aristas_vivas", "componente_cabe", "componente_entra"]
+
+
+def test_colocar_una_pieza_vecina_no_obliga_a_quitar_su_hueco(monkeypatch):
+    """Banco 1110-0128: a la polea del 608ZZ se le pedía colocar el soporte y
+    «quita su hueco()», y el 608zz igual. La polea va 4 mm por encima del
+    soporte (no hay hueco que quitar), y el 608zz no podía colocarlo: el kit
+    lo rechaza porque lo monta el soporte. Cinco intentos, y salió sin colocar
+    nada. Lo que monta otra pieza se pide con su mensaje, y una vecina basta
+    colocarla."""
+    from orchestrator.medida import componentes_sin_colocar
+    monkeypatch.setenv("INTELLIPRINT_AJENOS", json.dumps({"608zz": {
+        "cuantos": 0, "mensaje": "el 608zz ya lo monta «Soporte» (ficha obra-soporte)"}}))
+    rodamiento, soporte = componentes_sin_colocar(["608zz", "obra-soporte"], [])
+    assert "ficha obra-soporte" in rodamiento and "hueco" not in rodamiento
+    assert "kit.componente(\"obra-soporte\"" in soporte and "solo va al lado" in soporte
 
 
 @pytest.mark.parametrize("cuerpo", [
