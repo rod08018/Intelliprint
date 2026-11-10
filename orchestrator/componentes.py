@@ -86,6 +86,23 @@ class Agujero(BaseModel):
     diametro: float = Field(gt=0)
     en: list[float]
     eje: Eje
+    # Lo que hace falta para contar y dibujar el tornillo de este agujero
+    # (F7.8 (inventario)). Sin `tornillo`, la ficha no dice cuál va, y no se
+    # cuenta: la lista del pan-tilt decía «M3, M4» y nada de los del SG90.
+    tornillo: str = ""
+    """La métrica («M2»)."""
+    incluido: bool = False
+    """Viene con el componente: se ve en el ensamble, pero no se compra aparte."""
+    dentro_mm: float = 0.0
+    """Cuánto del tornillo va dentro del componente desde `en`, en la
+    dirección de `eje`: el grueso de la oreja de un servo, el fondo de la
+    rosca de un motor."""
+    tuerca: str = ""
+    """Lo que hay que comprar para que el tornillo agarre en el componente:
+    la tuerca en T del perfil."""
+    a_lo_largo: Eje | None = None
+    """El tornillo puede ir en cualquier punto en esa dirección: la ranura
+    del perfil, donde la ficha solo marca uno."""
 
 
 class Salida(BaseModel):

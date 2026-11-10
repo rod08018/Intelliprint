@@ -18,7 +18,7 @@ import zipfile
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import BaseModel, Field, field_validator
 
@@ -117,6 +117,10 @@ class Pedido(Modificacion):
     que exige dos piezas como mínimo. Obligatorio: con «mecanismo» por
     omisión, una página abierta antes del selector mandó el soporte de la
     Raspberry al flujo viejo de recetas (2026-11-04)."""
+
+
+ESTATICOS = ("three.module.min.js", "OrbitControls.js")
+"""Lo único que sirve `/estatico/`: ver `estatico/README.md`."""
 
 
 def crear_app(workspace: Path, puente=None, host_workspace: str = "",
@@ -313,6 +317,61 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
         if not gif.is_file():
             raise HTTPException(404, "este conjunto todavía no tiene animación")
         return FileResponse(gif, media_type="image/gif")
+
+    @app.get("/estatico/{nombre}")
+    def estatico(nombre: str) -> FileResponse:
+        """three.js para el visor (F7.9 (visor)), desde la propia web: corre
+        en la red de casa y tiene que funcionar sin internet."""
+        if nombre not in ESTATICOS:
+            raise HTTPException(404, "no existe")
+        return FileResponse(Path(__file__).parent / "estatico" / nombre,
+                            media_type="text/javascript",
+                            headers={"Cache-Control": "public, max-age=86400"})
+
+    def _conjunto(id: str, nodo: str) -> tuple[Path, str]:
+        from orchestrator import obra
+        carpeta = _proyecto(id, banco=True)
+        try:
+            nodo = obra.cargar_obra(carpeta).nodo(nodo).id   # un id del árbol, no una ruta
+        except (KeyError, OSError, ValueError):
+            raise HTTPException(404, f"este proyecto no tiene ningún conjunto {nodo!r}")
+        return carpeta, nodo
+
+    @app.get("/proyectos/{id}/nodos/{nodo}/ensamble.json")
+    def ensamble(id: str, nodo: str) -> FileResponse:
+        """Las mallas del visor 3D (F7.9 (visor)), las que dejó la verificación."""
+        from orchestrator import obra
+        from orchestrator.conjunto import ENSAMBLE
+        carpeta, nodo = _conjunto(id, nodo)
+        ruta = carpeta / obra.NODOS / nodo / ENSAMBLE
+        if not ruta.is_file():
+            raise HTTPException(404, "este conjunto todavía no tiene ensamble para el visor")
+        return FileResponse(ruta, media_type="application/json")
+
+    @app.get("/proyectos/{id}/nodos/{nodo}/tornillos")
+    def tornillos_del_conjunto(id: str, nodo: str) -> list[dict]:
+        """Cada tornillo del conjunto, en el marco de la pieza donde apoya
+        su cabeza, para que el visor lo dibuje y se mueva con ella."""
+        from orchestrator.tornilleria import tornillos
+        carpeta, nodo = _conjunto(id, nodo)
+        return [t.para_el_visor() for t in tornillos(carpeta, nodo)]
+
+    @app.get("/proyectos/{id}/nodos/{nodo}/poses")
+    def poses_del_conjunto(id: str, nodo: str, request: Request) -> dict:
+        """Cada pieza en su sitio con las articulaciones a los ángulos que se
+        piden (`?soporte=90`), y lo que choca ahí. Lo calcula Python con la
+        cinemática con la que se barrieron los choques: el navegador solo
+        dibuja."""
+        from orchestrator import obra
+        from orchestrator.conjunto import VERIFICACION, pose_para_el_visor
+        carpeta, nodo = _conjunto(id, nodo)
+        if not (carpeta / obra.NODOS / nodo / VERIFICACION).is_file():
+            raise HTTPException(404, "este conjunto todavía no se ha movido")
+        try:
+            angulos = {k: float(v) for k, v in request.query_params.items()}
+        except ValueError:
+            raise HTTPException(422, "cada ángulo es un número de grados")
+        return pose_para_el_visor(carpeta, nodo, angulos)
 
     @app.get("/banco", response_class=HTMLResponse)
     def banco() -> str:

@@ -554,6 +554,27 @@ Y una realidad del punto de partida: la clase `robot` solo existe en `spec.py`. 
 - **Sin sensores** (cámaras, lidar) de momento: el robot de referencia (H4) solo tiene servos.
 - Que el límite de esfuerzo del URDF frene de verdad a una articulación mandada **en posición** depende de cómo `gz_ros2_control` lo traslade al motor de física. Por eso F4.13 lo comprueba con un servo sembrado demasiado débil, que tiene que quedarse corto; si no se queda, la articulación se manda en esfuerzo con un PID.
 
+**Enmienda (2026-11-10): ROS 2 y Gazebo salen de Intelliprint.** Decidido por el usuario el mismo día: «separémoslo, yo trabajo todo lo de código y ROS y simulación en Gazebo por aparte; lo que sí quiero es el estudio de movimientos». Intelliprint diseña, comprueba la mecánica, hace el **estudio de movimientos** y entrega el **URDF** (F4.6), que es la frontera: el repo del usuario lo lee y hace lo demás. Quedan fuera F4.11 y F4.13–F4.17 (el contenedor `sim-ros`, probar su código, el vídeo, la pestaña y «Abrir en Gazebo»); se quedan F4.6–F4.8 y F4.12, que son mecánica. Lo que llevó a decidirlo: Hablado al pedir el inventario de inventos (F7.8 (inventario)). Lo que dijo:
+
+1. Ver Gazebo con una simulación y **dejarla corriendo**, para que un robot **aprenda** a hacer cosas, y ver qué hace antes de probarlo en algo real (puso de ejemplo un dron). Así no gasta en piezas que se rompan.
+2. El código lo pone él, por aparte. Coincide con el punto 1 de la decisión.
+3. Preguntó qué diferencia hay entre verlo «en la web» y «en el PC». Es la misma máquina; la diferencia es dónde se dibuja la ventana. El punto 5 ya lo resolvió: la web enseña el vídeo y el informe, y «Abrir en Gazebo» saca la ventana en su escritorio con la GPU, por el puente del host.
+
+Por qué separarlo, y no meterlo aquí:
+
+- **Correr mucho tiempo y aprender** no es lo mismo que una prueba que arranca y para. Aprender por refuerzo pide muchas simulaciones sin ventana y más rápidas que el tiempo real. Es un contenedor de entrenamiento que se queda vivo, y usa la GPU para la red, no solo para mirar.
+  - Esto choca con el «Por qué sin ventana por defecto» de arriba: la 5090 estaba casi llena.
+  - Mirar lo que hace es otra cosa: se abre la ventana, o se graba un episodio.
+- **Un dron** es otra clase de robot.
+  - Lo estándar es PX4 en SITL con Gazebo Harmonic.
+  - Ni la Fase 4 ni los kits de la Fase 8 (ADR-019) lo contemplan, y su URDF no sale de las articulaciones de una obra.
+- Lo que ya existe y sirve para todo lo anterior es el **árbol cinemático de una obra**, verificado en FreeCAD:
+  - qué pieza va sobre cuál;
+  - cada articulación con su eje y su recorrido;
+  - las mallas de cada sólido (`ensamble.json`, F7.9 (visor)).
+
+  Es la materia prima del URDF de F4.6.
+
 ---
 
 ## ADR-018 · Una pieza terminada es una ficha: los proyectos se diseñan por partes

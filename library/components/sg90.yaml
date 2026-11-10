@@ -45,15 +45,24 @@ salidas:
     eje: "+z"
     recorrido: [-90, 90]
     porque: "hoja de TowerPro (sg90.pdf): «Servo can rotate approximately 180 degrees (90 in each direction)»; el eje, a 5.8 del extremo y centrado, sale de la carcasa a 27.1 (TA0233)"
+# El tornillo de cada oreja: «autorroscante de unos 2 mm, viene con el
+# servo» (notas). Su cabeza apoya en lo alto de la oreja (`en`, z = 18.5) y
+# la cruza entera, de 18.5 a 15.6: 2.9 mm dentro del servo.
 fijacion:
   - nombre: muesca_oreja_eje
     diametro: 2.2
     en: [-2.95, 6.2, 18.5]
     eje: "-z"
+    tornillo: M2
+    incluido: true
+    dentro_mm: 2.9
   - nombre: muesca_oreja_cable
     diametro: 2.2
     en: [25.75, 6.2, 18.5]
     eje: "-z"
+    tornillo: M2
+    incluido: true
+    dentro_mm: 2.9
 notas: >
   Las muescas de las orejas (R1.1, TA0233) están abiertas hacia la punta: el
   tornillo (autorroscante de unos 2 mm, viene con el servo) puede ir algo más

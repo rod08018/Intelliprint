@@ -116,6 +116,54 @@ def fijar_categoria(workspace: Path, proyecto: str, categoria: str) -> None:
         json.dumps({"categoria": categoria}, ensure_ascii=False), encoding="utf-8")
 
 
+TIPOS = (("pieza", "Piezas"), ("mecanismo", "Mecanismos"), ("ensamble", "Ensambles"),
+         ("robot", "Robots"))
+ETAPAS = (("diseñando", "Diseñando"), ("por-aprobar", "Por aprobar"), ("listo", "Listos"),
+          ("impreso", "Impresos"), ("no-salio", "No salieron"))
+_ETAPA_DE_ESTADO = {"en marcha": "diseñando", "por aprobar": "por-aprobar", "aprobado": "listo",
+                    "antiguo": "listo", "con reparos": "listo", "fallido": "no-salio",
+                    "incompleto": "no-salio"}
+
+
+def tipo_de(carpeta: Path) -> tuple[str, str]:
+    """(tipo, cómo se dice) de un invento (F7.8 (inventario)). Un ensamble
+    cuyas piezas giran con un servo es un robot: lo dice su verificación,
+    no un modelo."""
+    obra = _leer(carpeta / "obra.json")
+    if obra:
+        n = sum(1 for x in obra.get("nodos", []) if x.get("tipo", "pieza") == "pieza")
+        mueve = any((_leer(v) or {}).get("articulaciones")
+                    for v in (carpeta / "nodos").glob("*/verificacion.json"))
+        tipo = "robot" if mueve else "ensamble"
+        return tipo, f"{'Robot' if mueve else 'Ensamble'} · {n} pieza{'s' if n != 1 else ''}"
+    if (carpeta / "mechanism.json").is_file():
+        return "mecanismo", "Mecanismo"
+    return "pieza", "Pieza"
+
+
+def _materiales(carpeta: Path) -> dict | None:
+    from orchestrator.materiales import materiales
+    try:
+        return materiales(carpeta)
+    except Exception:   # un proyecto a medias no tumba la portada
+        return None
+
+
+def _compras(m: dict | None) -> str:
+    """«2 × Micro servo SG90»: sin el paréntesis de la ficha, que en la
+    tarjeta no cabe."""
+    return " · ".join(f"{c['cuantos']} × " + re.sub(r"\s*\(.*\)$", "", c["nombre"])
+                      for c in (m or {}).get("comprado", []) if c.get("tipo") != "tornilleria")
+
+
+def _etapa(estado: str, m: dict | None) -> str:
+    etapa = _ETAPA_DE_ESTADO.get(estado, "no-salio")
+    impresas = (m or {}).get("impresas") or []
+    if etapa == "listo" and impresas and all(p["impresa"] for p in impresas):
+        return "impreso"
+    return etapa
+
+
 def _imagen(v: dict) -> str | None:
     if v.get("animacion"):
         return f"/proyectos/{v['id']}/animation.gif"
@@ -166,41 +214,59 @@ def _progreso(v: dict) -> str:
 
 
 def galeria(grupos: list[dict], workspace: Path, hay_puente: bool, puede_pedir: bool) -> str:
-    tarjetas, cuenta = [], {}
+    """El inventario de inventos (F7.8 (inventario)): de cada uno, qué es
+    (pieza, mecanismo, ensamble o robot), en qué punto está, qué se compra y
+    cuánto costó. Antes era una galería por categorías donde una pieza y un
+    pan-tilt de tres piezas se veían igual."""
+    tarjetas, por_tipo, por_etapa = [], {}, {}
     # Lo que está trabajando, arriba; luego lo último.
     for g in sorted(grupos, key=lambda g: not g.get("en_marcha")):
         v = next(x for x in g["versiones"] if x["id"] == g["mejor"])
+        carpeta = _carpeta(workspace, v)
         estado = "en marcha" if g.get("en_marcha") else v["estado"]
         frase, clase = ESTADOS.get(estado, (estado, "suave"))
-        categoria = categoria_de(workspace, g)
+        tipo, como = tipo_de(carpeta)
+        m = _materiales(carpeta) if tipo != "mecanismo" else None
+        etapa = _etapa(estado, m)
+        if etapa == "impreso":
+            frase = "Impreso"
         archivado = g["seccion"] == "archivo"
         if not archivado:
-            cuenta[categoria] = cuenta.get(categoria, 0) + 1
+            por_tipo[tipo] = por_tipo.get(tipo, 0) + 1
+            por_etapa[etapa] = por_etapa.get(etapa, 0) + 1
         nombre = nombre_de(workspace, g)
         imagen = _imagen(v)
         foto = (f'<img src="{e(imagen)}" alt="" loading="lazy">' if imagen else
                 '<span class="sin-foto">Diseñando…</span>' if estado == "en marcha" else
                 '<span class="sin-foto">Sin piezas</span>')
         versiones = len(g["versiones"])
+        usd = g.get("usd_total") or 0
         detalle = " · ".join(x for x in (_fecha(g["versiones"][-1]["id"]),
-                                         f"{versiones} versiones" if versiones > 1 else "") if x)
+                                         f"{versiones} versiones" if versiones > 1 else "",
+                                         f"{usd:.2f} USD" if usd >= 0.005 else "") if x)
+        compras = _compras(m)
         tarjetas.append(f"""
       <a class="tarjeta" href="/p/{e(g['id'])}" data-id="{e(g['id'])}" data-estado="{e(estado)}"
-         data-categoria="{e(categoria)}" data-nombre="{e(nombre.lower())}"{' data-archivado="1"' if archivado else ''}>
+         data-tipo="{tipo}" data-etapa="{etapa}" data-categoria="{e(categoria_de(workspace, g))}" data-nombre="{e(nombre.lower())}"{' data-archivado="1"' if archivado else ''}>
         <div class="foto">{foto}</div>
         <div class="pie-tarjeta">
+          <div class="linea"><span class="tipo {tipo}">{e(como)}</span></div>
           <div class="nombre">{e(nombre)}</div>
+          {f'<div class="compras">{e(compras)}</div>' if compras else ''}
           <div class="linea"><span class="pastilla {clase}">{e(frase)}</span><span class="suave">{e(detalle)}</span></div>
         </div>
       </a>""")
     archivados = sum(1 for g in grupos if g["seccion"] == "archivo")
-    filtros = [f'<button class="filtro activo" data-filtro="todas">Todos <span>{sum(cuenta.values())}</span></button>']
-    for c in CATEGORIAS:
-        if cuenta.get(c):
-            filtros.append(f'<button class="filtro" data-filtro="{e(c)}">{e(c.capitalize())} <span>{cuenta[c]}</span></button>')
+    filtros = [f'<button class="filtro activo" data-filtro="todas">Todos <span>{sum(por_tipo.values())}</span></button>']
+    filtros += [f'<button class="filtro" data-filtro="tipo:{t}">{nombre} <span>{por_tipo[t]}</span></button>'
+                for t, nombre in TIPOS if por_tipo.get(t)]
+    etapas = [f'<button class="filtro" data-filtro="etapa:{t}">{nombre} <span>{por_etapa[t]}</span></button>'
+              for t, nombre in ETAPAS if por_etapa.get(t)]
+    if etapas:
+        filtros += ['<span class="separa" aria-hidden="true"></span>', *etapas]
     if archivados:
         filtros.append(f'<button class="filtro" data-filtro="archivo">Archivo <span>{archivados}</span></button>')
-    vacio = ('<p class="vacio">Todavía no hay proyectos. Pide el primero con «Nuevo diseño», '
+    vacio = ('<p class="vacio">Todavía no hay inventos. Pide el primero con «Nuevo diseño», '
              'o por Telegram a Crafty.</p>') if not grupos else ""
     ocupado = any(g.get("en_marcha") for g in grupos)
     opciones = "".join(f'<option value="{e(g["mejor"])}">{e(_recortar(nombre_de(workspace, g), 60))}</option>'
@@ -214,7 +280,7 @@ def galeria(grupos: list[dict], workspace: Path, hay_puente: bool, puede_pedir: 
     return _documento("Intelliprint", f"""
   <header class="barra">
     <a class="marca" href="/">Intelliprint</a>
-    <input id="buscar" type="search" placeholder="Buscar" aria-label="Buscar proyectos">
+    <input id="buscar" type="search" placeholder="Buscar" aria-label="Buscar inventos">
     <a class="btn" href="/banco">Banco</a>
     <a class="btn" href="/impresora">Impresora</a>
     <button class="btn pri" id="abrir-nuevo">＋ Nuevo diseño</button>
@@ -772,8 +838,16 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
         acciones = ""
     nav_tira = f'<nav class="tira" aria-label="Versiones">{"".join(tira)}</nav>'
     vacia = "" if imagen else " vacia"
-    visor = (f'<div class="visor"><div class="foto grande{vacia}">{foto}</div>{nav_tira}</div>'
-             if imagen or not revisando else
+    # F7.9 (visor): el ensamble final en 3D, el del último conjunto de la
+    # obra. El GIF se queda dentro hasta que el visor carga: sin WebGL, o en
+    # un proyecto de antes del visor, es lo que se ve.
+    con_visor = _conjunto_con_ensamble(carpeta) if es_obra else None
+    mandos = ""
+    if con_visor:
+        foto = f'<div class="visor3d" data-visor="/proyectos/{vid}/nodos/{e(con_visor)}">{foto}</div>'
+        vacia, mandos = "", '<div class="mandos" hidden></div>'
+    visor = (f'<div class="visor"><div class="foto grande{vacia}">{foto}</div>{mandos}{nav_tira}</div>'
+             if imagen or con_visor or not revisando else
              (f'<div class="visor">{nav_tira}</div>' if len(versiones) > 1 else ""))
 
     es_mecanismo = (carpeta / "mechanism.json").is_file()
@@ -819,16 +893,19 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
     docs = "".join(f'<section><h2>{e(d["titulo"])}</h2><div class="documento">{d["html"]}</div></section>'
                    for d in documentos_de(carpeta) if d["archivo"] == "calibracion.md")
 
+    tipo, como = tipo_de(carpeta)
+    materiales = _lista_de_materiales(_materiales(carpeta)) if tipo != "mecanismo" else ""
     categoria = categoria_de(workspace, g)
     opciones = "".join(f'<option value="{e(c)}"{" selected" if c == categoria else ""}>{e(c.capitalize())}</option>'
                        for c in CATEGORIAS)
     cuerpo = f"""
-  <header class="barra"><a class="volver" href="{"/banco" if del_banco else "/"}">← {"Banco" if del_banco else "Proyectos"}</a><span class="estado-puente">{_puente(hay_puente)}</span></header>{_aviso_del_banco(del_banco)}
+  <header class="barra"><a class="volver" href="{"/banco" if del_banco else "/"}">← {"Banco" if del_banco else "Inventos"}</a><span class="estado-puente">{_puente(hay_puente)}</span></header>{_aviso_del_banco(del_banco)}
   <main class="proyecto" data-proyecto="{raiz}" data-version="{vid}">
     <div class="cabeza{" sin-visor" if revisando and not imagen else ""}">
       {visor}
       <div class="ficha">
-        <select class="categoria" data-categoria="{raiz}" aria-label="Categoría">{opciones}</select>
+        <div class="linea"><span class="tipo {tipo}">{e(como)}</span>
+        <select class="categoria" data-categoria="{raiz}" aria-label="Categoría">{opciones}</select></div>
         <h1>{e(nombre)}</h1>
         <div class="estado-grande {clase}">{e(frase)}</div>
         {vivo}{explicacion}
@@ -838,10 +915,50 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
         <p class="suave meta">Versión {v["version"]} de {len(versiones)} · {e(_fecha(v["id"]))}</p>
       </div>
     </div>
-    {arbol}{seccion_piezas}{cambiar_todo}{docs}
+    {materiales}{arbol}{seccion_piezas}{cambiar_todo}{docs}
     <details class="tecnico" data-version="{vid}"><summary>Detalles técnicos</summary><div class="contenido"></div></details>
   </main>"""
+    if con_visor:
+        cuerpo += ('\n<script type="importmap">{"imports": {"three": "/estatico/three.module.min.js"}}'
+                   f'</script>\n<script type="module">{GUION_VISOR}</script>')
     return _documento(f"{nombre} · Intelliprint", cuerpo, GUION_PROYECTO)
+
+
+def _conjunto_con_ensamble(carpeta: Path) -> str | None:
+    """El último conjunto de la obra (el ensamble final) que ya dejó sus
+    mallas para el visor."""
+    obra = _leer(carpeta / "obra.json") or {}
+    conjuntos = [x["id"] for x in obra.get("nodos", []) if x.get("tipo") == "conjunto"]
+    from orchestrator import obra as O
+    try:
+        orden = O.cargar_obra(carpeta).orden()
+    except Exception:
+        orden = conjuntos
+    for i in reversed([i for i in orden if i in conjuntos]):
+        if (carpeta / "nodos" / i / "ensamble.json").is_file():
+            return i
+    return None
+
+
+def _lista_de_materiales(m: dict | None) -> str:
+    """Lo que lleva un ensamble (F7.8 (inventario)): lo que se imprime, todo
+    lo que se compra —componentes, tornillos, tuercas— y lo que viene en la
+    bolsa de un componente. Una pieza que no compra nada no la lleva: sería
+    repetir su propia foto."""
+    if not m or not (m["comprado"] or m["incluido"] or len(m["impresas"]) > 1):
+        return ""
+    impresas = "".join(f'<li>{"✓ " if p["impresa"] else ""}{e(p["nombre"])}</li>'
+                       for p in m["impresas"])
+    compradas = "".join(f'<li><b>{c["cuantos"]} ×</b> {e(c["nombre"])}</li>' for c in m["comprado"])
+    sin_parentesis = re.compile(r"\s*\(.*\)$")
+    incluido = "".join(f'<li><b>{c["cuantos"]} ×</b> {e(c["nombre"])} <span class="suave">'
+                       f'(con el {e(sin_parentesis.sub("", c["viene_con"]))})</span></li>'
+                       for c in m["incluido"])
+    return f"""<section class="materiales"><h2>Lo que lleva</h2><div class="columnas">
+      <div><h3>Se imprime</h3><ul>{impresas}</ul></div>
+      {f'<div><h3>Se compra</h3><ul>{compradas}</ul></div>' if compradas else ''}
+      {f'<div><h3>Viene con lo comprado</h3><ul>{incluido}</ul></div>' if incluido else ''}
+      </div></section>"""
 
 
 def _aviso_del_banco(corrida: str) -> str:
@@ -958,6 +1075,26 @@ ESTILO = """
   .filtro span { color:var(--suave); margin-left:4px; }
   .filtro.activo { background:var(--fg); color:var(--bg); border-color:var(--fg); }
   .filtro.activo span { color:inherit; opacity:.7; }
+  .separa { flex:0 0 1px; background:var(--linea); margin:4px 4px; }
+  /* El tipo de invento (F7.8 (inventario)), antes que el nombre: lo primero
+     que se distingue en el inventario es si es una pieza o un robot. */
+  .tipo { font-size:12px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; color:var(--suave); }
+  .tipo.robot, .tipo.ensamble { color:var(--acento); }
+  .compras { font-size:13px; color:var(--suave); }
+  /* El visor 3D (F7.9 (visor)): ocupa el sitio de la foto grande. */
+  .visor3d { width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+  .visor3d.listo { cursor:grab; touch-action:none; } .visor3d canvas { width:100%; height:100%; display:block; }
+  .mandos { display:flex; flex-direction:column; gap:6px; padding:10px 0 0; width:100%; }
+  .mandos label { display:grid; grid-template-columns:minmax(0, 1fr) minmax(120px, 2fr) 3.5em; gap:10px; align-items:center; font-size:13px; }
+  .mandos label span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .mandos output { font-variant-numeric:tabular-nums; text-align:right; }
+  .mandos .btn { align-self:flex-start; }
+  .mandos label.atraves { display:flex; gap:8px; }
+  .mandos .choca { color:var(--mal); font-weight:600; font-size:13px; margin:0; min-height:1.2em; }
+  .materiales .columnas { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px;
+                          background:var(--tarjeta); border:1px solid var(--linea); border-radius:16px; padding:16px 18px; }
+  .materiales h3 { font-size:13px; text-transform:uppercase; letter-spacing:.03em; color:var(--suave); margin:0 0 8px; }
+  .materiales ul { margin:0; padding-left:18px; } .materiales li { margin:3px 0; } .materiales p { margin:0 0 4px; }
   #vivo { padding:12px max(16px, calc((100% - 1200px)/2)) 48px; }
   .rejilla { display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:18px; }
   .tarjeta { display:flex; flex-direction:column; background:var(--tarjeta); border-radius:16px; overflow:hidden;
@@ -1078,7 +1215,11 @@ ESTILO = """
     .ficha h1 { font-size:24px; }
     .rejilla { grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:12px; }
     .acciones .btn { flex:1 1 160px; }
-    #buscar { width:auto; flex:1; min-width:0; }
+    /* En un móvil la barra se parte: el buscador baja a su propia fila. Sin
+       esto «＋ Nuevo diseño» quedaba cortado y la página se desplazaba a lo
+       ancho (panel estrecho, 2026-11-10). */
+    .barra { flex-wrap:wrap; row-gap:8px; position:static; }
+    #buscar { width:auto; flex:1 1 100%; min-width:0; order:5; }
     .barra .btn.pri { padding:9px 12px; }
   }
   /* Un hueco sin imagen no es un rectángulo blanco: en modo oscuro deslumbraba. */
@@ -1144,7 +1285,8 @@ GUION_GALERIA = r"""
     const q = document.querySelector("#buscar").value.trim().toLowerCase();
     document.querySelectorAll(".tarjeta").forEach(t => {
       const archivado = !!t.dataset.archivado;
-      const pasa = filtro === "archivo" ? archivado : !archivado && (filtro === "todas" || t.dataset.categoria === filtro);
+      const [clave, valor] = filtro.split(":");
+      const pasa = filtro === "archivo" ? archivado : !archivado && (filtro === "todas" || t.dataset[clave] === valor);
       t.hidden = !(pasa && (!q || t.dataset.nombre.includes(q)));
     });
   }
@@ -1179,6 +1321,169 @@ GUION_GALERIA = r"""
     } catch (e) { /* sin red un momento: otra vuelta */ }
   }, 15000);
   aplicarFiltro();
+"""
+
+GUION_VISOR = r"""
+// El ensamble en 3D (F7.9 (visor)). Las mallas vienen de la verificación del
+// conjunto; las poses, de /poses, que las calcula Python con la cinemática con
+// la que se barrieron los choques: aquí solo se dibuja.
+import * as THREE from "three";
+import { OrbitControls } from "/estatico/OrbitControls.js";
+
+const caja = document.querySelector(".visor3d"), mandos = document.querySelector(".mandos");
+const base = caja.dataset.visor, ROJO = new THREE.Color("#e02424");
+
+async function arrancar() {
+  const r = await fetch(base + "/ensamble.json");
+  if (!r.ok) return;
+  const datos = await r.json();
+  const lienzo = document.createElement("canvas");
+  let render;
+  try { render = new THREE.WebGLRenderer({canvas: lienzo, antialias: true, alpha: true}); }
+  catch (e) { return; }               // sin WebGL: se queda el GIF
+  render.setPixelRatio(Math.min(devicePixelRatio, 2));
+  const escena = new THREE.Scene();
+  escena.add(new THREE.HemisphereLight(0xffffff, 0x8a8f94, 1.6));
+  const sol = new THREE.DirectionalLight(0xffffff, 1.8); sol.position.set(1, -2, 3); escena.add(sol);
+
+  // Un grupo por pieza; lo comprado que monta va dentro del suyo y se mueve con él.
+  const grupos = {}, mallas = {};
+  for (const [s, x] of Object.entries(datos.solidos)) {
+    const g = grupos[x.pieza] ??= Object.assign(new THREE.Group(), {matrixAutoUpdate: false});
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(x.v, 3));
+    geo.setIndex(x.t); geo.computeVertexNormals();
+    const color = new THREE.Color(x.color);
+    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({color, roughness: .75, metalness: .05, flatShading: true}));
+    m.userData.color = color; mallas[s] = m; g.add(m);
+  }
+  Object.values(grupos).forEach(g => escena.add(g));
+
+  // La tornillería (F7.8 (inventario)): lo mismo que dice «Lo que lleva»,
+  // cada tornillo con la pieza donde apoya su cabeza y cada tuerca con la suya.
+  // Poco metálico: sin un entorno que reflejar, el metal de three se ve negro.
+  const acero = new THREE.MeshStandardMaterial({color: 0xd5dbe2, roughness: .35, metalness: .2});
+  const ARRIBA = new THREE.Vector3(0, 1, 0);
+  function cilindro(rPunta, rCabeza, alto, lados, en, eje, centro) {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(rPunta, rCabeza, alto, lados), acero);
+    const e = new THREE.Vector3(...eje).normalize();
+    m.quaternion.setFromUnitVectors(ARRIBA, e);       // +y del cilindro: hacia la punta
+    m.position.set(...en).addScaledVector(e, centro);
+    return m;
+  }
+  const tornillos = await fetch(base + "/tornillos").then(r => r.ok ? r.json() : []).catch(() => []);
+  for (const t of tornillos) {
+    const g = grupos[t.pieza]; if (!g) continue;
+    g.add(cilindro(t.d / 2, t.d / 2, t.largo, 16, t.cabeza, t.eje, t.largo / 2));
+    if (t.avellanado) {                                // la cabeza, enrasada en su cono
+      const h = (t.avellanado - t.d) / 2;
+      g.add(cilindro(t.d / 2, t.avellanado / 2, h, 24, t.cabeza, t.eje, h / 2));
+    } else {                                           // Allen: alta como el diámetro
+      g.add(cilindro(t.cabeza_d / 2, t.cabeza_d / 2, t.d, 24, t.cabeza, t.eje, -t.d / 2));
+    }
+    for (const n of t.tuercas) {
+      const r = n.entrecaras / Math.sqrt(3);
+      grupos[n.pieza]?.add(cilindro(r, r, n.alto, 6, n.en, n.eje, n.alto / 2));
+    }
+  }
+
+  // Z hacia arriba, como en FreeCAD y en la impresora.
+  const camara = new THREE.PerspectiveCamera(35, 1, 1, 20000);
+  camara.up.set(0, 0, 1);
+  const mandar = new OrbitControls(camara, lienzo);
+  mandar.enableDamping = true;
+
+  function encuadrar() {
+    const b = new THREE.Box3().setFromObject(escena), c = b.getCenter(new THREE.Vector3());
+    const r = b.getSize(new THREE.Vector3()).length() / 2 || 50;
+    camara.position.copy(c).add(new THREE.Vector3(1.3, -1.9, 1.2).normalize().multiplyScalar(r * 3.2));
+    camara.near = r / 100; camara.far = r * 50; camara.updateProjectionMatrix();
+    mandar.target.copy(c); mandar.update();
+  }
+  function medir() {
+    const w = caja.clientWidth, h = caja.clientHeight || w * 3 / 4;
+    render.setSize(w, h, false); camara.aspect = w / h; camara.updateProjectionMatrix();
+  }
+
+  const angulos = {}, rotulos = {};
+  let pidiendo = null, otra = false;
+  async function poner() {
+    if (pidiendo) { otra = true; return; }
+    const q = new URLSearchParams(Object.entries(angulos).map(([k, v]) => [k, String(v)]));
+    pidiendo = fetch(base + "/poses?" + q).then(r => r.json());
+    try {
+      const d = await pidiendo;
+      for (const [p, m] of Object.entries(d.poses))
+        if (grupos[p]) { grupos[p].matrix.set(...m); grupos[p].matrixWorldNeedsUpdate = true; }
+      const rojos = new Set(d.rojos);
+      for (const [s, m] of Object.entries(mallas)) m.material.color.copy(rojos.has(s) ? ROJO : m.userData.color);
+      const choca = [...new Set(d.rojos.map(s => datos.solidos[s]?.pieza))].map(p => datos.piezas[p]?.nombre);
+      aviso.textContent = choca.length ? "Choca aquí: " + choca.join(" ↔ ") : "";
+    } catch (e) { /* sin red un momento */ }
+    pidiendo = null;
+    if (otra) { otra = false; poner(); }
+  }
+
+  // Un deslizador por articulación, en la rejilla del barrido: entre dos de
+  // sus puntos no se comprobó nada.
+  const aviso = document.createElement("p"); aviso.className = "choca";
+  for (const a of datos.articulaciones) {
+    angulos[a.pieza] = 0;
+    const fila = document.createElement("label");
+    const nombre = document.createElement("span"); nombre.textContent = a.nombre;
+    const valor = document.createElement("output"); valor.textContent = "0°"; rotulos[a.pieza] = valor;
+    const barra = Object.assign(document.createElement("input"),
+      {type: "range", min: a.recorrido[0], max: a.recorrido[1], step: a.paso, value: 0});
+    barra.dataset.pieza = a.pieza;
+    barra.addEventListener("input", () => { angulos[a.pieza] = +barra.value; valor.textContent = barra.value + "°"; poner(); });
+    fila.append(nombre, barra, valor); mandos.append(fila);
+  }
+  if (datos.articulaciones.length) {
+    const tocar = Object.assign(document.createElement("button"), {className: "btn", type: "button", textContent: "▶ Mover"});
+    let moviendo = null;
+    tocar.addEventListener("click", () => {
+      if (moviendo) { clearInterval(moviendo); moviendo = null; tocar.textContent = "▶ Mover"; return; }
+      // Cada articulación por turno: a un extremo, al otro y de vuelta a 0.
+      const pasos = [];
+      for (const a of datos.articulaciones) {
+        const ida = []; for (let v = 0; v >= a.recorrido[0]; v -= a.paso) ida.push(v);
+        const vuelta = []; for (let v = a.recorrido[0]; v <= a.recorrido[1]; v += a.paso) vuelta.push(v);
+        const fin = []; for (let v = a.recorrido[1]; v >= 0; v -= a.paso) fin.push(v);
+        for (const v of [...ida, ...vuelta, ...fin]) pasos.push([a.pieza, v]);
+      }
+      let k = 0; tocar.textContent = "■ Parar";
+      moviendo = setInterval(() => {
+        const [p, v] = pasos[k++ % pasos.length];
+        angulos[p] = v; rotulos[p].textContent = v + "°";
+        mandos.querySelector(`input[data-pieza="${CSS.escape(p)}"]`).value = v; poner();
+      }, 140);
+    });
+    mandos.append(tocar);
+  }
+  // Los tornillos van por dentro de las piezas: viéndolas a través se ve
+  // qué une a qué.
+  if (tornillos.length) {
+    const fila = document.createElement("label"); fila.className = "atraves";
+    const marca = Object.assign(document.createElement("input"), {type: "checkbox"});
+    marca.addEventListener("change", () => {
+      for (const m of Object.values(mallas)) {
+        m.material.transparent = marca.checked; m.material.opacity = marca.checked ? .3 : 1;
+        m.material.depthWrite = !marca.checked; m.material.needsUpdate = true;
+      }
+    });
+    const texto = document.createElement("span");
+    texto.textContent = `Ver a través (${tornillos.length} tornillos)`;
+    fila.append(marca, texto); mandos.append(fila);
+  }
+  mandos.append(aviso);
+
+  caja.replaceChildren(lienzo);
+  caja.classList.add("listo"); mandos.hidden = !datos.articulaciones.length && !tornillos.length;
+  await poner(); medir(); encuadrar();
+  new ResizeObserver(medir).observe(caja);
+  (function bucle() { mandar.update(); render.render(escena, camara); requestAnimationFrame(bucle); })();
+}
+arrancar();
 """
 
 GUION_PROYECTO = r"""

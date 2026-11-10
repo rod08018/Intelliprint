@@ -32,11 +32,13 @@ despejar:
     caja: [16, 15, 12]
     en: [-8, -43.15, -39.5]
     porque: "la clavija JST PH de 6 pines y el cable que sale de ella"
+# Roscados M3 de 4.5 mm de fondo como mínimo (notas): el tornillo entra
+# hasta 4.5 en el motor, no más.
 fijacion:
-  - {nombre: M3 1, diametro: 3, en: [-15.5, -15.5, 0], eje: "-z"}
-  - {nombre: M3 2, diametro: 3, en: [15.5, -15.5, 0], eje: "-z"}
-  - {nombre: M3 3, diametro: 3, en: [-15.5, 15.5, 0], eje: "-z"}
-  - {nombre: M3 4, diametro: 3, en: [15.5, 15.5, 0], eje: "-z"}
+  - {nombre: M3 1, diametro: 3, en: [-15.5, -15.5, 0], eje: "-z", tornillo: M3, dentro_mm: 4.5}
+  - {nombre: M3 2, diametro: 3, en: [15.5, -15.5, 0], eje: "-z", tornillo: M3, dentro_mm: 4.5}
+  - {nombre: M3 3, diametro: 3, en: [-15.5, 15.5, 0], eje: "-z", tornillo: M3, dentro_mm: 4.5}
+  - {nombre: M3 4, diametro: 3, en: [15.5, 15.5, 0], eje: "-z", tornillo: M3, dentro_mm: 4.5}
 notas: >
   Agujeros roscados M3 de 4.5 mm de fondo como mínimo: el tornillo no puede
   entrar más de eso en el motor. Hay NEMA 17 de otros largos (23 a 60 mm): si

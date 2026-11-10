@@ -326,6 +326,53 @@ def rotulo(piezas: dict[str, Pieza], juntas: list[str], angulos: dict[str, float
     return "\n".join(textwrap.fill(p, ANCHO_ROTULO) for p in partes)
 
 
+ENSAMBLE = "ensamble.json"
+
+
+def guardar_ensamble(mallas: dict, piezas: dict[str, Pieza], arts: dict[str, Articulacion],
+                     duenos: dict[str, str], paso: float, destino: Path) -> Path:
+    """Lo que necesita el visor 3D de la web (F7.9 (visor)): cada malla en el
+    marco de su sólido, de qué pieza es y qué articulaciones se mueven. Las
+    poses no van aquí: las da `pose_para_el_visor`, con la misma cinemática
+    que barrió los choques."""
+    colores = {s: COLORES_PIEZAS[k % len(COLORES_PIEZAS)] for k, s in enumerate(piezas)}
+    datos = {
+        "solidos": {s: {"pieza": duenos[s], "color": colores.get(s, COLOR_COMPRADO),
+                        # Al centésimo de milímetro: el JSON del pan-tilt baja a la mitad.
+                        "v": [round(c, 2) for p in v for c in p], "t": [i for tri in t for i in tri]}
+                    for s, (v, t) in mallas.items() if s in duenos},
+        "piezas": {i: {"nombre": p.nombre} for i, p in piezas.items()},
+        "articulaciones": [{"pieza": a.pieza, "nombre": piezas[a.pieza].nombre,
+                            "recorrido": list(a.recorrido), "paso": paso} for a in arts.values()],
+    }
+    destino = Path(destino)
+    destino.write_text(json.dumps(datos, ensure_ascii=False, separators=(",", ":")),
+                       encoding="utf-8")
+    return destino
+
+
+def pose_para_el_visor(carpeta: Path, conjunto: str, angulos: dict[str, float]) -> dict:
+    """{"poses": {pieza: 4x4 por filas}, "rojos": [sólidos]}: el conjunto con
+    cada articulación a su ángulo, y lo que la verificación vio chocar ahí.
+    Los ángulos van a la rejilla del barrido: entre dos puntos de la rejilla
+    no se comprobó nada, y no se puede decir que no choque."""
+    from orchestrator import obra as O
+    piezas = leer_piezas(carpeta, conjunto, solo_construidas=True)
+    arts = {a.pieza: a for a in articulaciones(piezas)}
+    v = json.loads((Path(carpeta) / O.NODOS / conjunto / VERIFICACION).read_text(encoding="utf-8"))
+    paso = v.get("paso") or PASO
+    rejilla = {}
+    for j, a in arts.items():
+        if j in angulos:
+            lo, hi = a.recorrido
+            rejilla[j] = min(max(round(angulos[j] / paso) * paso, lo), hi)
+    mundo = poses(piezas, arts, rejilla)
+    return {"poses": {i: [*r[0], t[0], *r[1], t[1], *r[2], t[2], 0, 0, 0, 1]
+                      for i, (r, t) in mundo.items()},
+            "angulos": rejilla,
+            "rojos": sorted(chocan_en(rejilla, v.get("choques") or []))}
+
+
 def animar_conjunto(piezas: dict[str, Pieza], arts: dict[str, Articulacion],
                     steps: dict[str, Path], solidos: dict[str, list], duenos: dict[str, str],
                     choques: list[dict], gif: Path, freecadcmd: str, titulo: str,
@@ -337,6 +384,8 @@ def animar_conjunto(piezas: dict[str, Pieza], arts: dict[str, Articulacion],
     from orchestrator.animation import render_gif, tessellate
 
     mallas = tessellate(steps, {}, freecadcmd, solidos=solidos)
+    # Las mismas mallas, para el visor de la web: teselar cuesta un FreeCAD.
+    guardar_ensamble(mallas, piezas, arts, duenos, paso, Path(gif).parent / ENSAMBLE)
     cuadros = fotogramas(arts, paso) or [{}]
     colores = {s: COLORES_PIEZAS[k % len(COLORES_PIEZAS)] for k, s in enumerate(piezas)}
     colores.update({s: COLOR_COMPRADO for s in duenos if s not in piezas})

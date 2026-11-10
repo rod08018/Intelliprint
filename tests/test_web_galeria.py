@@ -10,6 +10,7 @@ workspace, no de lo que pinte la web.
 """
 
 import json
+import re
 import os
 import sys
 
@@ -95,7 +96,10 @@ def test_la_galeria_dice_el_estado_en_palabras_y_sin_jerga(tmp_path):
         assert jerga not in html.lower(), jerga
 
 
-def test_la_galeria_se_ordena_por_categorias(tmp_path):
+def test_cada_tarjeta_sigue_llevando_su_categoria(tmp_path):
+    """La categoría era el filtro de la portada; desde el inventario
+    (F7.8 (inventario)) se filtra por tipo y etapa, y la categoría queda como
+    dato del invento, que se sigue pudiendo cambiar."""
     _version(tmp_path, "2026-10-01-sargento", mecanismo=SARGENTO)
     _version(tmp_path, "2026-10-02-algo", "Algo sin categoría")
     cal = _version(tmp_path, "2026-10-03-calibracion", "Pieza de calibración de holguras")
@@ -106,7 +110,6 @@ def test_la_galeria_se_ordena_por_categorias(tmp_path):
     assert 'data-categoria="sujeción"' in html
     assert 'data-categoria="otros"' in html
     assert 'data-categoria="calibración"' in html
-    assert 'data-filtro="sujeción"' in html
 
 
 def test_la_categoria_se_cambia_desde_la_web(tmp_path):
@@ -250,3 +253,93 @@ def test_una_categoria_que_no_esta_en_la_lista_es_otros():
     assert normalizar("Sujeción") == "sujeción"
     assert normalizar("cohetes") == "otros"
     assert normalizar(None) == "otros"
+
+
+# --- El inventario de inventos (F7.8 (inventario)) ------------------------------
+# «Es una plataforma de administración de inventos: cada invento puede ser
+# sencillo como una pieza o complicado como un robot» (el usuario, 2026-11-10).
+# La portada era una galería por categorías donde todo se veía igual.
+
+
+def _inventario(ws):
+    from tests.test_materiales import _pan_tilt
+    from tests.test_web_piezas_sueltas import _pieza
+    robot = ws / "projects" / "2026-11-09-pan-tilt"
+    robot.mkdir(parents=True)
+    _pan_tilt(robot)
+    (robot / "request.md").write_text("un pan-tilt con dos SG90\n", encoding="utf-8")
+    (robot / "nodos" / "conjunto" / "verificacion.json").parent.mkdir(parents=True, exist_ok=True)
+    (robot / "nodos" / "conjunto" / "verificacion.json").write_text(json.dumps(
+        {"ok": True, "choques": [], "resumen": [], "articulaciones": [
+            {"pieza": "soporte", "padre": "base", "de": "sg90", "eje_mundo": [0, 0, 1],
+             "recorrido": [-90, 90]}]}), encoding="utf-8")
+    _pieza(ws, "2026-11-08-soporte")
+    _version(ws, "2026-10-01-sargento", mecanismo=SARGENTO)
+    return _web(ws).get("/").text
+
+
+def _tarjeta(html, id_):
+    return re.search(rf'<a class="tarjeta" href="/p/{re.escape(id_)}".*?</a>', html, re.S).group(0)
+
+
+def test_cada_invento_dice_si_es_una_pieza_un_mecanismo_o_un_robot(tmp_path):
+    html = _inventario(tmp_path)
+    robot = _tarjeta(html, "2026-11-09-pan-tilt")
+    assert 'data-tipo="robot"' in robot and "Robot · 3 piezas" in robot
+    assert 'data-tipo="pieza"' in _tarjeta(html, "2026-11-08-soporte")
+    assert 'data-tipo="mecanismo"' in _tarjeta(html, "2026-10-01-sargento")
+
+
+def test_la_tarjeta_de_un_robot_dice_lo_que_se_compra(tmp_path):
+    """Dos SG90, contados a mano en `tests/test_materiales.py`."""
+    assert "2 × Micro servo SG90" in _tarjeta(_inventario(tmp_path), "2026-11-09-pan-tilt")
+
+
+def test_se_filtra_por_tipo_y_por_etapa(tmp_path):
+    html = _inventario(tmp_path)
+    for filtro in ('data-filtro="tipo:robot"', 'data-filtro="tipo:pieza"',
+                   'data-filtro="tipo:mecanismo"', 'data-filtro="etapa:listo"'):
+        assert filtro in html, filtro
+    assert 'data-etapa="listo"' in _tarjeta(html, "2026-11-08-soporte")
+    # La categoría ya no es un filtro de la portada.
+    assert 'data-filtro="sujeción"' not in html
+
+
+def test_la_cabecera_cabe_en_un_movil():
+    """En el panel estrecho (2026-11-10) «＋ Nuevo diseño» quedaba cortado y la
+    página se desplazaba a lo ancho: la barra tiene que poder partirse."""
+    from orchestrator.web.paginas import ESTILO
+    movil = ESTILO[ESTILO.index("@media (max-width:820px)"):]
+    movil = movil[:movil.index("\n  }")]
+    assert re.search(r"\.barra \{[^}]*flex-wrap:\s*wrap", movil)
+    # Y no se queda pegada arriba: partida en tres filas tapaba media pantalla.
+    assert re.search(r"\.barra \{[^}]*position:\s*static", movil)
+
+
+def test_la_pagina_de_un_robot_dice_lo_que_lleva(tmp_path):
+    """La lista de materiales (F7.8 (inventario)): lo que se imprime, lo que
+    se compra y qué tornillos, contados a mano en `tests/test_materiales.py`."""
+    from tests.test_web_obra import _visible
+    _inventario(tmp_path)
+    html = _web(tmp_path).get("/p/2026-11-09-pan-tilt").text
+    texto = _visible(html)
+    assert "Lo que lleva" in texto
+    assert "2 × Micro servo SG90 (9 g)" in texto
+    for pieza in ("Pieza base", "Pieza soporte", "Pieza plataforma"):
+        assert pieza in texto, pieza
+    assert "2 × Tornillo avellanado M4" in texto
+    # Lo que viene en la bolsa del servo se ve, pero no se compra aparte.
+    assert "Viene con lo comprado" in texto
+    assert "1 × Tornillo M2 de 10.9 mm" in texto
+    assert "Robot · 3 piezas" in texto
+
+
+def test_la_tarjeta_no_se_llena_de_tornillos(tmp_path):
+    """En la tarjeta caben los componentes; la tornillería va en la página."""
+    assert "Tornillo" not in _tarjeta(_inventario(tmp_path), "2026-11-09-pan-tilt")
+
+
+def test_una_pieza_no_lleva_lista_de_materiales_si_no_compra_nada(tmp_path):
+    from tests.test_web_obra import _visible
+    _inventario(tmp_path)
+    assert "Lo que lleva" not in _visible(_web(tmp_path).get("/p/2026-11-08-soporte").text)

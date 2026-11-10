@@ -279,6 +279,14 @@ def test_el_brazo_que_choca_con_el_poste_al_girar_se_ve_en_que_angulos(tmp_path)
         assert _rojos(imagen, 26) > 50
         assert _rojos(imagen, 3) == 0
 
+    # Y para el visor de la web (F7.9 (visor)): las mismas mallas, cada una con
+    # su pieza, y la articulación del brazo con su recorrido.
+    ensamble = json.loads((carpeta / "nodos" / "conjunto" / "ensamble.json")
+                          .read_text(encoding="utf-8"))
+    assert {x["pieza"] for x in ensamble["solidos"].values()} == {"base", "brazo"}
+    assert all(x["v"] and x["t"] for x in ensamble["solidos"].values())
+    assert [a["recorrido"] for a in ensamble["articulaciones"]] == [[-90, 90]]
+
 
 def _rojos(imagen, cuadro: int) -> int:
     """Los píxeles del rojo de un choque, con cualquier sombra."""

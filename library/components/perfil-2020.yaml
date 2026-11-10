@@ -34,8 +34,12 @@ cuerpos:
   - nombre: esquina -y-z
     caja: [200, 7, 7]
     en: [-100, -10, -10]
+# El tornillo entra por la cara de arriba y agarra en la tuerca en T de la
+# ranura, que tiene 6 de fondo (notas): entra hasta 6 mm. Puede ir en
+# cualquier punto de la ranura (a lo largo de x), no solo en el que se marca.
 fijacion:
-  - {nombre: tornillo M5 en la ranura de arriba, diametro: 5, en: [0, 0, 10], eje: "-z"}
+  - {nombre: tornillo M5 en la ranura de arriba, diametro: 5, en: [0, 0, 10], eje: "-z",
+     tornillo: M5, dentro_mm: 6, tuerca: "Tuerca en T M5 (ranura de 6)", a_lo_largo: "+x"}
 notas: >
   Las ranuras quedan libres en 6 de ancho y 6 de fondo: por dentro se
   ensanchan a 12 (ahí va la tuerca en T M5, que no se modela). El tornillo
