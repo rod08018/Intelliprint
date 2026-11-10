@@ -11,6 +11,8 @@ en el origen tiene su envolvente en (-20, -10, 0)–(20, 10, 5), y sus M3
 pasantes son de Ø3.3 porque eso pone el perfil de la impresora.
 """
 
+from pathlib import Path
+
 import pytest
 
 from orchestrator.banco import ComponenteCabe, ComponenteEntra, medir_sondas
@@ -238,3 +240,21 @@ def test_una_pieza_impresa_entra_solo_por_donde_hay_camino(tmp_path, monkeypatch
                         entra_por=entra_por)], _freecadcmd(), MATERIAL)
     assert cabe.estado == "cumple", cabe.detalle
     assert (mete.estado == "cumple") == entra, mete.detalle
+
+
+def test_el_hueco_largo_de_una_pieza_vecina_se_resta_sin_romper_freecad(tmp_path, monkeypatch):
+    """Banco 1110-0313: la plataforma del pan-tilt no se construyó en cinco
+    intentos, todos con «Null shape» al restar el hueco del soporte de giro.
+    El hueco era válido, pero lleva el camino de entrada del SG90 montado,
+    de 2 m, y OCC no sabe restarlo de una pieza de 40 mm; tampoco con
+    tolerancia. Es el programa tal cual lo escribió el diseñador, con la
+    ficha del soporte de esa corrida. A mano (FreeCAD, recortando el hueco a
+    la pieza): la plataforma pierde 39.3 mm³ en esa resta, y sale entera."""
+    import shutil
+    origen = Path("tests/kit_regresiones/plataforma_pan_tilt")
+    fichas = tmp_path / "fichas"
+    shutil.copytree(origen, fichas)
+    monkeypatch.setenv("INTELLIPRINT_FICHAS", str(fichas))
+    r = build_part(Programa(part="plataforma", codigo=(origen / "programa.txt").read_text(
+        encoding="utf-8")), None, tmp_path / "plataforma", _freecadcmd(), perfil=PERFIL)
+    assert r.solids == 1

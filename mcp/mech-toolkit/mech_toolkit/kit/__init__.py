@@ -539,6 +539,7 @@ class Cuerpo:
         b = forma.BoundBox
         self._kit._registrar(nombre, "hueco", desde=[b.XMin, b.YMin, b.ZMin],
                              hasta=[b.XMax, b.YMax, b.ZMax])
+        forma = _recortada(forma, self._forma)
         # Un componente que solo se apoya en la pieza (la Pi sobre sus
         # separadores) no le quita nada, y está bien. Uno que ni la toca sí
         # es un error de posición, como cualquier rasgo.
@@ -553,6 +554,24 @@ class Cuerpo:
             if self._forma.Volume - resultado.Volume < 1e-6:
                 return self
         return self._cortar(nombre, forma)
+
+
+def _recortada(herramienta, pieza):
+    """Lo que de `herramienta` cae cerca de `pieza` (su caja y 1 mm): restar
+    eso es restar lo mismo. Banco 1110-0313: el hueco del soporte de giro
+    lleva el camino de entrada de su SG90, de 2 m, y restarlo de la
+    plataforma, de 40 mm, daba «Null shape» en OCC, también con tolerancia;
+    recortado, la resta sale exacta. Si recortar falla, la entera."""
+    b, m = pieza.BoundBox, 1.0
+    caja = Part.makeBox(b.XLength + 2 * m, b.YLength + 2 * m, b.ZLength + 2 * m,
+                        FreeCAD.Vector(b.XMin - m, b.YMin - m, b.ZMin - m))
+    try:
+        cerca = herramienta.common(caja)
+        if not cerca.isNull() and cerca.isValid():
+            return cerca
+    except Exception:   # OCC lanza Part.OCCError o RuntimeError según la versión
+        pass
+    return herramienta
 
 
 class Hueco(Cuerpo):

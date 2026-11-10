@@ -1,0 +1,138 @@
+# R3/R4: inclinacion total de 180 grados (90 a cada lado)
+ANGULO_TOTAL = 180
+ANGULO_LADO = 90
+
+# R6: seccion minima de cada pared lateral en la union: 20 x 2.4 mm
+PARED_ANCHO = 20.0
+PARED_CANTO = 2.4
+
+# Concepto: brida circular
+DIAMETRO_BRIDA = 40.0
+BRIDA_ALTO = 5.0
+
+# Concepto: separacion entre paredes para camara pequena
+SEPARACION_PAREDES = 24.0
+ALTO_PARED = 20.0
+
+# Concepto: chaflan de 1.5 mm a 45 grados en el pie de las paredes
+CHAFLAN_PIE = 1.5
+
+# Concepto/ficha SG90: agujeros del cuerno a R6.3
+RADIO_TORNILLOS_CUERNO = 6.3
+# Ficha SG90: cuerno de cruz #2 mide 20.3 mm de punta a punta
+LARGO_CUERNO_CRUZ = 20.3
+# Ficha SG90: grosor de los brazos del cuerno 1.5 mm
+CUERNO_ALTO = 1.5
+# Diseno: ancho del hueco en cruz para los brazos del cuerno
+ANCHO_CUERNO_CRUZ = 3.0
+
+# Concepto: brida de nylon de 2.5 mm
+BRIDA_NYLON = 2.5
+# Diseno: largo de la ranura para la brida
+LARGO_RANURA = 8.0
+
+# Ficha SG90: tornillo autorroscante de unos 2 mm
+TORNILLO_SG90_MM = 2.0
+
+# Diseno: profundidad del hueco en cruz para el cuerno
+PROFUNDIDAD_CUERNO = 2.5
+
+# Ficha soporte: posicion del cubo del cuerno
+SOPORTE_HORN_X0 = 13.55
+SOPORTE_HORN_Y = -5.6
+SOPORTE_HORN_Z = 12.2
+SOPORTE_HORN_LARGO = 3.6
+SOPORTE_MAX_X = 16.0
+
+def construir(kit):
+    # Brida circular (se imprime con la cara que apoya en el cuerno contra la cama)
+    brida = kit.cilindro(DIAMETRO_BRIDA, BRIDA_ALTO, en=(0, 0, 0), eje='z')
+
+    # Paredes laterales de la cuna (paralelas, dejan hueco para la camara)
+    inner = SEPARACION_PAREDES / 2
+    outer = inner + PARED_CANTO
+    inner_base = inner - CHAFLAN_PIE
+    outer_base = outer + CHAFLAN_PIE
+    z_overlap = BRIDA_ALTO - 1.0
+    z_chamfer_top = BRIDA_ALTO + CHAFLAN_PIE
+    z_top = BRIDA_ALTO + ALTO_PARED
+
+    puntos_pos = [
+        (inner_base, z_overlap),
+        (outer_base, z_overlap),
+        (outer_base, BRIDA_ALTO),
+        (outer, z_chamfer_top),
+        (outer, z_top),
+        (inner, z_top),
+        (inner, z_chamfer_top),
+        (inner_base, BRIDA_ALTO)
+    ]
+    pared_pos = kit.extruir(puntos_pos, PARED_ANCHO, plano='yz', desde=-PARED_ANCHO / 2)
+
+    puntos_neg = [
+        (-inner_base, z_overlap),
+        (-outer_base, z_overlap),
+        (-outer_base, BRIDA_ALTO),
+        (-outer, z_chamfer_top),
+        (-outer, z_top),
+        (-inner, z_top),
+        (-inner, z_chamfer_top),
+        (-inner_base, BRIDA_ALTO)
+    ]
+    pared_neg = kit.extruir(puntos_neg, PARED_ANCHO, plano='yz', desde=-PARED_ANCHO / 2)
+
+    pieza = brida + pared_pos + pared_neg
+
+    # Colocar el soporte de pan con SG90 de inclinacion para verificar que la plataforma no choque.
+    # El eje del cuerno (local +X) debe quedar vertical (+Z) para montar la brida.
+    # El cuerpo del soporte queda justo debajo de la cara inferior de la brida.
+    soporte_en = (SOPORTE_HORN_Z, -SOPORTE_HORN_Y, -(SOPORTE_MAX_X + 0.1))
+    soporte = kit.componente(
+        'obra-soporte-pan-inclinacion',
+        en=soporte_en,
+        girar=[('y', 270)],
+        entra_por='-z'
+    )
+    pieza = pieza.quitar('alojamiento_soporte', soporte.hueco(holgura='clearance'))
+
+    # Hueco en cruz para los brazos del cuerno (rebaje inferior)
+    largo_cruz = LARGO_CUERNO_CRUZ + kit.holgura('clearance')
+    prof_cruz_corte = PROFUNDIDAD_CUERNO + 0.5
+    z_cruz = -0.5
+    caja_x = kit.caja(largo_cruz, ANCHO_CUERNO_CRUZ, prof_cruz_corte,
+                      en=(-largo_cruz / 2, -ANCHO_CUERNO_CRUZ / 2, z_cruz))
+    pieza = pieza.quitar('hueco_cuerno_x', caja_x)
+    caja_y = kit.caja(ANCHO_CUERNO_CRUZ, largo_cruz, prof_cruz_corte,
+                      en=(-ANCHO_CUERNO_CRUZ / 2, -largo_cruz / 2, z_cruz))
+    pieza = pieza.quitar('hueco_cuerno_y', caja_y)
+
+    # Hueco pasante central para el tornillo del cuerno
+    pieza = pieza.taladrar('hueco_central_cuerno', 4.0,
+                           en=(0, 0, BRIDA_ALTO + 0.5), eje='-z')
+
+    # Agujeros para los dos tornillos autroscantes del cuerno (a R6.3)
+    diam_cuerno = TORNILLO_SG90_MM + kit.holgura('clearance')
+    for i, x in enumerate([-RADIO_TORNILLOS_CUERNO, RADIO_TORNILLOS_CUERNO]):
+        pieza = pieza.taladrar(
+            f'tornillo_cuerno_{i + 1}', diam_cuerno,
+            en=(x, 0, BRIDA_ALTO + 0.5), eje='-z'
+        )
+
+    # Ranuras pasantes en las paredes para la brida de nylon
+    z_ranura = BRIDA_ALTO + ALTO_PARED / 2
+    alto_ranura = BRIDA_NYLON + kit.holgura('clearance')
+    ancho_ranura_y = PARED_CANTO + 2.0
+    y_start_pos = inner - 1.0
+    ranura_pos = kit.caja(
+        LARGO_RANURA, ancho_ranura_y, alto_ranura,
+        en=(-LARGO_RANURA / 2, y_start_pos, z_ranura - alto_ranura / 2)
+    )
+    pieza = pieza.quitar('ranura_brida_1', ranura_pos)
+    y_start_neg = -outer - 1.0
+    ranura_neg = kit.caja(
+        LARGO_RANURA, ancho_ranura_y, alto_ranura,
+        en=(-LARGO_RANURA / 2, y_start_neg, z_ranura - alto_ranura / 2)
+    )
+    pieza = pieza.quitar('ranura_brida_2', ranura_neg)
+
+    return pieza.acabar(radio=0.5)

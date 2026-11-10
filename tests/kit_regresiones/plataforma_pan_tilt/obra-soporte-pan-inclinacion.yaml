@@ -1,0 +1,85 @@
+id: obra-soporte-pan-inclinacion
+nombre: Soporte de pan con alojamiento para SG90 de inclinación
+origen: impreso
+proyecto: 2026-11-10-031356-un_pan_tilt_con_dos_servos_sg90_el_de
+verificado: false
+fuentes:
+- url: proyecto 2026-11-10-031356-un_pan_tilt_con_dos_servos_sg90_el_de
+  cita: construida por Intelliprint (soporte_de_pan_con_alojamiento)
+marco: 'El de la pieza construida: el mismo origen y los mismos ejes que su programa.'
+mira: +z
+cuerpos:
+- nombre: Soporte de pan con alojamiento para SG90 de inclinación
+  en:
+  - 0
+  - 0
+  - 0
+  step:
+    ruta: obra-soporte-pan-inclinacion.step
+    min:
+    - -18.0
+    - -18.0
+    - -3.552713678800501e-15
+    max:
+    - 16.0
+    - 18.0
+    - 20.0
+- nombre: 'sg90: cuerpo'
+  en:
+  - -13.55
+  - -11.4
+  - 6.0
+  caja:
+  - 27.1
+  - 22.8
+  - 12.4
+  porque: envolvente de los planos; de alto, hasta la carcasa del eje (27.1, TA0233)
+  monta: sg90
+- nombre: 'sg90: orejas'
+  en:
+  - 2.05
+  - -16.1
+  - 6.0
+  caja:
+  - 2.9
+  - 32.2
+  - 12.4
+  porque: 'las orejas empiezan a 15.6 (Luxorparts) o a 16 (TowerPro): se cubren las
+    dos; el grosor no viene acotado (unos 2.5 a escala)'
+  monta: sg90
+despejar:
+- nombre: 'sg90: eje_y_cubo_del_cuerno'
+  en:
+  - 13.55
+  - -5.6
+  - 12.2
+  cilindro:
+    diametro: 6.9
+    alto: 3.6
+    eje: +x
+  porque: 'el eje de salida (TA0233: a 8.75 de la muesca, 5.8 del extremo del cuerpo)
+    sale de 27.1 a 30.7, y en él encaja el cubo del cuerno, de Ø6.9: lo que se acople
+    al eje deja este sitio al cuerno'
+  monta: sg90
+fijacion:
+- nombre: tornillo_central
+  diametro: 3.3
+  en:
+  - 0.0
+  - 0.0
+  - 6.0
+  eje: -z
+- nombre: apriete_1
+  diametro: 2.8
+  en:
+  - -10.0
+  - -15.6
+  - 12.0
+  eje: +y
+- nombre: apriete_2
+  diametro: 2.8
+  en:
+  - -3.0
+  - -15.6
+  - 12.0
+  eje: +y
