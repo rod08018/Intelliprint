@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from orchestrator.ingenieria import CasoDeCarga, Comprobacion
 from orchestrator.schemas.uso import Uso
@@ -44,6 +44,15 @@ class Concepto(BaseModel):
     """Con un concepto anterior: qué cambia respecto a él y por qué. La base
     del pan-tilt (2026-11-09) perdió en silencio los tornillos que la fijaban
     al rehacerla por otra cosa; lo que cambia tiene que verse al aprobar."""
+
+    @field_validator("alternativas", mode="before")
+    @classmethod
+    def _dos_alternativas(cls, v):
+        """Las dos primeras, sin rechazar: la plataforma del pan-tilt (banco
+        1110-0128) murió en tres intentos por contar tres formas
+        descartadas, que solo se leen. Las preguntas sí se rechazan: una de
+        más es un interrogatorio, y cortarla callaría lo que hay que decidir."""
+        return v[:2] if isinstance(v, list) else v
 
 
 class ConceptoComprobado(BaseModel):

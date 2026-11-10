@@ -97,6 +97,17 @@ def test_como_mucho_tres_preguntas():
     assert resultado.concepto.preguntas == ["a?"]
 
 
+def test_una_alternativa_de_mas_no_tira_el_concepto():
+    """Banco 1110-0128: la plataforma del pan-tilt no llegó a diseñarse
+    porque el ingeniero contó tres formas descartadas y el esquema admite
+    dos; el concepto murió en sus tres intentos. Las descartadas solo se
+    leen: con las dos primeras basta, y no se gasta otra llamada."""
+    guion = Guion([_concepto(alternativas=["a", "b", "c"])])
+    resultado = IngenieroAgent(guion, ACTIVO).concebir(SPEC)
+    assert len(guion.prompts) == 1
+    assert resultado.concepto.alternativas == ["a", "b"]
+
+
 def test_el_texto_para_la_persona_lleva_la_idea_el_calculo_y_las_preguntas():
     guion = Guion([_concepto(preguntas=["¿la repisa es de 18 mm de grueso?"])])
     texto = IngenieroAgent(guion, ACTIVO).concebir(SPEC).texto()
