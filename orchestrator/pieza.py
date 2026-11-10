@@ -25,7 +25,7 @@ from typing import Callable
 import yaml
 from pydantic import BaseModel
 
-from orchestrator.build import ConstruccionFallida, guardar_diseno
+from orchestrator.build import ConstruccionFallida, carpeta_libre, guardar_diseno
 from orchestrator.registry import latir
 from orchestrator.schemas.concepto import ConceptoComprobado
 from orchestrator.schemas.spec import Spec
@@ -175,6 +175,10 @@ def _concebir(peticion: str, carpeta: Path, *, requisitos, ingeniero,
         log(f"  «{spec.title}»: el ingeniero piensa cómo resolverlo…")
         concepto = ingeniero.concebir(spec, **_de_la_vuelta_anterior(carpeta))
     except ValueError as e:   # SalidaInvalida: el modelo no dio un concepto que se sostenga
+        # Cada intento, no solo el último error (banco 1110-0128: la
+        # plataforma del pan-tilt murió en tres y solo quedó el tercero).
+        from orchestrator.llm.structured import guardar_intentos
+        guardar_intentos(carpeta_libre(carpeta / "intentos" / "concepto"), getattr(e, "intentos", []))
         titulo = _titulo(carpeta)
         _cerrar(carpeta, titulo, InformePieza(titulo=titulo, resuelto=False,
                                               motivo=f"el concepto no salió: {e}"), peticion)

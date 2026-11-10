@@ -55,6 +55,30 @@ def _texto(diseno) -> str:
     return diseno.codigo if hasattr(diseno, "codigo") else diseno.model_dump_json(indent=2)
 
 
+def carpeta_libre(ruta: Path) -> Path:
+    """`ruta`, o `ruta-2`, `ruta-3`… si ya existe: lo de una vuelta
+    anterior no se pisa."""
+    ruta, n = Path(ruta), 2
+    libre = ruta
+    while libre.exists():
+        libre, n = ruta.with_name(f"{ruta.stem}-{n}{ruta.suffix}"), n + 1
+    return libre
+
+
+def guardar_intento(carpeta: Path, diseno, motivo: str) -> None:
+    """Un intento de construcción descartado, con lo que escribió el agente
+    y por qué no valió, en `intentos/<n>/`. Banco 1110-0128: la polea del
+    608ZZ falló cuatro construcciones, solo quedó la última, y por qué no
+    colocó el soporte hubo que reproducirlo a mano."""
+    destino = Path(carpeta) / "intentos"
+    n = 1 + sum(1 for d in destino.glob("*") if d.is_dir() and d.name.isdigit()) \
+        if destino.is_dir() else 1
+    destino = destino / str(n)
+    destino.mkdir(parents=True, exist_ok=True)
+    (destino / "programa.txt").write_text(_texto(diseno), encoding="utf-8")
+    (destino / "motivo.md").write_text(motivo.strip() + "\n", encoding="utf-8")
+
+
 def guardar_diseno(carpeta: Path, diseno) -> None:
     """`recipe.json`, el mismo nombre que con una receta, y, si es un
     programa del kit, también `programa.py`, que es lo que se lee a mano."""
@@ -167,6 +191,7 @@ def design_and_build(
                 f"estas cotas de la petición del usuario no aparecen en tu receta: "
                 f"{cotas}. Úsalas tal cual; mandan sobre lo que sepas de este tipo de pieza.",
             )
+            guardar_intento(carpeta, receta, rechazo[1])
             continue
 
         try:
@@ -194,6 +219,7 @@ def design_and_build(
         except ConstruccionFallida as error:
             motivo = error.motivo
             rechazo = (_texto(receta), motivo)
+            guardar_intento(carpeta, receta, motivo)
     if mejor is not None:
         # Se reconstruye: en la carpeta quedaron los archivos del ÚLTIMO
         # intento, que puede ser peor que el mejor o no haberse construido.

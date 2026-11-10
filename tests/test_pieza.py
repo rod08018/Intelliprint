@@ -241,6 +241,26 @@ def test_un_concepto_que_no_sale_deja_el_porque(tmp_path):
     assert "NO aguanta" in (tmp_path / "blocked.md").read_text(encoding="utf-8")
 
 
+def test_un_concepto_que_no_sale_guarda_cada_intento_y_su_porque(tmp_path):
+    """Banco 1110-0128: el concepto de la plataforma del pan-tilt murió en tres
+    intentos y solo quedó el último error; de los otros dos no había rastro.
+    Archivar no es borrar: un intento descartado es la única prueba de por qué
+    no valía, y sin ella hay que volver a pedir la pieza para verlo."""
+    from orchestrator.llm.structured import SalidaInvalida
+    intentos = [{"intento": n, "respuesta": f'{{"idea": "forma {n}"}}', "error": f"fallo {n}",
+                 "reserva": False} for n in (1, 2, 3)]
+
+    class SinConcepto:
+        def concebir(self, spec, **_):
+            raise SalidaInvalida("Concepto: 3 intentos sin salida válida", intentos)
+
+    concebir_pieza(PETICION, tmp_path, requisitos=Requisitos(), ingeniero=SinConcepto(),
+                   log=_nada)
+    motivos = (tmp_path / "intentos" / "concepto" / "motivos.md").read_text(encoding="utf-8")
+    assert all(f"fallo {n}" in motivos for n in (1, 2, 3))
+    assert (tmp_path / "intentos" / "concepto" / "intento_1.json").is_file()
+
+
 def test_una_pieza_con_defectos_sale_pero_no_aprobada(tmp_path):
     """F6.8 (mejor): se entrega la mejor que salió, y se dice qué no cumple."""
     falta = "R2 («uno de 5 mm»): pide 1 agujero(s) de Ø5 y hay 0"

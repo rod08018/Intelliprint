@@ -119,3 +119,33 @@ def _reintento(prompt: str, respuesta: str, error: str, intento: int) -> str:
         f"No valida contra el esquema:\n{error}\n\n"
         "Devuelve SOLO el JSON corregido, sin texto alrededor."
     )
+
+
+def guardar_intentos(destino, intentos: list[dict]) -> None:
+    """Cada propuesta que el validador rechazó, tal como la escribió el
+    modelo, y por qué. Archivar no es borrar: sin esto, un proyecto parado
+    por especificaciones inválidas no deja ni rastro de qué se propuso
+    (pasó con el trinquete del 2026-09-20, y con el concepto de la
+    plataforma del pan-tilt en el banco 1110-0128)."""
+    import json
+    from pathlib import Path
+
+    if not intentos:
+        return
+    destino = Path(destino)
+    destino.mkdir(parents=True, exist_ok=True)
+    motivos = ["# Propuestas rechazadas", ""]
+    for i in intentos:
+        n, respuesta = i["intento"], i["respuesta"]
+        if respuesta is not None:
+            try:
+                json.loads(respuesta)
+                nombre = f"intento_{n}.json"
+            except ValueError:
+                nombre = f"intento_{n}.txt"
+            (destino / nombre).write_text(respuesta, encoding="utf-8")
+        else:
+            nombre = "(cortado: no llegó a responder)"
+        quien = " · respondió el modelo de reserva, sin pensamiento" if i.get("reserva") else ""
+        motivos += [f"## Intento {n} — {nombre}{quien}", "", "```", i["error"].strip(), "```", ""]
+    (destino / "motivos.md").write_text("\n".join(motivos), encoding="utf-8")

@@ -528,3 +528,87 @@ def test_si_no_se_pide_sin_soportes_el_juez_no_lamina(tmp_path):
                       hechos_de=lambda *a: Hechos(cilindros=[], bbox_mm=[1, 1, 1],
                                                   volumen_mm3=1))
     assert laminar.laminados == []
+
+
+# --- reanudar: solo la pieza que falló (2026-11-10) ----------------------------
+
+def _con_informes(carpeta, resueltos):
+    """Cada pieza dada por lista por el banco, con su informe: resuelta o no."""
+    import json
+    p = carpeta / "projects" / "a"
+    for i, resuelto in resueltos.items():
+        (p / "nodos" / i / "lista.json").write_text('{"por": "banco"}', encoding="utf-8")
+        (p / "nodos" / i / "pieza_report.json").write_text(
+            json.dumps({"titulo": i, "resuelto": resuelto}), encoding="utf-8")
+    return p
+
+
+@pytest.mark.parametrize("resueltos, rehacer", [
+    ({"base": True, "giro": False}, "giro"),
+    ({"base": False, "giro": False}, "base"),
+    # Con las dos bien, lo que queda es el conjunto: un choque no dice qué
+    # pieza rehacer, así que no se elige ninguna a ciegas.
+    ({"base": True, "giro": True}, None)])
+def test_se_rehace_la_primera_pieza_que_no_salio_bien(tmp_path, resueltos, rehacer):
+    """Un backlog de la corrida 1110-0128 tenía la base y el soporte bien y la
+    plataforma sin hacer; relanzarlo entero repetía hora y media para volver
+    a la plataforma. Una pieza dada por lista con defectos tampoco salió bien."""
+    from orchestrator.banco import nodo_a_rehacer
+    assert nodo_a_rehacer(_con_informes(_obra_construida(tmp_path), resueltos)) == rehacer
+
+
+def test_reanudar_archiva_la_pieza_y_sigue_el_backlog_en_su_carpeta(tmp_path, monkeypatch):
+    """Lo hecho se queda: se archiva la pieza que falló (y lo que se diseñó
+    contra ella), se sigue el backlog en su carpeta y se juzga otra vez."""
+    from orchestrator import banco
+    corrida = tmp_path / "corrida"
+    p = _con_informes(_obra_construida(corrida / "01"), {"base": True, "giro": False})
+    (corrida / "01" / "salida.txt").write_text("la primera vuelta", encoding="utf-8")
+    pedido = {}
+
+    class Hecho:
+        stdout, stderr, returncode = "segunda vuelta", "", 0
+
+    def lanza(orden, **k):
+        pedido["orden"], pedido["env"] = orden, k["env"]
+        return Hecho()
+
+    monkeypatch.setattr(banco.subprocess, "run", lanza)
+    monkeypatch.setattr(banco, "rejuzgar", lambda *a, **k: ({"x": []}, {}))
+    e = banco.Encargo(nombre="x", categoria="robots", peticion="un pan-tilt", obra=True,
+                      oraculo=[{"tipo": "conjunto_libre"}])
+    assert banco.reanudar([e], corrida, ["intelliprint", "obra", "--banco"], "fc", {}) \
+        == ({"x": []}, {})
+    assert pedido["orden"] == ["intelliprint", "obra", "--banco", "--carpeta", str(p),
+                               "un pan-tilt"]
+    assert pedido["env"]["INTELLIPRINT_WORKSPACE"] == str(corrida / "01")
+    assert (p / "nodos" / "base" / "lista.json").is_file()
+    assert not (p / "nodos" / "giro").exists()
+    assert next(p.glob("archivo/*/nodos/giro/pieza_report.json"), None) is not None
+    assert (corrida / "01" / "salida-anterior.txt").read_text(encoding="utf-8") \
+        == "la primera vuelta"
+    assert "segunda vuelta" in (corrida / "01" / "salida.txt").read_text(encoding="utf-8")
+
+
+def test_el_banco_se_reanuda_desde_la_orden(tmp_path, monkeypatch):
+    """`banco --reanudar <corrida>` sigue esa corrida y deja su informe al lado
+    del original, sin pisarlo: es la evidencia de cada vuelta."""
+    from orchestrator import banco, cli
+    llamado = {}
+
+    def reanudar(encargos, corrida, orden, *a, **k):
+        llamado["orden"], llamado["encargos"] = orden, [e.nombre for e in encargos]
+        return {e.nombre: [] for e in encargos}, {}
+
+    monkeypatch.setattr(banco, "reanudar", reanudar)
+    monkeypatch.setattr(cli, "_perfil", lambda *a: type("P", (), {"datos": {"resistencia": {}}}))
+    monkeypatch.setattr(cli, "_freecadcmd", lambda env: "freecadcmd")
+    monkeypatch.setattr(cli, "elegir_laminador", lambda *a: None)
+    args = cli._parser().parse_args(["banco", "--reanudar", str(tmp_path),
+                                     "--solo", "pan_tilt_sg90"])
+    cli._banco(args, Path("."), {}, "Crafty")
+    cli._banco(args, Path("."), {}, "Crafty")
+    assert llamado["orden"] == cli.orden_del_banco(obra=True)
+    assert llamado["encargos"] == ["pan_tilt_sg90"]
+    assert (tmp_path / "banco_reanudado.md").is_file()
+    assert (tmp_path / "banco_reanudado-2.md").is_file()

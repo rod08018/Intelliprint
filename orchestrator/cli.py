@@ -660,13 +660,28 @@ def _banco(args, raiz: Path, env: dict, nombre: str) -> None:
     """Cada encargo se pide como lo pediría una persona, en una carpeta
     propia dentro de workspace/banco/: así queda la evidencia de cada
     corrida y nunca se pisan los proyectos de verdad."""
+    from orchestrator import banco
     from orchestrator.banco import cargar_encargos, correr, informe, rejuzgar
+    from orchestrator.build import carpeta_libre
 
     encargos = [e for e in cargar_encargos(raiz / "tests" / "banco" / "encargos")
                 if not args.solo or e.nombre in args.solo]
     if not encargos:
         sys.exit(f"ningún encargo se llama {', '.join(args.solo)}")
     material = _perfil(raiz, env).datos["resistencia"]
+    if args.reanudar:
+        corrida = Path(args.reanudar)
+        resultados, fallos = banco.reanudar(encargos, corrida, orden_del_banco(obra=True),
+                                            _freecadcmd(env), dict(os.environ), material,
+                                            elegir_laminador(raiz, env))
+        texto = informe(resultados, modelo=f"{env.get('DEEPSEEK_MODEL', 'deepseek')}, "
+                                           "reanudada desde la pieza que falló", fallos=fallos)
+        # Al lado del original y de las vueltas anteriores, sin pisar ninguno.
+        destino = carpeta_libre(corrida / "banco_reanudado.md")
+        destino.write_text(texto, encoding="utf-8")
+        print(texto)
+        print(f"[{nombre}] informe en {destino}")
+        return
     if args.rejuzgar:
         corrida = Path(args.rejuzgar)
         resultados, fallos = rejuzgar(encargos, corrida, _freecadcmd(env), material,
@@ -767,6 +782,9 @@ def _parser() -> argparse.ArgumentParser:
     banco.add_argument("--rejuzgar", metavar="CORRIDA",
                        help="volver a juzgar las piezas de una corrida ya hecha "
                             "(workspace/banco/<fecha>), sin pedirlas otra vez ni gastar modelo")
+    banco.add_argument("--reanudar", metavar="CORRIDA",
+                       help="seguir los backlogs de una corrida desde la pieza que falló "
+                            "(con los mismos --solo que entonces) y juzgarla otra vez")
     perf = sub.add_parser("perfil", help="importar una calibración de laminado de eufyMake Studio")
     perf.add_argument("accion", choices=["importar"])
     perf.add_argument("resto", nargs=argparse.REMAINDER,

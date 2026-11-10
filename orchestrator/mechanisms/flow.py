@@ -24,6 +24,7 @@ from mech_toolkit.generators import CATALOGO
 from orchestrator.build import ConstruccionFallida, design_and_build
 from orchestrator.llm.cost import PresupuestoAgotado
 from orchestrator.llm.structured import SalidaInvalida
+from orchestrator.llm.structured import guardar_intentos as _guardar_rechazados
 from orchestrator.mechanisms.checks import mechanism_problems
 from orchestrator.mechanisms.resumen import guardar_ronda, resumen_de_ronda
 from orchestrator.mechanisms.run import MechanismReport, build_mechanism
@@ -31,30 +32,6 @@ from orchestrator.mechanisms.spec_layout import SpecLayout
 from orchestrator.mechanisms.verificacion import (
     Verificacion, afinar, magnitud_del_fallo, montar, puntuacion, verificar)
 from orchestrator.schemas.review import ReviewReport
-
-def _guardar_rechazados(destino: Path, intentos: list[dict]) -> None:
-    """Cada propuesta que el validador rechazó, tal como la escribió el
-    modelo, y por qué. Archivar no es borrar: sin esto, un proyecto parado
-    por especificaciones inválidas no deja ni rastro de qué se propuso
-    (pasó con el trinquete del 2026-09-20)."""
-    if not intentos:
-        return
-    destino.mkdir(parents=True, exist_ok=True)
-    motivos = ["# Propuestas rechazadas", ""]
-    for i in intentos:
-        n, respuesta = i["intento"], i["respuesta"]
-        if respuesta is not None:
-            try:
-                json.loads(respuesta)
-                nombre = f"intento_{n}.json"
-            except ValueError:
-                nombre = f"intento_{n}.txt"
-            (destino / nombre).write_text(respuesta, encoding="utf-8")
-        else:
-            nombre = "(cortado: no llegó a responder)"
-        quien = " · respondió el modelo de reserva, sin pensamiento" if i.get("reserva") else ""
-        motivos += [f"## Intento {n} — {nombre}{quien}", "", "```", i["error"].strip(), "```", ""]
-    (destino / "motivos.md").write_text("\n".join(motivos), encoding="utf-8")
 
 
 def huella_de_fallo(feedback: str) -> str:

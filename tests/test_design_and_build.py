@@ -76,6 +76,21 @@ def test_una_receta_que_parte_la_pieza_se_corrige_con_el_motivo(tmp_path):
 
 
 @pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_cada_construccion_fallida_queda_guardada_con_su_motivo(tmp_path):
+    """Banco 1110-0128: la polea del 608ZZ falló cuatro construcciones y solo
+    quedó la última; por qué no colocó el soporte hubo que reproducirlo a
+    mano. Cada intento queda en `intentos/<n>/`, con lo que escribió y el
+    porqué."""
+    cliente = ClienteGuionizado([_receta(70), _receta(22)])
+    design_and_build(PartDesignerAgent(cliente, CATALOGO), "placa con taladro", CATALOGO,
+                     tmp_path, freecadcmd=_freecadcmd())
+    assert "4 sólidos" in (tmp_path / "intentos" / "1" / "motivo.md").read_text(encoding="utf-8")
+    assert '"diameter_mm": 70' in (tmp_path / "intentos" / "1" / "programa.txt").read_text(
+        encoding="utf-8")
+    assert not (tmp_path / "intentos" / "2").exists()   # el segundo salió
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
 def test_tres_construcciones_fallidas_se_rinden_con_el_ultimo_motivo(tmp_path):
     cliente = ClienteGuionizado([_receta(70)] * 3)
     agente = PartDesignerAgent(cliente, CATALOGO)

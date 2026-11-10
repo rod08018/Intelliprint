@@ -832,3 +832,56 @@ def rejuzgar(encargos: list[Encargo], corrida: Path, freecadcmd: str,
             continue
         resultados[e.nombre] = juzgar_pieza(e, carpeta, freecadcmd, material, laminar)
     return resultados, fallos
+
+
+def nodo_a_rehacer(proyecto: Path) -> str | None:
+    """La primera pieza, en orden, que no salió bien: sin construir, o dada
+    por lista por el banco con defectos. Un conjunto que choca no dice qué
+    pieza lo causa, y no se elige una a ciegas: None."""
+    from orchestrator import obra
+    proyecto = Path(proyecto)
+    arbol = obra.cargar_obra(proyecto)
+    for i, estado in obra.estados(proyecto).items():
+        if estado in ("verificado", "bloqueado"):
+            continue
+        if arbol.nodo(i).tipo == "conjunto":
+            return None
+        informe = proyecto / obra.NODOS / i / "pieza_report.json"
+        if estado == "lista" and informe.is_file() and json.loads(
+                informe.read_text(encoding="utf-8")).get("resuelto"):
+            continue
+        return i
+    return None
+
+
+def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcmd: str,
+             env: dict, material: dict | None = None, laminar=None) -> tuple[dict, dict]:
+    """Sigue los backlogs de una corrida desde la pieza que falló, y juzga
+    otra vez. Relanzar el backlog entero tras cada arreglo (2026-11-09/10)
+    costaba hora y media por vuelta para volver a la misma pieza, y cada
+    vuelta solo enseñaba un fallo. Lo hecho se queda; la pieza que falló, y
+    lo diseñado contra ella, se archivan (`obra.rehacer`), no se borran."""
+    from orchestrator import obra
+    from orchestrator.build import carpeta_libre
+    for i, e in enumerate(encargos, 1):
+        carpeta = Path(corrida) / f"{i:02d}"
+        hecho = next(carpeta.glob(f"projects/*/{obra.OBRA}"), None) if e.obra else None
+        nodo = nodo_a_rehacer(hecho.parent) if hecho is not None else None
+        if nodo is None:
+            continue
+        proyecto = hecho.parent
+        obra.rehacer(proyecto, nodo)
+        salida = carpeta / "salida.txt"
+        if salida.exists():
+            salida.rename(carpeta_libre(carpeta / "salida-anterior.txt"))
+        try:
+            proceso = subprocess.run(
+                [*orden, "--carpeta", str(proyecto), e.peticion], input="sí\n",
+                capture_output=True, text=True, timeout=LIMITE_OBRA_S,
+                env={**env, "INTELLIPRINT_WORKSPACE": str(carpeta)})
+            texto = proceso.stdout + "\n--- stderr ---\n" + proceso.stderr
+        except subprocess.TimeoutExpired as error:
+            texto = (_texto(error.output) + "\n--- stderr ---\n" + _texto(error.stderr)
+                     + f"\n(tardó más de {LIMITE_OBRA_S // 60} minutos)")
+        salida.write_text(texto, encoding="utf-8")
+    return rejuzgar(encargos, corrida, freecadcmd, material, laminar)
