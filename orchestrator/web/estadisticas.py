@@ -121,6 +121,15 @@ def _etapa_del_registro(carpeta: Path) -> str | None:
     return None
 
 
+def _por_pasos(carpeta: Path) -> bool:
+    """Lanzada como pieza o como obra («[Crafty] Pieza → …», «Backlog → …»)."""
+    try:
+        texto = (carpeta / "run.log").read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return False
+    return re.search(r"^\[[^\]]+\] \w+ → ", texto, re.M) is not None
+
+
 def _revisor(carpeta: Path) -> dict | None:
     datos = _leer(carpeta / "review.json")
     if not datos:
@@ -136,7 +145,10 @@ def estadisticas(carpeta: Path, en_marcha: bool = False) -> dict:
     carpeta = Path(carpeta)
     historia = _rondas(carpeta, en_marcha)
     coste, ultima_etapa = _coste(carpeta)
-    if ultima_etapa is None and en_marcha:
+    # Un mecanismo apunta su gasto en vivo; una pieza o una obra, al acabar
+    # cada paso (2026-11-10), así que su última etapa es de un paso que ya
+    # pasó: lo de ahora lo dice el registro de este lanzamiento.
+    if en_marcha and (ultima_etapa is None or _por_pasos(carpeta)):
         ultima_etapa = _etapa_del_registro(carpeta)
     fallo, fallos = _fallo(historia)
     return {

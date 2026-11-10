@@ -95,3 +95,72 @@ def test_sin_precio_conocido_se_cuentan_los_tokens_y_se_avisa(tmp_path):
     texto = (tmp_path / "design_cost.md").read_text(encoding="utf-8")
     assert "sin precio" in texto
     assert presupuesto.detalle()[0]["tokens_salida"] == 1000
+
+
+def test_una_obra_suma_su_gasto_paso_a_paso_en_su_carpeta(tmp_path, monkeypatch):
+    """Una obra no dejaba coste: la ronda del pan-tilt del banco (1110-0313)
+    no pudo decir cuánto costó. Cada paso es un lanzamiento distinto, así
+    que el gasto se suma al que ya había. Aquí, dos desgloses que no salen,
+    de 1000 tokens de entrada y 500 de salida cada uno: al precio de
+    `config/models.yaml` (0.30 y 1.20 USD por millón), 0.0009 USD cada uno."""
+    from pathlib import Path
+
+    from orchestrator import cli
+    from orchestrator.agents import desglosador
+
+    monkeypatch.setattr(cli, "DeepSeekClient", lambda api_key, model: DeepSeekClient(
+        api_key=api_key, model=model, transport=httpx.MockTransport(lambda r: httpx.Response(
+            200, json={"choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
+                       "usage": {"prompt_tokens": 1000, "completion_tokens": 500}}))))
+
+    class SinDesglose:
+        def __init__(self, cliente, reserva=None):
+            self.cliente = cliente
+
+        def desglosar(self, peticion):
+            self.cliente.complete("desglosa")
+            raise ValueError("no cuadra")
+
+    monkeypatch.setattr(desglosador, "DesglosadorAgent", SinDesglose)
+    raiz = Path(__file__).resolve().parents[1]
+    for _ in range(2):
+        with pytest.raises(SystemExit):
+            cli._paso_de_obra(tmp_path, "un pan-tilt", raiz, {"DEEPSEEK_API_KEY": "k"}, "x")
+
+    resumen = json.loads((tmp_path / "design_cost.json").read_text(encoding="utf-8"))["resumen"]
+    assert resumen["llamadas"] == 2
+    assert resumen["total_usd"] == pytest.approx(2 * (0.0003 + 0.0006))
+    assert list(resumen["por_etapa"]) == ["desglose"]
+    assert "0.0018 USD" in (tmp_path / "design_cost.md").read_text(encoding="utf-8")
+
+
+def test_una_pieza_suelta_tambien_deja_su_coste(tmp_path, monkeypatch):
+    """Solo los mecanismos dejaban `design_cost.md`; una pieza suelta, que es
+    lo que más se pide, no decía cuánto costó. Un concepto que no sale tras
+    una llamada de 1000 + 500 tokens: 0.0009 USD."""
+    from pathlib import Path
+
+    from orchestrator import cli, pieza
+
+    monkeypatch.setenv("INTELLIPRINT_WORKSPACE", str(tmp_path / "ws"))
+    monkeypatch.setattr(cli, "DeepSeekClient", lambda api_key, model: DeepSeekClient(
+        api_key=api_key, model=model, transport=httpx.MockTransport(lambda r: httpx.Response(
+            200, json={"choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
+                       "usage": {"prompt_tokens": 1000, "completion_tokens": 500}}))))
+
+    def sin_concepto(peticion, carpeta, requisitos, **_):
+        requisitos._client.complete("¿qué pide?")
+        return None
+
+    monkeypatch.setattr(pieza, "concebir_pieza", sin_concepto)
+    carpeta = tmp_path / "gancho"
+    raiz = Path(__file__).resolve().parents[1]
+    from types import SimpleNamespace
+    with pytest.raises(SystemExit):
+        cli._pieza(SimpleNamespace(peticion=["un gancho"], archivo=False, carpeta=str(carpeta),
+                                   aprobar_concepto=False),
+                   raiz, {"DEEPSEEK_API_KEY": "k", "INTELLIPRINT_WORKSPACE": str(tmp_path / "ws")},
+                   "x")
+    resumen = json.loads((carpeta / "design_cost.json").read_text(encoding="utf-8"))["resumen"]
+    assert resumen["llamadas"] == 1
+    assert resumen["total_usd"] == pytest.approx(0.0003 + 0.0006)

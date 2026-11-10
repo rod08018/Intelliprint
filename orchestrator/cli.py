@@ -14,6 +14,7 @@ import os
 import shutil
 import sys
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 
 from orchestrator.build import design_and_build
@@ -47,14 +48,48 @@ def _freecadcmd(env: dict) -> str:
     return ruta
 
 
+_CLIENTES: list[tuple] = []
+"""Cada cliente que se crea, con su papel: `_apuntar_gasto` mira las
+llamadas de los que se crearon dentro de su bloque."""
+
+_AGENTES = {"design": "diseño (requisitos, investigación)",
+            "reason": "razonador (desglose, ingeniero, kit)"}
+
+
 def _cliente(router: Router, env: dict, role: str = "design"):
     ref = router.for_role(role)
     if ref.provider == "deepseek":
-        return DeepSeekClient(api_key=env["DEEPSEEK_API_KEY"], model=ref.model)
+        cliente = DeepSeekClient(api_key=env["DEEPSEEK_API_KEY"], model=ref.model)
+        _CLIENTES.append((cliente, role))
+        return cliente
     sys.exit(
         f"el perfil {router.profile_name!r} usa {ref.provider}/{ref.model}, y el "
         "cliente de Ollama todavía no existe: llega con la migración (F0.11 (migrar))."
     )
+
+
+@contextmanager
+def _apuntar_gasto(raiz: Path, carpeta: Path, etapa: str):
+    """Suma al coste de `carpeta` las llamadas de los clientes creados dentro
+    del bloque, salga como salga: un paso que se para a medias también gastó.
+    Solo los mecanismos dejaban `design_cost.md`; la ronda del pan-tilt del
+    banco (1110-0313) no pudo decir cuánto costó (2026-11-10)."""
+    import yaml
+
+    from orchestrator.llm.cost import Presupuesto
+
+    desde = len(_CLIENTES)
+    try:
+        yield
+    finally:
+        nuevos = _CLIENTES[desde:]
+        if any(c.llamadas for c, _ in nuevos):
+            presupuesto = Presupuesto.from_config(yaml.safe_load(
+                (raiz / "config" / "models.yaml").read_text(encoding="utf-8"))).continuar(carpeta)
+            presupuesto.etapa(etapa)
+            for c, rol in nuevos:
+                presupuesto.vigila(c, _AGENTES.get(rol, rol))
+            presupuesto.escribir(carpeta)
 
 
 CONSTRUCCIONES_KIT = 5
@@ -476,13 +511,18 @@ def _pieza(args, raiz: Path, env: dict, nombre: str) -> None:
     """Una pieza suelta sin confirmación por consola (F5.17 (pieza)): quien la
     lanza desde la web o Telegram ya confirmó al pedirla. Para probar a mano
     con confirmación sigue estando `intelliprint new`."""
-    from orchestrator.agents.requirements import RequirementsAgent
-    from orchestrator.pieza import APROBADO, concebir_pieza, disenar_pieza
-
     texto = " ".join(args.peticion)
     peticion = Path(texto).read_text(encoding="utf-8") if args.archivo else texto
     carpeta = (Path(args.carpeta) if args.carpeta else _workspace(raiz, env) / "projects"
                / f"{dt.datetime.now():%Y-%m-%d-%H%M%S}-{nombre_corto(peticion.splitlines()[0], 40)}")
+    with _apuntar_gasto(raiz, carpeta, "pieza"):
+        _hacer_pieza(args, peticion, carpeta, raiz, env, nombre)
+
+
+def _hacer_pieza(args, peticion: str, carpeta: Path, raiz: Path, env: dict, nombre: str) -> None:
+    from orchestrator.agents.requirements import RequirementsAgent
+    from orchestrator.pieza import APROBADO, concebir_pieza, disenar_pieza
+
     router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
     cliente = _cliente(router, env)
     requisitos = RequirementsAgent(cliente, activo=_perfil(raiz, env))
@@ -593,7 +633,7 @@ def _paso_de_obra(carpeta: Path, peticion: str, raiz: Path, env: dict, nombre: s
     if not obra.es_obra(carpeta):
         router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
         cliente = _cliente(router, env)
-        with latir(carpeta):
+        with latir(carpeta), _apuntar_gasto(raiz, carpeta, "desglose"):
             try:
                 desglose = DesglosadorAgent(_cliente(router, env, "reason"),
                                             reserva=cliente).desglosar(peticion)
@@ -654,7 +694,8 @@ def _paso_de_obra(carpeta: Path, peticion: str, raiz: Path, env: dict, nombre: s
     dir_nodo.mkdir(parents=True, exist_ok=True)
     (dir_nodo / "request.md").write_text(obra.peticion_del_nodo(carpeta, nodo), encoding="utf-8")
     print(f"[{nombre}] nodo «{nombre_nodo}» ({nodo})", flush=True)
-    with latir(carpeta):
+    # El gasto de la pieza queda en su nodo y, sumado, en la obra entera.
+    with latir(carpeta), _apuntar_gasto(raiz, carpeta, f"pieza «{nombre_nodo}»"):
         try:
             _pieza(SimpleNamespace(peticion=[str(dir_nodo / "request.md")], archivo=True,
                                    carpeta=str(dir_nodo), aprobar_concepto=False),

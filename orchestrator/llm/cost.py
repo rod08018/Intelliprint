@@ -29,6 +29,18 @@ class Presupuesto:
             config.get("pricing", {}),
         )
 
+    def continuar(self, carpeta) -> "Presupuesto":
+        """Parte de lo que ya gastó el proyecto. Una obra se lanza una vez por
+        paso (el desglose, cada pieza): sin esto, cada paso pisaba al
+        anterior y el coste decía solo el del último."""
+        import json
+        from pathlib import Path
+
+        previo = Path(carpeta) / "design_cost.json"
+        if previo.is_file():
+            self._detalle = list(json.loads(previo.read_text(encoding="utf-8"))["detalle"])
+        return self
+
     def vigila(self, cliente, agente: str = "") -> None:
         self._clientes.append((cliente, agente or getattr(cliente, "modelo", "?")))
 

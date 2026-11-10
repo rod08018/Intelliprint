@@ -178,3 +178,25 @@ def test_a_una_pieza_se_le_puede_pedir_un_cambio(tmp_path):
     html = _web(tmp_path).get("/p/2026-11-06-soporte").text
 
     assert 'class="cambiar-todo" data-modificar="2026-11-06-soporte"' in html
+
+
+def test_el_coste_del_paso_anterior_no_dice_lo_que_hace_ahora(tmp_path):
+    """Una obra apunta su gasto al acabar cada paso (2026-11-10): mientras
+    se dibuja la base, la última etapa del coste es la del desglose, que ya
+    pasó. Lo que hace ahora lo dice el registro de este lanzamiento."""
+    import json
+
+    carpeta = _pieza(tmp_path, "2026-11-10-pan-tilt", terminada=False)
+    (carpeta / "design_cost.json").write_text(json.dumps({
+        "resumen": {"total_usd": 0.01, "limite_usd": 5.0, "llamadas": 1},
+        "detalle": [{"etapa": "desglose", "usd": 0.01}]}), encoding="utf-8")
+    (carpeta / "run.log").write_text(
+        "[Crafty] Backlog → /workspace/projects/2026-11-10-pan-tilt\n"
+        "[Crafty] nodo «Base» (base)\n", encoding="utf-8")
+    assert _progreso({"ultima_etapa": estadisticas(carpeta, en_marcha=True)["ultima_etapa"]}) \
+        == "arrancando"
+
+    with (carpeta / "run.log").open("a", encoding="utf-8") as f:
+        f.write("  «Soporte»: el Part Designer dibuja «soporte»…\n")
+    assert _progreso({"ultima_etapa": estadisticas(carpeta, en_marcha=True)["ultima_etapa"]}) \
+        == "dibujando «Soporte»"
