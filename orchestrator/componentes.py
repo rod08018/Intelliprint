@@ -276,6 +276,22 @@ def fuente(url: str) -> str:
     return (urlparse(url).hostname or url).removeprefix("www.")
 
 
+def _tornillo_de(h: Agujero) -> str:
+    """Qué tornillo va en el agujero, si la ficha lo dice. El soporte del
+    pan-tilt 1110-0313 sujetó su SG90 con dos M3 que lo empujan: el resumen
+    daba «Ø2.2» y callaba que ese M2 viene en la bolsa del servo."""
+    if not h.tornillo:
+        return ""
+    partes = [f"tornillo {h.tornillo}"]
+    if h.incluido:
+        partes.append("viene con el componente")
+    if h.dentro_mm:
+        partes.append(f"entra {_g(h.dentro_mm)} mm")
+    if h.tuerca:
+        partes.append(f"agarra en: {h.tuerca}")
+    return "; " + ", ".join(partes)
+
+
 def resumen(ficha: Ficha) -> str:
     """Lo que el ingeniero y el diseñador leen de un componente: su tamaño,
     qué choca, qué hay que dejar libre y por qué, dónde se atornilla, y que
@@ -305,10 +321,20 @@ def resumen(ficha: Ficha) -> str:
         lineas += [f"Uno de estos gira: {', '.join(partes)}. La pieza apoya en uno solo, "
                    "el que va fijo, y deja libres las caras del otro:",
                    *(f"- {c.nombre}: {_forma(c)}" for c in giran)]
+    if ficha.salidas:
+        # F9.4 (canal): hasta el 2026-11-10 el eje de un servo solo llegaba
+        # como un cilindro que dejar libre; lo que gira con él tenía que
+        # adivinar que ese cilindro era el eje.
+        lineas += ["Lo que mueve (lo que se acople gira alrededor de esta recta; "
+                   "`componente.salida()` la da ya colocada):",
+                   *(f"- {s.nombre}: sale en ({', '.join(_g(v) for v in s.en)}) hacia {s.eje} "
+                     f"y gira de {_g(s.recorrido[0])}° a {_g(s.recorrido[1])}°"
+                     + (f", a lo largo de {_g(s.largo)} mm" if s.largo else "")
+                     for s in ficha.salidas)]
     if ficha.fijacion:
         lineas += ["Agujeros de fijación:",
                    *(f"- {h.nombre}: Ø{_g(h.diametro)} en ({', '.join(_g(v) for v in h.en)}), "
-                     f"hacia {h.eje}" for h in ficha.fijacion)]
+                     f"hacia {h.eje}" + _tornillo_de(h) for h in ficha.fijacion)]
     if ficha.notas:
         lineas.append(f"Notas: {ficha.notas.strip()}")
     return "\n".join(lineas)

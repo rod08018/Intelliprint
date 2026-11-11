@@ -109,6 +109,49 @@ def test_la_ficha_lleva_montado_lo_que_la_pieza_aloja(tmp_path, monkeypatch):
     assert eje.cilindro.eje == "+z" and eje.cilindro.diametro == 6.9
 
 
+def test_la_ficha_conserva_el_eje_de_lo_que_monta_y_la_metrica_de_sus_agujeros(
+        tmp_path, monkeypatch):
+    """F9.4 (canal). La plataforma del pan-tilt 1110-0313 se diseñó contra la
+    ficha del soporte sin saber dónde estaba el eje sobre el que gira: le
+    llegaba como un cilindro que dejar libre. Y de un agujero, el diámetro
+    pero no que era de M3.
+
+    El soporte monta su SG90 tumbado, en (-13.55, -11.4, 6.0) y girado 90°
+    sobre x y 90° sobre z. A mano: el eje sale de la ficha en (5.8, 6.2,
+    27.1) hacia +z; el giro sobre x lo lleva a (5.8, -27.1, 6.2) hacia -y; el
+    de z, a (27.1, 5.8, 6.2) hacia +x; y con `en`, a (13.55, -5.6, 12.2)."""
+    import json
+
+    from orchestrator.componentes import cargar, resumen
+    from orchestrator.obra import fichar
+    carpeta = tmp_path / "soporte"
+    carpeta.mkdir()
+    (carpeta / "soporte.step").write_text("STEP", encoding="utf-8")
+    (carpeta / "envolvente.json").write_text(
+        json.dumps({"min": [-18, -18, 0], "max": [16, 18, 20]}), encoding="utf-8")
+    (carpeta / "rasgos.json").write_text(json.dumps([
+        {"nombre": "sg90", "tipo": "componente", "ficha": "sg90", "en": [-13.55, -11.4, 6.0],
+         "giros": [["x", 90.0], ["z", 90.0]], "entra_por": "+z"},
+        {"nombre": "m3_1", "tipo": "agujero", "diametro_mm": 3.3, "entrada": [0, 0, 20],
+         "eje": [0, 0, -1], "profundidad_mm": None, "lagrima": False, "avellanado_mm": None,
+         "tornillo": "M3"},
+        {"nombre": "guia", "tipo": "agujero", "diametro_mm": 2.0, "entrada": [5, 0, 20],
+         "eje": [0, 0, -1], "profundidad_mm": 4, "lagrima": False, "avellanado_mm": None},
+    ]), encoding="utf-8")
+    fichar(carpeta, "obra-soporte", "Soporte", tmp_path / "fichas", proyecto="prueba")
+    monkeypatch.setenv("INTELLIPRINT_FICHAS", str(tmp_path / "fichas"))
+    f = cargar("obra-soporte")
+
+    [s] = f.salidas
+    assert s.nombre == "sg90: eje"
+    assert s.en == pytest.approx([13.55, -5.6, 12.2]) and s.eje == "+x"
+    assert tuple(s.recorrido) == (-90, 90)
+    assert {h.nombre: h.tornillo for h in f.fijacion} == {"m3_1": "M3", "guia": ""}
+    texto = resumen(f)
+    assert "sg90: eje: sale en (13.55, -5.6, 12.2) hacia +x" in texto
+    assert "m3_1: Ø3.3" in texto and "tornillo M3" in texto
+
+
 def test_fichar_una_pieza_que_coloca_otra_de_la_obra_no_necesita_el_entorno(tmp_path, monkeypatch):
     """«Está bien» al soporte de giro (2026-11-09) reventó en la web: el
     soporte coloca la base debajo, y la web, sin `INTELLIPRINT_FICHAS`, no

@@ -43,8 +43,39 @@ def _agujeros(rasgos: list[dict]) -> list[dict]:
         eje = _EJES.get(tuple(round(c) for c in r["eje"]))
         if eje is None or any(abs(c - round(c)) > 1e-6 for c in r["eje"]):
             continue
-        salida.append({"nombre": r["nombre"], "diametro": float(r["diametro_mm"]),
-                       "en": [round(float(c), 6) for c in r["entrada"]], "eje": eje})
+        agujero = {"nombre": r["nombre"], "diametro": float(r["diametro_mm"]),
+                   "en": [round(float(c), 6) for c in r["entrada"]], "eje": eje}
+        # La métrica, si el agujero salió de `tornillo()` (F9.4 (canal)): la
+        # pieza siguiente sabe con qué se atornilla a esta, no solo un Ø.
+        if r.get("tornillo"):
+            agujero["tornillo"] = r["tornillo"]
+        salida.append(agujero)
+    return salida
+
+
+def _salidas(rasgos: list[dict], fichas: Path) -> list[dict]:
+    """Las salidas de lo comprado que la pieza monta, en el marco de la
+    pieza (F9.4 (canal)): el eje sobre el que gira la siguiente. La
+    plataforma del pan-tilt 1110-0313 se diseñó contra la ficha del soporte
+    y el eje de su SG90 solo le llegaba como un cilindro que dejar libre."""
+    from mech_toolkit.componentes import colocar, orientar
+
+    from orchestrator.componentes import cargar
+    salida = []
+    for r in rasgos:
+        if r.get("tipo") != "componente" or not r.get("ficha"):
+            continue
+        ficha = cargar(r["ficha"], [fichas])
+        if ficha.origen == "impreso":
+            continue   # las de otra pieza del backlog son de su ficha
+        giros = [tuple(g) for g in r.get("giros") or []]
+        for s in ficha.salidas:
+            salida.append({
+                "nombre": f"{r['nombre']}: {s.nombre}",
+                "en": [round(float(c), 6) for c in colocar(s.en, r["en"], giros)],
+                "eje": _EJES[tuple(orientar(s.eje, giros))],
+                "recorrido": list(s.recorrido), "largo": s.largo,
+                "porque": f"la salida «{s.nombre}» del {ficha.id} que monta esta pieza"})
     return salida
 
 
@@ -122,6 +153,7 @@ def fichar(carpeta: Path, id_: str, nombre: str, destino: Path, proyecto: str = 
                     *montados],
         "despejar": despejar,
         "fijacion": _agujeros(rasgos),
+        "salidas": _salidas(rasgos, destino),
     }
     Ficha(**datos)   # que no se guarde una ficha que luego no carga
     ruta = destino / f"{id_}.yaml"

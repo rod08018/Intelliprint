@@ -721,6 +721,36 @@ class Componente:
         raise KitError(f"{self._ficha['id']} no tiene un agujero «{nombre}»; tiene: "
                        f"{', '.join(a['nombre'] for a in self.agujeros()) or 'ninguno'}")
 
+    def salidas(self) -> list:
+        """Lo que el componente mueve (el eje de un servo, el aro de un
+        rodamiento), ya colocado en la pieza: [{"nombre", "punto", "eje",
+        "recorrido", "largo"}]. `punto` es donde el eje sale del componente y
+        `eje`, hacia dónde sale: lo que se acople a él gira alrededor de esa
+        recta. Una pieza del backlog ya terminada trae las de lo que monta,
+        con el nombre de su componente delante («sg90: eje»)."""
+        from mech_toolkit.componentes import colocar, orientar
+
+        return [{"nombre": s["nombre"],
+                 "punto": tuple(colocar(s["en"], self._en, self._giros)),
+                 "eje": tuple(orientar(s["eje"], self._giros)),
+                 "recorrido": tuple(s["recorrido"]), "largo": float(s.get("largo") or 0.0)}
+                for s in self._ficha.get("salidas") or []]
+
+    def salida(self, nombre=None) -> dict:
+        """Una salida del componente, ya colocada (ver `salidas`): el eje
+        sobre el que gira la pieza que se acopla a él. Sin `nombre`, la única
+        que tenga."""
+        todas = self.salidas()
+        hay = ", ".join(f"«{s['nombre']}»" for s in todas) or "ninguna"
+        if nombre is None:
+            if len(todas) != 1:
+                raise KitError(f"{self._ficha['id']} no tiene una sola salida; tiene: {hay}")
+            return todas[0]
+        for s in todas:
+            if s["nombre"] == nombre:
+                return s
+        raise KitError(f"{self._ficha['id']} no tiene una salida «{nombre}»; tiene: {hay}")
+
     def envolvente(self) -> tuple:
         """((xmin, ymin, zmin), (xmax, ymax, zmax)) de los cuerpos del
         componente, ya colocado: para poner paredes y apoyos a su alrededor."""

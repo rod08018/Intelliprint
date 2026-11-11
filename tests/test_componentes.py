@@ -262,6 +262,38 @@ def test_el_resumen_del_608_dice_que_se_apoya_en_un_solo_aro():
     assert "uno solo" in texto
 
 
+def test_el_resumen_dice_sobre_que_eje_gira_y_que_tornillo_lleva_cada_agujero():
+    """F9.4 (canal). El ingeniero del soporte del pan-tilt (1110-0313)
+    descartó las orejas del SG90 «porque el perfil no tiene agujeros M2» y lo
+    sujetó con dos M3 que lo empujan: el resumen daba «Ø2.2» y callaba que
+    ese tornillo viene con el servo. Tampoco decía dónde sale el eje. Las
+    cifras son las de `sg90.yaml`."""
+    from orchestrator.componentes import resumen
+    texto = resumen(cargar("sg90"))
+    assert "eje: sale en (5.8, 6.2, 27.1) hacia +z y gira de -90° a 90°" in texto
+    assert "tornillo M2, viene con el componente, entra 2.9 mm" in texto
+    assert "Tuerca en T M5" in resumen(cargar("perfil-2020"))
+    # El aro de un rodamiento ocupa un tramo del eje: lo que gira va en él.
+    assert "a lo largo de 7 mm" in resumen(cargar("608zz"))
+
+
+def test_el_kit_dice_donde_queda_el_eje_de_un_componente_colocado():
+    """Lo que gira se acopla al eje, y el programa necesita saber dónde cae
+    en la pieza, igual que `punto()` le dice dónde cae un agujero. El SG90
+    tumbado del soporte del pan-tilt: (13.55, -5.6, 12.2) hacia +x, la
+    cuenta a mano de `tests/test_fichar.py`."""
+    from mech_toolkit.kit import Kit, KitError
+    kit = Kit(fichas={"sg90": cargar("sg90").model_dump()})
+    servo = kit.componente("sg90", en=(-13.55, -11.4, 6.0), girar=[("x", 90), ("z", 90)])
+    s = servo.salida()
+    assert s["nombre"] == "eje"
+    assert s["punto"] == pytest.approx((13.55, -5.6, 12.2)) and s["eje"] == (1, 0, 0)
+    assert s["recorrido"] == (-90, 90)
+    assert servo.salida("eje") == s
+    with pytest.raises(KitError, match="«eje»"):
+        servo.salida("cuerno")
+
+
 def test_el_kit_no_coloca_lo_que_ya_monta_otra_pieza_del_backlog():
     """Banco 1109-1949: la plataforma del pan-tilt colocó el SG90 que ya
     montaba el soporte de giro, y quedaron tres servos en un pan-tilt de dos."""
