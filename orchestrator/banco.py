@@ -908,12 +908,19 @@ def la_que_no_orienta(encargo: Encargo, proyecto: Path, freecadcmd: str,
         pieza, r = _mide_si_orienta(a, proyecto, freecadcmd, material)
         if pieza is not None and r.estado == "no_cumple":
             return pieza, (
-                f"Esta pieza gira para orientar lo que lleva, y como está no lo orienta: "
+                f"{NO_ORIENTA}, y como está no lo orienta: "
                 f"{r.detalle}. Lo que lleva tiene que ir en una cara plana de al menos "
                 f"{a.area_min_mm2:g} mm² que mire de lado respecto al eje sobre el que gira "
                 "(su normal, perpendicular al eje): una repisa o una escuadra que sale del "
-                "acople, no un disco centrado en el eje.")
+                "acople, no un disco centrado en el eje. Cuenta la mayor superficie de un "
+                "mismo plano: un rebaje, una ceja o un escalón la parten en trozos, y lo que "
+                "se monta apoya en uno solo.")
     return None, ""
+
+
+NO_ORIENTA = "Esta pieza gira para orientar lo que lleva"
+"""Cómo empieza la corrección de `la_que_no_orienta`: con ella se sabe, en
+`cambios.md`, que la pieza ya se rehízo una vez por esto."""
 
 
 def rejuzgar(encargos: list[Encargo], corrida: Path, freecadcmd: str,
@@ -1037,10 +1044,19 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
         proyecto = hecho.parent
         correcciones = correcciones_del_conjunto(proyecto)
         if de_concepto:
-            # No se retoca la que hay: un disco en el eje no se arregla
-            # moviendo una cota. Se rehace desde su concepto, con lo medido
-            # apuntado para el ingeniero.
-            obra.rehacer(proyecto, nodo, de_concepto)
+            apuntado = proyecto / obra.NODOS / nodo / CAMBIOS
+            ya_rehecha = apuntado.is_file() and NO_ORIENTA in apuntado.read_text(encoding="utf-8")
+            if ya_rehecha and obra.programa_construido(proyecto, nodo):
+                # El concepto ya se rehízo por esto y lo que falla es el
+                # dibujo: en la 1111-1342 el ingeniero pidió una placa de
+                # 32 × 22 y el diseñador le talló una ceja que la dejó en
+                # 28 × 18. Rehacerla otra vez tiraría un concepto bueno.
+                obra.corregir(proyecto, nodo, de_concepto)
+            else:
+                # No se retoca la que hay: un disco en el eje no se arregla
+                # moviendo una cota. Se rehace desde su concepto, con lo
+                # medido apuntado para el ingeniero.
+                obra.rehacer(proyecto, nodo, de_concepto)
         elif nodo in correcciones and obra.programa_construido(proyecto, nodo):
             # Se corrige la pieza que hay, como la corrigió la persona en la
             # web el 9 de noviembre. Las otras que chocan se diseñaron contra

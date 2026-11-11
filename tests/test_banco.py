@@ -735,6 +735,45 @@ def test_reanudar_rehace_con_su_motivo_la_pieza_que_no_orienta_lo_que_lleva(
     assert lanzado == []
 
 
+def test_si_ya_se_rehizo_por_no_orientar_la_segunda_vez_se_corrige_la_que_hay(
+        tmp_path, monkeypatch):
+    """Corrida 1111-1342, primera reanudación: el ingeniero rehízo el
+    concepto bien —una escuadra con una placa de 32 × 22 (704 mm²)— y el
+    diseñador le talló una ceja que dejó un rebaje de 28 × 18: 450 mm², y
+    una cámara de 25 × 24 no cabe. Ya no es un fallo de concepto: rehacerlo
+    otra vez tiraría un concepto bueno. Se corrige la pieza construida con
+    lo medido, como cualquier otro defecto."""
+    import json
+    from orchestrator import banco
+    corrida = tmp_path / "corrida"
+    bien = {"ok": True, "choques": [], "resumen": [], "articulaciones": [], "correcciones": {}}
+    p = _con_informes(_obra_construida(corrida / "01", verificacion=bien),
+                      {"base": True, "giro": True})
+    nodo = p / "nodos" / "giro"
+    (nodo / "cambios.md").write_text(
+        banco.NO_ORIENTA + ", y como está no lo orienta: … mide 47 mm² …\n", encoding="utf-8")
+    (nodo / "concepto_aprobado").write_text("{}", encoding="utf-8")
+    (nodo / "parts" / "giro" / "programa.py").write_text("PROGRAMA", encoding="utf-8")
+    monkeypatch.setattr(banco, "medir_sondas", lambda *a, **k: [banco.Resultado(
+        estado="no_cumple",
+        detalle="la mayor cara plana que cambia de orientación al girar mide 450 mm² y hacen "
+                "falta 600")])
+
+    class Hecho:
+        stdout, stderr, returncode = "", "", 0
+
+    monkeypatch.setattr(banco.subprocess, "run", lambda orden, **k: Hecho())
+    monkeypatch.setattr(banco, "rejuzgar", lambda *a, **k: ({"x": []}, {}))
+    e = banco.Encargo(nombre="x", categoria="robots", peticion="un pan-tilt", obra=True,
+                      oraculo=[{"tipo": "se_orienta", "eje": "vertical", "area_min_mm2": 600}])
+    banco.reanudar([e], corrida, ["intelliprint", "obra", "--banco"], "fc", {})
+
+    retoque = json.loads((nodo / "retoque.json").read_text(encoding="utf-8"))
+    assert retoque["programa"] == "PROGRAMA"
+    assert "450 mm²" in retoque["cambio"] and "mismo plano" in retoque["cambio"]
+    assert (nodo / "concepto_aprobado").is_file(), "el concepto, que ya era bueno, se queda"
+
+
 def test_la_carpeta_de_un_encargo_se_busca_por_su_nombre(tmp_path):
     """Las carpetas de una corrida van numeradas por el puesto del encargo
     en la lista con la que se lanzó. La 1110-0313 se lanzó solo con los dos
