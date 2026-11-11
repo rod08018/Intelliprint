@@ -90,10 +90,12 @@ escalation:
   # los precios corregidos (la salida de Flash cuesta 1.20, no 0.42) el
   # trinquete honesto agotó 2 USD en la ronda 21 cuando ya empujaba la rueda.
   # Es por PROYECTO: dos proyectos en paralelo pueden gastar hasta el doble.
-  # 5.0 desde el 2026-09-21; el usuario lo subió a 10 el 2026-11-11. Desde ese
-  # día lo comprueban también las piezas y los backlogs, antes de cada paso.
-  # Es el de UNA PIEZA: la suelta, y cada una de las de un backlog.
-  max_usd_per_project: 10.0
+  # 5.0 para todo desde el 2026-09-21. El 2026-11-11 el usuario lo separó:
+  # «eso es por robot, y por pieza 3 dólares». Desde ese día lo comprueban
+  # también las piezas y los backlogs, antes de cada paso.
+  # Es el de UNA PIEZA: la suelta, y cada una de las de un backlog. Las del
+  # pan-tilt costaron entre 0.09 y 0.57 USD, la más cara con tres correcciones.
+  max_usd_per_project: 3.0
   # El de un backlog entero (un robot, un conjunto de varias piezas), aparte y
   # más alto: «subamos el tope a 50 USD para robots, ya que esos van a llevar
   # bastante testing y otras cosas» (el usuario, 2026-11-11). Son varias

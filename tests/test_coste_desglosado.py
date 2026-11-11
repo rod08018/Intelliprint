@@ -142,8 +142,8 @@ def _ya_gastado(carpeta, usd):
 
 
 def test_un_proyecto_que_llego_a_su_tope_no_gasta_mas(tmp_path):
-    """El usuario puso el tope en 5 USD por proyecto (2026-09-21) y lo subió a
-    10 el 2026-11-11. Solo lo
+    """El usuario puso el tope en 5 USD por proyecto (2026-09-21); el
+    2026-11-11 lo dejó en 3 por pieza y 50 por robot. Solo lo
     comprobaba el flujo de mecanismos: una pieza o un backlog, que es lo que
     se usa, podían pasarse sin que nada los parara, aunque la web dijera
     «hasta 5 USD» (visto al quitar ese flujo, 2026-11-11). Cada paso de un
@@ -156,17 +156,17 @@ def test_un_proyecto_que_llego_a_su_tope_no_gasta_mas(tmp_path):
 
     raiz = Path(__file__).resolve().parents[1]
     config = yaml.safe_load((raiz / "config" / "models.yaml").read_text(encoding="utf-8"))
-    assert config["escalation"]["max_usd_per_project"] == 10.0, "lo decidió el usuario"
+    assert config["escalation"]["max_usd_per_project"] == 3.0, "lo decidió el usuario"
     hecho = []
 
-    _ya_gastado(tmp_path, 10.01)
+    _ya_gastado(tmp_path, 3.01)
     with pytest.raises(SystemExit) as parada:
         with cli._apuntar_gasto(raiz, tmp_path, "pieza «Soporte»"):
             hecho.append("gastó")
     assert hecho == []
-    assert "10.01 USD" in str(parada.value) and "10.00" in str(parada.value)
+    assert "3.01 USD" in str(parada.value) and "3.00" in str(parada.value)
 
-    _ya_gastado(tmp_path, 9.99)
+    _ya_gastado(tmp_path, 2.99)
     with cli._apuntar_gasto(raiz, tmp_path, "pieza «Soporte»"):
         hecho.append("gastó")
     assert hecho == ["gastó"]
@@ -177,9 +177,11 @@ def test_un_backlog_tiene_su_propio_tope_mas_alto_que_el_de_una_pieza(tmp_path, 
     bastante testing y otras cosas» (el usuario, 2026-11-11). Un robot son
     varias piezas, cada una con sus intentos, más mover el conjunto y
     corregir: el pan-tilt costó 0,93 USD con tres piezas y tres
-    correcciones. Una pieza suelta sigue en 10.
+    correcciones. Una pieza suelta, o cada una de las del robot, tiene 3
+    («eso es por robot, y por pieza 3 dólares»).
 
-    Con 10,01 USD gastados, el backlog sigue pidiendo su plan (aquí, uno que
+    Con 10,01 USD gastados —más del triple del tope de una pieza—, el
+    backlog sigue pidiendo su plan (aquí, uno que
     no sale); con 50,01, se para antes de pedir nada."""
     from pathlib import Path
 
@@ -191,7 +193,7 @@ def test_un_backlog_tiene_su_propio_tope_mas_alto_que_el_de_una_pieza(tmp_path, 
     raiz = Path(__file__).resolve().parents[1]
     config = yaml.safe_load((raiz / "config" / "models.yaml").read_text(encoding="utf-8"))
     assert config["escalation"]["max_usd_per_backlog"] == 50.0, "lo decidió el usuario"
-    assert config["escalation"]["max_usd_per_project"] == 10.0
+    assert config["escalation"]["max_usd_per_project"] == 3.0
 
     monkeypatch.setattr(cli, "DeepSeekClient", lambda api_key, model: DeepSeekClient(
         api_key=api_key, model=model, transport=httpx.MockTransport(lambda r: httpx.Response(

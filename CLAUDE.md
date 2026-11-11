@@ -113,7 +113,7 @@ invento. El plan aprobado está en `PLAN_PROYECTO.md`, Fase 9, con su orden.
   se siguen viendo en la web. **Lo que se perdió:** engranajes y cadenas
   cerradas; un backlog solo sabe piezas que giran sobre un servo o un
   rodamiento, en árbol.
-- **El tope de gasto ahora sí para: 10 USD una pieza y 50 USD un backlog**
+- **El tope de gasto ahora sí para: 3 USD una pieza y 50 USD un backlog**
   (un robot), decididos por él el 2026-11-11; eran 5 para todo. Solo lo
   comprobaba el flujo de
   mecanismos; una pieza o un backlog nunca se detenían. Cada paso lo mira
@@ -151,7 +151,7 @@ invento. El plan aprobado está en `PLAN_PROYECTO.md`, Fase 9, con su orden.
 1. ~~El trinquete, la Ginebra y los demás retos de mecanismos.~~ El flujo
    que los hacía se quitó el 2026-11-11 (arriba). El trinquete salió
    (2026-09-21, 1.17 USD) y sigue en `workspace/`.
-3. ~~Decidir el tope de gasto.~~ **Decidido por el usuario: 10 USD una pieza y
+3. ~~Decidir el tope de gasto.~~ **Decidido por el usuario: 3 USD una pieza y
    50 USD un backlog** desde el 2026-11-11 (`max_usd_per_project` y
    `max_usd_per_backlog`); antes, 5 USD para todo
    (2026-09-21). Los 2 USD anteriores los había puesto el asistente por defecto.
