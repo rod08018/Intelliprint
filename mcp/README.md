@@ -1,17 +1,21 @@
-# mcp — servidores propios
+# mcp — el paquete `mech-toolkit`
 
-Servidores MCP que corren en Docker. Ver [SISTEMA_MULTIAGENTE.md](../SISTEMA_MULTIAGENTE.md) § 9.2.
+Aquí **no hay servidores MCP**. La carpeta se llama así porque `mech-toolkit` se planeó como un servicio aparte, F2.1 (servicio), y no se hizo: es un paquete de Python que se instala junto al orquestador y se importa. Ver [SISTEMA_MULTIAGENTE.md](../SISTEMA_MULTIAGENTE.md) § 9.2.
 
-Los de FreeCAD y PrusaSlicer **no** están aquí: viven en el host y se exponen por HTTP (§ 8.2).
+Los dos servidores MCP que sí existen están en otro sitio: `orchestrator/mcp_server.py`, que usa Crafty, y `scripts/host_bridge.py`, el puente al PrusaSlicer del PC (§ 9.1).
 
-## `mech-toolkit`
+## `mech-toolkit/mech_toolkit/`
 
-Herramientas deterministas. Es donde vive la geometría que el LLM no debe calcular.
+Es donde vive la geometría que el modelo no debe calcular.
 
-| Subcarpeta | Contenido |
+| Módulo | Contenido |
 |---|---|
-| `generators/` | Un módulo por generador (`generate_bearing_housing`, `generate_bolt_pattern`, `generate_servo_mount`…). Es el catálogo con el que se componen las recetas (hoy, las piezas de calibración) |
+| `kit/` | Las operaciones con las que el diseñador escribe `construir(kit)` y la lista blanca que valida su programa (`sandbox.py`) |
+| `sondas.py` | Medidas sobre el STEP construido, dentro de FreeCAD: pared mínima, aristas vivas, si un componente cabe y entra, acceso a un tornillo, sitio libre de un giro |
+| `componentes.py` | Coloca la forma de una ficha de `library/components/` en la pieza |
+| `profile.py` | El perfil de impresora y sus holguras |
+| `measure.py`, `geometry.py` | Extraen las caras cilíndricas de una pieza y buscan agujeros y salientes por su posición |
+| `generators.py` | El catálogo de generadores de las recetas. Hoy solo construye las piezas de calibración |
+| `library_models.py` | Importa los modelos de referencia de `library/models/reference/` |
 
-**Regla de la sección 6 del plan:** las herramientas deterministas deben tener tests **antes** de que un agente las use.
-
-Añadir un generador aquí es la respuesta correcta cuando la métrica de escotilla sube (§ 6.3): cada pieza atípica nombra el generador que falta.
+**Regla:** lo que mide o construye tiene tests antes de que un agente dependa de ello, y el valor esperado sale de un cálculo a mano o de una referencia, no de la salida del propio sistema.

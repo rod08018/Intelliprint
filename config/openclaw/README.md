@@ -2,7 +2,8 @@
 
 Crafty es el agente de OpenClaw que habla por Telegram: **él conversa, entiende
 el encargo y lanza el trabajo**; Intelliprint diseña. Los dos se comunican por
-un servidor MCP, no por línea de órdenes.
+un servidor MCP (`orchestrator/mcp_server.py`), no por línea de órdenes. A
+Intelliprint solo le llega texto: las fotos las ve Crafty.
 
 Aquí viven las instrucciones de Crafty **versionadas**, porque OpenClaw las lee
 desde su propia carpeta (`~/.openclaw/workspace/`), fuera del repositorio: si
@@ -50,7 +51,7 @@ volumen se copia, se inspecciona y acaba subido a donde no debe.
   crafty-config   genera la configuración desde el .env  (un solo paso, y termina)
         │
   crafty          OpenClaw + Telegram  ──MCP por HTTP──►  intelliprint-mcp
-                                                          (FreeCAD, los agentes)
+                                                          (los agentes y FreeCAD)
 ```
 
 En el Mac, Crafty lanzaba `intelliprint-mcp` como subproceso por stdio. En
@@ -61,19 +62,16 @@ proyectos que gastan dinero.
 
 Los archivos que Crafty te manda (el GIF, el ensamble) pasan por un **buzón**: un
 volumen montado en los dos contenedores **en la misma ruta**, así que las rutas
-que devuelve el MCP valen tal cual al otro lado.
-
-Los dos `.md` de esta carpeta se copian al workspace de Crafty en **cada
-arranque**: se editan aquí, que es donde los versiona git, y un cambio llega con
-reiniciar el contenedor.
+que devuelve el MCP valen tal cual al otro lado. Crafty no ve `workspace/`.
 
 ### Quién puede hablarle
 
-El canal va **abierto** por decisión del usuario: sin lista, `dmPolicy: open`
-con `allowFrom: ["*"]`. Si se ponen ids en `TELEGRAM_ALLOWED_USERS`, esa misma
-lista cierra el bot propio y a Crafty: sale `dmPolicy: allowlist` con los ids,
-`groupPolicy: disabled` —meterlo en un grupo no lo abre a los demás miembros— y
-`commands.ownerAllowFrom`. Tu id numérico te lo dice @userinfobot.
+El canal va **abierto** por decisión del usuario (ADR-012): sin lista,
+`dmPolicy: open` con `allowFrom: ["*"]`, y quien encuentre el bot puede lanzar
+proyectos que gastan saldo. Si se ponen ids en `TELEGRAM_ALLOWED_USERS`, sale
+`dmPolicy: allowlist` con los ids y `commands.ownerAllowFrom`. En los dos casos
+va `groupPolicy: disabled`: meterlo en un grupo no lo abre a los demás
+miembros. Tu id numérico te lo dice @userinfobot.
 
 ### Un bot, un ordenador
 

@@ -1,39 +1,39 @@
-# library — hardware comercial
+# library — lo que se compra
 
-Ningún modelo debe inventar las dimensiones de un NEMA17. Todo el hardware comercial vive aquí. Ver [SISTEMA_MULTIAGENTE.md](../SISTEMA_MULTIAGENTE.md) § 10.
-
-Es además la fuente de la que el resolvedor de interfaces (§ 3.2) saca las cotas reales al convertir una interfaz simbólica en resuelta. Si un dato falta aquí, la interfaz no se puede resolver — y eso es preferible a que alguien lo estime.
+Ningún modelo debe sacar de memoria las medidas de un servo. Lo comprado vive aquí. Ver [SISTEMA_MULTIAGENTE.md](../SISTEMA_MULTIAGENTE.md) § 10 y ADR-016.
 
 ```
 library/
-├── screws/      M2–M5, tuercas, insertos térmicos
-├── bearings/    608zz, 623zz, 625zz
-├── motors/      NEMA14, NEMA17
-├── servos/      SG90, MG90S, MG996R, DS3218
-├── electronics/ ESP32 DevKit, Arduino Nano, A4988, TMC2209
-├── step/        modelos STEP de cada ítem
-└── models/reference/  modelos DESCARGADOS de terceros, con autor y licencia
+├── components/         una ficha YAML por componente
+└── models/reference/   modelos STEP descargados de terceros, con autor y licencia
 ```
 
-Cada ítem es un YAML validado contra esquema, con su STEP correspondiente:
+## `components/`: las fichas
 
-```yaml
-id: nema17_42x40
-category: stepper
-body_mm: {w: 42.3, h: 42.3, l: 40}
-shaft_mm: {d: 5, l: 24, flat: true}
-mount: {bolt: M3, pcd_square_mm: 31, pilot_d_mm: 22}
-holding_torque_nm: 0.40
-mass_g: 280
-step: library/step/nema17_42x40.step
-```
+Hay siete: `608zz`, `hc-sr04`, `mg996r`, `nema17`, `perfil-2020`, `raspberry-pi-4` y `sg90`. Las lee `orchestrator/componentes.py`.
 
-Se indexa también en Qdrant para búsqueda semántica.
+Una ficha es geometría con fuente, no una lista de cotas:
+
+| Campo | Qué dice |
+|---|---|
+| `id`, `nombre`, `alias` | Cómo se llama. Por los alias decide el código si una petición lo nombra |
+| `fuentes` | La URL y la cita de cada hoja de datos o plano |
+| `marco`, `mira` | Dónde está el origen y hacia dónde apunta |
+| `cuerpos` | Lo que es sólido: cajas y cilindros, cada uno con su porqué |
+| `despejar` | Lo que hay que dejar libre: un cable, el haz de un sensor, el cuerno de un servo |
+| `fijacion` | Dónde se atornilla, con qué tornillo y si viene con el componente |
+| `salidas` | Lo que mueve: el eje de un servo o el aro de un rodamiento, con su recorrido. Hoy solo las tienen `sg90` y `608zz` |
+| `masa_g`, `par_kgf_cm`, `velocidad_s_60` | Para el estudio de movimientos |
+| `verificado` | `true` solo si alguien lo midió con calibre |
+
+**Ninguna ficha está medida con calibre**: las siete llevan `verificado: false`. Si dos fabricantes no coinciden, la ficha toma lo mayor y lo dice.
+
+Un componente que no tiene ficha no se puede colocar con `kit.componente`: el diseño sigue con las cifras sueltas que se encuentren en internet. Las fichas se escriben a mano; el borrador de ficha que el usuario aprueba es F9.11 (borrador), pendiente.
 
 ## `models/reference/`: referencias independientes
 
-Los modelos de hardware comercial **no los dibuja el sistema**: se descargan de fuentes reconocibles, con autor, licencia y huella SHA-256 (ver `models/reference/README.md`). Si el sistema dibujara también la referencia con sus propios números, que la pieza encajara no demostraría nada.
+Los modelos de referencia **no los dibuja el sistema**: se descargan de fuentes reconocibles, con autor, licencia y huella SHA-256 (ver `models/reference/README.md`). Si el sistema dibujara también la referencia con sus propios números, que la pieza encajara no demostraría nada. Los usan los tests; el diseño trabaja con las fichas.
 
 Esto ya encontró dos cosas que un modelo propio habría ocultado:
-- NEMA 17 normaliza **solo la cara de montaje**. La altura del saliente (1.6 en la referencia, 2.0 en la que yo había supuesto) y el largo del eje (20 frente a 24) cambian según el fabricante.
-- El QA confundía un agujero con un saliente concéntrico mayor, porque las esquinas redondeadas del motor son cilindros en el mismo eje. Arreglado: el extractor distingue caras interiores y exteriores.
+- NEMA 17 normaliza **solo la cara de montaje**. La altura del saliente (1.6 en la referencia, 2.0 en la que se había supuesto) y el largo del eje (20 frente a 24) cambian según el fabricante.
+- Al medir se confundía un agujero con un saliente concéntrico mayor, porque las esquinas redondeadas del motor son cilindros en el mismo eje. Arreglado: el extractor distingue caras interiores y exteriores.

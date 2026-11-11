@@ -31,10 +31,10 @@ Todas de [FreeCAD/FreeCAD-library](https://github.com/FreeCAD/FreeCAD-library), 
 
 | Archivo | Autor | Medido con el extractor |
 |---|---|---|
-| `bearing_608zz.step` | Normand C (2013) | Agujero Ø8 interior, exterior Ø22, ancho 7. Coincide con lo que usa `derive_assertions` para un asiento de 608 |
+| `bearing_608zz.step` | Normand C (2013) | Agujero Ø8 interior, exterior Ø22, ancho 7. Coincide con la ficha `library/components/608zz.yaml` |
 | `screw_m3x10_iso4762.step` | Peta-T (2015) | Caña Ø3.0, cabeza Ø5.5 |
 | `iso273_m3_close.step` | Tony Hursh (2020) | Agujero pasante M3 ajuste **justo**: Ø3.26 (media de tolerancia) |
 | `iso273_m3_normal.step` | Tony Hursh (2020) | Ajuste **normal**: Ø3.49 |
 | `iso273_m3_loose.step` | Tony Hursh (2020) | Ajuste **holgado**: Ø3.75 |
 
-**Lo que dicen de nuestro perfil:** el `M3_through_mm: 3.3` de `config/printers/ankermake_m5_petg.yaml` es prácticamente un agujero *justo* de la ISO 273. Y el perfil es incoherente consigo mismo: 3.3 implica una holgura de 0.3 en diámetro, mientras que `fits.clearance_mm: 0.35` pide más. La norma queda del lado del valor mayor. Pendiente de decisión del usuario y, en última instancia, de la pieza de calibración (F2.18).
+**Lo que dicen de nuestro perfil:** el `M3_through_mm: 3.3` de `config/printers/ankermake_m5_petg.yaml` es prácticamente un agujero *justo* de la ISO 273. Y el perfil es incoherente consigo mismo: 3.3 implica una holgura de 0.3 en diámetro, mientras que `fits.clearance_mm: 0.35` pide más. La norma queda del lado del valor mayor. No se cambia a ciegas: lo decide el usuario midiendo la pieza de calibración, F2.18 (calibración), y lo apunta en la página «Impresora» de la web.

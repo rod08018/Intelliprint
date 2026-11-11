@@ -79,7 +79,7 @@ cp1252 y cualquier acento del repo revienta: son 10 tests de diferencia.
 |---|---|
 | `PLAN_PROYECTO.md` | Las tareas con su ID (`F3.15`), el criterio de aceptación y **la tabla de deuda técnica declarada** |
 | `DECISIONES.md` | Las ADR: por qué el sistema es como es, con sus enmiendas cuando la realidad las corrigió |
-| `SISTEMA_MULTIAGENTE.md` | La arquitectura y los once agentes |
+| `SISTEMA_MULTIAGENTE.md` | Cómo es el sistema hoy: los dos flujos, los cinco agentes y lo que mide el código |
 | `config/agents/*.md` | El prompt de sistema de cada agente |
 | `config/openclaw/` | Crafty, el agente del canal humano (Telegram) |
 

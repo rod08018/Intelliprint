@@ -1,814 +1,383 @@
-# Intelliprint — Sistema multiagente de diseño para impresión 3D
+# Intelliprint: cómo es el sistema hoy
 
-Sistema local de agentes que recibe un requerimiento en lenguaje natural (por ejemplo, *"brazo robótico de 6 ejes, alcance 40 cm, carga 500 g"*) y lo convierte en piezas paramétricas en **FreeCAD**, las ensambla, las valida, las lamina en **PrusaSlicer** y entrega STL/3MF listos para imprimir, con aprobación humana en los puntos críticos.
+Intelliprint recibe una petición en lenguaje natural —«un soporte para un rodamiento 608ZZ», «un pan-tilt con dos servos SG90»— y la convierte en piezas imprimibles en 3D. Las decide con modelos de lenguaje, las construye en FreeCAD y **mide lo construido** antes de darlo por bueno: una pieza se mide contra sus requisitos, y un conjunto de piezas se mueve por todo su recorrido buscando choques.
 
-Restricciones de diseño:
-
-- **Local primero.** Todos los agentes corren con modelos locales (Ollama). **DeepSeek** es el único modelo externo permitido y solo se usa como escalamiento, controlado por reglas explícitas.
-- **Todo en Docker.** Orquestador, modelos, servicios de cálculo y almacenamiento corren en contenedores. FreeCAD y PrusaSlicer siguen en el PC (sus MCP ya están probados) y se exponen a los contenedores por red.
-- **El LLM no hace geometría.** Los modelos deciden parámetros y llaman herramientas deterministas; la geometría, las tolerancias y los cálculos físicos los hace código.
-- **El LLM no emite veredictos.** Un PASS/FAIL siempre sale de una comparación numérica contra un contrato. El LLM interpreta y redacta, y solo puede *añadir* defectos, nunca quitarlos.
-- **El humano está en el bucle a distancia.** El sistema puede consultarte y enviarte imágenes por Telegram mientras trabaja, y tú puedes pedir cambios sin estar delante del PC.
+Este documento describe lo que hay en el código a 2026-11-11, después de la limpieza de F9.13 (limpieza). Hasta esa fecha describía la arquitectura que se planeó en septiembre de 2026, de la que casi nada llegó a existir o sobrevivió. **La numeración de las secciones se conserva** porque `PLAN_PROYECTO.md`, `DECISIONES.md` y el código las citan; donde el contenido original ya no existe, la sección dice qué pasó y qué decisión (ADR) lo explica. Lo que se planeó y no está se resume en § 13. El código retirado sigue en git, en la etiqueta `antes-de-fase-9`.
 
 ---
 
 ## 1. Vista general
 
+Cinco ideas ordenan el sistema:
+
+- **El modelo propone; el código comprueba y mide.** Ningún agente devuelve texto libre: todos devuelven un esquema que el código valida. Lo que se puede calcular —resistencia, holguras, choques, par de un servo, lista de compras— lo calcula el código.
+- **La persona aprueba antes de que se gaste en dibujar.** El concepto de cada pieza, el plan de un conjunto y cada pieza terminada esperan su visto bueno.
+- **El estado está en la carpeta del proyecto.** No hay base de datos ni proceso que recuerde por dónde iba. Cada orden da un paso, deja archivos y termina; lanzarla otra vez sobre la misma carpeta sigue donde se quedó.
+- **Todo corre en contenedores salvo PrusaSlicer** (ADR-014, § 8).
+- **«Local primero» sigue siendo el objetivo y hoy no se cumple.** Los modelos son de DeepSeek, en la nube (ADR-007b). Pasar a modelos locales es F0.11 (migrar), sin hacer (§ 6.1.1).
+
+Hay dos flujos. Al segundo el usuario lo llama **backlog**; en el código y en la línea de órdenes se llama `obra`.
+
 ```
- Requerimiento del usuario  (texto + fotos + medidas, por Telegram o CLI)
-          │
-          ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  ORQUESTADOR (LangGraph, máquina de estados + blackboard)           │
-│                                                                     │
-│  FASE 0 · Admisión (conversación; NO se diseña nada)                │
-│    1. Requirements Agent   → pregunta, clasifica, redacta spec.yaml │
-│  ── Confirmas la spec ──                                            │
-│                                                                     │
-│  FASE 1 · Descomposición                                            │
-│    2. Decomposition Agent  → árbol del producto + interfaces        │
-│                              SIMBÓLICAS (topología, sin geometría)  │
-│                                                                     │
-│  FASE 2 · Ingeniería de sistema (SEGÚN CLASE DE PRODUCTO)           │
-│    3. Kinematics Agent     → eslabones, GDL, rangos, cargas         │
-│    4. Actuation Agent      → motores/servos con margen de torque    │
-│    5. Electronics Agent    → MCU, drivers, ruteo de cables          │
-│    ·  Resolver interfaces  → simbólicas a resueltas (código)        │
-│  ── Gate humano #1: aprobar spec, árbol e interfaces resueltas ──   │
-│                                                                     │
-│  FASE 3 · Diseño por pieza (en paralelo, una tarea por pieza)       │
-│    6. Part Designer Agent  → RECETA de generadores → build.py       │
-│    7. Tolerances/DFM Agent → holguras FDM, paredes, orientación     │
-│    8. QA Agent             → verificación de contrato + visión      │
-│                                                                     │
-│  FASE 4 · Integración y prueba                                      │
-│    9. Assembly Agent       → ensamble, restricciones, interferencias│
-│   10. Test/Sim Agent       → cinemática, torque, colisiones         │
-│    8. QA Agent             → revisión del ensamble completo         │
-│                                                                     │
-│  FASE 5 · Fabricación                                               │
-│   11. Slicing/Cost Agent   → PrusaSlicer (MCP): gramos, horas, placas│
-│  ── Gate humano #2: aprobar diseño y fabricación ──                 │
-└─────────────────────────────────────────────────────────────────────┘
-          │
-          ▼
-  STL / 3MF / G-code + BOM + reporte + instrucciones de ensamble
-          │
-          ▼
-  Feedback de impresión real (opcional) → vuelve a la fase 3
+ intelliprint pieza "…"                   intelliprint obra "…"   (un backlog)
+ ──────────────────────                   ─────────────────────────────────────
+ investigador  busca medidas, con cita    desglosador  plan mecánico: piezas y uniones
+ requisitos    redacta spec.yaml          plan.py      lo valida contra fichas y perfil
+ ingeniero     propone el concepto        ✋ visto bueno al plan
+ ✋ visto bueno al concepto                por cada pieza, en orden de dependencias:
+ diseñador     escribe construir(kit)        el flujo de pieza entero (a la izquierda)
+ FreeCAD       construye                     ✋ «está bien, la siguiente»: se ficha
+ medidas       si algo no cumple, vuelve  por cada conjunto:
+               al diseñador (5 veces)        se mueve entero y se buscan choques
+                                             estudio: par, vuelco, alcance, carga
+ → STEP, STL, FCStd e informe             → piezas, ensamble, animación y compras
 ```
+
+Las órdenes de `intelliprint` (`orchestrator/cli.py`):
+
+| Orden | Qué hace |
+|---|---|
+| `pieza` | Una pieza suelta: propone el concepto y para; con el visto bueno, la modela |
+| `obra` | Un backlog: lo desglosa y diseña una pieza cada vez |
+| `banco` | Pide los doce encargos de `tests/banco/encargos/`, mide lo que sale y da la nota. Cuesta dinero |
+| `calibrar` | Construye las piezas de prueba de holguras y las barras de flexión, o apunta lo medido |
+| `animar`, `estudio` | Rehacen la animación o el estudio de movimientos de un backlog ya verificado, sin modelo |
+| `proyectos` | Lista los proyectos y, con `--archivar`, mueve lo no aprobado a `workspace/archivo/` |
+| `perfil importar` | Convierte una calibración de eufyMake Studio en un perfil de PrusaSlicer |
 
 ---
 
 ## 2. Agentes
 
-Cada agente es un nodo del grafo con: un prompt de sistema corto, un **esquema JSON de salida obligatorio**, una lista blanca de herramientas y un modelo asignado. Ningún agente habla con otro directamente; todos leen y escriben en el **blackboard** (sección 5).
+Un agente es aquí una llamada a un modelo con unas instrucciones (`config/agents/*.md`) y un esquema de salida obligatorio. Son **cinco**:
 
-| # | Agente | Responsabilidad | Herramientas | Modelo por defecto |
-|---|--------|-----------------|--------------|--------------------|
-| 0 | **Orchestrator** | Avanza la máquina de estados, lanza tareas, aplica reintentos y escalamiento. Es código, no un LLM; solo usa el LLM para resumir y redactar mensajes al humano. | blackboard, `HumanPort` | `qwen3.8` |
-| 1 | **Requirements** | Conduce la **admisión** (§ 4.1): lee tu texto, tus fotos y tus medidas, **pregunta por `HumanPort` hasta completar la spec** y **clasifica el producto** (§ 4.2). Produce `spec.yaml`. Es el único agente que corre antes de tu confirmación. | blackboard, `HumanPort`, visión | `qwen3.8` |
-| 2 | **Decomposition** | Divide el producto en árbol jerárquico (producto → sistemas → subensambles → piezas). Define **interfaces simbólicas** (tipo, piezas, hardware, `fit`) **sin geometría** y crea una tarea por pieza con dependencias. | blackboard, hardware library | `qwen3.8` → **DeepSeek** si el árbol supera ~15 piezas o falla validación |
-| 3 | **Kinematics** | Longitudes de eslabones, GDL, rangos articulares, espacio de trabajo, cargas por articulación. Aporta los `frame` que resuelven las interfaces. **Solo para `robot`.** | `sim` MCP (ikpy, numpy) | `qwen3.8` |
-| 3b | **Mechanism Designer** | Convierte una petición de mecanismo en un `MechanismSpec`: piezas con enunciado y caja, árbol cinemático con fórmulas, apoyos por contacto, bloqueos, topes y requisitos medibles. Declara; el código calcula y verifica (ADR-013). | `mech-toolkit`, FreeCAD | `qwen3.8` con thinking (rol `reason`) |
-| 3c | **Design Reviewer** | Compara la petición literal con lo medido y emite un informe requisito por requisito. **No aprueba** (ADR-003). | — | `qwen3.8` / con visión cuando la haya |
-| 4 | **Actuation** | Selecciona actuadores de la librería con margen de torque ≥ 1.5×, reductoras, alimentación. Fija el hardware definitivo de las interfaces. **Solo para `robot` y `mechanism`.** | `sim` MCP, hardware library | `qwen3.8` |
-| 5 | **Electronics** | MCU (ESP32/Arduino), drivers, fuente, canales de cable, soportes de PCB. Produce requisitos que se vuelven piezas o features. **Solo para `robot`.** | hardware library | `qwen3.8` |
-| — | *Resolución de interfaces* | **Código, no agente.** Toma las interfaces simbólicas y los resultados de la Fase 2 y produce `frame` y `nominal_mm` definitivos, **más la `placement` de cada pieza** (§ 3.2). Falla ruidosamente si algo queda sin resolver. | `mech-toolkit` MCP | — |
-| 6 | **Part Designer** | Diseña **una** pieza. **No escribe Python**: emite una **receta** (lista validada de llamadas a generadores con sus parámetros). `build.py` lo compone el orquestador desde la receta. Varias instancias en paralelo. | `mech-toolkit` MCP, hardware library | `qwen3.8` → **DeepSeek** solo en la escotilla (ver § 6.3) |
-| 7 | **Tolerances / DFM** | Aplica holguras FDM, verifica paredes, voladizos, puentes, orientación de impresión y separación de piezas que no caben en la cama. | `mech-toolkit` MCP, `freecad` MCP | `qwen3.8` |
-| 8 | **QA** | Revisor independiente. **No emite el veredicto**: ejecuta mediciones, las compara con las aserciones derivadas del contrato, y añade defectos que las cifras no capturan usando **visión** sobre las vistas renderizadas. Solo puede añadir defectos. | `freecad` MCP (solo lectura), `mech-toolkit` MCP | `gemma3:12b` (residente, con visión) |
-| 9 | **Assembly** | Importa las piezas, las posiciona según las interfaces resueltas, añade hardware comercial, detecta interferencias y genera la BOM. | `freecad` MCP (GUI), `mech-toolkit` MCP | `qwen3.8` |
-| 10 | **Test / Sim** | Pruebas del ensamble: barrido de rangos articulares con chequeo de colisiones, torque en la peor pose, estabilidad (PyBullet), verificación de alcance. | `sim` MCP (PyBullet, ikpy) | `qwen3.8` |
-| 11 | **Slicing / Cost** | Lamina cada STL en PrusaSlicer con el perfil de la impresora, agrupa en placas, reporta gramos, horas, costo y soportes. | `prusaslicer` MCP | `qwen3.8` |
+| Agente | Qué decide | Qué le comprueba el código | Rol |
+|---|---|---|---|
+| **Investigador** (`orchestrator/investigar.py`) | Qué componentes nombra la petición sin dar sus medidas, y qué dato sale de cada página encontrada | Que la cita literal está en la página y el número está en la cita | `design` |
+| **Requisitos** (`agents/requirements.py`) | La especificación: título, material y una lista de requisitos con identificador | Que lo atribuido al usuario es cita literal de la petición y que ninguna cota en mm se queda sin requisito | `design` |
+| **Ingeniero** (`agents/ingeniero.py`) | El concepto: cómo se resuelve, cómo se imprime, cómo se fija, casos de carga y hasta tres preguntas | La resistencia de cada caso de carga (`orchestrator/ingenieria.py`), y que no escriba a mano el alojamiento de un componente con ficha | `reason` |
+| **Diseñador** (`agents/disenador_kit.py`) | El programa `construir(kit)` que dibuja la pieza | La lista blanca del programa (§ 6.3) y, ya construida, las medidas de § 3.3 | `reason` |
+| **Desglosador** (`agents/desglosador.py`) | El plan mecánico de un backlog: piezas, conjuntos y uniones | `orchestrator/plan.py`, contra fichas y perfil (§ 3.1) | `reason` |
 
-> **OpenClaw / Telegram no es un agente.** Es un *adaptador* del `HumanPort` (§ 8.5), fuera del grafo. No lee ni escribe el blackboard: solo transporta preguntas, imágenes y respuestas.
+Todos pasan por `orchestrator/llm/structured.py`: si la salida no valida, el error exacto vuelve al modelo, hasta tres intentos. Los de rol `reason` usan el modelo con pensamiento; si se corta dos veces por longitud, contesta el modelo sin pensamiento.
 
-### 2.1 Por qué estos agentes adicionales
+Lo que **no** es un agente de Intelliprint:
 
-- **Decomposition Agent**: sin él, el modelo intenta diseñar "el brazo" de golpe y falla. Con él, cada Part Designer recibe una tarea pequeña y cerrada ("base giratoria, Ø120 mm, aloja un 608zz y un NEMA17, 4×M3 hacia la pieza `hombro`"). Es el agente que más valor aporta.
-- **QA Agent** separado del diseñador: el mismo modelo que diseñó una pieza tiende a aprobarla. La defensa principal **no** es usar otro modelo — es que el veredicto sea aritmético (§ 7.1). Usar `gemma3:12b` es una segunda red, barata porque cabe residente junto al modelo de diseño.
-- **Assembly + Test/Sim**: permiten el ciclo que pediste: piezas individuales → ensamble → prueba → corrección de las piezas que fallan.
+- **Crafty** es el agente de OpenClaw que conversa por Telegram, con su propio modelo. Usa Intelliprint por un servidor MCP (§ 8.5, § 9.1) y no diseña nada.
+- **El juez JEV** (`orchestrator/juez.py`) es un servicio externo y opcional. Lee el concepto y contesta una sola pregunta: si algún componente queda suelto. Su respuesta es un aviso para la persona; no frena ni rehace nada, y sin `JEV_API_KEY` no se llama.
+- **El laminado** (`orchestrator/slicing.py`) es una llamada a PrusaSlicer, sin modelo. El «agente 11» de la tabla original no existe.
+
+La tabla original tenía once agentes. Por qué faltan los demás está en § 13.
 
 ---
 
-## 3. Contratos entre piezas (interfaces)
+## 3. Cómo se unen las piezas
 
-La clave para que piezas diseñadas por separado encajen es que las interfaces se definan **antes** de diseñar, y que todas las piezas las referencien por ID.
+El plan original describía interfaces con dos estados, simbólica y resuelta (ADR-001), y un QA que derivaba de ellas lo que había que medir (ADR-011). Ese código se retiró en F9.13 (limpieza) porque ningún flujo lo llamaba. Lo que hay hoy sale de ADR-016, ADR-018 y ADR-020.
 
-Una interfaz tiene **dos estados**. Esto no es un detalle de implementación: es la corrección de un error de orden. `Decomposition` corre antes que `Kinematics` y `Actuation`, así que **no puede conocer la geometría**: no sabe cuánto mide un eslabón que aún no se ha calculado, ni qué motor se va a elegir. Pedirle números en la Fase 1 es pedirle que invente.
+### 3.1 El plan mecánico: uniones `fija` y `gira`
 
-### 3.1 Interfaz simbólica (salida de `Decomposition`, Fase 1)
+El desglosador propone en una sola llamada los nodos del backlog (piezas y conjuntos) y sus uniones (`orchestrator/schemas/obra.py`). Hay dos tipos:
 
-Declara **topología**: qué se une con qué, con qué clase de hardware y con qué tipo de ajuste. Sin una sola cota.
+- **`fija`**: dos piezas atornilladas, o una pieza atornillada a algo de fuera. Dice en qué pieza apoya la cabeza, en cuál agarra, la métrica, cuántos tornillos y el agarre: tuerca cautiva, inserto o rosca en el plástico.
+- **`gira`**: una pieza que gira sobre la salida de un componente comprado que monta otra pieza (el eje de un servo, el aro de un rodamiento). Dice cuánto recorre y cuánto **radio libre** necesita alrededor del eje.
 
-```yaml
-# projects/<id>/interfaces.yaml   (state: symbolic)
-- id: IF-003
-  state: symbolic
-  type: bearing_seat          # bearing_seat | shaft | bolt_pattern | press_fit | slide_fit | snap_fit | cable_pass
-  between: [base_giratoria, hombro]
-  hardware_class: bearing     # clase, no pieza concreta
-  fit: press                  # press | clearance | slide
-  role: eje_de_giro_j1        # para qué sirve; lo usa la Fase 2 para resolverla
-```
+El plan no lleva coordenadas. `orchestrator/plan.py` lo comprueba sin modelo: que la salida exista en la ficha del componente, que el recorrido pedido quepa en el de la ficha, que cada actuador mueva una sola pieza, que todo giro esté dentro de un nodo conjunto y que ninguna pieza quede sin unir. Un plan que no se puede construir vuelve al desglosador con el error. Una métrica que el perfil de la impresora no tiene tabulada es un aviso que la persona ve antes de aprobar.
 
-### 3.2 Interfaz resuelta (salida de la Fase 2, por código)
+Límite conocido: solo se describen **árboles de giros** sobre la salida de algo comprado. No hay correderas, engranajes ni cadenas cerradas; una pinza de dos dedos con un solo servo no sale (ADR-020). Y hoy solo dos fichas tienen salidas: el SG90 y el 608ZZ.
 
-`Kinematics` aporta los `frame`, `Actuation` fija el hardware concreto, y el resolvedor rellena las cotas desde la hardware library. **Ningún LLM escribe estos números.**
+### 3.2 Dónde queda cada pieza
 
-```yaml
-- id: IF-003
-  state: resolved
-  type: bearing_seat
-  between: [base_giratoria, hombro]
-  hardware: bearing_608zz     # ya es una pieza concreta de library/
-  fit: press
-  nominal_mm: {bore: 8, od: 22, width: 7}
-  frame: {origin: [0, 0, 45], axis: [0, 0, 1]}   # de Kinematics, no inventado
-  resolved_by: kinematics+actuation
-```
+Nadie asigna posiciones de antemano; la resolución de interfaces que lo hacía no existe. Una pieza terminada se convierte en una **ficha** (`obra.fichar`, ADR-018): su forma construida, sus agujeros con nombre y las salidas de lo comprado que monta. La pieza siguiente se diseña contra esa ficha y la coloca en su propio programa con `kit.componente`, igual que colocaría un rodamiento comprado. La posición de cada pieza en el conjunto sale de encadenar esas colocaciones (`conjunto.poses`).
 
-El validador rechaza que una interfaz `symbolic` llegue a la Fase 3. El Tolerances Agent traduce `fit` a holguras reales (§ 7) y el Assembly Agent usa `frame` para posicionar piezas.
+Límites: el hueco que una pieza impresa deja en otra es su caja envolvente, y a la ficha solo pasan los agujeros de eje alineado con x, y o z.
 
-**Los `frame` están en coordenadas del ensamble**, pero cada pieza se construye y se mide **sola**, en sus propias coordenadas. La resolución de interfaces asigna por tanto una `placement` a cada pieza:
+### 3.3 Qué se mide y con qué
 
-```yaml
-# projects/<id>/tree.yaml
-parts:
-  - id: base_giratoria
-    placement: {origin: [0, 0, 0], rotation: [0, 0, 0]}
-  - id: hombro
-    placement: {origin: [0, 0, 45], rotation: [0, 0, 0]}
-```
+Tras cada construcción, `orchestrator/medida.py` reúne lo que la pieza no cumple y se lo devuelve al diseñador con cifras:
 
-La asigna **la resolución de interfaces y no el `Assembly` Agent**, aunque este último parezca su dueño natural. El motivo es de orden: Assembly corre después del QA de piezas, así que si la placement llegara de ahí habría que medir en el ensamble en vez de al construir, y los errores se detectarían justo donde ya son caros de arreglar. Es la misma lección que ADR-001.
+- los agujeros que piden los requisitos —diámetro, número y distancias entre centros—, comparados con los rasgos con nombre que el kit registró al taladrar;
+- que cada componente comprado **cabe** y **entra** en su sitio, con la forma de su ficha, y que el programa colocó todos los que el concepto nombra;
+- las sondas de `mech_toolkit/sondas.py`, que corren en FreeCAD sobre el STEP construido: pared mínima, aristas vivas, acceso de la llave a cada tornillo, aberturas por las que tiene que pasar un cuerpo, y el cilindro libre que el plan reserva a cada giro;
+- en un backlog, la pieza que gira se mueve contra lo ya construido en cuanto se construye, F9.5 (parcial).
 
-Para una pieza única la placement es la identidad, así que no cuesta nada tenerla desde el principio.
-
-### 3.3 Las interfaces generan el QA
-
-Una interfaz resuelta contiene todo lo necesario para escribir sus propias pruebas. `mech-toolkit` deriva de ella las **aserciones medibles**, sin intervención de ningún modelo:
-
-```yaml
-# derivado automáticamente de IF-003 (press fit → +0.10 mm, § 7)
-- assert: hole_diameter
-  at: IF-003.frame
-  query: {kind: cylindrical_face, axis: parallel, pick: largest_radius}
-  expected_mm: 22.10
-  tol_mm: 0.05
-- assert: hole_depth
-  at: IF-003.frame
-  query: {kind: cylindrical_face, axis: parallel, pick: largest_radius}
-  expected_mm: 7.0
-  tol_mm: 0.20
-```
-
-Esto es lo que convierte al QA de opinión en verificación (§ 7.1), y es la razón por la que vale la pena que las interfaces sean un contrato formal y no prosa.
-
-**El `query` también se deriva del tipo de interfaz**, no lo escribe nadie a mano. Es lo que permite que el QA **busque la geometría donde el contrato dice que debe estar**, en vez de pedirle al constructor que le señale qué medir.
-
-> La diferencia importa. Si el generador etiquetara la cara como *"el asiento de IF-003"* y el QA midiera esa etiqueta, un agujero cortado 40 mm desplazado daría PASS: la cara etiquetada mide Ø22.10, solo que está en otro sitio. El QA habría verificado **lo que el constructor afirma**, no lo que hay. Buscando por contrato, un agujero mal colocado produce "no hay nada aquí" — que es un FAIL con el motivo correcto (ADR-011).
-
-**No encontrar la geometría es un FAIL, no un error.** Una aserción sin medición no puede quedar como "no comprobada": eso sería aprobar por omisión.
+`derive_assertions` y las aserciones por tipo de interfaz no existen. De ADR-011 queda la regla de fondo: el programa del diseñador declara **dónde** va cada cosa, y la forma se mide en lo construido o se toma de la ficha, que el programa no puede cambiar.
 
 ---
 
-## 4. Máquina de estados y ciclo de corrección
+## 4. Los dos flujos y sus paradas
 
-```
-INTAKE ⇄ (preguntas) → [confirmas spec] → SPEC_READY → DECOMPOSED
-      → SYSTEM_DESIGNED → INTERFACES_RESOLVED → [gate 1]
-      → PARTS_IN_PROGRESS ──(todas PASS)──► ASSEMBLED → TESTED
-      → SLICED → [gate 2] → RELEASED
-                 ▲                                │         │
-                 └────── defectos por pieza ◄─────┴─────────┘
-```
+El plan original era una máquina de estados sobre LangGraph (`INTAKE → … → RELEASED`) con dos barreras humanas. Se retiró en F9.13 (limpieza) (ADR-008, enmienda). Hoy no hay grafo: `orchestrator/pieza.py` y `orchestrator/obra.py` miran qué archivos hay en la carpeta y dan el paso que toca.
 
-Dos barreras estructurales, no convenciones:
+**Una pieza** pasa por: concepto por aprobar → concepto aprobado → diseñada, o con fallos.
 
-- **Desde `INTAKE` no se puede entrar en diseño.** El grafo no tiene esa transición. No depende de que un agente se acuerde de preguntar.
-- **El gate 1 va después de resolver las interfaces**, no después de la descomposición: apruebas árbol y geometría juntos, ya coherentes, en lugar de aprobar cotas que la Fase 2 va a cambiar de todas formas.
+**Un backlog** pasa por: plan por aprobar, y después cada nodo en orden de dependencias. Un nodo pieza recorre los estados de una pieza y queda «lista» cuando la persona la da por buena; está «bloqueado» mientras no lo estén los nodos de los que depende. Un nodo conjunto pasa de «por verificar» a «verificado» o «con choques».
 
-Reglas del orquestador:
+Las reglas del plan original, con su número —el código y las ADR las citan así— y lo que vale hoy:
 
-1. Cada pieza sigue `TODO → DESIGNING → DFM → QA → PASS | FAIL`, más un estado transversal `BLOCKED_ON_HUMAN`.
-2. Un `FAIL` de QA devuelve la pieza al Part Designer con la lista de defectos. Máximo **3 iteraciones** por pieza.
-3. Si Assembly o Test encuentran un problema, el orquestador identifica las piezas o interfaces responsables y **solo reabre esas**, no todo el diseño.
-4. Si una interfaz cambia, se reabren todas las piezas que la referencian.
-5. Si se agotan los reintentos: primero escala a DeepSeek (§ 6); si aun así falla, se detiene y pregunta al humano.
-6. Las piezas sin dependencias entre sí se diseñan en paralelo. El límite es **CPU**, no VRAM: cada pieza se construye en su propio proceso `freecadcmd` (§ 9.3).
-7. **Una consulta al humano no detiene el proyecto.** La pieza que pregunta pasa a `BLOCKED_ON_HUMAN` y el planificador sigue con las demás. El estado se persiste: un proyecto puede dormir días esperando respuesta y sobrevivir a un reinicio. Los **gates sí bloquean** — son barreras de proyecto por definición.
-8. **Una petición de cambio del humano es un defecto con autor humano.** Entra por la misma maquinaria de reapertura de las reglas 3 y 4, con los mismos límites de iteración. No hay un camino paralelo para cambios pedidos por Telegram.
-9. **Varios proyectos avanzan a la vez**, limitados por `MAX_CONCURRENT_PROJECTS`. Es un límite distinto de `MAX_PARALLEL_PARTS`: uno gobierna cuántos proyectos progresan, el otro cuántas piezas dentro de cada uno.
+1. **Estados de una pieza.** Los de arriba. La lista `TODO … PASS | FAIL` de `orchestrator/schemas/part_task.py` es del plan original y ningún flujo la recorre.
+2. **Reintentos.** Hasta cinco construcciones por pieza; cada fallo vuelve al diseñador con su motivo. Cada llamada a un modelo admite tres intentos.
+3. **Un choque va a la pieza que lo causa** (F7.7 (culpable)): la que incumple el radio libre que el plan le reservó o, en un backlog sin plan, la que se diseñó después. El sistema escribe la corrección con cifras y la persona la manda; no se corrige solo.
+4. **Rehacer una pieza rehace lo que se diseñó contra ella.** Lo anterior se archiva, no se borra. Revalidar en vez de rehacer es F9.9 (revalidar), pendiente.
+5. **Si se agotan los intentos no se escala a otro modelo.** Se entrega la construcción que menos falla (F6.8 (mejor)), `blocked.md` dice qué no cumple, y decide la persona.
+6. **No hay diseño en paralelo.** Las piezas se diseñan de una en una. Cada construcción es un proceso `freecadcmd` propio.
+7. **Esperar a la persona no cuesta nada.** El proceso termina en cada parada, así que un proyecto puede esperar días y sobrevive a un reinicio. Como va una pieza cada vez, una parada sí detiene el backlog entero.
+8. **Un cambio pedido por la persona entra por el mismo camino.** En una pieza suelta crea una versión nueva del proyecto; en un backlog corrige el programa de la pieza ya construida, o la rehace desde cero si se pide.
+9. **Un trabajo a la vez** (`orchestrator/jobs.py`). No hay cola: una segunda petición se rechaza diciendo cuál está en marcha.
 
-### 4.1 Fase 0 — Admisión
+### 4.1 Antes de dibujar: investigación, requisitos y concepto
 
-El sistema recibe el trabajo por `submit()` (§ 8.5): texto libre, fotos, medidas que hayas tomado, y opcionalmente un STL o STEP de referencia. Entonces el Requirements Agent **conversa** contigo hasta tener una spec completa.
+No hay conversación de admisión dentro de Intelliprint. Lo que impide modelar sin que la persona haya visto qué se va a hacer es el visto bueno al concepto (ADR-015, F3.20 (concepto)):
 
-```
-    Tú: "quiero una mejora para el carruaje de mi hijo, que sujete
-         el vaso. Mido 68 mm de diámetro exterior en el tubo."
-         [foto del tubo] [foto del vaso]
-Sistema: "¿El vaso es siempre ese o quieres que valga para varios
-          diámetros? ¿PLA o PETG? ¿Va a estar al sol?"
-    Tú: "PETG, sí al sol, y que valga de 60 a 75"
-Sistema: [resumen de la spec] "¿Arranco?"
-    Tú: "dale"
-```
+1. El código mira qué componentes con ficha nombra la petición (§ 10); esos no se buscan. Lo demás que venga sin medidas lo busca el investigador en internet, y cada dato trae su URL y una cita literal comprobada.
+2. El agente de requisitos redacta `spec.yaml`. Cada requisito lleva su origen: `usuario` (cita literal), `catalogo` (buscado) o `estimado`.
+3. El ingeniero propone el concepto y el código calcula si aguanta. Queda en `concepto.md` y el flujo para.
+4. La persona aprueba desde la web o por Crafty. Si en vez de aprobar contesta a las preguntas, el ingeniero propone otro concepto.
 
-Propiedades que hacen que esto funcione:
-
-- **No se diseña nada.** No se abre FreeCAD ni se generan piezas. La admisión es barata, así que puedes tener **varias conversaciones abiertas a la vez** sin competir por la GPU.
-- **Es asíncrona.** Respondes cuando puedas; el proyecto espera en `INTAKE` indefinidamente, igual que `BLOCKED_ON_HUMAN` (regla 7).
-- **Las fotos son entrada real**, no adjuntos decorativos: el modelo de diseño tiene visión (§ 6.1), así que un croquis a mano con cotas o la foto del hueco donde tiene que encajar la pieza son información utilizable.
-- **Termina con tu confirmación explícita.** Hasta que no dices que sí, el proyecto no consume GPU ni presupuesto de DeepSeek.
+A Intelliprint solo le llega el texto de la petición: no recibe fotos ni archivos. Crafty sí ve las fotos y pasa a texto lo que haga falta.
 
 ### 4.2 Clases de producto
 
-No todo lo que vas a diseñar es un robot. Un soporte estático no tiene cinemática, y **un agente al que le pides cinemática de un soporte se la inventa** — y esa invención contamina las interfaces. El Requirements Agent clasifica el producto durante la admisión y el grafo **salta las fases que no aplican**:
-
-| Clase | Ejemplos | Fase 2 · Ingeniería de sistema |
-|---|---|---|
-| `static_part` | Soporte de vaso para un carruaje, caja, adaptador, soporte NEMA17 | **Se salta entera** |
-| `mechanism` | Garra con servo, bisagra accionada, biela-manivela | Cinemática determinista (`sim.linkages`, sin agente) + Actuation (ADR-010, enmienda) |
-| `robot` | Brazo de 3 o 6 GDL | Kinematics + Actuation + Electronics |
-
-Esto no es solo ahorro de tiempo: es **quitar la oportunidad de alucinar**. Un agente que no corre no puede inventar un dato.
-
-Efecto secundario deseable: las piezas sencillas —que van a ser la mayoría del uso real— no pagan el peaje de un pipeline diseñado para un brazo de 6 ejes. Para `static_part` el camino es admisión → descomposición → interfaces → gate → diseño → QA → laminado.
+`Spec` conserva el campo `product_class` (`static_part`, `mechanism`, `robot`) y el esquema sigue exigiendo los datos de cada clase, pero ningún flujo decide nada con él: las fases condicionales de ADR-010 se fueron con el grafo. Lo que separa los casos es la orden que se lanza: `pieza` para una pieza, `obra` para varias.
 
 ---
 
-## 5. Blackboard y artefactos
+## 5. Lo que queda en disco
 
-Estado compartido en disco + SQLite, versionado con git para poder volver atrás.
+### 5.1 El registro de proyectos
 
-### 5.1 Registro de proyectos
-
-El sistema lleva **muchos proyectos a la vez** y de tipos muy distintos. Un directorio por proyecto no basta: hace falta un índice para poder preguntar "¿qué tengo en marcha?" y "¿cuál está esperando algo de mí?".
+No hay `registry.sqlite` ni `state.sqlite`. `orchestrator/registry.py` clasifica cada carpeta por lo que tiene dentro —aprobado, con reparos, por aprobar, en marcha, fallido, incompleto, antiguo— y escribe un índice legible, `INDEX.md` (ADR-009, enmienda). Un proyecto en marcha se reconoce por su `job.json` y por un archivo `latido` que el proceso toca mientras trabaja.
 
 ```
 workspace/
-├── registry.sqlite              # índice global de todos los proyectos
-└── projects/
-    ├── 2026-09-18-garra-lata/
-    ├── 2026-09-21-soporte-vaso-carruaje/
-    └── 2026-10-02-brazo-3gdl/
+├── projects/     los proyectos; el nombre es fecha, hora y un resumen de la petición
+├── archivo/      lo que `proyectos --archivar` movió: archivar no es borrar
+├── banco/        una carpeta por corrida del banco, con su informe
+└── impresoras/   lo que el usuario midió en su impresora (§ 7)
 ```
 
-El identificador es **fecha + slug**: legible de un vistazo, ordena cronológicamente solo y no colisiona.
+En la web, las ejecuciones de una misma petición se agrupan como versiones de un proyecto (`orchestrator/web/versiones.py`).
 
-`registry.sqlite` guarda por proyecto: `id`, nombre, **clase** (§ 4.2), estado, fecha de creación, última actividad, coste acumulado de DeepSeek y **qué está esperando de ti** (nada / respuesta de admisión / gate 1 / gate 2 / consulta de pieza).
+### 5.2 Archivos de un proyecto
 
-Es lo que permite, desde Telegram: *"¿qué tengo pendiente?"* → lista con estados, o *"¿cómo va el carruaje?"* → resumen y último render.
-
-### 5.1.1 Dónde vive el estado del grafo
-
-El estado de ejecución (en qué nodo va cada proyecto, qué respondiste, qué se construyó) vive en **`workspace/state.sqlite`, uno para todos**, con un hilo de LangGraph por proyecto. No dentro de la carpeta de cada proyecto.
-
-La razón es de orden: la **admisión ocurre antes de que el proyecto exista en disco** —sin tu confirmación no se crea nada (ADR-008)—, pero su estado sí hay que guardarlo, porque una admisión puede esperar días a tu respuesta. Un `state.sqlite` por proyecto no tendría dónde vivir durante la admisión.
-
-Es lo que permite `intelliprint resume <proyecto>`: si el proceso muere a mitad, se continúa desde el último nodo completado sin repetir lo anterior.
-
-### 5.2 Artefactos de un proyecto
+Una pieza suelta:
 
 ```
-workspace/projects/<id>/
-├── intake/                  # conversación de admisión: mensajes, fotos y medidas que enviaste
-├── spec.yaml                # salida de Requirements (incluye `class`)
-├── tree.yaml                # árbol de producto (Decomposition)
-├── interfaces.yaml          # contratos entre piezas (symbolic → resolved)
-├── assertions.yaml          # aserciones de QA derivadas de las interfaces (§ 3.3)
-├── system/                  # kinematics.json, actuation.json, electronics.json
+<proyecto>/
+├── request.md, job.json, run.log    la petición, quién la lanzó y lo que fue imprimiendo
+├── investigacion.json               lo buscado en internet, con sus citas
+├── spec.yaml, pieza.json            los requisitos y el título
+├── concepto.json, concepto.md       lo que se aprueba; `concepto_aprobado` es la marca
+├── juez.json                        el aviso de JEV, si lo hubo
 ├── parts/<pieza>/
-│   ├── task.yaml            # tarea, dependencias, interfaces, estado
-│   ├── recipe.json          # SALIDA DEL LLM: llamadas a generadores + parámetros
-│   ├── params.json          # parámetros de diseño
-│   ├── build.py             # GENERADO desde recipe.json por el orquestador
-│   ├── <pieza>.FCStd
-│   ├── <pieza>.step / .stl
-│   ├── views/               # renders para el QA con visión (§ 7.1)
-│   └── qa_report.json
-├── assembly/                # assembly.FCStd, interference.json, bom.csv
-├── tests/                   # sim_report.json, reach.png, torque.json
-├── fabrication/             # *.3mf, *.gcode, slicing_report.json
-├── human/                   # preguntas, respuestas y peticiones de cambio (§ 8.5)
-├── log/                     # trazas de cada llamada a LLM y herramienta
-└── .git/                   # un commit por etapa, firmado por Crafty (F1.15)
+│   ├── programa.py, recipe.json     lo que escribió el diseñador
+│   ├── build.py                     el guion que ejecuta FreeCAD; lo compone el código
+│   ├── <pieza>.FCStd / .step / .stl
+│   └── rasgos.json, envolvente.json agujeros y componentes con nombre: de aquí salen medidas y compras
+├── intentos/                        cada intento rechazado, con su motivo
+├── rounds.json, pieza_report.json   el resultado
+├── blocked.md                       si no salió, qué falla
+└── design_cost.md, design_cost.json el gasto desglosado
 ```
 
-Dos artefactos merecen atención:
+Un backlog añade `obra.json` y `obra.md` (el plan), la marca `obra_aprobada`, `fichas/` (una ficha por pieza dada por buena) y `nodos/<id>/`. El nodo de una pieza es una carpeta de pieza completa más `uniones.json` (lo que el plan decidió de ella) y `lista.json`. El nodo de un conjunto guarda `verificacion.json`, `assembly.FCStd`, `ensamble.json`, `animation.gif`, `estudio.json` y `estudio.md`.
 
-- **`recipe.json` es la salida real del Part Designer.** El LLM produce esto, no Python. Es un documento validable contra esquema, así que un error del modelo se detecta *antes* de ejecutar nada.
-- **`build.py` lo genera el orquestador** a partir de la receta. Sigue siendo el corazón de la reproducibilidad: la pieza se regenera siempre desde parámetros, así que un cambio de tolerancia o de interfaz no requiere que el LLM rediseñe desde cero.
+No hay un repositorio git por proyecto: el commit por etapa lo hacía el grafo y se fue con él (F1.15).
 
 ---
 
-## 6. Modelos y política de escalamiento
+## 6. Modelos
 
-### 6.1 Modelos locales (Ollama)
+### 6.1 Perfiles y roles
 
-**Hardware de referencia:** RTX 5090 (32 GB VRAM) + 92 GB de RAM de sistema.
+Los agentes piden un **rol**, y `config/models.yaml` dice qué modelo lo atiende según el perfil activo (`INTELLIPRINT_PROFILE`):
 
-| Rol | Modelo | VRAM | Nota |
-|-----|--------|------|------|
-| Diseño (todos los roles salvo QA) | `qwen3.8` (27B) | 16.5 GB | `tools`, `thinking` y `vision`. Sustituye a `qwen3:8b` |
-| QA (revisor distinto) | `gemma3:12b` | ~8 GB | **Residente en paralelo**. También tiene visión |
-| Embeddings (librería / docs FreeCAD) | `nomic-embed-text` | ~0.3 GB | RAG sobre la API de FreeCAD (solo para la escotilla, F2.19) y la hardware library |
-| | **Total** | **~25 GB** | Deja margen para contexto largo en 32 GB |
+| Rol | Perfil `dev` (el activo) | Perfil `prod` (sin cablear) |
+|---|---|---|
+| `design` | `deepseek-chat` | `qwen3.8` en Ollama |
+| `reason` | `deepseek-reasoner` | `qwen3.8` con pensamiento |
+| `qa` | `deepseek-chat` | `gemma3:12b` |
+| `embed` | ninguno | `nomic-embed-text` |
 
-Ya **no hace falta un modelo especializado en código**: con recetas en vez de Python (§ 6.3), lo que se le pide al modelo es rellenar un esquema, no programar. Eso elimina `qwen2.5-coder:14b` del stack y simplifica `models.yaml`.
+Hoy solo se piden `design` y `reason`; `qa` y `embed` están definidos y nadie los usa. `deepseek-chat` y `deepseek-reasoner` son dos nombres del mismo modelo de DeepSeek, sin y con pensamiento; el detalle y los precios están en `config/models.yaml`.
 
-Dos modelos residentes requiere `OLLAMA_MAX_LOADED_MODELS=2`.
+La máquina de destino tiene una RTX 5090 de 32 GB. Los dos modelos locales de `prod` caben a la vez (unos 25 GB) si Ollama arranca con `OLLAMA_MAX_LOADED_MODELS=2` (ADR-007); con 1, cada cambio de modelo paga una recarga.
 
-**Requisito de plataforma:** la 5090 es Blackwell (`sm_120`) y necesita **CUDA 12.8+** y una versión reciente de Ollama. Las versiones antiguas no fallan de forma visible: **caen a CPU en silencio**. Hay que verificarlo explícitamente (tarea F0.3), porque si no lo haces vas a creer que el modelo es lento cuando en realidad no está usando la GPU.
+### 6.1.1 El perfil `dev` es deuda declarada
 
-**Perfiles.** `config/models.yaml` define dos, y se elige con `INTELLIPRINT_PROFILE`. Cambiar de perfil no requiere tocar código.
+Usar DeepSeek como proveedor principal incumple «local primero» a propósito (ADR-007b). Para saldarlo falta lo que pide F0.11 (migrar): escribir el cliente de Ollama —hoy `orchestrator/cli.py` termina con un error claro si el perfil no es de DeepSeek— y volver a pasar la suite y el banco con modelos locales. Lo que funciona con DeepSeek no está probado en local: DeepSeek sigue esquemas mejor que `qwen3.8`, así que sus resultados sirven para descartar problemas, no para dar algo por bueno. Mientras tanto, todas las peticiones, especificaciones y programas salen hacia la API de DeepSeek.
 
-| Perfil | Dónde | Diseño | QA | Embeddings |
-|---|---|---|---|---|
-| `prod` | PC con RTX 5090 | `local/qwen3.8` | `local/gemma3:12b` | `local/nomic-embed-text` |
-| `dev` | Portátil sin GPU | `deepseek/deepseek-chat` | `deepseek/deepseek-chat` | — |
+### 6.2 Gasto y tope
 
-### 6.1.1 El perfil `dev` es temporal y hay que migrarlo
+El plan preveía DeepSeek solo como escalamiento, para cuando el modelo local fallara. Con el perfil `dev` no hay a quién escalar. El router conserva la previsión para `prod`, donde la clave de DeepSeek sería opcional.
 
-> ⚠️ **Deuda técnica declarada.** El perfil `dev` usa **DeepSeek en la nube** para poder desarrollar sin GPU antes de tener la máquina de destino. **No es el diseño objetivo**: la primera restricción del sistema es *local primero* (§ 1), y este perfil la incumple a propósito y de forma temporal.
+Lo que sí funciona es el control de gasto (`orchestrator/llm/cost.py`). Cada proyecto apunta sus llamadas en `design_cost.md`, y antes de cada paso se comprueba que no ha pasado de `escalation.max_usd_per_project`, que el usuario fijó en 5 USD (F5.12 (tope)). Como se mira al empezar el paso, un proyecto puede pasarse en lo que cueste ese paso.
 
-**Qué hay que hacer para migrar:**
+### 6.3 El programa del diseñador y su lista blanca
 
-1. Instalar Ollama con CUDA 12.8+ en el PC y descargar `qwen3.8`, `gemma3:12b` y `nomic-embed-text`.
-2. `OLLAMA_MAX_LOADED_MODELS=2`.
-3. `INTELLIPRINT_PROFILE=prod`.
-4. Verificar que **no cae a CPU en silencio** (F0.3).
-5. Volver a pasar todo lo desarrollado con `dev`: es donde van a aparecer los fallos que la nube tapó.
+La «escotilla de Python libre» que describía esta sección —macros libres vigiladas por `validate_macro`— no está en el código, y las recetas de generadores dejaron de ser el camino normal. Desde la enmienda de ADR-002 (F5.18 (kit)), el diseñador escribe una función `construir(kit)` en Python usando solo las operaciones del kit (`mech_toolkit/kit/`): cajas, cilindros, perfiles extruidos y de revolución, uniones y restas, redondeos y chaflanes, taladros, tornillos y tuercas con la tabla del perfil, y la colocación de componentes con ficha.
 
-**Qué no se puede desarrollar con `dev`, y hay que dejar para después de migrar:**
+`mech_toolkit/kit/sandbox.py` valida el programa contra una lista blanca antes de ejecutarlo: sin `import`, sin `open`, sin clases, sin `try`, y sin atributos que no sean de la API del kit. Lo que no pasa vuelve al modelo con la línea y el motivo.
 
-| Limitación | Consecuencia |
-|---|---|
-| DeepSeek **no tiene visión** | La capa 3 del QA (§ 7.1) no se puede probar. Las capas 1 y 2 son deterministas y sí |
-| Sin embeddings | El RAG sobre la API de FreeCAD (F2.19) necesita Ollama aunque el resto vaya por la nube. Solo lo usa la escotilla |
-| Diseñador y revisor son el mismo modelo | Se pierde la diversidad. No rompe la corrección —el veredicto es aritmético— pero desaparece la segunda red |
-| Latencia de red, no de GPU | Ninguna medida de rendimiento es trasladable |
-
-**Y una advertencia sobre cómo leer lo que funcione aquí:** `deepseek-chat` es bastante **mejor** que `qwen3.8` siguiendo esquemas. Que una receta valide con DeepSeek no significa que vaya a validar en local; que **falle** con DeepSeek sí significa que en local fallará más. Es un suelo optimista: sirve para descartar problemas, nunca para dar algo por bueno.
-
-**Sobre la salida de datos:** con `dev`, todas las specs, interfaces y recetas pasan por la API de DeepSeek. El filtro de datos salientes (§ 6.2) sigue aplicando —solo texto, sin rutas del host— pero el volumen de lo que sale es mucho mayor que en `prod`, donde DeepSeek es solo escalamiento.
-
-### 6.2 Escalamiento a DeepSeek
-
-DeepSeek se usa **solo** cuando se cumple alguna condición:
-
-- El mismo paso falló validación de esquema o QA **2 veces** con el modelo local.
-- La descomposición supera un umbral de complejidad (p. ej. > 15 piezas o > 25 interfaces).
-- El contexto necesario excede lo que el modelo local maneja bien (~16k tokens efectivos).
-- El humano lo pide explícitamente para un paso.
-
-Salvaguardas:
-
-- Presupuesto máximo de tokens/costo por proyecto (`DEEPSEEK_MAX_USD_PER_PROJECT`), registrado en `state.sqlite`.
-- Solo se envía texto (spec, interfaces, errores, código de macros). **Nunca** archivos del PC ni rutas personales.
-- Cada escalamiento queda registrado en `log/` con el motivo.
-
-La única variable requerida es `DEEPSEEK_API_KEY`, que ya existe en Windows; Docker Compose la pasa sin escribirla en ningún archivo (ver sección 8). `DEEPSEEK_BASE_URL` y `DEEPSEEK_MODEL` son **opcionales**: si no están definidas se usan los valores por defecto `https://api.deepseek.com` y `deepseek-chat`. Solo hace falta crearlas si quieres cambiar el endpoint o el modelo (p. ej. `deepseek-reasoner`). Si `DEEPSEEK_API_KEY` no está definida, el escalamiento se desactiva y el sistema trabaja solo con modelos locales.
-
-```yaml
-# config/models.yaml
-providers:
-  local:
-    base_url: http://ollama:11434
-  deepseek:
-    api_key_env: DEEPSEEK_API_KEY        # requerida (ya definida en Windows)
-    base_url_env: DEEPSEEK_BASE_URL      # opcional
-    base_url_default: https://api.deepseek.com
-    model_env: DEEPSEEK_MODEL            # opcional
-    model_default: deepseek-chat         # o deepseek-reasoner
-
-profiles:
-  prod:                                  # PC con RTX 5090
-    design: local/qwen3.8
-    qa:     local/gemma3:12b
-  dev:                                   # portátil sin GPU
-    design: local/qwen3:4b
-    qa:     local/qwen3:4b
-
-active_profile_env: INTELLIPRINT_PROFILE  # prod | dev
-
-agents:
-  requirements:   {model: $design}
-  decomposition:  {model: $design, escalate_to: deepseek, escalate_after_failures: 1}
-  part_designer:  {model: $design, escalate_to: deepseek, escalate_after_failures: 2}
-  qa:             {model: $qa}
-  default:        {model: $design, escalate_to: deepseek, escalate_after_failures: 2}
-
-escalation:
-  max_usd_per_project: 2.0
-  max_context_tokens_local: 16000
-```
-
-### 6.3 La escotilla de Python libre
-
-El Part Designer **no escribe Python** en el camino normal: emite una receta de generadores (§ 2, § 5). Pero ningún catálogo de generadores cubre toda la geometría posible, así que existe una salida de emergencia.
-
-Cuando ningún generador cubre lo que la pieza necesita, se marca como **atípica** y solo entonces se permite generar una macro Python libre. Condiciones obligatorias:
-
-- Se ejecuta con **DeepSeek**, no con el modelo local.
-- `validate_macro` está activo (§ 8.3).
-- Queda registrado en `log/` con el motivo.
-- **Una petición de cambio del humano nunca abre la escotilla por sí sola** (§ 8.5). Requiere gate.
-
-El porcentaje de piezas que usan la escotilla es una **métrica de producto, no un fallo**: cada pieza atípica es una petición de funcionalidad para `mech-toolkit`. Si el 30 % de tus piezas necesitan Python libre, te faltan generadores; escribirlos hace el sistema más determinista con el uso, en vez de depender de que los modelos mejoren.
+Las recetas (`orchestrator/schemas/recipe.py`, `orchestrator/recipes/compose.py`, `mech_toolkit/generators.py`) siguen en el código para una cosa: construir las piezas de calibración.
 
 ---
 
-## 7. Reglas FDM (Tolerances / DFM y QA)
+## 7. Perfil de impresora y reglas de impresión
 
-Valores por defecto para boquilla de 0.4 mm; son configurables por impresora/material en `config/printers/*.yaml` y se deben **calibrar con una pieza de prueba de holguras** en tu impresora.
+Las holguras, los diámetros de agujero por métrica, las paredes mínimas, el voladizo y el puente máximos, la cama y la resistencia estimada del material están en `config/printers/<impresora>.yaml`. `config/impresion.yaml` elige el perfil activo —hoy la AnkerMake M5 con PLA+— y el perfil de laminado de PrusaSlicer que le corresponde. Esos valores llegan al ingeniero y al diseñador dentro de sus instrucciones, y el kit los aplica al taladrar: el diseñador escribe `tornillo("M3")`, no un diámetro.
 
-| Regla | Valor por defecto |
-|-------|-------------------|
-| Encaje a presión (press-fit) | +0.10 mm en diámetro |
-| Encaje deslizante (slide-fit) | +0.20 mm |
-| Encaje con holgura / movimiento (clearance) | +0.30 a +0.40 mm |
-| Agujero pasante M3 | 3.2–3.4 mm |
-| Agujero para rosca en plástico M3 (auto-roscante) | 2.8 mm |
-| Inserto térmico M3 | según fabricante (típico 4.0–4.2 mm) |
-| Tuerca M3 hexagonal (cavidad) | 5.7 mm entre caras + 0.2 |
-| Pared mínima | 2 × ancho de línea (0.8 mm), recomendado ≥ 1.2 mm |
-| Pared estructural | ≥ 4 perímetros (≈ 1.8 mm) |
-| Voladizo sin soporte | ≤ 45° |
-| Puente sin soporte | ≤ 10 mm |
-| Agujeros horizontales | Forma de gota o techo plano para evitar soportes |
-| Orientación | Las cargas principales en el plano XY, nunca tirando entre capas |
-| Tamaño máximo | Volumen de la cama de `config/printers/<impresora>.yaml`; si no cabe, dividir con uniones atornilladas o cola de milano |
+**Los valores de `config/printers/` son valores por defecto, sin calibrar.** `M3_through_mm: 3.3` es deuda declarada y no se cambia sin medir. El usuario calibra imprimiendo las piezas de `intelliprint calibrar`, F2.18 (calibración), y apunta lo medido en la página «Impresora» de la web, F2.21 (impresora). Eso se guarda en `workspace/impresoras/` y manda sobre `config/printers/`, que no se toca.
 
-### 7.1 Arquitectura del QA: tres capas y una regla dura
+El diseño **no lamina** (ADR-014, enmienda): los gramos y el tiempo salen cuando la persona abre la pieza en PrusaSlicer desde la web.
 
-El riesgo clásico de un revisor LLM es que apruebe todo. La mitigación **no** es elegir bien el modelo — es quitarle la capacidad de aprobar.
+### 7.1 Quién decide que una pieza vale
 
-| Capa | Qué comprueba | Quién decide |
-|------|---------------|--------------|
-| 1. **Aserciones de contrato** | Cada interfaz resuelta genera sus cotas esperadas (§ 3.3): diámetros, profundidades, patrones, posiciones | Código (comparación numérica) |
-| 2. **Chequeos DFM** | `check_wall_thickness`, `check_overhangs`, `check_fits_bed` sobre el STL | Código (trimesh) |
-| 3. **Pase libre con visión** | El modelo *mira* los renders de `views/` y busca lo que las cifras no capturan | LLM |
+El QA de tres capas —aserciones derivadas de interfaces, chequeos sobre el STL y un revisor con visión— se retiró en F9.13 (limpieza): solo se había escrito una parte y ningún flujo vivo la llamaba (ADR-003 y ADR-011, enmiendas). El principio se mantiene por otros medios: **ningún modelo aprueba nada**.
 
-**La regla dura: el LLM solo puede añadir defectos, nunca quitarlos.**
+- Una pieza queda «resuelta» solo si las medidas de § 3.3 no encuentran defectos. Son comparaciones numéricas.
+- Un conjunto queda «verificado» si al moverlo por todo el recorrido de sus articulaciones, en pasos de 10°, no hay choques (`orchestrator/conjunto.py`). La holgura que se exige al moverse es la mitad de la holgura deslizante del perfil.
+- La nota global la da el **banco** (`orchestrator/banco.py`, F6.1 (evaluación)): doce encargos con lo esperado escrito a mano desde la petición y medido en la pieza construida. Lo que el banco aún no sabe medir cuenta como no aprobado.
+- «Lista» lo decide la persona. «Impresa y probada» es otra marca, que solo puede poner ella.
 
-El veredicto se calcula así, y el modelo no participa en el cálculo:
-
-```
-PASS  ⟺  capa1.todas_ok  ∧  capa2.todas_ok  ∧  capa3.defectos == []
-```
-
-El LLM escribe en una **lista de defectos**, no en el veredicto. No existe ninguna ruta por la que pueda convertir un `FAIL` determinista en `PASS`. El peor comportamiento posible de un modelo complaciente es ser *inútil* (no aportar defectos), que es un fallo mucho más barato que aprobar una pieza rota.
-
-**Qué aporta la visión, y qué no.** Detecta catástrofes que las cotas no ven: un `pocket` aplicado en la cara equivocada (todas las medidas correctas, en el sitio opuesto), una pieza que salió como dos sólidos separados, una booleana que se comió media pieza. Son los modos de fallo típicos de geometría generada por un LLM.
-
-Lo que **no** hace: medir. Un modelo de visión no distingue una pared de 0.9 mm de una de 1.2 mm en un render, y si le preguntas una cota se la inventa con total confianza. Por eso vive en la capa 3 y nunca en las capas 1 y 2. Sirve para gritar "esto está mal", jamás para decir "esto está bien".
+Límites: nadie mira la pieza con visión, y pasar todas las medidas no significa que la pieza sea lo que la persona imaginaba. El barrido no ve un choque que ocurra entre dos puntos de la rejilla de 10°.
 
 ---
 
-## 8. Despliegue en Docker
-
-> ⚠️ **Esta sección describe el diseño ORIGINAL; el montaje real es otro
-> (ADR-014, 2026-09-20).** Lo que cambió, y por qué:
->
-> - **FreeCAD va DENTRO del contenedor**, no en el host. No hay una sola llamada
->   a `FreeCADGui` en producción: `build.py`, `assembly.py` y `animation.py`
->   lanzan `freecadcmd`, que es headless. Meterlo dentro es lo que hace el
->   sistema reproducible. La «instancia GUI» de § 8.3 y § 9.3 sigue existiendo,
->   pero es el FreeCAD del escritorio de la persona, no algo que el sistema
->   lance.
-> - **PrusaSlicer se queda fuera, en el PC**, porque es donde la persona mira
->   qué va a imprimir. El contenedor se lo pide por `scripts/host_bridge.py`
->   (puerto 8102, el que § 8.2 reservaba), que arranca
->   `scripts/start-host-mcps.ps1`.
-> - **No hay `mcp-proxy` ni MCP de FreeCAD.** Un MCP entre el orquestador y
->   `freecadcmd`, que están en el mismo contenedor, no tendría consumidor.
-> - **No hay `qdrant`**: el RAG (F2.19) no existe todavía, y un servicio que no
->   usa nadie es ruido.
-> - **`mech-toolkit` y `sim` no son servicios aparte** (F2.1 sin hacer): se
->   instalan junto al orquestador, como dice `pyproject.toml`.
-> - Se suman tres servicios que esta sección no preveía: la **interfaz web**
->   (F5.5 (web)), **`intelliprint-mcp`** sirviendo por HTTP a Crafty, y
->   **`crafty-config`**, que genera la configuración de Crafty desde el `.env`.
->
-> El `docker-compose.yml` de verdad está en la raíz del repositorio. Lo de abajo
-> se conserva porque explica el reparto que se pensó y contra el que se decidió.
-
+## 8. Dónde corre
 
 ### 8.1 Topología
 
 ```
-┌─────────────────────── PC Windows (host) ───────────────────────┐
-│  FreeCAD GUI + addon RPC     PrusaSlicer      freecadcmd ×N      │
-│  (inspección, ensamble)                       (construcción)     │
-│  MCP freecad  ─┐            MCP prusaslicer ─┐   (ya probados)   │
-│                └─ mcp-proxy :8101           └─ mcp-proxy :8102   │
-│                      ▲                              ▲            │
-│  C:\...\Intelliprint\workspace  ◄── bind mount ──┐  │            │
-└──────────────────────┼──────────────────────────┼──┼────────────┘
-                       │ host.docker.internal     │  │
-┌──────────────────────┼──── Docker Desktop (WSL2) ┼──┼────────────┐
-│  orchestrator (LangGraph + API + UI + HumanPort) ─┴──┘            │
-│  ollama (RTX 5090, 32 GB: qwen3.8 + gemma3:12b)                  │
-│  openclaw (adaptador Telegram del HumanPort)  ──►  Telegram      │
-│  mech-toolkit MCP   (generadores, aserciones, tolerancias, DFM)  │
-│  sim MCP            (ikpy, PyBullet, trimesh)                    │
-│  qdrant (RAG de docs FreeCAD + hardware)  ·  postgres/sqlite     │
+┌───────────────────── PC con Windows (host) ──────────────────────┐
+│  PrusaSlicer  ◄──  scripts/host_bridge.py  (MCP, puerto 8102)     │
+│  FreeCAD de escritorio: solo para abrir los .FCStd que salen      │
+│  workspace/   config/   library/      (carpetas montadas)         │
+└──────────────────────────────▲───────────────────────────────────┘
+                               │ host.docker.internal
+┌──────────────────────────────┴───── Docker ──────────────────────┐
+│  orchestrator      ejecuta una orden y termina                    │
+│  suite             pytest, con el código montado en vivo          │
+│  web               FastAPI, http://localhost:8080                 │
+│  intelliprint-mcp  las herramientas para Crafty, en la red interna│
+│  crafty-config     genera la configuración de Crafty y termina    │
+│  crafty            OpenClaw  ──►  Telegram                        │
+│  (ollama)          opcional, perfil `ollama`; nadie lo usa aún    │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-### 8.2 Cómo conectar los MCP que ya tienes
+Todos menos `crafty` y `ollama` usan la misma imagen (`docker/orchestrator.Dockerfile`): Python y FreeCAD 1.1.3, la misma versión que el escritorio. No hay Qdrant, ni un servicio aparte para `mech-toolkit`, ni simulación física.
 
-FreeCAD y PrusaSlicer se quedan en el PC porque ya funcionan ahí. Los MCP que corren por **stdio** no se pueden invocar desde un contenedor, así que se exponen por HTTP con un puente en el host:
+### 8.2 El puente al PrusaSlicer del host
+
+El `mcp-proxy` para FreeCAD y PrusaSlicer que describía esta sección nunca se construyó (ADR-014). FreeCAD va dentro del contenedor y se lanza como subproceso. PrusaSlicer se queda en el PC porque es donde la persona mira qué va a imprimir, y el contenedor se lo pide a `scripts/host_bridge.py`, que arranca `scripts/start-host-mcps.ps1`. El puente ofrece dos herramientas: `laminar` y `abrir_en_prusaslicer`.
+
+El mismo archivo tiene un nombre dentro del contenedor y otro en el host; `orchestrator/hostpaths.py` traduce las rutas con `HOST_WORKSPACE`. Sin el puente arrancado no hay laminado ni botón de PrusaSlicer.
+
+### 8.3 Qué puede tocar el sistema en el PC
+
+- El contenedor monta `workspace/` en lectura y escritura, y `config/` y `library/` en solo lectura. No se monta el disco entero ni el socket de Docker.
+- El puente del host solo acepta archivos de dentro de `workspace/`, y el perfil de laminado se le pide por nombre y lo resuelve él en `config/slicing/`. Lo comprueba aunque el contenedor ya lo haya comprobado.
+- El único código escrito por un modelo que se ejecuta es `construir(kit)`, y solo si pasa la lista blanca de § 6.3, que se valida al recibir el programa y otra vez dentro de FreeCAD.
+
+`validate_macro`, que esta sección describía como red de seguridad de la escotilla (ADR-005), no está en el código. Límite conocido: FreeCAD no corre aislado en un contenedor desechable y sin red; lo que separa el programa del modelo de `workspace/` es la lista blanca, no un aislamiento del proceso.
+
+### 8.4 `docker-compose.yml`
+
+El archivo real está en la raíz del repositorio y lleva comentado el porqué de cada servicio. El ejemplo que había aquí era del diseño original.
 
 ```bash
-# En el PC (fuera de Docker); ajusta el comando al que ya usas para lanzar cada MCP
-mcp-proxy --port 8101 --host 0.0.0.0 -- <comando del MCP de FreeCAD>
-mcp-proxy --port 8102 --host 0.0.0.0 -- <comando del MCP de PrusaSlicer>
+docker compose run --rm suite                                    # la suite rápida
+docker compose run --rm orchestrator pieza peticion.md --archivo
+docker compose run --rm orchestrator obra peticion.md --archivo
+docker compose up -d web                                         # http://localhost:8080
+docker compose up -d crafty                                      # Telegram
 ```
 
-Alternativa: si tu MCP de FreeCAD habla con FreeCAD por RPC (p. ej. XML-RPC en el puerto 9875), puedes correr el propio MCP dentro de un contenedor y apuntarlo a `host.docker.internal:9875`. En ambos casos el orquestador ve URLs HTTP.
+Tres cosas que conviene saber antes de tocarlo: `web` publica el puerto solo en `127.0.0.1` salvo que se defina `WEB_BIND`, porque la página no tiene contraseña; `intelliprint-mcp` no publica ningún puerto; y recrear el contenedor que está diseñando mata ese trabajo, que después se retoma con «continuar».
 
-**Rutas de archivos**: el orquestador escribe en `/workspace` (contenedor) y FreeCAD/PrusaSlicer leen `C:\Users\jdr\Desktop\hobbies\Intelliprint\workspace` (host). El orquestador traduce rutas con `HOST_WORKSPACE` antes de llamar a un MCP del host.
+### 8.5 Los canales: la web y Crafty
 
-### 8.3 Acceso al PC
+El `HumanPort` con sus tres adaptadores se retiró en F9.13 (limpieza) (ADR-006, enmienda). De aquella decisión queda el fondo: **el canal no es un agente y no diseña**. Hay dos canales, y los dos lanzan los mismos trabajos con `orchestrator/jobs.py`:
 
-El sistema tiene acceso a tu PC a través de:
+- **La web** (`orchestrator/web/`, FastAPI, con el HTML generado en Python). Permite pedir una pieza o un backlog, cancelar el diseño en marcha (solo si lo lanzó la propia web: el de Crafty corre en otro contenedor y se cancela desde Crafty), aprobar o contestar el concepto y el plan, dar por buena cada pieza o pedir rehacerla, ver el conjunto en 3D moviendo sus articulaciones, leer el estudio de movimientos y la lista de materiales, bajar el proyecto en zip, abrirlo en PrusaSlicer, ver las corridas del banco y apuntar las medidas de la impresora.
+- **Crafty** (`config/openclaw/`), un agente de OpenClaw en su propio contenedor que conversa por Telegram con su propio modelo y llama a las catorce herramientas de `orchestrator/mcp_server.py`. Su configuración la genera `orchestrator/crafty.py` desde el `.env`, sin secretos en el archivo.
 
-1. Los MCP del host (FreeCAD, PrusaSlicer): control total de esas aplicaciones.
-2. Bind mounts explícitos: `workspace/` (lectura/escritura) y, si quieres, carpetas de solo lectura (librería de STEP, perfiles de PrusaSlicer).
+Las reglas de seguridad del canal, con su número original (ADR-012 las cita) y su estado:
 
-No se monta `C:\` completo ni el socket de Docker: un modelo ejecutando macros Python con acceso irrestricto puede borrar archivos por error. Si necesitas más carpetas, añádelas una por una en `docker-compose.yml`.
+1. **Lista blanca.** Opcional, por decisión del usuario (ADR-012, F5.10 (lista)): sin `TELEGRAM_ALLOWED_USERS` el canal va abierto, y quien encuentre el bot puede lanzar proyectos y gastar saldo. En grupos Crafty no atiende.
+2. **El texto que entra es dato.** Las herramientas del MCP reciben una petición de diseño y devuelven datos; ninguna ejecuta código. La web escapa todo texto escrito por un modelo antes de pintarlo.
+3. **Un cambio pedido por el canal no abre un camino de código libre**, porque ese camino no existe (§ 6.3).
+4. **Filtro de salida.** No hay un filtro escrito. Lo que acota la salida es el montaje: Crafty no ve `workspace/`, solo el buzón al que el MCP copia los archivos de un proyecto (`jobs.entregar`).
+5. **Lista blanca de adjuntos.** Intelliprint no recibe adjuntos (§ 4.1); la lista se fue con ellos.
+6. **El contenido de una imagen es dato.** Las fotos solo las ve Crafty; a Intelliprint le llega el texto que Crafty escriba.
+7. **Los adjuntos no se ejecutan.** No llegan: el volumen donde OpenClaw guarda las fotos no se monta en Intelliprint.
 
-**La defensa principal es que casi nunca hay Python.** En el camino normal el Part Designer emite una receta validada contra esquema (§ 6.3) y `build.py` lo compone el orquestador a partir de plantillas propias. No hay código arbitrario que validar porque no hay código arbitrario. Esto no es una capa de seguridad añadida: es la ausencia de la superficie de ataque.
+La prueba de inyección que pide F5.9 (seguridad) no está escrita.
 
-**Sobre `validate_macro`, con honestidad.** Solo entra en juego en la escotilla. Es un análisis estático (AST) que bloquea `os`, `shutil`, `subprocess`, `open` fuera de `workspace/` y similares.
+---
 
-> ⚠️ **`validate_macro` es una red de seguridad, no un límite de seguridad.** Una lista negra sobre AST se esquiva sin dificultad con `getattr`, `__import__`, `__builtins__` o `__class__.__bases__`. Funciona bien contra su amenaza real — un modelo confundido que escribe algo destructivo por error — y no resistiría a nada adversarial. No confíes en ella como si fuera un *sandbox*.
+## 9. Servidores MCP y herramientas deterministas
 
-Si en algún momento necesitas una garantía real (por ejemplo, si la escotilla creciera o si el canal de Telegram se abriera a más gente), la respuesta no es endurecer la lista negra: es ejecutar `freecadcmd` en un contenedor desechable sin red y con solo la carpeta de la pieza montada. Queda anotado en mejoras futuras.
+### 9.1 Los dos servidores MCP que hay
 
-### 8.4 `docker-compose.yml` (base)
+| Servidor | Dónde corre | Quién lo llama | Qué ofrece |
+|---|---|---|---|
+| `orchestrator/mcp_server.py` (`intelliprint-mcp`) | Contenedor, red interna, puerto 8200 | Crafty | Pedir una pieza o un backlog, aprobar, dar por lista, rehacer, modificar, continuar, cancelar, consultar estado y archivos, listar, ordenar y buscar medidas |
+| `scripts/host_bridge.py` | El PC, puerto 8102 | El contenedor, con `orchestrator/mcp/client.py` | `laminar` y `abrir_en_prusaslicer` |
 
-```yaml
-services:
-  ollama:
-    image: ollama/ollama:latest          # versión con soporte Blackwell / CUDA 12.8+
-    environment:
-      - OLLAMA_MAX_LOADED_MODELS=2       # modelo de diseño + modelo de QA residentes
-    volumes:
-      - ollama:/root/.ollama
-    ports: ["11434:11434"]
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+No hay servidor MCP de FreeCAD ni de simulación.
 
-  orchestrator:
-    build: ./orchestrator
-    depends_on: [ollama, mech-toolkit, sim, qdrant]
-    ports: ["8080:8080"]            # API + UI de aprobación
-    environment:
-      # Sin valor = Docker Compose toma la variable del entorno de Windows
-      - DEEPSEEK_API_KEY
-      # Opcionales: si no existen en Windows se usan estos valores por defecto
-      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
-      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-chat}
-      - OLLAMA_URL=http://ollama:11434
-      - INTELLIPRINT_PROFILE=prod       # perfil de models.yaml (prod | dev)
-      - HUMAN_CHANNELS=cli,web,telegram # adaptadores activos del HumanPort (§ 8.5)
-      - MAX_CONCURRENT_PROJECTS=2       # proyectos que avanzan a la vez (§ 4, regla 9)
-      - MAX_PARALLEL_PARTS=4            # piezas en paralelo dentro de un proyecto
-      - FREECAD_MCP_URL=http://host.docker.internal:8101/sse
-      - PRUSASLICER_MCP_URL=http://host.docker.internal:8102/sse
-      - MECH_TOOLKIT_MCP_URL=http://mech-toolkit:8000/mcp
-      - SIM_MCP_URL=http://sim:8000/mcp
-      - WORKSPACE=/workspace
-      - HOST_WORKSPACE=C:\Users\jdr\Desktop\hobbies\Intelliprint\workspace
-    volumes:
-      - ./workspace:/workspace
-      - ./config:/app/config:ro
-      - ./library:/app/library:ro
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+### 9.2 `mech-toolkit`: un paquete, no un servicio
 
-  mech-toolkit:
-    build: ./mcp/mech-toolkit
-    volumes:
-      - ./workspace:/workspace
-      - ./library:/app/library:ro
-      - ./config:/app/config:ro
+`mcp/mech-toolkit/mech_toolkit/` se instala junto al orquestador y se importa como cualquier paquete de Python. Convertirlo en un servicio MCP era F2.1 (servicio), que no se hizo. Contiene:
 
-  sim:
-    build: ./mcp/sim
-    volumes:
-      - ./workspace:/workspace
-
-  openclaw:                             # adaptador de Telegram del HumanPort (§ 8.5)
-    image: openclaw/openclaw:latest
-    depends_on: [orchestrator]
-    environment:
-      - TELEGRAM_BOT_TOKEN              # del entorno; nunca en el repo
-      - TELEGRAM_ALLOWED_USERS          # lista blanca de chat IDs. OBLIGATORIA
-      - ORCHESTRATOR_URL=http://orchestrator:8080
-    volumes:
-      - openclaw:/data
-
-  qdrant:
-    image: qdrant/qdrant:latest
-    volumes:
-      - qdrant:/qdrant/storage
-
-volumes:
-  ollama:
-  qdrant:
-  openclaw:
-```
-
-> Si prefieres que Ollama use la GPU nativa de Windows, puedes correr Ollama en el host y cambiar `OLLAMA_URL` a `http://host.docker.internal:11434`.
-
-### 8.5 `HumanPort`: un puerto, tres adaptadores
-
-Los dos gates, las preguntas del Requirements Agent, las consultas del QA y las peticiones de cambio son **la misma operación**: preguntar algo a un humano y esperar. Se implementan una sola vez.
-
-`submit()` es la dirección contraria y es cómo **nace** un proyecto: le dices al sistema qué quieres, con lo que tengas a mano. Cada adaptador la implementa a su manera — el CLI como `intelliprint new`, el web como un formulario, Telegram como escribirle al bot — y en los tres casos desemboca en el mismo estado `INTAKE` (§ 4.1).
-
-```
-                  ┌──────────────────────────────┐
-  Orquestador ───►│  HumanPort                   │
-                  │   ask(pregunta, adjuntos)    │  sistema → humano
-                  │   notify(evento)             │  sistema → humano
-  Orquestador ◄───│   submit(texto, adjuntos)    │  humano  → sistema
-                  └──────────────┬───────────────┘
-                                 │
-              ┌──────────────────┼──────────────────┐
-              ▼                  ▼                  ▼
-         adaptador CLI     adaptador Web      adaptador Telegram
-           (F0.9)            (F5.4)          (F5.5, fuera del grafo)
-```
-
-Esto es lo que unifica el gate por consola y el gate por navegador, que en el plan original eran dos implementaciones separadas de lo mismo, y permite añadir Telegram sin tocar la lógica de gates.
-
-**OpenClaw** es una pasarela auto-alojada que conecta apps de mensajería con agentes. Aquí se usa **solo como transporte**: no lee ni escribe el blackboard, no toma decisiones de diseño y no aparece en la tabla de agentes. Recibe del orquestador una pregunta y sus adjuntos, la entrega en Telegram, y devuelve la respuesta.
-
-**El sistema se llama Crafty en el canal.** Es el nombre con el que te diriges a él y con el que firma lo que te manda. No es un agente más ni cambia nada de la arquitectura: es la cara visible del orquestador, que por dentro sigue siendo código coordinando once agentes. Se configura con `AGENT_NAME` para que el nombre viva en un solo sitio y no repartido por los prompts.
-
-**Qué habilita en la práctica.** Como el QA ya renderiza vistas para su capa de visión (§ 7.1), esas mismas imágenes se pueden enviar por Telegram. El sistema no te manda una lista de cotas: te manda **la pieza** y te pregunta si es lo que querías. Y tú puedes pedir cambios desde el móvil sin estar delante del PC — que es justamente el caso de uso, porque si estuvieras delante usarías la UI.
-
-**Qué puedes adjuntar.** Los adjuntos de `submit()` no son decoración: el modelo tiene visión (§ 6.1), así que son entrada de diseño real.
-
-| Adjunto | Para qué sirve |
+| Módulo | Qué hace |
 |---|---|
-| Foto del sitio donde va la pieza | Contexto y restricciones de montaje que no sabrías describir |
-| Foto de un croquis a mano con cotas | La forma más rápida de transmitir una idea con medidas |
-| Foto del objeto que debe sujetar | Geometría aproximada del contrario |
-| STL / STEP de referencia | Una pieza existente con la que la nueva debe encajar |
+| `kit/` | Las operaciones con las que el diseñador escribe la pieza, y la lista blanca que valida su programa |
+| `sondas.py` | Las medidas sobre el STEP construido, que corren dentro de FreeCAD |
+| `componentes.py` | Coloca la forma de una ficha en la pieza y construye sus sólidos |
+| `profile.py` | El perfil de impresora y sus holguras |
+| `measure.py`, `geometry.py` | Extraen las caras cilíndricas de una pieza y buscan agujeros y salientes por su posición; los usa el banco para juzgar. `geometry.py` da además la colocación de una pieza en el ensamble |
+| `generators.py` | El catálogo de ocho generadores de las recetas; hoy construye las piezas de calibración |
+| `library_models.py` | Importa los modelos de referencia de `library/models/reference/` |
 
-**Comportamiento asíncrono.** Una consulta pone la pieza en `BLOCKED_ON_HUMAN` y el planificador sigue con las demás (regla 7, § 4). Un proyecto puede dormir días esperando una respuesta, y lo mismo vale para la admisión. Los gates, en cambio, sí bloquean el proyecto entero.
+### 9.3 Cómo se usa FreeCAD
 
-#### Reglas de seguridad del canal
-
-Este canal es **entrada no confiable a un sistema que puede ejecutar código** (§ 6.3). No es paranoia: es la consecuencia directa de tener una escotilla de Python.
-
-1. **Lista blanca estricta.** Solo los chat IDs de `TELEGRAM_ALLOWED_USERS`. Sin lista blanca, el canal no arranca. *(Enmendada: por decisión del usuario la lista es opcional y el canal va abierto; ver ADR-012.)*
-   > ⚠️ **Incumplida a propósito durante el desarrollo** (ADR-012): el bot nace abierto. Mientras dure, quien encuentre el bot puede crear proyectos, gastar saldo y **contestar las tres barreras**, incluida la que guarda la escotilla. La salda **F5.10**, y no requiere autenticación de ninguna clase: es una lista de IDs, no un login.
-2. **El texto entrante es dato, nunca instrucción.** Un mensaje jamás se concatena a un prompt de sistema. Se procesa como contenido a clasificar, no como orden a obedecer.
-3. **Una petición de cambio nunca abre la escotilla de Python por sí sola.** Requiere gate explícito.
-4. **Filtro de salida.** Igual que con DeepSeek, por Telegram solo sale texto y renders: nunca rutas del host, credenciales ni archivos del PC. Es el mismo filtro, aplicado a un segundo destino.
-5. **Lista blanca de adjuntos.** Solo imágenes (`png`, `jpg`), `stl` y `step`, con tamaño máximo. Nada de comprimidos, documentos ofimáticos ni ejecutables: cada formato adicional es un parser más que puede fallar.
-6. **El contenido de una imagen también es dato.** Un modelo de visión lee el texto que aparece *dentro* de una foto. Una imagen con "ignora las instrucciones anteriores" escrito es un intento de inyección igual que el texto plano, y se trata igual: contenido a interpretar, nunca orden a obedecer.
-7. **Los adjuntos no se ejecutan ni se abren con herramientas del host.** Un STL de referencia se carga para medirlo, no se ejecuta; se guarda dentro de `intake/` del proyecto y nunca fuera de `workspace/`.
-
-Conviene tener presente que las imágenes y el texto que salen por Telegram pasan por servidores de Telegram. Para diseños propios es irrelevante; si algún día trabajas algo confidencial, es una salida de datos más que considerar.
+Solo sin interfaz. Cada construcción, cada tanda de sondas y cada barrido de choques es un proceso `freecadcmd` que arranca, hace su trabajo y termina, con un tiempo máximo. Las imágenes y las animaciones se dibujan con matplotlib a partir de las mallas, sin FreeCAD. La interfaz gráfica es la del escritorio de la persona, que abre los `.FCStd` que quedan en `workspace/` (ADR-004, con la enmienda de ADR-014); `orchestrator/fcstd.py` los retoca para que se abran con las piezas visibles.
 
 ---
 
-## 9. Servidores MCP
+## 10. Fichas de componentes
 
-### 9.1 Existentes (en el host)
+Ningún modelo debe sacar de memoria las medidas de un servo. Un componente comprado es **geometría con ficha y fuente** (ADR-016): `library/components/*.yaml`, leídas por `orchestrator/componentes.py`. Hay siete: `608zz`, `hc-sr04`, `mg996r`, `nema17`, `perfil-2020`, `raspberry-pi-4` y `sg90`.
 
-- **FreeCAD MCP**: crear/editar objetos, ejecutar macros Python, capturas de vista, exportar.
-- **PrusaSlicer MCP**: laminar, aplicar perfiles, obtener estadísticas (filamento, tiempo), exportar 3MF/G-code.
+Una ficha dice qué es sólido (`cuerpos`), qué hay que dejar libre y por qué (`despejar`: un cable, el haz de un sensor), dónde se atornilla y con qué (`fijacion`), qué mueve (`salidas`: el eje de un servo con su recorrido) y, en los servos, su par y su masa. Las fuentes van citadas en la propia ficha.
 
-### 9.2 Nuevos (en Docker)
+Qué componentes nombra una petición lo decide el código, por los alias de la ficha. Lo que tiene ficha no se busca en internet ni se convierte en requisitos sueltos. De las fichas salen también la lista de materiales y la tornillería (`orchestrator/materiales.py`, `orchestrator/tornilleria.py`), contadas en lo construido, y el estudio de movimientos (`orchestrator/estudio.py`): si aguanta cada servo, si vuelca, hasta dónde llega, cuánto tarda y cuánta carga admite.
 
-**`mech-toolkit`**: herramientas deterministas que evitan que el LLM calcule geometría.
+Límites conocidos:
 
-| Herramienta | Qué hace |
-|-------------|----------|
-| `list_hardware(category)` | Lista piezas comerciales disponibles (tornillos, tuercas, insertos, rodamientos, motores, servos, MCU). |
-| `get_hardware(part_id)` | Dimensiones, masa, torque, envolvente y modelo STEP. |
-| `place_commercial_part(part_id, frame)` | Genera la macro FreeCAD para insertar la pieza comercial. |
-| `generate_bearing_housing(bearing_id, fit)` | Macro de cavidad para rodamiento con holgura aplicada. |
-| `generate_bolt_pattern(screw_id, count, pcd_mm, fit)` | Patrón de agujeros con holgura, avellanado/cavidad de tuerca. |
-| `generate_servo_mount(servo_id)` | Alojamiento y orejetas para servo (SG90, MG996R...). |
-| `apply_fit(nominal_mm, fit)` | Devuelve la dimensión corregida según `config/printers`. |
-| `check_wall_thickness(stl, min_mm)` | Espesor mínimo por ray casting (trimesh). |
-| `check_overhangs(stl, orientation)` | Área con voladizo > 45°. |
-| `suggest_print_orientation(stl, load_axes)` | Orientación que maximiza resistencia y minimiza soportes. |
-| `check_fits_bed(stl, printer)` | Verifica que la pieza cabe en la cama. |
-| `validate_macro(code)` | Análisis estático de la macro. **Solo se usa en la escotilla** (§ 6.3, § 8.3). |
-| `list_generators()` | Catálogo de generadores disponibles. Es lo que el Part Designer consulta para componer su receta. |
-| `compose_build_script(recipe)` | Convierte una `recipe.json` validada en el `build.py` de la pieza. Sin LLM. |
-| `resolve_interfaces(symbolic, system)` | Convierte interfaces simbólicas en resueltas usando la salida de la Fase 2 (§ 3.2). |
-| `derive_assertions(interface)` | Genera las aserciones medibles de una interfaz resuelta (§ 3.3). Es la base del QA. |
+- **Ninguna ficha está medida con calibre**: las siete llevan `verificado: false`.
+- Las formas son cajas y cilindros alineados con los ejes, y un componente solo se gira de 90 en 90°.
+- Un componente sin ficha sigue adelante con las cifras sueltas que encuentre el investigador. El borrador de ficha que la persona aprueba es F9.11 (borrador), pendiente.
+- El estudio de movimientos estima la masa de lo impreso sin laminar.
 
-**`sim`**: pruebas físicas.
-
-| Herramienta | Qué hace |
-|-------------|----------|
-| `solve_ik(chain, target)` / `workspace_reach(chain)` | Cinemática con ikpy. |
-| `joint_torques(chain, payload_kg, poses)` | Torque estático por articulación en las poses críticas. |
-| `export_urdf(assembly)` | Genera URDF desde el ensamble para simular. |
-| `sweep_collisions(urdf, joint_ranges)` | Barre rangos y reporta colisiones entre eslabones. |
-| `stability_test(urdf)` | Vuelco con carga máxima (PyBullet). |
-| `mass_properties(stl, material, infill)` | Masa y centro de masa estimados. |
-
-**Herramientas adicionales vía FreeCAD MCP** (implementadas como macros que el orquestador envía):
-`measure(part, feature)`, `interference_check(assembly)`, `export_stl_batch(parts)`, `section_view(part, plane)` y `get_view(part)` (imágenes para la capa de visión del QA, § 7.1).
-
-### 9.3 Ejecución: headless para construir, GUI para inspeccionar
-
-FreeCAD se usa de **dos formas distintas**, y confundirlas cuesta paralelismo.
-
-| | Construcción de piezas | Inspección y ensamble |
-|---|---|---|
-| **Binario** | `freecadcmd` (sin GUI) | FreeCAD con GUI + addon RPC |
-| **Instancias** | N procesos efímeros, uno por pieza | Una sola, persistente |
-| **Paralelismo** | Sí, limitado por CPU | No, serial |
-| **Para qué** | Ejecutar `build.py`, exportar STL/STEP | Renderizar vistas, ensamblar, medir |
-
-Construir cada pieza en su propio proceso `freecadcmd` encaja con `build.py`: si la pieza se regenera siempre desde parámetros, un proceso limpio por pieza es lo natural. No hay documento global ni estado compartido, y **un cuelgue de FreeCAD mata una pieza, no el proyecto**.
-
-La contrapartida es que sin GUI no se pueden renderizar vistas. Por eso la inspección se separa: una única instancia con GUI carga los `.FCStd` ya construidos solo para capturar imágenes y hacer el ensamble. Es serial, pero abrir y renderizar es barato comparado con construir.
-
-> El MCP de FreeCAD soporta ambos modos: `execute_code` contra la instancia GUI por RPC, y `execute_code_headless` con el flag `--freecadcmd`.
+`library/models/reference/` es otra cosa: modelos STEP descargados de terceros, con autor, licencia y huella, que los tests usan como referencia independiente.
 
 ---
 
-## 10. Librería de hardware
+## 11. Un ejemplo real: el pan-tilt del banco
 
-Ningún modelo debe inventar las dimensiones de un NEMA17, por grande que sea. Todo el hardware comercial vive en `library/` y se indexa también en Qdrant para búsqueda semántica. Es además la fuente de la que el resolvedor de interfaces (§ 3.2) saca las cotas reales.
+Es la corrida `1111-1342` del banco, la que se cita en `PLAN_PROYECTO.md` (Fase 9). El visto bueno de cada paso lo dio el propio banco; en uso normal lo da la persona.
 
-```yaml
-# library/motors/nema17_42x40.yaml
-id: nema17_42x40
-category: stepper
-body_mm: {w: 42.3, h: 42.3, l: 40}
-shaft_mm: {d: 5, l: 24, flat: true}
-mount: {bolt: M3, pcd_square_mm: 31, pilot_d_mm: 22}
-holding_torque_nm: 0.40
-mass_g: 280
-step: library/step/nema17_42x40.step
-```
+1. **Petición**: un pan-tilt con dos servos SG90.
+2. **Plan mecánico**: tres piezas (`base`, `soporte-inclinacion`, `plataforma-camara`) y un conjunto (`pan-tilt`). Una unión `fija` —la base, con dos M3, a lo que haya fuera— y dos `gira` de 180° sobre el eje de un SG90: el plan reserva 50 mm de radio libre al giro y 35 mm a la inclinación.
+3. **Cada pieza, por orden**: investigación, requisitos, concepto, programa y medidas. El soporte salió al tercer intento y la plataforma al segundo; los intentos rechazados lo fueron dentro de su propio bucle, sin intervención.
+4. **Conjunto**: se movió entero en la rejilla de 10° sin un solo choque. Queda el ensamble, la animación y el estudio de movimientos.
+5. **Coste**: 45 minutos y 0,53 USD en 20 llamadas. Nota del encargo: cinco comprobaciones de cinco.
 
-Contenido inicial: tornillería métrica M2–M5, tuercas, insertos térmicos, rodamientos 608zz/623zz/625zz, NEMA17/NEMA14, SG90/MG90S/MG996R/DS3218, ESP32 DevKit, Arduino Nano, drivers A4988/TMC2209, varillas y ejes.
-
----
-
-## 11. Ejemplo de ejecución
-
-### 11.1 Una garra (clase `mechanism`)
-
-**Entrada por Telegram:** *"Diseña una garra robótica para levantar una lata de refresco, accionada por un servo MG996R, impresora AnkerMake M5, PETG."*
-
-1. **Admisión** → el Requirements Agent pregunta lo que falta (*"¿la lata llena o vacía?"*), clasifica el producto como `mechanism`, y produce `spec.yaml`: objeto Ø66 mm, 350 g, apertura ≥ 80 mm, MG996R, PETG, cama 235×235×250. Confirmas y arranca.
-2. **Decomposition** → 7 piezas: `base_servo`, `engranaje_motriz`, `engranaje_conducido`, `dedo_izq`, `dedo_der`, `eslabon_paralelo ×2`, `almohadilla ×2` (TPU opcional); 9 interfaces **simbólicas**: *"IF-002: `bolt_pattern` entre `base_servo` y el servo, clase `servo_horn`, `fit: clearance`"* — sin una sola cota.
-3. **Kinematics/Actuation** → geometría de dedos paralelos; fuerza de agarre requerida vs. torque del MG996R (margen 2.1× ✓). Confirma el MG996R como actuador.
-4. **Resolución de interfaces** (código) → IF-002 pasa a `resolved`: patrón real del MG996R desde `library/`, `frame` en el origen calculado por Kinematics, M3 a 3.3 mm por `fit: clearance`. **Ningún LLM escribió esos números.**
-5. **Gate 1:** apruebas árbol **e interfaces ya resueltas**. Lo que ves es lo que se va a construir.
-6. **Part Designer ×3 en paralelo** → cada uno emite su `recipe.json` (`generate_servo_mount(MG996R)`, `generate_bolt_pattern(M3, 4, pcd=19)`…). El orquestador compone `build.py` y lo ejecuta en tres procesos `freecadcmd` independientes.
-7. **Tolerances** → pasadores M3 a 3.3 mm, eje de engranaje con clearance +0.35 mm, orientación de dedos en plano.
-8. **QA** → capa 1 y 2 en verde para `dedo_der`, pero la **capa de visión** ve en el render que el alojamiento del pasador quedó abierto por un lado. Añade el defecto → vuelve al diseñador → PASA en la iteración 2.
-9. **Consulta por Telegram** → el sistema no sabe si la almohadilla debe ser TPU o PETG. Te manda el render y la pregunta al móvil; `almohadilla` pasa a `BLOCKED_ON_HUMAN` mientras **las otras seis piezas siguen diseñándose**. Respondes "TPU" desde el bus y el proyecto continúa.
-10. **Assembly + Test** → interferencia entre engranajes a 0° de apertura → reabre `engranaje_conducido` (−0.3 mm de adendo) → barrido sin colisiones.
-11. **Slicing** → 2 placas, 71 g PETG, 3 h 40 min, sin soportes salvo `base_servo`.
-12. **Gate 2:** revisas en FreeCAD y PrusaSlicer, apruebas → STL/3MF/G-code, BOM (1 MG996R, 6 tornillos M3×12, 6 tuercas M3) e instrucciones de ensamble.
-13. **Feedback** (opcional): tras imprimir escribes por Telegram "el pasador entra muy flojo" → entra como petición de cambio, se traduce a defecto sobre la interfaz del pasador, y el sistema ajusta el perfil de holguras de tu impresora para próximos diseños.
-
-### 11.2 Un soporte de vaso (clase `static_part`)
-
-El caso corto, que va a ser la mayoría del uso real. Muestra lo que se **salta**.
-
-**Entrada por Telegram:** *"una pieza que sujete un vaso en el carruaje de mi hijo, el tubo mide 68 mm de diámetro exterior"* + foto del tubo + foto del vaso.
-
-1. **Admisión** → *"¿vale solo para ese vaso o para varios diámetros? ¿PLA o PETG? ¿va a estar al sol?"* → respondes *"PETG, sí al sol, de 60 a 75 mm"*. Clasifica como **`static_part`**. Confirmas.
-2. **Descomposición** → 2 piezas: `abrazadera_tubo`, `cesta_vaso`; 2 interfaces simbólicas (`bolt_pattern` M4 entre ambas, `clamp` sobre el tubo).
-3. **Fase 2 → se salta entera.** No hay cinemática, ni actuadores, ni electrónica. **Ningún agente tiene ocasión de inventar un dato que no existe.**
-4. **Resolución de interfaces** → M4 a 4.3 mm por `clearance`, diámetro interior de abrazadera 68 + holgura del perfil PETG.
-5. **Gate 1** → apruebas desde el móvil.
-6. **Diseño ×2 en paralelo** → dos recetas, dos procesos `freecadcmd`.
-7. **QA** → capas 1 y 2 en verde; la capa de visión confirma que la cesta está abierta por arriba y la abrazadera partida para poder montarla.
-8. **Laminado** → 1 placa, 48 g PETG, 2 h 10 min.
-9. **Gate 2** → apruebas → STL y G-code listos.
-
-De extremo a extremo sin tocar el PC: empieza en el móvil y termina en el móvil.
+Lo que esta corrida no dice: es una sola, y el banco tiene ruido de una corrida a otra; la plataforma que salió es un disco coaxial con el eje de inclinación, que pasa las cinco comprobaciones pero no serviría para cabecear una cámara; y la tornillería ni se planificó ni se midió en este encargo, que es F9.6 (previsto).
 
 ---
 
@@ -816,73 +385,55 @@ De extremo a extremo sin tocar el PC: empieza en el móvil y termina en el móvi
 
 ```
 Intelliprint/
-├── SISTEMA_MULTIAGENTE.md
-├── PLAN_PROYECTO.md
-├── DECISIONES.md                # registro de decisiones de arquitectura (ADR)
-├── docker-compose.yml
+├── SISTEMA_MULTIAGENTE.md       este documento
+├── PLAN_PROYECTO.md             las tareas con su ID y la deuda técnica declarada
+├── DECISIONES.md                las ADR, con sus enmiendas
+├── docker-compose.yml, docker/  los contenedores (§ 8)
 ├── config/
-│   ├── models.yaml              # perfiles prod / dev (§ 6.1)
-│   ├── printers/ankermake_m5_petg.yaml
-│   └── agents/*.md              # prompts de sistema por agente
+│   ├── models.yaml, impresion.yaml, categorias.yaml
+│   ├── agents/                  las instrucciones de los cinco agentes
+│   ├── printers/, slicing/      perfil de diseño y perfil de laminado
+│   └── openclaw/                Crafty
 ├── orchestrator/
-│   ├── Dockerfile
-│   ├── graph.py                 # LangGraph: estados, transiciones, gates
-│   ├── agents/                  # un módulo por agente (prompt + esquema + tools)
-│   ├── schemas/                 # Pydantic: spec, tree, interface, recipe, qa_report
-│   ├── recipes/                 # receta → build.py (plantillas + compositor)
-│   ├── human/                   # HumanPort (§ 8.5)
-│   │   ├── port.py              #   interfaz ask() / notify()
-│   │   └── adapters/            #   cli.py, web.py, telegram.py
-│   ├── llm/router.py            # local vs. DeepSeek, presupuestos
-│   ├── mcp/client.py            # clientes MCP (HTTP/SSE)
-│   └── ui/                      # web de aprobación y seguimiento
-├── mcp/
-│   ├── mech-toolkit/
-│   │   ├── generators/          # un módulo por generador de geometría
-│   │   └── assertions/          # derivación de aserciones por tipo de interfaz
-│   └── sim/
-├── library/                     # hardware comercial (yaml + step)
-├── scripts/
-│   └── start-host-mcps.ps1      # lanza mcp-proxy para FreeCAD y PrusaSlicer
-└── workspace/                   # proyectos (bind mount)
+│   ├── cli.py                   las órdenes (§ 1)
+│   ├── pieza.py, obra.py        los dos flujos (§ 4)
+│   ├── agents/, investigar.py   los agentes (§ 2)
+│   ├── plan.py, medida.py, conjunto.py, estudio.py   lo que no decide un modelo
+│   ├── componentes.py, tornilleria.py, materiales.py fichas y compras (§ 10)
+│   ├── build.py, assembly.py, animation.py           FreeCAD y dibujo
+│   ├── banco.py                 el banco de pruebas (§ 7.1)
+│   ├── llm/, schemas/, recipes/ modelos, esquemas y recetas
+│   ├── jobs.py, registry.py     trabajos y registro (§ 5)
+│   ├── mcp_server.py, mcp/      el MCP para Crafty y el cliente del puente (§ 9.1)
+│   └── web/                     la interfaz web (§ 8.5)
+├── mcp/mech-toolkit/            el paquete `mech_toolkit` (§ 9.2)
+├── library/                     fichas de componentes y modelos de referencia (§ 10)
+├── scripts/                     el puente del host y dos medidores
+├── tests/                       la suite y los encargos del banco
+└── workspace/                   el trabajo del usuario; no se versiona ni se borra
 ```
 
 ---
 
-## 13. Hoja de ruta
+## 13. Lo que se planeó y no está
 
-| Fase | Objetivo | Criterio de éxito |
-|------|----------|-------------------|
-| **0** | Docker + Ollama + puentes MCP del host | El orquestador lista herramientas de FreeCAD y PrusaSlicer desde el contenedor |
-| **1** | Pipeline lineal de una pieza: Requirements → Part Designer → Tolerances → Slicing | Un soporte de NEMA17 imprimible generado de extremo a extremo |
-| **2** | `mech-toolkit` + librería de hardware + QA de tres capas | QA detecta agujeros y paredes fuera de norma en piezas de prueba sin que el LLM pueda aprobarlas |
-| **3** | Decomposition + interfaces simbólicas/resueltas + diseño paralelo + Assembly | Garra de 5–8 piezas ensamblada sin interferencias |
-| **4** | Kinematics/Actuation/Sim + ciclo de reapertura selectiva | Brazo de 3 GDL con torque validado y barrido sin colisiones |
-| **5** | `HumanPort` + adaptadores (CLI, web, Telegram) + escalamiento a DeepSeek con presupuesto | Ambos gates y una petición de cambio resueltos desde el móvil |
-| **6** | Endurecimiento y evaluación | Brazo de 6 GDL con < 20 % de pasos escalados |
+| Qué | Qué pasó | Dónde se explica |
+|---|---|---|
+| Once agentes: Decomposition, Kinematics, Actuation, Electronics, Tolerances/DFM, QA, Assembly, Test/Sim y Slicing como agentes | No llegaron a escribirse como agentes. Lo que hacían lo hace código (holguras, ensamble, choques, laminado) o no se hace (elegir actuadores, electrónica) | ADR-015, ADR-018, ADR-020 |
+| Flujo `mecanismo`: Mechanism Designer, Design Reviewer y `mcp/sim` | Se hizo y se quitó: pedía el mecanismo entero en una llamada y los grandes no salían | ADR-013 (enmienda), ADR-018 |
+| Part Designer de recetas | Se hizo y se quitó: el catálogo solo sabía cajas y cilindros. Lo sustituye el kit | ADR-002 (enmiendas) |
+| Interfaces simbólicas y resueltas, `derive_assertions`, QA de tres capas con visión | Se hizo en parte y se quitó: ningún flujo vivo lo llamaba | ADR-001, ADR-003, ADR-011 (enmiendas) |
+| Grafo de LangGraph, `intelliprint new` y `resume`, `state.sqlite`, commit de git por etapa | Se hizo y se quitó: la web, Crafty y el banco ya pedían con `pieza` | ADR-008 (enmienda), F1.14, F1.15 |
+| `HumanPort`, bot propio de Telegram, adjuntos | Se hizo y se quitó: lo sustituyó Crafty, y los adjuntos solo los leía el flujo de mecanismos | ADR-006 (enmienda), F5.6 (telegram) |
+| `registry.sqlite` | No se hizo: un índice aparte se desincroniza; la carpeta manda | ADR-009 (enmienda) |
+| Modelos locales con Ollama y DeepSeek solo como escalamiento | Pendiente: falta el cliente de Ollama | ADR-007b, F0.11 (migrar) |
+| Qdrant y búsqueda semántica | No se hizo: solo servía a la escotilla | F2.19 |
+| Escotilla de Python libre y `validate_macro` | No se hizo: el kit con lista blanca cubre lo que el catálogo no sabía | ADR-002 (enmienda), F2.9 (escotilla) |
+| MCP de FreeCAD con `mcp-proxy`; `mech-toolkit` como servicio | No se hizo: FreeCAD está en el mismo contenedor que quien lo llama | ADR-014, F2.1 (servicio) |
+| Cinemática inversa, PyBullet, URDF, ROS y Gazebo | No están en el código. El usuario lleva ROS y la simulación aparte; aquí queda el estudio de movimientos | ADR-017 (enmienda) |
+| Diseño de piezas en paralelo y varios proyectos a la vez | No se hizo: un trabajo cada vez | § 4, reglas 6 y 9 |
+| Laminar dentro del diseño | Se hizo y se quitó por decisión del usuario: al diseñar no se sabe en qué impresora se imprimirá | ADR-014 (enmienda) |
+| Carpeta `ui/` y adaptador web del `HumanPort` | La web es `orchestrator/web/` y llama a los trabajos directamente | § 8.5 |
+| Hoja de ruta y tabla de riesgos de este documento | Viven en `PLAN_PROYECTO.md`, que es el que se mantiene | `PLAN_PROYECTO.md` |
 
----
-
-## 14. Riesgos y mitigaciones
-
-| Riesgo | Mitigación |
-|--------|------------|
-| El modelo genera geometría inválida | **No genera código**: emite una receta validada contra esquema (§ 6.3). Un error es un parámetro rechazado antes de ejecutar nada, no un traceback |
-| Faltan generadores para una pieza | Escotilla con DeepSeek + métrica del % de piezas atípicas, que dirige qué generador escribir a continuación |
-| Piezas diseñadas por separado no encajan | Interfaces como contrato formal, resueltas por código antes de diseñar (§ 3), holguras centralizadas, chequeo de interferencias en el ensamble |
-| QA aprueba todo | **Estructuralmente imposible**: el veredicto es aritmético y el LLM solo puede añadir defectos (§ 7.1). Modelo distinto como segunda red |
-| Interfaces con cotas inventadas | Estado `symbolic` → `resolved`; el validador impide que una interfaz sin resolver llegue a la Fase 3 |
-| El QA verifica lo que el constructor *dice* haber construido | El QA **busca la geometría por contrato**, no por etiquetas puestas al construir (§ 3.3, ADR-011). Una feature en el sitio equivocado da "no encontrada", no "medida correcta" |
-| Una aserción sin medición pasa por buena | No encontrar la geometría es **FAIL**, nunca "no comprobado": aprobar por omisión es el mismo fallo que aprobar de más |
-| VRAM insuficiente para varios modelos | 25 GB de 32 GB con los dos modelos residentes; `OLLAMA_MAX_LOADED_MODELS=2` |
-| Ollama cae a CPU en silencio (Blackwell) | Verificación explícita de uso de GPU en F0.3; requisito de CUDA 12.8+ documentado (§ 6.1) |
-| Macros con efectos sobre el PC | Superficie casi eliminada (no hay Python en el camino normal); `validate_macro` como red en la escotilla, **declarado explícitamente como no-sandbox** (§ 8.3) |
-| Inyección por el canal de Telegram | Lista blanca obligatoria; texto entrante tratado como dato; la escotilla de Python nunca se abre sin gate (§ 8.5) |
-| Inyección a través de una imagen adjunta | El contenido de una imagen es dato, igual que el texto (regla 6 de § 8.5). Un modelo de visión lee lo que hay escrito dentro de una foto |
-| Empezar a diseñar con una spec incompleta | Fase de admisión con barrera estructural: no existe transición de `INTAKE` a diseño sin tu confirmación (§ 4.1) |
-| Agentes que inventan datos que no aplican (cinemática de un soporte) | Clases de producto: el agente que no aplica **no corre** (§ 4.2). Un agente que no corre no puede alucinar |
-| Varios proyectos saturando la GPU | `MAX_CONCURRENT_PROJECTS` separado de `MAX_PARALLEL_PARTS` (regla 9 de § 4); la admisión no consume GPU |
-| Perder de vista qué proyecto espera qué | `registry.sqlite` guarda por proyecto qué está esperando de ti (§ 5.1), consultable desde Telegram |
-| Una consulta al humano congela el proyecto | `BLOCKED_ON_HUMAN` por pieza; el planificador sigue con las demás (regla 7, § 4) |
-| Costos de DeepSeek | Reglas de escalamiento explícitas y tope por proyecto |
-| Holguras distintas en cada impresora | Perfil por impresora/material calibrado con pieza de prueba y ajustado con feedback |
+Lo que está planeado y todavía por hacer no va en esta tabla: está en `PLAN_PROYECTO.md`. De la Fase 9 faltan F9.6 a F9.12 (comparar lo previsto con lo medido, el acople de las salidas, más métricas, revalidar, ampliar un invento, el borrador de ficha y las pantallas).
