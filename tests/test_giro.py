@@ -228,3 +228,96 @@ def test_la_pieza_que_gira_se_mueve_contra_lo_construido_sin_esperar_al_conjunto
     libre = _brazo_y_poste(tmp_path / "libre", x0=-5, y0=60)
     assert mover_lo_construido(libre, "brazo", _freecadcmd(), min_gap_mm=0.2) == {
         "choques": [], "correccion": ""}
+
+
+# --- un pan-tilt hecho a mano, de punta a punta y sin modelo -------------------------------------
+
+BASE_A_MANO = """
+def construir(kit):
+    servo = kit.componente("sg90", en=(13.6, 8.8, 6.0), entra_por="+z")
+    return kit.caja(50, 30, 21.6).quitar("alojamiento", servo.hueco())
+"""
+
+SOPORTE_A_MANO = """
+def construir(kit):
+    kit.componente("obra-base", en=(-19.4, -15.0, -33.6), entra_por="-z")
+    servo = kit.componente("sg90", en=(-13.55, -11.4, {z}), girar=[("x", 90), ("z", 90)],
+                           entra_por="+z")
+    return kit.caja({ancho}, 36, {alto}, en=(-18, -18, 0)).quitar("alojamiento", servo.hueco())
+"""
+"""El soporte de la corrida 1110-0313 (z = 6, 34 de ancho, 20 de alto) y uno
+que deja sitio: el servo 20 mm más arriba y el cuerpo entero por detrás de
+la cara de salida (x = 13.55)."""
+
+PLATAFORMA_A_MANO = """
+def construir(kit):
+    kit.componente("obra-soporte", en=(-13.55, 5.6, -32.2), entra_por="-x")
+    return kit.caja(4, 20, {bajo} + 10, en=(4, -10, -{bajo})) + kit.caja(34, 20, 4, en=(6, -10, -{bajo}))
+"""
+"""Una L acoplada al eje, que pasa por su origen hacia +x: una placa a 4 mm
+de la cara de salida, que baja hasta z = −`bajo`, y una repisa en su pie. Con
+`bajo` = 14, su esquina más lejana queda a √(10² + 14²) = 17.2 mm del eje."""
+
+
+def _del_giro(defectos) -> list[str]:
+    return [d for d in defectos if d.startswith(("sitio para girar", "giro", "Choca",
+                                                 "No deja sitio"))]
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="sin freecadcmd")
+def test_un_pan_tilt_hecho_a_mano_se_mide_pieza_a_pieza_y_luego_se_mueve_entero(
+        tmp_path, monkeypatch):
+    """El camino entero de un backlog con plan, con programas escritos a
+    mano en vez de un modelo: cada pieza se construye, se le miden sus giros
+    como en su bucle de diseño, se ficha, y al final se mueve el conjunto.
+
+    - El soporte de la corrida 1110-0313 no vale: 12.7 mm contra 25, y su
+      cuerpo asoma por delante de la cara de salida.
+    - Con el servo 20 mm más arriba el eje queda a 12.7 + 20 = 32.7 mm del
+      SG90 de la base: vale.
+    - Una plataforma que baja hasta z = −40 llega a √(10² + 40²) = 41.2
+      mm del eje: no vale. Con la repisa a 14, sí.
+    - Y el conjunto de las tres se mueve entero sin chocar, con un giro
+      vertical y otro horizontal: lo que pide el encargo 11 del banco."""
+    from orchestrator import obra as O
+    from orchestrator.conjunto import verificar_conjunto
+    from orchestrator.medida import defectos_de_la_pieza
+
+    (tmp_path / "obra.json").write_text(json.dumps(_plan(radio_inclinar=25.0, radio_girar=30.0)),
+                                        encoding="utf-8")
+    monkeypatch.setenv("INTELLIPRINT_FICHAS", str(O.carpeta_de_fichas(tmp_path)))
+
+    def disenar(nodo, codigo):
+        parte = tmp_path / "nodos" / nodo / "parts" / nodo
+        monkeypatch.setenv("INTELLIPRINT_UNIONES", str(O.escribir_uniones(tmp_path, nodo)))
+        resultado = build_part(Programa(part=nodo, codigo=codigo), None, parte, _freecadcmd(),
+                               perfil=PERFIL)
+        return _del_giro(defectos_de_la_pieza(
+            [], resultado, parte / f"{nodo}.step", _freecadcmd(), MATERIAL,
+            holgura_al_moverse_mm=0.1))
+
+    def fichar(nodo):
+        O.fichar(tmp_path / "nodos" / nodo / "parts" / nodo, O.id_de_ficha(nodo), nodo,
+                 O.carpeta_de_fichas(tmp_path), proyecto="prueba")
+
+    assert disenar("base", BASE_A_MANO) == []
+    fichar("base")
+
+    del_banco = disenar("soporte", SOPORTE_A_MANO.format(z=6.0, ancho=34, alto=20))
+    assert any("solo hay 12.7 mm" in d for d in del_banco), del_banco
+    assert any("mm³ en el sitio" in d for d in del_banco), del_banco
+    assert disenar("soporte", SOPORTE_A_MANO.format(z=26.0, ancho=31, alto=40)) == []
+    fichar("soporte")
+    # Con su ficha hecha, a la plataforma se le dice cómo se llama su eje.
+    [de_la_plataforma] = O.uniones_del_nodo(tmp_path, "plataforma")
+    assert de_la_plataforma["salidas"] == ["sg90: eje"]
+
+    [grande] = disenar("plataforma", PLATAFORMA_A_MANO.format(bajo=40))
+    assert "41.2 mm" in grande and "25 mm" in grande
+    assert disenar("plataforma", PLATAFORMA_A_MANO.format(bajo=14)) == []
+
+    v = verificar_conjunto(tmp_path, "conjunto", _freecadcmd(), min_gap_mm=0.1, animar=False)
+    assert v["ok"], v["resumen"]
+    ejes = sorted(abs(round(a["eje_mundo"][2])) for a in v["articulaciones"])
+    assert ejes == [0, 1], "un giro horizontal y uno vertical"
+    assert [a["recorrido"] for a in v["articulaciones"]] == [[-90, 90], [-90, 90]]

@@ -476,6 +476,13 @@ def defectos_de_giro(carpeta: Path, nodo: str) -> list[str]:
     return fallos
 
 
+def _gira_segun_el_plan(carpeta: Path, nodo: str) -> bool:
+    from orchestrator import obra as O
+    from orchestrator.schemas.obra import Gira
+    return any(isinstance(u, Gira) and u.gira == nodo
+               for u in O.cargar_obra(Path(carpeta)).uniones)
+
+
 def sondas_de_giro(carpeta: Path, nodo: str) -> list:
     """La sonda `zona_libre` de cada actuador que la pieza de `nodo` monta
     para que otra gire: su propio cuerpo no entra en el cilindro libre."""
@@ -509,16 +516,23 @@ def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
     sondas = sondas_de(requisitos, resultado.rasgos, pared_min_mm)
     backlog = _del_backlog()
     if backlog is not None:
-        del_giro = defectos_de_giro(*backlog)
-        fallos += del_giro
-        sondas += sondas_de_giro(*backlog)
-        # Con la pieza fuera de su sitio el barrido solo repetiría, más caro,
-        # lo que ya se le dice con cifras.
-        if not del_giro and holgura_al_moverse_mm is not None:
-            from orchestrator.conjunto import mover_lo_construido
-            movida = mover_lo_construido(*backlog, freecadcmd, holgura_al_moverse_mm)
-            if movida["correccion"]:
-                fallos.append(movida["correccion"])
+        # Una medida rota no es un defecto de la pieza ni un motivo para
+        # perder el proyecto: se dice y se sigue, como con una sonda rota.
+        try:
+            del_giro = defectos_de_giro(*backlog)
+            fallos += del_giro
+            sondas += sondas_de_giro(*backlog)
+            # Solo la pieza que gira, y solo en su sitio: fuera de él el
+            # barrido repetiría, más caro, lo que ya se le dice con cifras.
+            if (not del_giro and holgura_al_moverse_mm is not None
+                    and _gira_segun_el_plan(*backlog)):
+                from orchestrator.conjunto import mover_lo_construido
+                movida = mover_lo_construido(*backlog, freecadcmd, holgura_al_moverse_mm)
+                if movida["correccion"]:
+                    fallos.append(movida["correccion"])
+        except Exception as fallo:  # noqa: BLE001
+            print(f"  sin medir el sitio de los giros: {type(fallo).__name__}: {fallo}",
+                  flush=True)
     for sonda, medida in zip(sondas, medir_sondas(step, sondas, freecadcmd, material)):
         if medida.estado != "no_cumple":
             continue   # «sin medir» (una sonda rota) no es culpa del diseñador
