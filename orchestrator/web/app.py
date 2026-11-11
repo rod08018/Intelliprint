@@ -479,7 +479,8 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
         from orchestrator.llm.cost import tope_usd
         return paginas.galeria(agrupar(ejecuciones(workspace), workspace), workspace,
                                hay_puente=puente is not None, puede_pedir=trabajos is not None,
-                               tope_usd=tope_usd(raiz))
+                               tope_usd=tope_usd(raiz),
+                               tope_backlog_usd=tope_usd(raiz, backlog=True))
 
     @app.get("/p/{id}", response_class=HTMLResponse)
     def pagina_de_proyecto(id: str, v: str | None = None) -> str:

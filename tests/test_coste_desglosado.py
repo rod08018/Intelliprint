@@ -172,6 +172,58 @@ def test_un_proyecto_que_llego_a_su_tope_no_gasta_mas(tmp_path):
     assert hecho == ["gastó"]
 
 
+def test_un_backlog_tiene_su_propio_tope_mas_alto_que_el_de_una_pieza(tmp_path, monkeypatch):
+    """«Subamos el tope a 50 USD para robots, ya que esos van a llevar
+    bastante testing y otras cosas» (el usuario, 2026-11-11). Un robot son
+    varias piezas, cada una con sus intentos, más mover el conjunto y
+    corregir: el pan-tilt costó 0,93 USD con tres piezas y tres
+    correcciones. Una pieza suelta sigue en 10.
+
+    Con 10,01 USD gastados, el backlog sigue pidiendo su plan (aquí, uno que
+    no sale); con 50,01, se para antes de pedir nada."""
+    from pathlib import Path
+
+    import yaml
+
+    from orchestrator import cli
+    from orchestrator.agents import desglosador
+
+    raiz = Path(__file__).resolve().parents[1]
+    config = yaml.safe_load((raiz / "config" / "models.yaml").read_text(encoding="utf-8"))
+    assert config["escalation"]["max_usd_per_backlog"] == 50.0, "lo decidió el usuario"
+    assert config["escalation"]["max_usd_per_project"] == 10.0
+
+    monkeypatch.setattr(cli, "DeepSeekClient", lambda api_key, model: DeepSeekClient(
+        api_key=api_key, model=model, transport=httpx.MockTransport(lambda r: httpx.Response(
+            200, json={"choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
+                       "usage": {"prompt_tokens": 1000, "completion_tokens": 500}}))))
+    pedidos = []
+
+    class SinDesglose:
+        def __init__(self, cliente, reserva=None):
+            self.cliente = cliente
+
+        def desglosar(self, peticion, **_):
+            pedidos.append(peticion)
+            self.cliente.complete("desglosa")
+            raise ValueError("no cuadra")
+
+    monkeypatch.setattr(desglosador, "DesglosadorAgent", SinDesglose)
+
+    _ya_gastado(tmp_path, 10.01)
+    with pytest.raises(SystemExit) as parada:
+        cli._paso_de_obra(tmp_path, "un pan-tilt", raiz, {"DEEPSEEK_API_KEY": "k"}, "x")
+    assert pedidos == ["un pan-tilt"], "con 10 USD gastados un backlog sigue"
+    assert "tope" not in str(parada.value)
+    assert "50.00 USD" in (tmp_path / "design_cost.md").read_text(encoding="utf-8")
+
+    _ya_gastado(tmp_path, 50.01)
+    with pytest.raises(SystemExit) as parada:
+        cli._paso_de_obra(tmp_path, "un pan-tilt", raiz, {"DEEPSEEK_API_KEY": "k"}, "x")
+    assert len(pedidos) == 1, "con 50 gastados no se pide nada más"
+    assert "50.01 USD" in str(parada.value) and "50.00" in str(parada.value)
+
+
 def test_una_pieza_suelta_tambien_deja_su_coste(tmp_path, monkeypatch):
     """Solo los mecanismos dejaban `design_cost.md`; una pieza suelta, que es
     lo que más se pide, no decía cuánto costó. Un concepto que no sale tras

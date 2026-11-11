@@ -208,6 +208,18 @@ def test_lo_que_dice_la_web_que_cuesta_es_el_tope_de_verdad(tmp_path):
     assert "cuesta hasta 7.5 USD" in html and "hasta 5 USD" not in html
 
 
+def test_la_web_dice_los_dos_topes_el_de_una_pieza_y_el_de_un_backlog(tmp_path):
+    """Un robot tiene su tope aparte, más alto (el usuario, 2026-11-11): quien
+    pide tiene que saber cuál le toca antes de pedir."""
+    from orchestrator.web import paginas
+    html = paginas.galeria([], tmp_path, hay_puente=False, puede_pedir=True, tope_usd=10,
+                           tope_backlog_usd=50)
+    assert "cuesta hasta 10 USD una pieza y hasta 50 USD un backlog" in html
+    # Y la de verdad los lee de la configuración.
+    real = _con_trabajos(tmp_path).get("/").text
+    assert "cuesta hasta 10 USD una pieza y hasta 50 USD un backlog" in real
+
+
 # --- Legible y tocable ------------------------------------------------------------
 
 

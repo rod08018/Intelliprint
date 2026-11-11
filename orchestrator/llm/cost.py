@@ -13,17 +13,32 @@ class PresupuestoAgotado(RuntimeError):
     pass
 
 
-def tope_usd(raiz) -> float | None:
-    """El tope por proyecto que hay en `config/models.yaml`, para decírselo
-    a la persona antes de que pida: la web lo llevaba escrito a mano («hasta
-    5 USD») y habría seguido diciendo 5 con el tope en 10."""
+TOPE_DE_PIEZA, TOPE_DE_BACKLOG = "max_usd_per_project", "max_usd_per_backlog"
+"""Las dos claves de `escalation` en `config/models.yaml`. Un backlog (un
+robot, un conjunto de varias piezas) tiene su tope aparte, más alto: lo
+decidió el usuario el 2026-11-11."""
+
+
+def _tope_de(config: dict, backlog: bool) -> float:
+    """El tope que toca. Un backlog sin tope propio escrito usa el de una
+    pieza: nunca uno más alto que nadie eligió."""
+    escalation = config.get("escalation", {})
+    pieza = float(escalation.get(TOPE_DE_PIEZA, 2.0))
+    return float(escalation.get(TOPE_DE_BACKLOG, pieza)) if backlog else pieza
+
+
+def tope_usd(raiz, backlog: bool = False) -> float | None:
+    """El tope que hay en `config/models.yaml` —el de una pieza o, con
+    `backlog`, el de un backlog entero—, para decírselo a la persona antes
+    de que pida: la web lo llevaba escrito a mano («hasta 5 USD») y habría
+    seguido diciendo 5 con el tope en 10."""
     from pathlib import Path
 
     import yaml
     try:
         config = yaml.safe_load((Path(raiz) / "config" / "models.yaml").read_text(encoding="utf-8"))
-        return float(config["escalation"]["max_usd_per_project"])
-    except (OSError, KeyError, TypeError, ValueError):
+        return _tope_de(config, backlog)
+    except (OSError, AttributeError, TypeError, ValueError):
         return None
 
 
@@ -37,11 +52,9 @@ class Presupuesto:
         self._detalle: list[dict] = []
 
     @classmethod
-    def from_config(cls, config: dict) -> "Presupuesto":
-        return cls(
-            float(config.get("escalation", {}).get("max_usd_per_project", 2.0)),
-            config.get("pricing", {}),
-        )
+    def from_config(cls, config: dict, backlog: bool = False) -> "Presupuesto":
+        """`backlog`: con el tope de un backlog entero y no el de una pieza."""
+        return cls(_tope_de(config, backlog), config.get("pricing", {}))
 
     def continuar(self, carpeta) -> "Presupuesto":
         """Parte de lo que ya gastó el proyecto. Una obra se lanza una vez por

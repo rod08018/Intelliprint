@@ -248,7 +248,7 @@ def _progreso(v: dict) -> str:
 
 
 def galeria(grupos: list[dict], workspace: Path, hay_puente: bool, puede_pedir: bool,
-            tope_usd: float | None = None) -> str:
+            tope_usd: float | None = None, tope_backlog_usd: float | None = None) -> str:
     """El inventario de inventos (F7.8 (inventario)): de cada uno, qué es
     (pieza, mecanismo, ensamble o robot), en qué punto está, qué se compra y
     cuánto costó. Antes era una galería por categorías donde una pieza y un
@@ -307,7 +307,11 @@ def galeria(grupos: list[dict], workspace: Path, hay_puente: bool, puede_pedir: 
     # Lo que tarda y cuesta va siempre: con algo en marcha desaparecía, y es
     # justo cuando la persona decide si esperar o volver luego.
     # El tope, el de `config/models.yaml`: el mismo que se comprueba al gastar.
+    # Un backlog tiene su tope aparte, más alto: quien pide tiene que saber
+    # cuál le toca.
     coste = "Tarda de 5 a 60 minutos" + (
+        f" y cuesta hasta {tope_usd:g} USD una pieza y hasta {tope_backlog_usd:g} USD un backlog."
+        if tope_usd and tope_backlog_usd else
         f" y cuesta hasta {tope_usd:g} USD." if tope_usd else ".")
     nota = ("Esta web no tiene con qué lanzar diseños." if not puede_pedir else
             f"{coste} Hay un diseño en marcha: espera a que termine." if ocupado else

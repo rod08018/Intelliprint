@@ -67,21 +67,27 @@ def _cliente(router: Router, env: dict, role: str = "design"):
 
 
 @contextmanager
-def _apuntar_gasto(raiz: Path, carpeta: Path, etapa: str):
+def _apuntar_gasto(raiz: Path, carpeta: Path, etapa: str, backlog: bool = False):
     """Suma al coste de `carpeta` las llamadas de los clientes creados dentro
     del bloque, salga como salga: un paso que se para a medias también gastó.
     Las piezas y los backlogs no dejaban `design_cost.md`; la ronda del
-    pan-tilt del banco (1110-0313) no pudo decir cuánto costó (2026-11-10)."""
+    pan-tilt del banco (1110-0313) no pudo decir cuánto costó (2026-11-10).
+
+    `backlog`: `carpeta` es la de un backlog entero, y su tope es el suyo
+    (50 USD, decidido por el usuario el 2026-11-11), no el de una pieza. Cada
+    pieza del backlog sigue teniendo además el de una pieza, en su nodo."""
     import yaml
 
-    from orchestrator.llm.cost import Presupuesto, PresupuestoAgotado
+    from orchestrator.llm.cost import (TOPE_DE_BACKLOG, TOPE_DE_PIEZA, Presupuesto,
+                                       PresupuestoAgotado)
 
     def presupuesto_de_hoy():
         return Presupuesto.from_config(yaml.safe_load(
-            (raiz / "config" / "models.yaml").read_text(encoding="utf-8"))).continuar(carpeta)
+            (raiz / "config" / "models.yaml").read_text(encoding="utf-8")),
+            backlog=backlog).continuar(carpeta)
 
     # F5.12 (tope): antes de gastar más se mira lo que el proyecto ya lleva.
-    # El tope lo pone el usuario (10 USD desde el 2026-11-11) y solo lo comprobaba el flujo de
+    # El tope lo pone el usuario y solo lo comprobaba el flujo de
     # mecanismos: una pieza o un backlog podían pasarse sin que nada los
     # parara, con la web diciendo «hasta 5 USD». Se mira al empezar cada paso
     # —el plan, cada pieza—, así que un proyecto se pasa como mucho en lo que
@@ -89,8 +95,8 @@ def _apuntar_gasto(raiz: Path, carpeta: Path, etapa: str):
     try:
         presupuesto_de_hoy().comprobar()
     except PresupuestoAgotado as tope:
-        sys.exit(f"✗ {tope} El tope está en `escalation.max_usd_per_project` de "
-                 "config/models.yaml.")
+        clave = TOPE_DE_BACKLOG if backlog else TOPE_DE_PIEZA
+        sys.exit(f"✗ {tope} El tope está en `escalation.{clave}` de config/models.yaml.")
 
     desde = len(_CLIENTES)
     try:
@@ -421,7 +427,7 @@ def _paso_de_obra(carpeta: Path, peticion: str, raiz: Path, env: dict, nombre: s
         # F9.3 (planificador): el plan se hace con lo que la impresora sabe
         # taladrar, y lo que no tabule se le enseña a la persona como aviso.
         agujeros = _perfil(raiz, env).datos.get("holes", {})
-        with latir(carpeta), _apuntar_gasto(raiz, carpeta, "desglose"):
+        with latir(carpeta), _apuntar_gasto(raiz, carpeta, "desglose", backlog=True):
             try:
                 desglose = DesglosadorAgent(_cliente(router, env, "reason"),
                                             reserva=cliente).desglosar(
@@ -497,7 +503,8 @@ def _paso_de_obra(carpeta: Path, peticion: str, raiz: Path, env: dict, nombre: s
     os.environ["INTELLIPRINT_UNIONES"] = str(obra.escribir_uniones(carpeta, nodo))
     print(f"[{nombre}] nodo «{nombre_nodo}» ({nodo})", flush=True)
     # El gasto de la pieza queda en su nodo y, sumado, en la obra entera.
-    with latir(carpeta), _apuntar_gasto(raiz, carpeta, f"pieza «{nombre_nodo}»"):
+    with latir(carpeta), _apuntar_gasto(raiz, carpeta, f"pieza «{nombre_nodo}»",
+                                         backlog=True):
         try:
             _pieza(SimpleNamespace(peticion=[str(dir_nodo / "request.md")], archivo=True,
                                    carpeta=str(dir_nodo), aprobar_concepto=False),

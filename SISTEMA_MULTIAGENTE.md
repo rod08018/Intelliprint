@@ -211,7 +211,7 @@ Usar DeepSeek como proveedor principal incumple «local primero» a propósito (
 
 El plan preveía DeepSeek solo como escalamiento, para cuando el modelo local fallara. Con el perfil `dev` no hay a quién escalar. El router conserva la previsión para `prod`, donde la clave de DeepSeek sería opcional.
 
-Lo que sí funciona es el control de gasto (`orchestrator/llm/cost.py`). Cada proyecto apunta sus llamadas en `design_cost.md`, y antes de cada paso se comprueba que no ha pasado de `escalation.max_usd_per_project`, que el usuario fijó en 10 USD el 2026-11-11 (antes, 5; F5.12 (tope)). Como se mira al empezar el paso, un proyecto puede pasarse en lo que cueste ese paso.
+Lo que sí funciona es el control de gasto (`orchestrator/llm/cost.py`). Cada proyecto apunta sus llamadas en `design_cost.md`, y antes de cada paso se comprueba que no ha pasado de `escalation.max_usd_per_project`, que el usuario fijó en 10 USD el 2026-11-11 (antes, 5; F5.12 (tope)). Un backlog entero —un robot— tiene el suyo aparte, `escalation.max_usd_per_backlog`, de 50 USD; cada una de sus piezas sigue teniendo además el de una pieza. Como se mira al empezar el paso, un proyecto puede pasarse en lo que cueste ese paso.
 
 ### 6.3 El programa del diseñador y su lista blanca
 
