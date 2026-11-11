@@ -124,9 +124,12 @@ def _disenar_con_kit(raiz: Path, env: dict, cliente):
                        else mencionados(spec.request))
 
         def requisitos_medidos(resultado):
+            # F9.5 (parcial): la pieza de un backlog que gira se mueve contra
+            # lo ya construido con la misma holgura que su conjunto.
             return "\n".join(defectos_de_la_pieza(
                 spec.requisitos, resultado, Path(carpeta) / f"{part}.step", freecad,
-                material, componentes, pared_min, agujeros)) or None
+                material, componentes, pared_min, agujeros,
+                holgura_al_moverse_mm=_perfil(raiz, env).impresora.fit_mm("slide") / 2)) or None
 
         # F9.4 (canal): en un backlog, las uniones del plan están en la
         # carpeta del nodo (`carpeta` es `<nodo>/parts/<pieza>`).

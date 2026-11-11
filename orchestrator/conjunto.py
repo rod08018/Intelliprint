@@ -186,7 +186,8 @@ def leer_piezas(carpeta: Path, conjunto: str | None = None,
             vistos.append(clave)
             p.propios.append(rasgo)
             p.montados += [{**x, "de": de} for x in primitivas(ficha, en, giros, "cuerpos")]
-            p.salidas += [{"de": de, "nombre": s.nombre, "punto": colocar(s.en, en, giros),
+            p.salidas += [{"de": de, "ficha": ficha.id, "nombre": s.nombre,
+                           "punto": colocar(s.en, en, giros),
                            "eje": orientar(s.eje, giros), "recorrido": tuple(s.recorrido),
                            "largo": s.largo}
                           for s in ficha.salidas]
@@ -216,20 +217,56 @@ def _salida_a_la_caja(s: dict, caja) -> float:
                for k in range(n + 1))
 
 
-def articulaciones(piezas: dict[str, Pieza]) -> list[Articulacion]:
+def giros_del_plan(obra) -> dict[str, tuple[str, str]] | None:
+    """{pieza que gira: (ficha del componente, salida)} según las uniones del
+    plan (F9.2 (uniones)), o None si el backlog es de antes de tenerlas:
+    entonces se sigue adivinando por cercanía, como siempre."""
+    from orchestrator.componentes import cargar
+    from orchestrator.plan import salida_de
+    from orchestrator.schemas.obra import Gira
+    if not obra.uniones:
+        return None
+    return {u.gira: (u.componente, salida_de(u, cargar(u.componente)).nombre)
+            for u in obra.uniones if isinstance(u, Gira)}
+
+
+def articulaciones(piezas: dict[str, Pieza],
+                   giros: dict[str, tuple[str, str]] | None = None) -> list[Articulacion]:
     """La pieza que llega a una salida de lo que monta la de abajo gira con
-    ella; si hay varias, con la más cercana. La que no llega va fija."""
+    ella; si hay varias, con la más cercana. La que no llega va fija.
+
+    Con `giros` (`giros_del_plan`) solo gira lo que el plan dice, y sobre la
+    salida que dice (F9.5 (parcial)). Por cercanía, una tapa atornillada a
+    menos de 5 mm de un eje habría girado con él."""
     salida = []
     for p in piezas.values():
         if p.padre is None or not piezas[p.padre].salidas:
             continue
+        candidatas = piezas[p.padre].salidas
+        if giros is not None:
+            if p.id not in giros:
+                continue
+            ficha, nombre = giros[p.id]
+            # Las fichas de antes no guardaban de qué componente era la salida.
+            candidatas = [s for s in candidatas
+                          if s.get("ficha", ficha) == ficha and s["nombre"] == nombre]
+            if not candidatas:
+                continue
         caja = _caja_en(p.envolvente, p.al_padre)
-        d, s = min(((_salida_a_la_caja(s, caja), s) for s in piezas[p.padre].salidas),
+        d, s = min(((_salida_a_la_caja(s, caja), s) for s in candidatas),
                    key=lambda x: x[0])
         if d <= ALCANCE_MM:
             salida.append(Articulacion(p.id, p.padre, s["de"], s["punto"], s["eje"],
                                        s["recorrido"]))
     return salida
+
+
+def articulaciones_de(carpeta: Path, piezas: dict[str, Pieza]) -> list[Articulacion]:
+    """Las del backlog de `carpeta`, con su plan si lo tiene. Todo el que
+    mueve un conjunto pasa por aquí: el barrido, el visor y el estudio tienen
+    que girar las mismas piezas."""
+    from orchestrator import obra as O
+    return articulaciones(piezas, giros_del_plan(O.cargar_obra(Path(carpeta))))
 
 
 def poses(piezas: dict[str, Pieza], arts: dict[str, Articulacion],
@@ -358,7 +395,7 @@ def pose_para_el_visor(carpeta: Path, conjunto: str, angulos: dict[str, float]) 
     no se comprobó nada, y no se puede decir que no choque."""
     from orchestrator import obra as O
     piezas = leer_piezas(carpeta, conjunto, solo_construidas=True)
-    arts = {a.pieza: a for a in articulaciones(piezas)}
+    arts = {a.pieza: a for a in articulaciones_de(carpeta, piezas)}
     v = json.loads((Path(carpeta) / O.NODOS / conjunto / VERIFICACION).read_text(encoding="utf-8"))
     paso = v.get("paso") or PASO
     rejilla = {}
@@ -402,18 +439,9 @@ def animar_conjunto(piezas: dict[str, Pieza], arts: dict[str, Articulacion],
                       resaltar=lambda k: chocan_en(cuadros[k], choques), color_resaltado=ROJO)
 
 
-def verificar_conjunto(carpeta: Path, conjunto: str, freecadcmd: str, min_gap_mm: float,
-                       paso: float = PASO, animar: bool = True) -> dict:
-    """Mueve el conjunto por todo el recorrido de sus articulaciones y deja
-    lo que pasa en `nodos/<conjunto>/verificacion.json`, más el ensamble en
-    reposo (`assembly.FCStd`) para abrirlo en FreeCAD."""
-    from orchestrator import obra as O
-    from orchestrator.assembly import build_assembly, sweep_collisions
-
-    carpeta = Path(carpeta)
-    piezas = leer_piezas(carpeta, conjunto)
-    arts = {a.pieza: a for a in articulaciones(piezas)}
-    # Cada sólido es de una pieza: la construida, y lo comprado que monta.
+def _solidos(piezas: dict[str, Pieza]) -> tuple[dict, dict, dict]:
+    """(dueños, sólidos, steps). Cada sólido es de una pieza: la construida,
+    y lo comprado que monta."""
     duenos = {i: i for i in piezas}
     solidos = {}
     for p in piezas.values():
@@ -421,14 +449,23 @@ def verificar_conjunto(carpeta: Path, conjunto: str, freecadcmd: str, min_gap_mm
             solidos[f"{p.id}: montado"] = [{k: v for k, v in m.items() if k != "de"}
                                            for m in p.montados]
             duenos[f"{p.id}: montado"] = p.id
-    steps = {p.id: p.step for p in piezas.values()}
+    return duenos, solidos, {p.id: p.step for p in piezas.values()}
+
+
+def _barrer(piezas: dict[str, Pieza], arts: dict[str, Articulacion], duenos: dict,
+            solidos: dict, steps: dict, freecadcmd: str, min_gap_mm: float,
+            paso: float = PASO, solo: str | None = None) -> list[dict]:
+    """Los choques al mover las piezas por todo el recorrido de sus
+    articulaciones. Con `solo`, nada más los pares en los que entra esa
+    pieza (o lo que monta): lo que ya había se barrió cuando se construyó."""
+    from orchestrator.assembly import sweep_collisions
 
     # Cada par se barre solo por las articulaciones que hay entre sus dos
     # piezas: el giro del soporte no cambia nada entre el soporte y la
     # plataforma, y barrerlo con ella multiplicaría las poses por 19.
     grupos: dict[tuple, list] = {}
     for x, y in itertools.combinations(sorted(duenos), 2):
-        if duenos[x] == duenos[y]:
+        if duenos[x] == duenos[y] or (solo is not None and solo not in (duenos[x], duenos[y])):
             continue
         entre = set(_hasta_la_raiz(piezas, duenos[x])) ^ set(_hasta_la_raiz(piezas, duenos[y]))
         grupos.setdefault(tuple(sorted(j for j in entre if j in arts)), []).append((x, y))
@@ -450,6 +487,61 @@ def verificar_conjunto(carpeta: Path, conjunto: str, freecadcmd: str, min_gap_mm
             choques.append({"a": duenos[c.a], "b": duenos[c.b], "solido_a": c.a,
                             "solido_b": c.b, "angulos": rejilla[int(c.angle)],
                             "hueco_mm": round(c.gap_mm, 3)})
+    return choques
+
+
+def mover_lo_construido(carpeta: Path, nodo: str, freecadcmd: str, min_gap_mm: float,
+                        paso: float = PASO) -> dict:
+    """Mueve la pieza recién construida de `nodo` contra las que ya hay,
+    sin esperar al nodo conjunto (F9.5 (parcial)): {"choques", "correccion"}.
+
+    El pan-tilt del banco 1110-0313 se movió entero por primera vez con sus
+    tres piezas dadas por buenas, y el choque ya no tenía arreglo barato.
+    Aquí el choque vuelve al bucle de la pieza que se está diseñando, como
+    cualquier otra medida. No escribe nada ni anima: la verificación del
+    conjunto sigue siendo la del todo."""
+    from orchestrator import obra as O
+
+    carpeta = Path(carpeta)
+    piezas = leer_piezas(carpeta, solo_construidas=True)
+    if nodo not in piezas:
+        return {"choques": [], "correccion": ""}
+    arts = {a.pieza: a for a in articulaciones_de(carpeta, piezas)}
+    duenos, solidos, steps = _solidos(piezas)
+    choques = _barrer(piezas, arts, duenos, solidos, steps, freecadcmd, min_gap_mm, paso,
+                      solo=nodo)
+    textos = correcciones(piezas, arts, choques, paso,
+                          presupuestos_del_plan(O.cargar_obra(carpeta)))
+    # Lo que no es de esta pieza (falta sitio en la que monta el actuador)
+    # se le dice igual: es lo que hay, y lo ve quien revise el proyecto.
+    return {"choques": choques,
+            "correccion": "\n".join(([textos[nodo]] if nodo in textos else [])
+                                    + [f"(De «{piezas[i].nombre}») {t}"
+                                       for i, t in textos.items() if i != nodo])}
+
+
+def presupuestos_del_plan(obra) -> dict[str, float] | None:
+    """{pieza que gira: radio libre que el plan le reserva}, o None."""
+    from orchestrator.schemas.obra import Gira
+    if not obra.uniones:
+        return None
+    return {u.gira: u.radio_libre_mm for u in obra.uniones
+            if isinstance(u, Gira) and u.radio_libre_mm}
+
+
+def verificar_conjunto(carpeta: Path, conjunto: str, freecadcmd: str, min_gap_mm: float,
+                       paso: float = PASO, animar: bool = True) -> dict:
+    """Mueve el conjunto por todo el recorrido de sus articulaciones y deja
+    lo que pasa en `nodos/<conjunto>/verificacion.json`, más el ensamble en
+    reposo (`assembly.FCStd`) para abrirlo en FreeCAD."""
+    from orchestrator import obra as O
+    from orchestrator.assembly import build_assembly
+
+    carpeta = Path(carpeta)
+    piezas = leer_piezas(carpeta, conjunto)
+    arts = {a.pieza: a for a in articulaciones_de(carpeta, piezas)}
+    duenos, solidos, steps = _solidos(piezas)
+    choques = _barrer(piezas, arts, duenos, solidos, steps, freecadcmd, min_gap_mm, paso)
 
     reposo = poses(piezas, arts, {})
     # «eje» va en el marco de la pieza de abajo; el banco pregunta si el giro
@@ -461,7 +553,8 @@ def verificar_conjunto(carpeta: Path, conjunto: str, freecadcmd: str, min_gap_mm
                              "recorrido": list(a.recorrido)}
                             for a in arts.values()],
          "choques": choques, "resumen": _resumen(piezas, choques, paso),
-         "correcciones": correcciones(piezas, arts, choques, paso)}
+         "correcciones": correcciones(piezas, arts, choques, paso,
+                                      presupuestos_del_plan(O.cargar_obra(carpeta)))}
     dir_nodo = carpeta / O.NODOS / conjunto
     dir_nodo.mkdir(parents=True, exist_ok=True)
     build_assembly(steps, {}, {s: _placement(reposo[duenos[s]]) for s in duenos},
@@ -538,12 +631,37 @@ def _cerca_de_la_recta(caja, punto, eje) -> float:
     return _a_la_recta(p, punto, eje)
 
 
+def _sin_sitio(piezas, arts, j: str, radio: float, paso: float) -> tuple[str, str] | None:
+    """Si la pieza que monta el actuador de `j` no le dejó el radio que el
+    plan le reserva: (esa pieza, qué decirle). None si lo dejó."""
+    a = arts[j]
+    salida = next((s for s in piezas[a.padre].salidas
+                   if s["punto"] == a.punto and s["eje"] == a.eje), None)
+    if salida is None:
+        return None
+    libre, que = radio_libre(piezas, arts, a.padre, salida, paso)
+    if libre >= radio - 0.05:
+        return None
+    return a.padre, (
+        f"No deja sitio para que gire «{piezas[j].nombre}»: el plan reserva {radio:g} mm "
+        f"alrededor del eje del {a.de} que monta esta pieza y solo hay {libre:.1f} mm, porque "
+        f"{_que(piezas, que)} queda a {libre:.1f} mm de ese eje. Sube o aleja el {a.de} al "
+        f"menos {radio - libre:.1f} mm más, sin cambiar cómo se une esta pieza a lo que tiene "
+        "debajo. Lo demás se queda como está.")
+
+
 def correcciones(piezas: dict[str, Pieza], arts: dict[str, Articulacion],
-                 choques: list[dict], paso: float = PASO) -> dict[str, str]:
+                 choques: list[dict], paso: float = PASO,
+                 presupuestos: dict[str, float] | None = None) -> dict[str, str]:
     """Qué decirle a cada pieza que choca, con cifras con las que se puede
     actuar: contra qué choca y en qué ángulos, hasta dónde llega girando
     alrededor de su eje y dónde empieza lo que choca. Así era la corrección
-    que escribió la persona el 9 de noviembre, la que arregló el pan-tilt."""
+    que escribió la persona el 9 de noviembre, la que arregló el pan-tilt.
+
+    Con `presupuestos` (`presupuestos_del_plan`), el culpable es quien
+    incumple el suyo (ADR-020). «La que va después» mandó corregir la
+    plataforma del pan-tilt 1110-0313, que bajó de 68.4 a 37.7 mm y no podía
+    bajar más: el soporte le había dejado 12.7."""
     reposo = poses(piezas, arts, {})
     por_pieza: dict[str, list[str]] = {}
     pares: dict[tuple, list] = {}
@@ -559,6 +677,12 @@ def correcciones(piezas: dict[str, Pieza], arts: dict[str, Articulacion],
         j = quien
         while j is not None and j not in arts:
             j = piezas[j].padre
+        if j is not None and (presupuestos or {}).get(j):
+            falta = _sin_sitio(piezas, arts, j, presupuestos[j], paso)
+            if falta is not None:
+                if falta[1] not in por_pieza.setdefault(falta[0], []):
+                    por_pieza[falta[0]].append(falta[1])
+                continue
         if j is not None:
             a = arts[j]
             r_p, t_p = reposo[a.padre]

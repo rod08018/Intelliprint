@@ -560,8 +560,11 @@ def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
                     f"Esta pieza gira {u.recorrido_grados:g}° sobre el {ficha.nombre} que "
                     f"monta {nombre(u.sobre)}. Coloca {nombre(u.sobre)} con `kit.componente("
                     f"\"{id_de_ficha(u.sobre)}\", ...)`: {como} te da el punto por donde sale "
-                    "el eje y hacia dónde. Acóplate a él por delante de esa cara, y no te "
-                    f"atornilles a {nombre(u.sobre)}: giras."
+                    "el eje y hacia dónde. Acóplate a él por delante de esa cara. Toda la "
+                    "pieza va por delante de ella: detrás están el actuador y lo que lo "
+                    f"sujeta, y ahí no tiene sitio. No toques la carcasa ni a {nombre(u.sobre)} "
+                    "(deja al menos 1 mm) y no te atornilles a ella: lo único que os une es "
+                    "el eje."
                     + (f" Nada de esta pieza puede quedar a más de {radio:g} mm de ese eje: "
                        f"es el sitio que {nombre(u.sobre)} deja libre." if radio else "")))
             else:

@@ -551,6 +551,29 @@ def acceso_tornillo(forma, nombre, entrada, eje, diametro_mm):
                        "tornillo entra ni la llave lo aprieta"}
 
 
+def zona_libre(forma, nombre, punto, eje, radio_mm):
+    """En el cilindro de `radio_mm` alrededor del eje que sale de `punto`
+    hacia `eje` no hay nada de la pieza: es el sitio de lo que gira sobre la
+    salida `nombre` del actuador que la pieza monta (F9.1 (barrido))."""
+    e = FreeCAD.Vector(*eje)
+    e.normalize()
+    largo = forma.BoundBox.DiagonalLength + 2 * radio_mm + 2
+    zona = Part.makeCylinder(radio_mm, largo, FreeCAD.Vector(*punto), e)
+    comun = forma.common(zona)
+    if comun.Volume <= TOL_CHOQUE_MM3:
+        return {"cumple": True,
+                "detalle": f"deja libres los {radio_mm:g} mm alrededor de «{nombre}»"}
+    # Hasta dónde llega lo que estorba, medido desde el eje: con eso se sabe
+    # cuánto hay que apartarlo.
+    recta = Part.makeLine(FreeCAD.Vector(*punto), FreeCAD.Vector(*punto) + e * largo)
+    cerca = comun.distToShape(recta)[0]
+    return {"cumple": False,
+            "detalle": f"la pieza mete {comun.Volume:.0f} mm³ en el sitio de lo que gira sobre "
+                       f"«{nombre}»: en un cilindro de radio {radio_mm:g} mm alrededor de ese "
+                       "eje, desde la cara por donde sale hacia fuera, no puede haber nada, y "
+                       f"lo que estorba llega a {cerca:.1f} mm del eje"}
+
+
 def carga_en_camino(forma, desde, hasta, gravedad, material, secciones=30):
     """La fuerza que aguanta una pieza que cuelga de `desde` (el eje de su
     servo) con la carga en `hasta` (donde se monta lo de fuera), hacia
@@ -616,7 +639,8 @@ def carga_en_camino(forma, desde, hasta, gravedad, material, secciones=30):
 SONDAS = {"aristas_vivas": aristas_vivas, "resistencia": resistencia, "ventana": ventana,
           "coaxiales": coaxiales, "paso_libre": paso_libre, "pared_minima": pared_minima,
           "ranura": ranura, "retencion": retencion, "componente_cabe": componente_cabe,
-          "componente_entra": componente_entra, "acceso_tornillo": acceso_tornillo}
+          "componente_entra": componente_entra, "acceso_tornillo": acceso_tornillo,
+          "zona_libre": zona_libre}
 
 
 def medir(forma, especificaciones: list[dict], material: dict) -> list[dict]:

@@ -658,6 +658,50 @@ def test_reanudar_archiva_la_pieza_y_sigue_el_backlog_en_su_carpeta(tmp_path, mo
     assert "segunda vuelta" in (corrida / "01" / "salida.txt").read_text(encoding="utf-8")
 
 
+def test_reanudar_corrige_con_lo_medido_la_pieza_que_salio_con_defectos(tmp_path, monkeypatch):
+    """F9.5 (parcial). Una pieza construida que no cumple —el soporte que no
+    deja sitio para inclinar— no se diseña de cero al reanudar: se corrige
+    la que hay con lo que se le midió, que trae las cifras. Rehacerla volvía
+    a pedir concepto y salía otra pieza, sin saber por qué falló la primera."""
+    import json
+    from orchestrator import banco
+    corrida = tmp_path / "corrida"
+    p = _con_informes(_obra_construida(corrida / "01"), {"base": True, "giro": False})
+    medido = "sitio para girar (unión u3): necesita 25 mm libres y solo hay 12.7 mm"
+    (p / "nodos" / "giro" / "pieza_report.json").write_text(json.dumps(
+        {"titulo": "giro", "resuelto": False, "motivo": medido}), encoding="utf-8")
+    (p / "nodos" / "giro" / "concepto_aprobado").write_text("{}", encoding="utf-8")
+    (p / "nodos" / "giro" / "parts" / "giro" / "programa.py").write_text("PROGRAMA",
+                                                                        encoding="utf-8")
+
+    class Hecho:
+        stdout, stderr, returncode = "", "", 0
+
+    monkeypatch.setattr(banco.subprocess, "run", lambda orden, **k: Hecho())
+    monkeypatch.setattr(banco, "rejuzgar", lambda *a, **k: ({"x": []}, {}))
+    e = banco.Encargo(nombre="x", categoria="robots", peticion="un pan-tilt", obra=True,
+                      oraculo=[{"tipo": "conjunto_libre"}])
+    banco.reanudar([e], corrida, ["intelliprint", "obra", "--banco"], "fc", {})
+    retoque = json.loads((p / "nodos" / "giro" / "retoque.json").read_text(encoding="utf-8"))
+    assert retoque["programa"] == "PROGRAMA" and "12.7 mm" in retoque["cambio"]
+    assert (p / "nodos" / "giro" / "concepto_aprobado").is_file(), "el concepto se queda"
+
+
+def test_la_carpeta_de_un_encargo_se_busca_por_su_nombre(tmp_path):
+    """Las carpetas de una corrida van numeradas por el puesto del encargo
+    en la lista con la que se lanzó. La 1110-0313 se lanzó solo con los dos
+    backlogs: su `01` es el pan-tilt, el encargo 11. Rejuzgada o reanudada
+    con otra lista, el puesto apunta a la carpeta de otro encargo."""
+    from orchestrator.banco import carpeta_del_encargo, marcar_carpeta
+    marcar_carpeta(tmp_path / "01", "pan_tilt_sg90")
+    assert carpeta_del_encargo(tmp_path, 11, "pan_tilt_sg90") == tmp_path / "01"
+    # El primero de la lista entera no es el de esa carpeta: no se construyó.
+    assert not carpeta_del_encargo(tmp_path, 1, "soporte_mg996r_2020").exists()
+    # Una corrida de antes, sin marcas, se sigue leyendo por el puesto.
+    (tmp_path / "vieja" / "02").mkdir(parents=True)
+    assert carpeta_del_encargo(tmp_path / "vieja", 2, "lo_que_sea") == tmp_path / "vieja" / "02"
+
+
 def test_el_banco_se_reanuda_desde_la_orden(tmp_path, monkeypatch):
     """`banco --reanudar <corrida>` sigue esa corrida y deja su informe al lado
     del original, sin pisarlo: es la evidencia de cada vuelta."""

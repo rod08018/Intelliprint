@@ -326,7 +326,7 @@ def estudiar(carpeta: Path, conjunto: str, raiz: Path | None = None) -> dict:
     from orchestrator import obra as O
     from orchestrator.componentes import cargar
     from orchestrator.conjunto import (PASO, VERIFICACION, _hasta_la_raiz, _recorrido,
-                                       articulaciones, leer_piezas, poses)
+                                       articulaciones_de, leer_piezas, poses)
     from orchestrator.impresion import perfil_activo
     from orchestrator.tornilleria import _aplicar, _girar, tornillos
 
@@ -335,7 +335,7 @@ def estudiar(carpeta: Path, conjunto: str, raiz: Path | None = None) -> dict:
     lam, rho = laminado(raiz), perfil_activo(raiz).densidad_g_cm3
     fichas = [O.carpeta_de_fichas(carpeta)]
     piezas = leer_piezas(carpeta, conjunto, solo_construidas=True)
-    arts = {a.pieza: a for a in articulaciones(piezas)}
+    arts = {a.pieza: a for a in articulaciones_de(carpeta, piezas)}
     ver = carpeta / O.NODOS / conjunto / VERIFICACION
     paso = (json.loads(ver.read_text(encoding="utf-8")).get("paso") if ver.is_file() else None) or PASO
     ob = json.loads((carpeta / "obra.json").read_text(encoding="utf-8"))
@@ -515,14 +515,14 @@ def carga_del_material(carpeta: Path, conjunto: str, e: dict, freecadcmd: str,
     import math
     from orchestrator import obra as O
     from orchestrator.conjunto import (PASO, _hasta_la_raiz, _inversa, _recorrido,
-                                       articulaciones, leer_piezas, poses)
+                                       articulaciones_de, leer_piezas, poses)
     from orchestrator.impresion import perfil_activo
     from orchestrator.tornilleria import _aplicar, _girar, _punto, _resta, _unit
 
     raiz = Path(raiz) if raiz else Path(__file__).resolve().parent.parent
     material = perfil_activo(raiz).datos["resistencia"]
     piezas = leer_piezas(carpeta, conjunto, solo_construidas=True)
-    arts = {a.pieza: a for a in articulaciones(piezas)}
+    arts = {a.pieza: a for a in articulaciones_de(carpeta, piezas)}
     hoja, carga = e["carga"]["pieza"], e["carga"]["punto"]
     cadena = _hasta_la_raiz(piezas, hoja)          # de la hoja hacia la raíz
     rejillas = {j: _recorrido(a, e.get("paso") or PASO) for j, a in arts.items()}
@@ -662,14 +662,14 @@ def en_la_pose(carpeta: Path, conjunto: str, angulos: dict[str, float]) -> dict 
     `estudio.json`: sacarlas de las mallas cuesta medio minuto. Sin carga
     útil: es lo que se ve al mover el deslizador."""
     from orchestrator import obra as O
-    from orchestrator.conjunto import _hasta_la_raiz, articulaciones, leer_piezas, poses
+    from orchestrator.conjunto import _hasta_la_raiz, articulaciones_de, leer_piezas, poses
     from orchestrator.tornilleria import _aplicar, _girar
     ruta = Path(carpeta) / O.NODOS / conjunto / ESTUDIO
     if not ruta.is_file():
         return None
     e = json.loads(ruta.read_text(encoding="utf-8"))
     piezas = leer_piezas(carpeta, conjunto, solo_construidas=True)
-    arts = {a.pieza: a for a in articulaciones(piezas)}
+    arts = {a.pieza: a for a in articulaciones_de(carpeta, piezas)}
     mundo = poses(piezas, arts, {j: v for j, v in angulos.items() if j in arts})
     mm = [(m["g"], _aplicar(mundo[m["pieza"]], m["centro"]), m["pieza"])
           for m in e["masas"] if m["pieza"] in mundo]

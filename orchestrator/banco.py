@@ -197,6 +197,19 @@ class AccesoTornillo(_Sonda):
     diametro_mm: float
 
 
+class ZonaLibre(_Sonda):
+    """La pieza deja libre el sitio de un giro (F9.1 (barrido)): en el
+    cilindro de `radio_mm` alrededor del eje que sale de `punto` hacia `eje`
+    —la salida del actuador que monta— no hay nada de ella. El soporte del
+    pan-tilt 1110-0313 no le dejó sitio a la plataforma, y nadie lo midió
+    hasta que las tres piezas estaban dadas por buenas."""
+    tipo: Literal["zona_libre"]
+    nombre: str
+    punto: list[float]
+    eje: list[float]
+    radio_mm: float
+
+
 class Componente(BaseModel):
     """El componente de la biblioteca cabe en la pieza y se puede meter
     (F6.11 (biblioteca)). La forma sale de la ficha; dónde va y por dónde
@@ -268,7 +281,7 @@ class Articulaciones(BaseModel):
 
 Asercion = Annotated[Agujeros | Cilindro | Envolvente | SinSoportes | Pendiente | AristasVivas
                      | Resistencia | Ventana | Coaxiales | PasoLibre | ParedMinima | Ranura
-                     | Retencion | ComponenteCabe | ComponenteEntra | AccesoTornillo
+                     | Retencion | ComponenteCabe | ComponenteEntra | AccesoTornillo | ZonaLibre
                      | Componente | Encaje | ConjuntoLibre | Articulaciones,
                      Field(discriminator="tipo")]
 
@@ -602,7 +615,7 @@ def correr(encargo: Encargo, carpeta: Path, orden: list[str], freecadcmd: str,
            laminar=None) -> tuple[list[Resultado], str | None]:
     """Pide la pieza como la pediría una persona y la juzga. Devuelve los
     resultados y, si no llegó a construirse, el porqué."""
-    carpeta.mkdir(parents=True, exist_ok=True)
+    marcar_carpeta(carpeta, encargo.nombre)
     limite = LIMITE_OBRA_S if encargo.obra else LIMITE_S
     try:
         proceso = subprocess.run(
@@ -826,7 +839,7 @@ def rejuzgar(encargos: list[Encargo], corrida: Path, freecadcmd: str,
     STEP no basta (puede ser el de un intento fallido)."""
     resultados, fallos = {}, {}
     for i, e in enumerate(encargos, 1):
-        carpeta = Path(corrida) / f"{i:02d}"
+        carpeta = carpeta_del_encargo(Path(corrida), i, e.nombre)
         salida = carpeta / "salida.txt"
         texto = salida.read_text(encoding="utf-8", errors="ignore") if salida.exists() else ""
         if e.obra:
@@ -843,6 +856,41 @@ def rejuzgar(encargos: list[Encargo], corrida: Path, freecadcmd: str,
             continue
         resultados[e.nombre] = juzgar_pieza(e, carpeta, freecadcmd, material, laminar)
     return resultados, fallos
+
+
+ENCARGO = "encargo.txt"
+
+
+def marcar_carpeta(carpeta: Path, nombre: str) -> None:
+    """Deja escrito de qué encargo es la carpeta de una corrida."""
+    Path(carpeta).mkdir(parents=True, exist_ok=True)
+    (Path(carpeta) / ENCARGO).write_text(nombre, encoding="utf-8")
+
+
+def carpeta_del_encargo(corrida: Path, puesto: int, nombre: str) -> Path:
+    """La carpeta del encargo `nombre` en una corrida. Van numeradas por el
+    puesto en la lista con la que se lanzó: la 1110-0313 se lanzó solo con
+    los dos backlogs y su `01` es el pan-tilt, el encargo 11. Rejuzgarla o
+    reanudarla con otra lista leía la carpeta de otro encargo. Con la marca
+    se busca por nombre; las corridas de antes no la tienen y se siguen
+    leyendo por el puesto."""
+    corrida = Path(corrida)
+    marcas = {m.read_text(encoding="utf-8").strip(): m.parent for m in corrida.glob(f"*/{ENCARGO}")}
+    if nombre in marcas:
+        return marcas[nombre]
+    por_puesto = corrida / f"{puesto:02d}"
+    if por_puesto in marcas.values():
+        return corrida / f"sin-{nombre}"   # esa carpeta es de otro encargo
+    return por_puesto
+
+
+def _lo_medido(proyecto: Path, nodo: str) -> str:
+    """Lo que no cumple la pieza construida de `nodo`, como quedó en su informe."""
+    from orchestrator import obra
+    informe = Path(proyecto) / obra.NODOS / nodo / "pieza_report.json"
+    if not informe.is_file():
+        return ""
+    return (json.loads(informe.read_text(encoding="utf-8")).get("motivo") or "").strip()
 
 
 def correcciones_del_conjunto(proyecto: Path) -> dict[str, str]:
@@ -891,7 +939,7 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
     from orchestrator.build import carpeta_libre
     from orchestrator.pieza import CAMBIOS
     for i, e in enumerate(encargos, 1):
-        carpeta = Path(corrida) / f"{i:02d}"
+        carpeta = carpeta_del_encargo(Path(corrida), i, e.nombre)
         hecho = next(carpeta.glob(f"projects/*/{obra.OBRA}"), None) if e.obra else None
         nodo = nodo_a_rehacer(hecho.parent) if hecho is not None else None
         if nodo is None:
@@ -908,6 +956,11 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
                     cambios.parent.mkdir(parents=True, exist_ok=True)
                     with cambios.open("a", encoding="utf-8") as f:
                         f.write(correcciones[otro].strip() + "\n")
+        elif obra.programa_construido(proyecto, nodo) and _lo_medido(proyecto, nodo):
+            # F9.5 (parcial): la pieza se construyó y no cumple. Se corrige la
+            # que hay con lo que se le midió, que trae las cifras: rehacerla
+            # pedía otro concepto y salía otra pieza, sin saber por qué falló.
+            obra.corregir(proyecto, nodo, _lo_medido(proyecto, nodo))
         else:
             obra.rehacer(proyecto, nodo)
         salida = carpeta / "salida.txt"

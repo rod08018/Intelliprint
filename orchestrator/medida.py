@@ -13,6 +13,7 @@ para F6.12 (techo).
 
 import math
 import re
+from pathlib import Path
 
 TOL_DIAMETRO_MM = 0.05
 """El diámetro tiene que ser el pedido: la trazabilidad ya exige que el
@@ -357,23 +358,174 @@ def componentes_sin_colocar(componentes, rasgos) -> list[str]:
     return [falta(c) for c in componentes if c not in colocados]
 
 
+# --- el sitio de cada giro (F9.1 (barrido)) --------------------------------------------------
+
+DETRAS_MM = 0.05
+"""Lo que una pieza que gira puede asomar por detrás de la cara de salida
+sin que cuente: ruido de coma flotante, no material."""
+
+
+def _del_backlog() -> tuple[Path, str] | None:
+    """(carpeta del backlog, nodo) si la pieza que se está diseñando es de
+    uno: `INTELLIPRINT_UNIONES` apunta a `<backlog>/nodos/<nodo>/uniones.json`."""
+    import os
+    ruta = os.environ.get("INTELLIPRINT_UNIONES")
+    if not ruta or not Path(ruta).is_file():
+        return None
+    return Path(ruta).parents[2], Path(ruta).parent.name
+
+
+def _giros_de(carpeta: Path, nodo: str):
+    """(obra, piezas construidas, articulaciones, uniones `gira` del nodo)."""
+    from orchestrator import obra as O
+    from orchestrator.conjunto import articulaciones_de, leer_piezas
+    from orchestrator.schemas.obra import Gira
+
+    obra = O.cargar_obra(carpeta)
+    giros = [u for u in obra.uniones_de(nodo) if isinstance(u, Gira) and u.radio_libre_mm]
+    if not giros:
+        return obra, {}, {}, []
+    piezas = leer_piezas(carpeta, solo_construidas=True)
+    arts = {a.pieza: a for a in articulaciones_de(carpeta, piezas)}
+    return obra, piezas, arts, giros
+
+
+def _salidas_del_giro(piezas, u) -> list[dict]:
+    """Las salidas de lo que monta `u.sobre` sobre las que puede girar `u`."""
+    from orchestrator.componentes import cargar
+    from orchestrator.plan import salida_de
+    nombre = salida_de(u, cargar(u.componente)).nombre
+    return [s for s in piezas[u.sobre].salidas
+            if s.get("ficha") == u.componente and s["nombre"] == nombre]
+
+
+def defectos_de_giro(carpeta: Path, nodo: str) -> list[str]:
+    """Lo que la pieza construida de `nodo` no cumple del sitio que el plan
+    reserva a cada giro, sin FreeCAD.
+
+    El pan-tilt del banco 1110-0313 falló solo «se mueve sin chocar», y por
+    esto: su soporte dejó 12.7 mm entre el eje de inclinación y el SG90 de
+    la base para una plataforma de 37.7. Se supo con las tres piezas dadas
+    por buenas, y la corrección se le pidió a la plataforma. Aquí cada una
+    lo sabe en su propio bucle:
+
+    - la que MONTA el actuador: lo que tiene debajo no entra en el cilindro
+      libre, en ningún ángulo (`conjunto.radio_libre`). Lo suyo propio lo
+      mide la sonda `zona_libre`, con su forma real (`sondas_de_giro`);
+    - la que GIRA: coloca la pieza sobre la que gira, llega al eje, va por
+      delante de la cara de salida y no pasa del radio."""
+    from orchestrator import obra as O
+    from orchestrator.conjunto import (ALCANCE_MM, _a_la_recta, _caja_en, _esquinas, _que,
+                                       _salida_a_la_caja, radio_libre)
+
+    carpeta = Path(carpeta)
+    obra, piezas, arts, giros = _giros_de(carpeta, nodo)
+    if nodo not in piezas:
+        return []
+    yo, fallos = piezas[nodo], []
+    for u in giros:
+        radio = u.radio_libre_mm
+        if u.sobre == nodo:
+            gira = obra.nodo(u.gira).nombre
+            for s in _salidas_del_giro(piezas, u):
+                libre, que = radio_libre(piezas, arts, nodo, s)
+                if libre < radio - 0.05:
+                    fallos.append(
+                        f"sitio para girar (unión {u.id}): «{gira}» necesita {radio:g} mm "
+                        f"libres alrededor del eje del {s['de']} que monta esta pieza, y solo "
+                        f"hay {libre:.1f} mm: {_que(piezas, que)} queda a {libre:.1f} mm de "
+                        f"ese eje. Sube o aleja el {s['de']} al menos {radio - libre:.1f} mm "
+                        "más, sin cambiar cómo se une esta pieza a lo que tiene debajo")
+            continue
+        sobre = obra.nodo(u.sobre).nombre
+        if yo.padre != u.sobre:
+            fallos.append(
+                f"giro (unión {u.id}): esta pieza gira sobre el {u.componente} de «{sobre}» y "
+                f"no la colocaste, o colocaste antes otra pieza: pon primero `kit.componente("
+                f"\"{O.id_de_ficha(u.sobre)}\", en=..., entra_por=...)` y acóplate a su "
+                "`salida()`")
+            continue
+        candidatas = _salidas_del_giro(piezas, u)
+        if not candidatas:
+            continue   # «sobre» no colocó el actuador: es un defecto suyo, no de esta
+        caja = _caja_en(yo.envolvente, yo.al_padre)
+        lejos, s = min(((_salida_a_la_caja(s, caja), s) for s in candidatas),
+                       key=lambda x: x[0])
+        if lejos > ALCANCE_MM:
+            fallos.append(
+                f"giro (unión {u.id}): esta pieza no llega al eje del {s['de']} de «{sobre}»: "
+                f"queda a {lejos:.1f} mm de la cara por donde sale. Lo que gira se acopla al "
+                f"eje: tiene que empezar a menos de {ALCANCE_MM:g} mm de esa cara")
+            continue
+        esquinas = _esquinas(yo.envolvente, yo.al_padre)
+        llega = max(_a_la_recta(q, s["punto"], s["eje"]) for q in esquinas)
+        detras = max(-sum((c - p) * e for c, p, e in zip(q, s["punto"], s["eje"]))
+                     for q in esquinas)
+        if detras > DETRAS_MM:
+            fallos.append(
+                f"giro (unión {u.id}): esta pieza asoma {detras:.1f} mm por detrás de la cara "
+                f"por donde sale el eje del {s['de']} de «{sobre}». El sitio que tiene "
+                "reservado empieza en esa cara y va hacia fuera: detrás están el actuador y "
+                "la pieza que lo sujeta. Llévala entera por delante de la cara")
+        if llega > radio + 0.05:
+            fallos.append(
+                f"giro (unión {u.id}): esta pieza llega a {llega:.1f} mm del eje sobre el que "
+                f"gira y «{sobre}» solo le deja {radio:g} mm libres: al girar chocará. "
+                f"Encógela hasta que ninguna esquina pase de {radio:g} mm del eje, sin mover "
+                "dónde se acopla")
+    return fallos
+
+
+def sondas_de_giro(carpeta: Path, nodo: str) -> list:
+    """La sonda `zona_libre` de cada actuador que la pieza de `nodo` monta
+    para que otra gire: su propio cuerpo no entra en el cilindro libre."""
+    from orchestrator.banco import ZonaLibre
+
+    _, piezas, _, giros = _giros_de(Path(carpeta), nodo)
+    if nodo not in piezas:
+        return []
+    return [ZonaLibre(tipo="zona_libre", nombre=f"{s['de']}: {s['nombre']}",
+                      punto=[float(c) for c in s["punto"]], eje=[float(c) for c in s["eje"]],
+                      radio_mm=float(u.radio_libre_mm), porque=f"unión {u.id}")
+            for u in giros if u.sobre == nodo for s in _salidas_del_giro(piezas, u)]
+
+
 def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
                          material: dict, componentes=(), pared_min_mm=None,
-                         agujeros_del_perfil=None) -> list[str]:
+                         agujeros_del_perfil=None, holgura_al_moverse_mm=None) -> list[str]:
     """Lo que la pieza construida no cumple: agujeros (con los rasgos del
     kit), componentes que no caben o no entran, y sondas sobre el STEP. Los
-    de acabado van con su prefijo."""
+    de acabado van con su prefijo.
+
+    En un backlog con plan, también el sitio de cada giro (F9.1 (barrido))
+    y, si la pieza gira y está en su sitio, el choque al moverla contra lo
+    ya construido (F9.5 (parcial)), con `holgura_al_moverse_mm`."""
     from orchestrator.banco import (AccesoTornillo, AristasVivas, ComponenteCabe,
-                                    ComponenteEntra, ParedMinima, medir_sondas)
+                                    ComponenteEntra, ParedMinima, ZonaLibre, medir_sondas)
 
     fallos = defectos(requisitos, resultado.rasgos, agujeros_del_perfil)
     fallos += componentes_sin_colocar(componentes, resultado.rasgos)
     fallos += bridas_que_no_aprietan(resultado.rasgos)
     sondas = sondas_de(requisitos, resultado.rasgos, pared_min_mm)
+    backlog = _del_backlog()
+    if backlog is not None:
+        del_giro = defectos_de_giro(*backlog)
+        fallos += del_giro
+        sondas += sondas_de_giro(*backlog)
+        # Con la pieza fuera de su sitio el barrido solo repetiría, más caro,
+        # lo que ya se le dice con cifras.
+        if not del_giro and holgura_al_moverse_mm is not None:
+            from orchestrator.conjunto import mover_lo_construido
+            movida = mover_lo_construido(*backlog, freecadcmd, holgura_al_moverse_mm)
+            if movida["correccion"]:
+                fallos.append(movida["correccion"])
     for sonda, medida in zip(sondas, medir_sondas(step, sondas, freecadcmd, material)):
         if medida.estado != "no_cumple":
             continue   # «sin medir» (una sonda rota) no es culpa del diseñador
-        if isinstance(sonda, AristasVivas):
+        if isinstance(sonda, ZonaLibre):
+            fallos.append(f"sitio para girar ({sonda.porque}): {medida.detalle}. Sujeta el "
+                          "actuador por detrás de esa cara y aparta de ahí lo que sobresale")
+        elif isinstance(sonda, AristasVivas):
             # Antes decía `redondear(1, aristas="todas")`: redondea también los
             # rincones, y en el SG90 del banco eso cerró la ventana del servo.
             fallos.append(f"{ACABADO}: {medida.detalle}. Termina con `return pieza.acabar()`, "
