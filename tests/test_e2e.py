@@ -65,11 +65,27 @@ CASOS = [
 ]
 
 
+@pytest.fixture
+def workspace_corto():
+    """Un workspace con la ruta más corta que da el sistema. Con `tmp_path`
+    (`pytest-of-…/pytest-N/test_de_la_frase_a_la_pieza_pl1/`, 58 caracteres)
+    la placa de 80 × 50 cayó cinco veces seguidas el 2026-11-11: el modelo
+    tituló la pieza «placa_de_montaje_80x50x4_mm», y entre la carpeta del
+    proyecto, la de la pieza y el temporal con el que FreeCAD guarda el
+    `.FCStd`, la ruta pasó de los 260 caracteres de Windows («Failed to open
+    file»). Con un título más corto, la misma prueba pasaba. En el contenedor
+    no ocurre; esto solo corre en el host, que es donde se abre la ventana."""
+    import tempfile
+    with tempfile.TemporaryDirectory(prefix="ip", ignore_cleanup_errors=True) as carpeta:
+        yield Path(carpeta)
+
+
 @pytest.mark.llm
 @pytest.mark.skipif(not _env.get("DEEPSEEK_API_KEY"), reason="sin DEEPSEEK_API_KEY")
 @pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
 @pytest.mark.parametrize("peticion,oraculo", CASOS)
-def test_de_la_frase_a_la_pieza(tmp_path, peticion, oraculo):
+def test_de_la_frase_a_la_pieza(workspace_corto, peticion, oraculo):
+    tmp_path = workspace_corto
     proceso = subprocess.run(
         [INTELLIPRINT, "pieza", "--aprobar-concepto", peticion],
         capture_output=True, text=True, timeout=1800,
