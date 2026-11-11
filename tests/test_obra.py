@@ -360,7 +360,10 @@ def test_esta_bien_la_siguiente_congela_el_nodo_y_desbloquea_lo_que_depende_de_e
     assert O.lista(tmp_path, "base")["impresa"] is True
 
 
-def test_rehacer_un_nodo_archiva_tambien_lo_que_se_diseno_contra_el(tmp_path):
+def test_rehacer_un_nodo_deja_por_revalidar_lo_que_se_construyo_contra_el(tmp_path):
+    """Hasta F9.9 (revalidar) el soporte ya construido se archivaba con la
+    base. Ahora se queda y espera a comprobarse contra la base nueva
+    (`tests/test_revalidar.py`); la base sí se archiva entera."""
     O = _empezar(tmp_path)
     O.aprobar(tmp_path, por="web")
     _disenar_nodo(tmp_path, "base")
@@ -372,12 +375,14 @@ def test_rehacer_un_nodo_archiva_tambien_lo_que_se_diseno_contra_el(tmp_path):
     rehechos = O.rehacer(tmp_path, "base", cambio="más alta")
     assert not (tmp_path / "animation.gif").exists()
     assert list((tmp_path / "archivo").rglob("animation.gif"))
-    assert rehechos == ["base", "giro"]
+    assert rehechos == ["base"]
     assert O.estados(tmp_path) == {"base": "pendiente", "giro": "bloqueado",
                                    "inclinacion": "bloqueado"}
     assert not (tmp_path / "fichas" / "obra-base.yaml").exists()
     archivado = tmp_path / "archivo"
-    assert list(archivado.rglob("obra-base.yaml")) and list(archivado.rglob("giro.step"))
+    assert list(archivado.rglob("obra-base.yaml")) and not list(archivado.rglob("giro.step"))
+    assert (tmp_path / "nodos" / "giro" / "parts" / "giro" / "giro.step").is_file()
+    assert (tmp_path / "nodos" / "giro" / "revalidar.json").is_file()
     assert "más alta" in (tmp_path / "nodos" / "base" / "cambios.md").read_text(encoding="utf-8")
 
 
@@ -420,8 +425,8 @@ def test_corregir_una_pieza_disenada_parte_de_ella_y_no_de_cero(tmp_path):
     cerca de una cara, y «rehacer» volvía a pedir especificación, concepto,
     visto bueno y un diseño nuevo: salió otra pieza. Corregir guarda la spec
     y el concepto aprobados y deja el programa construido como punto de
-    partida; lo construido se archiva, y lo que se diseñó contra su ficha
-    también, porque la ficha va a cambiar."""
+    partida; lo construido se archiva. Lo que se diseñó contra su ficha ya
+    no: espera a comprobarse contra la nueva (F9.9 (revalidar))."""
     O = _empezar(tmp_path)
     O.aprobar(tmp_path, por="web")
     _disenar_nodo(tmp_path, "base")
@@ -436,7 +441,8 @@ def test_corregir_una_pieza_disenada_parte_de_ella_y_no_de_cero(tmp_path):
     assert list((tmp_path / "archivo").rglob("animation.gif"))
     assert not (tmp_path / "animation.gif").exists()
 
-    assert rehechos == ["base", "giro"]
+    assert rehechos == ["base"]
+    assert (tmp_path / "nodos" / "giro" / "parts" / "giro" / "giro.step").is_file()
     for queda in ("spec.yaml", "concepto.json", "concepto_aprobado"):
         assert (nodo / queda).exists(), queda
     assert not (nodo / "parts").exists() and not (nodo / "pieza_report.json").exists()

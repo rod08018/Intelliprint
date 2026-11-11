@@ -365,6 +365,10 @@ class Hechos(BaseModel):
 class Resultado(BaseModel):
     estado: Estado
     detalle: str
+    valor: float | None = None
+    """La cifra de la sonda, si da una además de su veredicto: a cuánto
+    queda un componente de la pieza. Con ella se ve si una pieza que tocaba a
+    otra dejó de tocarla (F9.9 (revalidar)); el detalle es para leerlo."""
 
 
 Hechos.model_rebuild()   # `sondas` usa Resultado, que va después
@@ -605,7 +609,8 @@ def medir_sondas(step: Path, aserciones: list, freecadcmd: str,
         return [Resultado(estado="sin_medir", detalle=f"las sondas no corrieron: {motivo[0]}")
                 for _ in aserciones]
     return [Resultado(estado="sin_medir" if r["cumple"] is None else
-                      "cumple" if r["cumple"] else "no_cumple", detalle=r["detalle"])
+                      "cumple" if r["cumple"] else "no_cumple", detalle=r["detalle"],
+                      valor=r.get("valor"))
             for r in json.loads(linea.split(":", 1)[1])]
 
 
@@ -964,22 +969,26 @@ def la_que_no_orienta(encargo: Encargo, proyecto: Path, freecadcmd: str,
     return None, ""
 
 
-def la_que_no_sujeta(encargo: Encargo, proyecto: Path) -> tuple[str | None, str]:
-    """(pieza, lo que le falta) de la primera pieza del backlog, en orden,
-    que no lleva los tornillos que prevé su plan; (None, "") si a ninguna le
-    falta nada o el encargo no lo pide (F9.6 (previsto)). La primera: las
-    que se diseñaron contra ella se rehacen al corregirla, y ya con la
-    cuenta de tornillos en su propio bucle."""
+def las_que_no_sujetan(encargo: Encargo, proyecto: Path) -> dict[str, str]:
+    """{pieza: lo que le falta} de las piezas del backlog que no llevan los
+    tornillos que prevé su plan, en orden; vacío si a ninguna le falta nada o
+    el encargo no lo pide (F9.6 (previsto)).
+
+    Todas, no solo la primera. Hasta F9.9 (revalidar) bastaba la primera:
+    corregirla rehacía de cero las que iban encima, que contaban sus
+    tornillos al dibujarse. Ahora las de encima se quedan si siguen valiendo,
+    y cada una tiene que corregir lo suyo."""
     if not any(isinstance(a, Tornillos) for a in encargo.oraculo):
-        return None, ""
+        return {}
     from orchestrator import obra
     from orchestrator.medida import uniones_sin_hacer
     arbol = obra.cargar_obra(Path(proyecto))
+    salida = {}
     for i in arbol.orden():
         faltan = uniones_sin_hacer(proyecto, i) if arbol.nodo(i).tipo == "pieza" else []
         if faltan:
-            return i, "\n".join(faltan)
-    return None, ""
+            salida[i] = "\n".join(faltan)
+    return salida
 
 
 NO_ORIENTA = "Esta pieza gira para orientar lo que lleva"
@@ -1089,8 +1098,9 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
     """Sigue los backlogs de una corrida desde la pieza que falló, y juzga
     otra vez. Relanzar el backlog entero tras cada arreglo (2026-11-09/10)
     costaba hora y media por vuelta para volver a la misma pieza, y cada
-    vuelta solo enseñaba un fallo. Lo hecho se queda; la pieza que falló, y
-    lo diseñado contra ella, se archivan (`obra.rehacer`), no se borran."""
+    vuelta solo enseñaba un fallo. Lo hecho se queda; la pieza que falló se
+    archiva (no se borra) y lo construido contra ella se revalida cuando la
+    nueva está lista (F9.9 (revalidar)), en la misma orden."""
     from orchestrator import obra
     from orchestrator.build import carpeta_libre
     from orchestrator.pieza import CAMBIOS
@@ -1098,19 +1108,27 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
         carpeta = carpeta_del_encargo(Path(corrida), i, e.nombre)
         hecho = next(carpeta.glob(f"projects/*/{obra.OBRA}"), None) if e.obra else None
         nodo = nodo_a_rehacer(hecho.parent) if hecho is not None else None
+        # F9.9 (revalidar): si la orden se cortó con una pieza por revalidar
+        # no hay nada que corregir ni que archivar; basta con seguirla.
+        solo_seguir = hecho is not None and "por revalidar" in obra.estados(hecho.parent).values()
+        if solo_seguir:
+            nodo = None
         de_concepto = ""
-        if nodo is None and hecho is not None:
+        if nodo is None and hecho is not None and not solo_seguir:
             # Todo construido y sin chocar, y aun así la pieza no sirve para
             # lo que se pidió (F9.14 (orienta)).
             nodo, de_concepto = la_que_no_orienta(e, hecho.parent, freecadcmd, material)
-        sin_tornillos = ""
-        if nodo is None and hecho is not None:
-            nodo, sin_tornillos = la_que_no_sujeta(e, hecho.parent)
-        if nodo is None:
+        sin_tornillos: dict[str, str] = {}
+        if nodo is None and hecho is not None and not solo_seguir:
+            sin_tornillos = las_que_no_sujetan(e, hecho.parent)
+            nodo = next(iter(sin_tornillos), None)
+        if nodo is None and not solo_seguir:
             continue
         proyecto = hecho.parent
         correcciones = correcciones_del_conjunto(proyecto)
-        if de_concepto:
+        if solo_seguir:
+            pass
+        elif de_concepto:
             apuntado = proyecto / obra.NODOS / nodo / CAMBIOS
             ya_rehecha = apuntado.is_file() and NO_ORIENTA in apuntado.read_text(encoding="utf-8")
             if ya_rehecha and obra.programa_construido(proyecto, nodo):
@@ -1125,22 +1143,29 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
                 # medido apuntado para el ingeniero.
                 obra.rehacer(proyecto, nodo, de_concepto)
         elif sin_tornillos:
-            # Le faltan agujeros: se corrige la que hay, que por lo demás
-            # está bien (pasó todo lo otro), con lo que falta en cifras.
-            if obra.programa_construido(proyecto, nodo):
-                obra.corregir(proyecto, nodo, sin_tornillos)
-            else:
-                obra.rehacer(proyecto, nodo, sin_tornillos)
+            # Les faltan agujeros: se corrige la que hay, que por lo demás
+            # está bien (pasó todo lo otro), con lo que falta en cifras. En
+            # orden, de abajo arriba: corregir una marca por revalidar las
+            # de encima, y corregir después una de esas le quita la marca.
+            for otro, falta in sin_tornillos.items():
+                if obra.programa_construido(proyecto, otro):
+                    obra.corregir(proyecto, otro, falta)
+                else:
+                    obra.rehacer(proyecto, otro, falta)
         elif nodo in correcciones and obra.programa_construido(proyecto, nodo):
             # Se corrige la pieza que hay, como la corrigió la persona en la
-            # web el 9 de noviembre. Las otras que chocan se diseñaron contra
-            # ella y se rehacen: su corrección va apuntada para el ingeniero.
-            for otro in obra.corregir(proyecto, nodo, correcciones[nodo])[1:]:
-                if otro in correcciones:
-                    cambios = proyecto / obra.NODOS / otro / CAMBIOS
-                    cambios.parent.mkdir(parents=True, exist_ok=True)
-                    with cambios.open("a", encoding="utf-8") as f:
-                        f.write(correcciones[otro].strip() + "\n")
+            # web el 9 de noviembre. Las que se diseñaron contra ella y
+            # también chocan llevan su propia corrección: ya no se archivan
+            # solo por ir encima (F9.9 (revalidar)), así que hay que
+            # pedírsela, o seguirían chocando igual.
+            obra.corregir(proyecto, nodo, correcciones[nodo])
+            for otro in obra.cargar_obra(proyecto).dependientes(nodo):
+                if otro not in correcciones:
+                    continue
+                if obra.programa_construido(proyecto, otro):
+                    obra.corregir(proyecto, otro, correcciones[otro])
+                else:
+                    obra.rehacer(proyecto, otro, correcciones[otro])
         elif obra.programa_construido(proyecto, nodo) and _lo_medido(proyecto, nodo):
             # F9.5 (parcial): la pieza se construyó y no cumple. Se corrige la
             # que hay con lo que se le midió, que trae las cifras: rehacerla

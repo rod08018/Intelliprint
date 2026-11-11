@@ -112,14 +112,14 @@ El plan original era una máquina de estados sobre LangGraph (`INTAKE → … �
 
 **Una pieza** pasa por: concepto por aprobar → concepto aprobado → diseñada, o con fallos.
 
-**Un backlog** pasa por: plan por aprobar, y después cada nodo en orden de dependencias. Un nodo pieza recorre los estados de una pieza y queda «lista» cuando la persona la da por buena; está «bloqueado» mientras no lo estén los nodos de los que depende. Un nodo conjunto pasa de «por verificar» a «verificado» o «con choques».
+**Un backlog** pasa por: plan por aprobar, y después cada nodo en orden de dependencias. Un nodo pieza recorre los estados de una pieza y queda «lista» cuando la persona la da por buena; está «bloqueado» mientras no lo estén los nodos de los que depende, y «por revalidar» si se corrigió algo de lo que tiene debajo y falta comprobarla contra ello. Un nodo conjunto pasa de «por verificar» a «verificado» o «con choques».
 
 Las reglas del plan original, con su número —el código y las ADR las citan así— y lo que vale hoy:
 
 1. **Estados de una pieza.** Los de arriba. La lista `TODO … PASS | FAIL` de `orchestrator/schemas/part_task.py` es del plan original y ningún flujo la recorre.
 2. **Reintentos.** Hasta cinco construcciones por pieza; cada fallo vuelve al diseñador con su motivo. Cada llamada a un modelo admite tres intentos.
 3. **Un choque va a la pieza que lo causa** (F7.7 (culpable)): la que incumple el radio libre que el plan le reservó o, en un backlog sin plan, la que se diseñó después. El sistema escribe la corrección con cifras y la persona la manda; no se corrige solo.
-4. **Rehacer una pieza rehace lo que se diseñó contra ella.** Lo anterior se archiva, no se borra. Revalidar en vez de rehacer es F9.9 (revalidar), pendiente.
+4. **Corregir una pieza no rehace lo que se diseñó contra ella: lo revalida** (F9.9 (revalidar), `orchestrator/revalidar.py`). Lo ya construido encima queda «por revalidar» y, cuando la pieza corregida vuelve a estar lista, se comprueba sin modelo contra su ficha nueva: que los agujeros con nombre, lo montado y las salidas que tenía sigan igual, que siga cabiendo, entrando y tocando donde la otra la colocó, y que no aparezca un defecto del plan que no tuviera. Si vale no se toca; si no, se corrige partiendo de ella. Lo que no llegó a construirse y la verificación del conjunto sí se archivan. Nada se borra.
 5. **Si se agotan los intentos no se escala a otro modelo.** Se entrega la construcción que menos falla (F6.8 (mejor)), `blocked.md` dice qué no cumple, y decide la persona.
 6. **No hay diseño en paralelo.** Las piezas se diseñan de una en una. Cada construcción es un proceso `freecadcmd` propio.
 7. **Esperar a la persona no cuesta nada.** El proceso termina en cada parada, así que un proyecto puede esperar días y sobrevive a un reinicio. Como va una pieza cada vez, una parada sí detiene el backlog entero.
@@ -437,4 +437,4 @@ Intelliprint/
 | Carpeta `ui/` y adaptador web del `HumanPort` | La web es `orchestrator/web/` y llama a los trabajos directamente | § 8.5 |
 | Hoja de ruta y tabla de riesgos de este documento | Viven en `PLAN_PROYECTO.md`, que es el que se mantiene | `PLAN_PROYECTO.md` |
 
-Lo que está planeado y todavía por hacer no va en esta tabla: está en `PLAN_PROYECTO.md`. De la Fase 9 faltan F9.9 a F9.12 (revalidar, ampliar un invento, el borrador de ficha y las pantallas).
+Lo que está planeado y todavía por hacer no va en esta tabla: está en `PLAN_PROYECTO.md`. De la Fase 9 faltan F9.10 a F9.12 (ampliar un invento, el borrador de ficha y las pantallas).

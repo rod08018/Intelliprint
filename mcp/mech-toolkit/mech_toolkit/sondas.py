@@ -476,7 +476,8 @@ def componente_cabe(forma, ficha, en, giros=()):
         return {"cumple": False,
                 "detalle": f"{ficha.get('nombre', ficha['id'])} no toca la pieza: queda a "
                            f"{cerca:.1f} mm; donde está colocado no lo sujeta nada"}
-    return {"cumple": True, "detalle": f"cabe, y se apoya a {cerca:.2f} mm de la pieza"}
+    return {"cumple": True, "detalle": f"cabe, y se apoya a {cerca:.2f} mm de la pieza",
+            "valor": cerca}
 
 
 PASO_ENTRA_MM = 0.5

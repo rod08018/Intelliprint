@@ -61,10 +61,12 @@ def test_pieza_lista_la_ficha_y_sigue(ws):
     assert "--continuar" in _esperar_registro(carpeta)
 
 
-def test_rehacer_pieza_dice_que_se_rehace_con_ella(ws):
+def test_rehacer_pieza_dice_que_se_comprueba_despues(ws):
+    """F9.9 (revalidar): lo construido contra la pieza ya no se rehace con
+    ella; Crafty tiene que poder decir cuáles se van a comprobar."""
     carpeta = _empezar(ws, aprobada=True)
     _disenar_nodo(carpeta, "base")
     O.dar_por_lista(carpeta, "base", por="prueba")
     _disenar_nodo(carpeta, "giro")
     r = servidor.rehacer_pieza(ID, "base", cambio="más alta")
-    assert r["rehechos"] == ["base", "giro"], r
+    assert r["rehechos"] == ["base"] and r["por_revalidar"] == ["giro"], r

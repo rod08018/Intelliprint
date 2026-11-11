@@ -102,18 +102,21 @@ def test_impresa_y_probada_queda_apuntada_con_su_nota_y_no_frena_nada(tmp_path):
     assert "Impresa y probada" in texto and "entró justo" in texto
 
 
-def test_rehacer_avisa_de_lo_que_se_rehace_con_el(tmp_path):
+def test_rehacer_avisa_de_lo_que_se_comprueba_despues(tmp_path):
     carpeta = _empezar(tmp_path, aprobada=True)
     _disenar_nodo(carpeta, "base")
     O.dar_por_lista(carpeta, "base", por="prueba")
     _disenar_nodo(carpeta, "giro")
     web = _ws_con_trabajos(tmp_path)
-    # El aviso antes de pulsar: rehacer la base deshace el soporte de giro.
-    assert "también Soporte de giro" in _visible(web.get(f"/p/{ID}").text)
+    # El aviso antes de pulsar: el soporte de giro, ya construido contra la
+    # base, no se deshace con ella; se comprueba después (F9.9 (revalidar)).
+    texto = _visible(web.get(f"/p/{ID}").text)
+    assert "Después se comprueba también Soporte de giro" in texto
+    assert "deshace también" not in texto
 
     r = web.post(f"/api/proyectos/{ID}/nodos/base/rehacer", json={"cambio": "más alta"})
     assert r.status_code == 200, r.text
-    assert r.json()["rehechos"] == ["base", "giro"]
+    assert r.json()["rehechos"] == ["base"] and r.json()["por_revalidar"] == ["giro"]
     # Construida y con un cambio dicho: se corrige, sin volver al concepto.
     assert O.estados(carpeta)["base"] == "corrigiendo"
 

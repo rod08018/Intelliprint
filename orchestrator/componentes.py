@@ -231,6 +231,14 @@ def cargar(id_: str, extra=()) -> Ficha:
     ruta = _ruta(id_, extra)
     if ruta is None:
         raise KeyError(f"no hay ficha de «{id_}»; hay: {', '.join(ids()) or 'ninguna'}")
+    return cargar_de(ruta)
+
+
+def cargar_de(ruta: Path) -> Ficha:
+    """La ficha de ESE archivo, sin buscarla por su id: para comparar la de
+    una pieza con la que tenía antes de corregirse (F9.9 (revalidar)), que se
+    llama igual y `cargar` no sabría cuál de las dos dar."""
+    ruta = Path(ruta)
     ficha = Ficha(**yaml.safe_load(ruta.read_text(encoding="utf-8")))
     # La ruta del STEP va relativa a la ficha: la obra se puede mover o
     # montar en otra carpeta (el contenedor) y la ficha sigue valiendo.

@@ -460,6 +460,29 @@ def _paso_de_obra(carpeta: Path, peticion: str, raiz: Path, env: dict, nombre: s
     if estado == "con choques":
         print(f"[{nombre}] ✋ «{nombre_nodo}» choca al moverse: corrige la pieza que choca")
         return
+    if estado == "por revalidar":
+        # F9.9 (revalidar): se corrigió algo de lo que esta pieza tiene
+        # debajo. Se comprueba contra la ficha nueva, sin modelo, y solo si
+        # deja de valer se corrige. Antes se archivaba sin mirar.
+        from orchestrator import revalidar
+        print(f"[{nombre}] «{nombre_nodo}»: se comprueba contra lo que se corrigió…",
+              flush=True)
+        try:
+            with latir(carpeta):
+                motivos = revalidar.resolver(carpeta, nodo, _freecadcmd(env),
+                                             _perfil(raiz, env).datos["resistencia"])
+        except (RuntimeError, ValueError) as fallo:
+            # Sin medir no se da por buena ni se tira: se queda como está.
+            sys.exit(f"[{nombre}] ✗ «{nombre_nodo}» no se pudo revalidar: {fallo}")
+        if motivos:
+            print("\n".join(f"  - {m}" for m in motivos), flush=True)
+            print(f"[{nombre}] «{nombre_nodo}» ya no vale tal cual: se corrige partiendo "
+                  "de ella", flush=True)
+        else:
+            print(f"[{nombre}] ✓ «{nombre_nodo}» sigue valiendo: no se toca", flush=True)
+        # No hay nada que decidir: se sigue con lo que toque, en esta misma
+        # orden. Parar aquí dejaría a la persona delante de un «Empezar».
+        return _paso_de_obra(carpeta, peticion, raiz, env, nombre)
     if estado == "por verificar":
         # F7.4 (conjunto): con sus piezas listas, se mueve entero en FreeCAD.
         from orchestrator.conjunto import verificar_conjunto

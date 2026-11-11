@@ -189,9 +189,11 @@ def rehacer_pieza(proyecto: str, nodo: str, cambio: str = "", desde_cero: bool =
     el usuario en sus palabras. Si ya está diseñada, se CORRIGE partiendo de
     ella: solo cambia lo pedido y no vuelve a pasar por el concepto.
     `desde_cero` solo si el usuario pide expresamente rediseñarla entera.
-    Las piezas que se diseñaron contra ella se rehacen también
-    (`rehechos`): díselo ANTES de llamarlo."""
-    from orchestrator import obra
+    Las piezas ya construidas que se diseñaron contra ella NO se rehacen:
+    cuando esta vuelva a estar lista se comprueban solas contra la corregida
+    (`por_revalidar`) y solo se toca la que deje de valer. Lo que no llegó a
+    construirse sí se rehace (`rehechos`). Díselo ANTES de llamarlo."""
+    from orchestrator import obra, revalidar
     try:
         corrige = (not desde_cero and cambio.strip()
                    and obra.programa_construido(_store().carpeta / proyecto, nodo))
@@ -199,6 +201,7 @@ def rehacer_pieza(proyecto: str, nodo: str, cambio: str = "", desde_cero: bool =
     except (KeyError, ValueError, RuntimeError) as e:
         return {"error": str(e)}
     return {"proyecto": proyecto, "rehechos": rehechos,
+            "por_revalidar": revalidar.pendientes(_store().carpeta / proyecto),
             "aviso": ("Corrigiendo la pieza que había; no vuelve a pasar por el concepto."
                       if corrige else
                       "Rehaciendo; su concepto volverá a esperar el visto bueno.")}

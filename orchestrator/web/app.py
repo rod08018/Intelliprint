@@ -293,7 +293,11 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
                                         desde_cero=pedido.desde_cero)
         except (ValueError, RuntimeError) as e:
             raise HTTPException(409, str(e))
-        return {"id": carpeta.name, "rehechos": rehechos}
+        from orchestrator import revalidar
+        # `rehechos`: lo archivado. Lo construido contra el nodo se queda y
+        # se comprueba cuando este vuelva a estar listo (F9.9 (revalidar)).
+        return {"id": carpeta.name, "rehechos": rehechos,
+                "por_revalidar": revalidar.pendientes(carpeta)}
 
     @app.get("/api/proyectos/{id}")
     def detalle(id: str) -> dict:

@@ -324,16 +324,24 @@ def estados(carpeta: Path) -> dict[str, str]:
     que depende no lo está; para un conjunto, lo que dijo su verificación
     (F7.4 (conjunto)): por verificar, verificando, verificado o con choques;
     o lo que diga la carpeta de la pieza: pendiente, concepto por aprobar,
-    concepto aprobado, diseñando, diseñada, con fallos."""
+    concepto aprobado, diseñando, diseñada, con fallos.
+
+    «por revalidar» (F9.9 (revalidar)): la pieza está hecha, pero algo de lo
+    que tiene debajo se corrigió después; mientras eso no vuelva a estar
+    listo espera, aunque ella tenga su visto bueno."""
+    from orchestrator.revalidar import MARCA
     carpeta = Path(carpeta)
     obra = cargar_obra(carpeta)
     salida: dict[str, str] = {}
     for i in obra.orden():
         n = obra.nodo(i)
-        if lista(carpeta, i):
+        revalidar = n.tipo == "pieza" and (carpeta / NODOS / i / MARCA).is_file()
+        if lista(carpeta, i) and not revalidar:
             salida[i] = "lista"
         elif any(salida[d] not in HECHOS for d in n.depende_de):
             salida[i] = "bloqueado"
+        elif revalidar:
+            salida[i] = "por revalidar"
         elif n.tipo == "conjunto":
             salida[i] = _estado_conjunto(carpeta / NODOS / i)
         else:
@@ -341,7 +349,7 @@ def estados(carpeta: Path) -> dict[str, str]:
     return salida
 
 
-SE_LANZAN = ("pendiente", "concepto aprobado", "por verificar")
+SE_LANZAN = ("pendiente", "concepto aprobado", "por verificar", "por revalidar")
 """Lo que no espera a la persona: basta con lanzar la orden."""
 
 HECHOS = ("lista", "verificado")
@@ -707,13 +715,23 @@ def marcar_impresa(carpeta: Path, nodo: str, nota: str = "") -> None:
            **{**marca, "impresa": True, "nota": nota or marca.get("nota", "")})
 
 
+def _por_revalidar(carpeta: Path, obra: Obra, nodo: str) -> list[str]:
+    """Marca lo ya construido contra `nodo`, que se va a cambiar, y dice qué
+    nodos quedaron marcados (F9.9 (revalidar)). ANTES de archivar nada de
+    `nodo`: la marca se lleva una copia de su ficha de ahora."""
+    from orchestrator import revalidar
+    return [i for i in obra.dependientes(nodo) if revalidar.marcar(carpeta, i, por=nodo)]
+
+
 def rehacer(carpeta: Path, nodo: str, cambio: str = "") -> list[str]:
-    """Vuelve a diseñar `nodo`, y con él lo que se diseñó contra su ficha,
-    que ya no será la misma. Todo se archiva, nada se borra. Devuelve los
-    nodos archivados."""
+    """Vuelve a diseñar `nodo`. Lo que se diseñó contra su ficha y está
+    construido se queda, por revalidar contra la nueva (F9.9 (revalidar));
+    lo que no llegó a construirse se archiva con él. Nada se borra. Devuelve
+    los nodos archivados."""
     from orchestrator.pieza import CAMBIOS
     carpeta = Path(carpeta)
     obra = cargar_obra(carpeta)
+    se_quedan = _por_revalidar(carpeta, obra, nodo)
     # Lo que se lleva a la vuelta nueva, leído antes de archivar. Sin esto
     # la base del pan-tilt (2026-11-09) salió de cero cada vez, y el segundo
     # cambio borró el primero.
@@ -728,7 +746,7 @@ def rehacer(carpeta: Path, nodo: str, cambio: str = "") -> list[str]:
     # La animación de la obra entera ya no sería de lo que hay (F7.6 (animacion)).
     _archivar(carpeta, carpeta / ANIMACION)
     rehechos = []
-    for i in [nodo, *obra.dependientes(nodo)]:
+    for i in [nodo, *(d for d in obra.dependientes(nodo) if d not in se_quedan)]:
         fichas = carpeta_de_fichas(carpeta)
         rutas = [carpeta / NODOS / i, fichas / f"{id_de_ficha(i)}.yaml",
                  fichas / f"{id_de_ficha(i)}.step"]
@@ -778,9 +796,17 @@ def corregir(carpeta: Path, nodo: str, cambio: str) -> list[str]:
     pieza, y otras cosas cambiaban sin que nadie lo pidiera.
 
     Se quedan la spec y el concepto aprobados; lo construido se archiva y su
-    programa queda como punto de partida (`retoque.json`). Lo que se diseñó
-    contra la ficha del nodo se archiva entero: la ficha va a cambiar.
+    programa queda como punto de partida (`retoque.json`).
+
+    Lo que se diseñó contra la ficha del nodo y está construido NO se
+    archiva (F9.9 (revalidar)): queda por revalidar contra la ficha nueva, y
+    solo se toca si deja de valer. Hasta el 2026-11-11 se archivaba entero
+    «porque la ficha va a cambiar»: al añadirle dos agujeros a la base del
+    pan-tilt 1111-1342 se tiraron el soporte y la plataforma buena, y la que
+    salió después no llevaba la cámara. Lo que no llegó a construirse —un
+    concepto, la verificación de un conjunto— sí se archiva.
     Devuelve los nodos archivados."""
+    from orchestrator import revalidar
     from orchestrator.pieza import CAMBIOS, RETOQUE
     carpeta = Path(carpeta)
     obra = cargar_obra(carpeta)
@@ -791,11 +817,17 @@ def corregir(carpeta: Path, nodo: str, cambio: str) -> list[str]:
         raise ValueError("para corregir una pieza hay que decir qué cambiar")
     dir_nodo = carpeta / NODOS / nodo
     fichas = carpeta_de_fichas(carpeta)
-    _archivar(carpeta, *(dir_nodo / n for n in (*LO_CONSTRUIDO, RETOQUE)),
+    se_quedan = _por_revalidar(carpeta, obra, nodo)
+    # Su propia marca también: si esperaba a revalidarse, ya no hay qué
+    # revalidar; se corrige contra las fichas que haya cuando le toque.
+    _archivar(carpeta, *(dir_nodo / n for n in (
+                  *LO_CONSTRUIDO, RETOQUE, revalidar.MARCA, revalidar.CONTRA, revalidar.HECHA)),
               fichas / f"{id_de_ficha(nodo)}.yaml", fichas / f"{id_de_ficha(nodo)}.step",
               carpeta / ANIMACION)
     rehechos = [nodo]
     for i in obra.dependientes(nodo):
+        if i in se_quedan:
+            continue
         rutas = [carpeta / NODOS / i, fichas / f"{id_de_ficha(i)}.yaml",
                  fichas / f"{id_de_ficha(i)}.step"]
         if any(r.exists() for r in rutas):

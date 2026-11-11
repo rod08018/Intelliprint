@@ -113,10 +113,19 @@ invento. El plan aprobado está en `PLAN_PROYECTO.md`, Fase 9, con su orden.
   0,53 USD; 1,46 la corrida entera): ahora los cuatro agarran, pero **sigue
   en 6 de 7**. Corregir la base rehízo el soporte y la plataforma de cero, y
   en la plataforma nueva (30 × 28.5) ya no cabe la cámara de 25 × 24; la
-  buena, de 32 × 27, quedó archivada. Es lo que arregla F9.9 (revalidar).
+  buena, de 32 × 27, quedó archivada.
   El tope era una reanudación: otra se acuerda antes. **Falta un dato
   suyo:** el agujero de un M2 de rosca, que se apunta en «Impresora» →
   «Apuntar otro tornillo»; el Ø1.7 de ahora lo eligió el diseñador.
+- **Corregir una pieza ya no tira lo de encima: lo revalida**
+  (F9.9 (revalidar), 2026-11-11, `orchestrator/revalidar.py`). Lo construido
+  contra la pieza corregida se queda «por revalidar» y se comprueba sin
+  modelo contra la ficha nueva; solo se corrige lo que deja de valer.
+  Repetida sin modelo la corrección de la base (en una copia, con el soporte
+  y la plataforma del archivo), los dos siguen valiendo y la cámara cabe.
+  **El banco no se ha vuelto a correr**: el pan-tilt de `1111-1342` sigue
+  en 6 de 7 con su plataforma de 30 × 28.5. Corregirla es otra reanudación,
+  que se acuerda antes.
 - **A dónde quiere llegar** (2026-11-11): a diseñar brazos como Arctos
   (6 ejes, NEMA 17 y 23, reductoras y correas) y aeronaves como las de
   Flightory (ala fija y VTOL en LW-PLA). No hay fase aprobada para ninguna de

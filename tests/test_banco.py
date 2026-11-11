@@ -601,8 +601,10 @@ def test_un_conjunto_que_choca_corrige_la_pieza_que_lo_causa(tmp_path):
 def test_reanudar_corrige_la_pieza_que_choca_partiendo_de_ella(tmp_path, monkeypatch):
     """Se corrige la pieza que hay con el texto del choque, como hizo la
     persona en la web el 9 de noviembre (y salió), en vez de diseñarla de
-    cero. Si otra pieza que también choca se diseñó contra ella, se rehace
-    con su corrección apuntada, que el ingeniero lee."""
+    cero. Otra pieza que también choca y se diseñó contra ella lleva su
+    propia corrección: desde F9.9 (revalidar) ya no se archiva solo por ir
+    encima, así que sin pedírsela seguiría chocando. Aquí no tiene programa
+    del que partir y se rehace, con la corrección apuntada para el ingeniero."""
     import json
     from orchestrator import banco
     corrida = tmp_path / "corrida"
@@ -922,3 +924,41 @@ def test_reanudar_corrige_la_primera_pieza_que_no_sujeta_su_servo(tmp_path, monk
         {"base": True, "giro": True}))
     banco.reanudar([e], otra, ["intelliprint", "obra", "--banco"], "fc", {})
     assert lanzado == []
+
+
+def test_reanudar_corrige_todas_las_piezas_a_las_que_les_faltan_tornillos(tmp_path, monkeypatch):
+    """F9.9 (revalidar). Antes bastaba corregir la primera: las de encima se
+    rehacían de cero y contaban sus tornillos al dibujarse. Ahora se quedan
+    si siguen valiendo, así que cada una que no sujeta su servo se corrige
+    por lo suyo. Repetida sin modelo la corrección de la base de la
+    1111-1342, el soporte se quedaba con sus dos agujeros de Ø2.2: habría
+    hecho falta otra reanudación solo para él.
+
+    Aquí la base y el soporte de giro llevan un SG90 cada uno y ninguno de
+    los dos tiene agujeros: a cada uno le faltan sus 2 (la ficha del SG90)."""
+    import json
+    from orchestrator import banco
+    bien = {"ok": True, "choques": [], "resumen": [], "articulaciones": [], "correcciones": {}}
+    e = banco.Encargo(nombre="x", categoria="robots", peticion="un pan-tilt", obra=True,
+                      oraculo=[{"tipo": "tornillos", "sujetan": "sg90", "metrica": "M2",
+                                "cuantos": 4}])
+
+    class Hecho:
+        stdout, stderr, returncode = "", "", 0
+
+    monkeypatch.setattr(banco.subprocess, "run", lambda orden, **k: Hecho())
+    monkeypatch.setattr(banco, "rejuzgar", lambda *a, **k: ({"x": []}, {}))
+    corrida = tmp_path / "corrida"
+    p = _con_sus_servos_en_el_plan(_con_informes(
+        _obra_construida(corrida / "01", verificacion=bien), {"base": True, "giro": True}))
+    for i in ("base", "giro"):
+        (p / "nodos" / i / "concepto_aprobado").write_text("{}", encoding="utf-8")
+        (p / "nodos" / i / "parts" / i / "programa.py").write_text(f"PROGRAMA DE {i}",
+                                                                   encoding="utf-8")
+
+    banco.reanudar([e], corrida, ["intelliprint", "obra", "--banco"], "fc", {})
+
+    for i in ("base", "giro"):
+        retoque = json.loads((p / "nodos" / i / "retoque.json").read_text(encoding="utf-8"))
+        assert retoque["programa"] == f"PROGRAMA DE {i}", i
+        assert "Micro servo SG90" in retoque["cambio"] and "faltan 2" in retoque["cambio"], i

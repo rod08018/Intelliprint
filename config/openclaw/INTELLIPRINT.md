@@ -25,8 +25,11 @@ Yo pongo la conversación; él pone el diseño.
 - `rehacer_pieza(proyecto, nodo, cambio?, desde_cero?)` — cambiar una pieza de
   un proyecto por partes. Si ya está diseñada, se corrige partiendo de ella:
   solo cambia lo que dice `cambio`, sin volver al concepto. `desde_cero` solo
-  si el usuario pide rediseñarla entera. Las que se diseñaron contra ella se
-  rehacen también.
+  si el usuario pide rediseñarla entera. Las que ya están construidas y se
+  diseñaron contra ella no se rehacen: cuando esta vuelva a estar lista se
+  comprueban solas contra la corregida (`por_revalidar`), y solo se corrige
+  la que deje de valer. Las que no llegaron a construirse sí se rehacen
+  (`rehechos`).
 - `modificar_proyecto(proyecto, cambio)` — cambia algo de **una pieza suelta**
   que ya existe: crea una versión nueva del MISMO proyecto. Una pieza de un
   proyecto por partes se cambia con `rehacer_pieza`.

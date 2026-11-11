@@ -623,6 +623,7 @@ ESTADOS_DE_NODO = {
     "corrigiendo": ("Corrigiéndose…", "vivo"),
     "diseñada": ("Diseñada: revísala", "ambar"),
     "con fallos": ("No salió del todo", "mal"),
+    "por revalidar": ("Por comprobar contra la pieza que se corrigió", "suave"),
     "por verificar": ("Por mover entero con las piezas reales", "suave"),
     "verificando": ("Moviéndose por todo su recorrido…", "vivo"),
     "verificado": ("Se mueve entero sin chocar", "ok"),
@@ -662,7 +663,8 @@ def _arbol(carpeta: Path, vid: str, bloqueo: str, hay_puente: bool) -> tuple[str
     if siguiente and estados[siguiente] in O.SE_LANZAN:
         # Sin esto, si la orden moría a medias la página decía «Siguiente:
         # Conjunto pan-tilt» y no había por dónde seguir (2026-11-09).
-        que = "Moverlo entero" if ob.nodo(siguiente).tipo == "conjunto" else "Empezar"
+        que = ("Moverlo entero" if ob.nodo(siguiente).tipo == "conjunto" else
+               "Comprobarla" if estados[siguiente] == "por revalidar" else "Empezar")
         boton = f' <button class="btn pri" data-seguir="{vid}"{bloqueo}>{que}</button>'
     arriba = (f'<div class="aviso ambar"><b>Siguiente: {e(ob.nodo(siguiente).nombre)}</b>{boton}</div>'
               if siguiente else '<div class="aviso"><b>Todas las piezas están listas.</b></div>')
@@ -735,10 +737,18 @@ def _arbol(carpeta: Path, vid: str, bloqueo: str, hay_puente: bool) -> tuple[str
                     f'aria-label="Nota de la prueba de {e(n.nombre)}">'
                     '<button class="btn">Impresa y probada</button></form>')
         if marca or estado in ("diseñada", "con fallos"):
-            # El aviso antes de pulsar: lo diseñado contra esta pieza se rehace con ella.
-            arrastra = [ob.nodo(d).nombre for d in ob.dependientes(i)
-                        if (carpeta / O.NODOS / d).exists()]
-            aviso = f" (se rehace también {', '.join(arrastra)})" if arrastra else ""
+            # El aviso antes de pulsar. Lo construido contra esta pieza ya no
+            # se deshace con ella (F9.9 (revalidar)): se comprueba contra la
+            # corregida y solo se toca si deja de valer. Lo que no llegó a
+            # construirse (un concepto, el conjunto movido) sí se rehace.
+            encima = [d for d in ob.dependientes(i) if (carpeta / O.NODOS / d).exists()]
+            se_comprueba = [ob.nodo(d).nombre for d in encima
+                            if ob.nodo(d).tipo == "pieza"
+                            and list((carpeta / O.NODOS / d / "parts").glob("*/envolvente.json"))]
+            arrastra = [ob.nodo(d).nombre for d in encima
+                        if ob.nodo(d).nombre not in se_comprueba]
+            aviso = "".join(f" ({que} también {', '.join(cuales)})" for que, cuales in (
+                ("se comprueba", se_comprueba), ("se rehace", arrastra)) if cuales)
             extra.append(
                 f'<form class="cambiar-pieza" data-rehacer="{e(i)}" data-proyecto-obra="{vid}">'
                 # Un textarea: el cambio de la brida del pan-tilt eran tres
@@ -747,6 +757,9 @@ def _arbol(carpeta: Path, vid: str, bloqueo: str, hay_puente: bool) -> tuple[str
                 f'se corrige la que hay, no se rediseña" '
                 f'aria-label="Qué cambiar de {e(n.nombre)}{e(aviso)}"{bloqueo}></textarea>'
                 f'<button class="btn"{bloqueo}>Corregir</button></form>'
+                + (f'<p class="nota-grupo">Después se comprueba también '
+                   f'{e(", ".join(se_comprueba))}, que se diseñó contra esta: si sigue '
+                   'valiendo no se toca.</p>' if se_comprueba else "")
                 + (f'<p class="nota-grupo">Cambiarla deshace también {e(", ".join(arrastra))}: '
                    'se diseñó contra esta.</p>' if arrastra else ""))
         if extra and i != siguiente and estado not in ("diseñada", "con fallos"):
