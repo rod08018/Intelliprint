@@ -60,3 +60,11 @@ def test_un_titulo_largo_da_un_nombre_que_cabe_en_las_rutas_de_windows():
     base = "C:/Users/jdr/AppData/Local/Temp/pytest-of-jdr/pytest-1897/test_de_la_frase_a_la_pieza_pl0"
     ruta = f"{base}/projects/2026-10-27-{nombre_corto(titulo, 40)}/parts/{pieza}/{pieza}.FCStd"
     assert len(ruta) < 260
+
+
+def test_el_enunciado_lleva_las_uniones_del_plan():
+    """F9.4 (canal): al diseñador le llegan igual que al ingeniero, y antes
+    de la línea del material."""
+    tarea = spec_to_task(_SPEC, uniones="- Gira 180° sobre el sg90 de «Base»")
+    assert "Gira 180° sobre el sg90 de «Base»" in tarea.brief
+    assert "Gira 180°" not in spec_to_task(_SPEC).brief

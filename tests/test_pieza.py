@@ -207,6 +207,32 @@ def test_un_concepto_nuevo_parte_del_anterior_y_de_los_cambios(tmp_path):
     assert "8 mm" not in recibido["peticion"]
 
 
+def test_las_uniones_del_plan_van_al_ingeniero_y_no_a_la_peticion(tmp_path):
+    """F9.4 (canal). En un backlog, lo que el plan decidió de esta pieza
+    (sobre qué gira, cuánto sitio deja) está en `uniones.json`. Va al
+    ingeniero; si fuera en la petición, «25 mm» saldría de requisito."""
+    import json
+    (tmp_path / "uniones.json").write_text(json.dumps([
+        {"id": "u2", "texto": "«Plataforma» girará 180° sobre el sg90 que monta esta pieza: "
+                              "deja libre un cilindro de radio 25 mm"}]), encoding="utf-8")
+    recibido = {}
+
+    class Recuerda(Ingeniero):
+        def concebir(self, spec, uniones=""):
+            recibido["uniones"] = uniones
+            return super().concebir(spec)
+
+    class Mira(Requisitos):
+        def draft(self, peticion):
+            recibido["peticion"] = peticion
+            return super().draft(peticion)
+
+    concebir_pieza(PETICION, tmp_path, requisitos=Mira(), ingeniero=Recuerda(), log=_nada)
+
+    assert "radio 25 mm" in recibido["uniones"]
+    assert "25 mm" not in recibido["peticion"]
+
+
 def test_con_un_retoque_el_disenador_parte_del_programa_construido(tmp_path):
     """Corregir una pieza no vuelve a redactar ni a concebir: se modela con
     la spec y el concepto aprobados, partiendo del programa que ya había."""

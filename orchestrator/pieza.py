@@ -134,6 +134,12 @@ def _de_la_vuelta_anterior(carpeta: Path) -> dict:
                       + (carpeta / RESPUESTAS).read_text(encoding="utf-8").strip())
     if partes:
         kw["cambios"] = "\n\n".join(p for p in partes if p)
+    # F9.4 (canal): lo que el plan del backlog decidió de esta pieza. Aquí y
+    # no en la petición, por lo mismo que los cambios.
+    from orchestrator.obra import uniones_para_el_prompt
+    uniones = uniones_para_el_prompt(carpeta)
+    if uniones:
+        kw["uniones"] = uniones
     return kw
 
 

@@ -161,6 +161,87 @@ def test_al_contestar_el_desglosador_parte_del_plan_que_vio_la_persona():
     assert '"radio_libre_mm": 25' in guion.prompts[0]
 
 
+# --- las uniones llegan a cada pieza como datos (F9.4 (canal)) ----------------------------
+
+TAPA = {"id": "tapa", "nombre": "Tapa", "que_hace": "cierra la base", "depende_de": ["base"]}
+CON_TAPA = {**PLAN, "nodos": [PLAN["nodos"][0], TAPA, *PLAN["nodos"][1:]], "uniones": [
+    *UNIONES,
+    {"tipo": "fija", "id": "u3", "cabeza": "tapa", "agarra": "base", "metrica": "M3",
+     "cantidad": 2, "agarre": "tuerca"},
+    {"tipo": "fija", "id": "u4", "cabeza": "base", "agarra": "exterior", "metrica": "M4",
+     "cantidad": 2, "grosor_exterior_mm": 18}]}
+
+
+def _con_plan(tmp_path, plan=PLAN):
+    from orchestrator import obra as O
+    (tmp_path / "request.md").write_text("un pan-tilt con dos SG90\n", encoding="utf-8")
+    O.guardar(tmp_path, Obra(**plan), por="prueba")
+    O.aprobar(tmp_path, por="web")
+    return O
+
+
+def test_las_uniones_de_un_nodo_le_llegan_como_datos_y_no_en_su_peticion(tmp_path):
+    """La petición del nodo la lee el agente de requisitos, que hace un
+    requisito de cada cifra: por eso los cambios y las respuestas ya no van
+    en ella. Las uniones tampoco: van aparte, al ingeniero y al diseñador.
+
+    El soporte de giro del plan a mano tiene los dos papeles: gira sobre el
+    SG90 de la base (u1) y monta el SG90 sobre el que gira el de
+    inclinación (u2), cada uno con 25 mm libres."""
+    O = _con_plan(tmp_path)
+    uniones = O.uniones_del_nodo(tmp_path, "giro")
+    assert [(u["id"], u["papel"], u["otro"]) for u in uniones] == [
+        ("u1", "gira", "base"), ("u2", "sobre", "inclinacion")]
+    gira, monta = (u["texto"] for u in uniones)
+    assert "«Base»" in gira and "180°" in gira and "más de 25 mm" in gira
+    assert "«Soporte de inclinación»" in monta and "radio 25 mm" in monta
+    peticion = O.peticion_del_nodo(tmp_path, "giro")
+    assert "25" not in peticion and "radio" not in peticion
+
+    ruta = O.escribir_uniones(tmp_path, "giro")
+    assert ruta == tmp_path / "nodos" / "giro" / "uniones.json"
+    texto = O.uniones_para_el_prompt(tmp_path / "nodos" / "giro")
+    assert gira in texto and monta in texto and "aprobadas por la persona" in texto
+    # Una pieza sin uniones no recibe una sección vacía.
+    assert O.uniones_para_el_prompt(tmp_path / "nodos" / "base") == ""
+
+
+def test_una_union_atornillada_dice_a_cada_pieza_su_lado(tmp_path):
+    """La tapa lleva la cabeza: agujeros pasantes. La base, donde agarra, la
+    tuerca cautiva. Y la base va además a un tablero de 18 mm con dos M4."""
+    O = _con_plan(tmp_path, CON_TAPA)
+    de_la_tapa = {u["id"]: u for u in O.uniones_del_nodo(tmp_path, "tapa")}
+    de_la_base = {u["id"]: u for u in O.uniones_del_nodo(tmp_path, "base")}
+    assert de_la_tapa["u3"]["papel"] == "cabeza"
+    assert "2 tornillos M3" in de_la_tapa["u3"]["texto"] and "pasante" in de_la_tapa["u3"]["texto"]
+    assert de_la_base["u3"]["papel"] == "agarra"
+    assert "tuerca" in de_la_base["u3"]["texto"] and "«Tapa»" in de_la_base["u3"]["texto"]
+    # La tapa se diseña después de la base y contra su ficha; la base, antes.
+    assert "obra-base" in de_la_tapa["u3"]["texto"]
+    assert "después" in de_la_base["u3"]["texto"]
+    assert de_la_base["u4"]["papel"] == "cabeza" and de_la_base["u4"]["otro"] is None
+    assert "2 tornillos M4" in de_la_base["u4"]["texto"] and "18 mm" in de_la_base["u4"]["texto"]
+
+
+def test_a_la_pieza_que_gira_se_le_dice_el_nombre_de_su_eje_en_la_ficha(tmp_path):
+    """La base, ya fichada, monta su SG90 con el nombre «servo_giro»: en su
+    ficha el eje se llama «servo_giro: eje», y eso es lo que el soporte de
+    giro tiene que pedirle a `componente.salida()`."""
+    O = _con_plan(tmp_path)
+    parte = tmp_path / "nodos" / "base" / "parts" / "base"
+    parte.mkdir(parents=True)
+    (parte / "base.step").write_text("STEP", encoding="utf-8")
+    (parte / "envolvente.json").write_text(json.dumps({"min": [0, 0, 0], "max": [50, 30, 22]}),
+                                           encoding="utf-8")
+    (parte / "rasgos.json").write_text(json.dumps([
+        {"nombre": "servo_giro", "tipo": "componente", "ficha": "sg90", "en": [13.6, 8.8, 6.0],
+         "giros": [], "entra_por": "+z"}]), encoding="utf-8")
+    O.fichar(parte, "obra-base", "Base", O.carpeta_de_fichas(tmp_path), proyecto="prueba")
+    [gira, _] = O.uniones_del_nodo(tmp_path, "giro")
+    assert gira["salidas"] == ["servo_giro: eje"]
+    assert 'salida("servo_giro: eje")' in gira["texto"]
+
+
 # --- el avance --------------------------------------------------------------------------
 
 def _empezar(tmp_path, obra=None, peticion="un pan-tilt con dos SG90 para una cámara"):

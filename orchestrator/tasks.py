@@ -35,8 +35,10 @@ def nombre_corto(texto: str, maximo: int = NOMBRE_DE_PIEZA_MAX) -> str:
     return (nombre[:corte] if corte > 0 else nombre[:maximo]).strip("_")
 
 
-def spec_to_task(spec: Spec, concepto=None) -> PartTask:
-    """`concepto`: el `ConceptoComprobado` que aprobó la persona (F3.18 (ingeniero))."""
+def spec_to_task(spec: Spec, concepto=None, uniones: str = "") -> PartTask:
+    """`concepto`: el `ConceptoComprobado` que aprobó la persona (F3.18 (ingeniero)).
+    `uniones`: en un backlog, lo que el plan decidió de esta pieza
+    (`obra.uniones_para_el_prompt`, F9.4 (canal))."""
     brief = f"Pieza: `{nombre_corto(spec.title)}`.\n\n{spec.description}\n\n"
     if spec.request:
         # La petición literal va entera: el resumen de arriba puede haber
@@ -61,5 +63,7 @@ def spec_to_task(spec: Spec, concepto=None) -> PartTask:
             for r in spec.requisitos) + "\n"
     if concepto is not None:
         brief += concepto.para_el_disenador() + "\n\n"
+    if uniones.strip():
+        brief += f"Uniones con las demás piezas del proyecto. {uniones.strip()}\n\n"
     brief += f"Se imprimirá en {spec.material} en una {spec.printer}."
     return PartTask(part=nombre_corto(spec.title), brief=brief)

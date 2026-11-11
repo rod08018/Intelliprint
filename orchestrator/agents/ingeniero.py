@@ -95,11 +95,16 @@ class IngenieroAgent:
             + yaml.safe_dump(perfil, allow_unicode=True, sort_keys=False) + "```\n")
 
     def concebir(self, spec: Spec, anterior: ConceptoComprobado | None = None,
-                 cambios: str = "") -> ConceptoComprobado:
+                 cambios: str = "", uniones: str = "") -> ConceptoComprobado:
         """`anterior`: el último concepto que vio la persona (al rehacer o al
         contestar sus preguntas). Se parte de él: la base del pan-tilt
         (2026-11-09) salió de cero en cada vuelta y lo que nadie pidió —con
-        qué tornillos se fija— cambió cuatro veces, hasta desaparecer."""
+        qué tornillos se fija— cambió cuatro veces, hasta desaparecer.
+
+        `uniones`: en un backlog, lo que el plan decidió de esta pieza
+        (`obra.uniones_para_el_prompt`, F9.4 (canal)). El concepto del
+        soporte del pan-tilt 1110-0313 dijo «espacio para inclinar la
+        plataforma» sin cifra y dejó 12.7 mm."""
         requisitos = "".join(
             f"- {r.id} ({r.tipo}, {r.origen}): {r.texto}"
             + (f" → {r.valor:g} {r.unidad}" if r.valor is not None else "") + "\n"
@@ -116,6 +121,12 @@ class IngenieroAgent:
             prompt += ("\nLa petición nombra estos; cada uno va en `componentes`, con "
                        "cómo entra y cómo se sujeta:\n\n"
                        + "\n\n".join(resumen(cargar(i)) for i in nombrados) + "\n")
+        if uniones.strip():
+            prompt += ("\n## Uniones del plan\n\nEsta pieza es parte de un proyecto de varias. "
+                       "Cómo se une a las demás ya está decidido; tu concepto tiene que "
+                       "cumplirlo y decir cómo (en `fijaciones` y en la idea), no cambiarlo. "
+                       "Si un giro pide sitio libre, di dónde queda el actuador para "
+                       f"dejarlo.\n\n{uniones.strip()}\n")
         if anterior is not None:
             prompt += (
                 "\n## Concepto anterior: el que vio la persona\n\n"

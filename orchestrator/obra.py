@@ -473,6 +473,138 @@ def ajenos(carpeta: Path, nodo: str) -> dict[str, dict]:
     return salida
 
 
+# --- las uniones de cada nodo (F9.4 (canal)) -------------------------------------------------
+
+UNIONES = "uniones.json"
+
+_COMO_AGARRA = {
+    "tuerca": 'con tuerca cautiva: `tuerca(..., "{m}")` y su agujero pasante en línea',
+    "inserto": 'con inserto térmico: `tornillo(..., "{m}", tipo="inserto")`',
+    "rosca": 'roscados en el plástico: `tornillo(..., "{m}", tipo="rosca")`',
+}
+
+
+def _salidas_en_la_ficha(carpeta: Path, sobre: str, componente: str, salida: str) -> list[str]:
+    """Cómo se llama en la ficha de `sobre` la salida sobre la que se gira:
+    «<nombre que le dio al componente>: <salida>». Vacío si `sobre` aún no
+    está fichada o su ficha es de antes de guardar las salidas."""
+    from orchestrator.componentes import cargar
+    try:
+        ficha = cargar(id_de_ficha(sobre), [carpeta_de_fichas(carpeta)])
+    except KeyError:
+        return []
+    return [s.nombre for s in ficha.salidas
+            if s.nombre.endswith(f": {salida}") and f"del {componente} " in s.porque]
+
+
+def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
+    """Lo que el plan decidió de este nodo, una entrada por unión: la unión,
+    el `papel` del nodo en ella (gira, sobre, cabeza o agarra), el `otro`
+    nodo y un `texto` para quien lo diseña.
+
+    No va en `peticion_del_nodo`: esa la lee el agente de requisitos, que
+    hace un requisito de cada cifra que ve. Va por aquí al ingeniero, al
+    diseñador y a las medidas."""
+    from orchestrator.componentes import cargar
+    from orchestrator.plan import salida_de
+    from orchestrator.schemas.obra import EXTERIOR, Fija
+
+    carpeta = Path(carpeta)
+    obra = cargar_obra(carpeta)
+    yo = obra.nodo(nodo)
+
+    def nombre(i):
+        return f"«{obra.nodo(i).nombre}»"
+
+    def cuando(otro):
+        """El otro ya está hecho (dependo de él) o se hará después."""
+        if otro in yo.depende_de:
+            return (f" {nombre(otro)} ya está hecha: colócala con `kit.componente("
+                    f"\"{id_de_ficha(otro)}\", ...)` y pon tus agujeros en línea con los "
+                    "suyos, que tienen nombre en su ficha (`punto()`).")
+        return (f" {nombre(otro)} se diseñará después, contra esta: da a cada agujero un "
+                "nombre que diga para qué es.")
+
+    salida = []
+    for u in obra.uniones_de(nodo):
+        dato = {**u.model_dump(), "papel": "", "otro": None, "texto": ""}
+        if isinstance(u, Fija):
+            tornillos = f"{u.cantidad} tornillo{'s' if u.cantidad > 1 else ''} {u.metrica}"
+            if u.agarra == EXTERIOR:
+                grosor = (f", de {u.grosor_exterior_mm:g} mm de grueso"
+                          if u.grosor_exterior_mm else "")
+                dato.update(papel="cabeza", texto=(
+                    f"Se atornilla a algo de fuera{grosor} (una mesa, un tablero) con "
+                    f"{tornillos}: esta pieza lleva los {u.cantidad} agujeros pasantes "
+                    f"(`tornillo(..., \"{u.metrica}\")`) y en ella apoya la cabeza."))
+            elif u.cabeza == nodo:
+                dato.update(papel="cabeza", otro=u.agarra, texto=(
+                    f"Se atornilla a {nombre(u.agarra)} con {tornillos}: en esta pieza apoya "
+                    f"la cabeza, así que lleva los {u.cantidad} agujeros pasantes "
+                    f"(`tornillo(..., \"{u.metrica}\")`); donde agarran es en "
+                    f"{nombre(u.agarra)}." + cuando(u.agarra)))
+            else:
+                dato.update(papel="agarra", otro=u.cabeza, texto=(
+                    f"{nombre(u.cabeza)} se atornilla a esta pieza con {tornillos}, que "
+                    f"aquí agarran {_COMO_AGARRA[u.agarre].format(m=u.metrica)}."
+                    + cuando(u.cabeza)))
+        else:
+            ficha = cargar(u.componente)
+            eje = salida_de(u, ficha)
+            radio = u.radio_libre_mm
+            if u.gira == nodo:
+                en_ficha = _salidas_en_la_ficha(carpeta, u.sobre, u.componente, eje.nombre)
+                como = (f"`componente.salida(\"{en_ficha[0]}\")`" if len(en_ficha) == 1
+                        else "`componente.salidas()`")
+                dato.update(papel="gira", otro=u.sobre, salidas=en_ficha, texto=(
+                    f"Esta pieza gira {u.recorrido_grados:g}° sobre el {ficha.nombre} que "
+                    f"monta {nombre(u.sobre)}. Coloca {nombre(u.sobre)} con `kit.componente("
+                    f"\"{id_de_ficha(u.sobre)}\", ...)`: {como} te da el punto por donde sale "
+                    "el eje y hacia dónde. Acóplate a él por delante de esa cara, y no te "
+                    f"atornilles a {nombre(u.sobre)}: giras."
+                    + (f" Nada de esta pieza puede quedar a más de {radio:g} mm de ese eje: "
+                       f"es el sitio que {nombre(u.sobre)} deja libre." if radio else "")))
+            else:
+                dato.update(papel="sobre", otro=u.gira, texto=(
+                    f"{nombre(u.gira)} girará {u.recorrido_grados:g}° sobre el {ficha.nombre} "
+                    "que monta esta pieza."
+                    + (f" Necesita sitio: alrededor del eje de salida, desde la cara por "
+                       f"donde sale hacia fuera, tiene que quedar libre un cilindro de radio "
+                       f"{radio:g} mm. Ahí no puede haber nada de esta pieza, ni de las "
+                       "piezas sobre las que va, ni de lo comprado que montan, en ningún "
+                       f"ángulo. Pon el {u.componente} lo bastante alto o lo bastante afuera "
+                       "para que así sea, y sujétalo por detrás de esa cara. Al construir "
+                       "se mide." if radio else "")))
+        salida.append(dato)
+    return salida
+
+
+def escribir_uniones(carpeta: Path, nodo: str) -> Path:
+    """Deja las uniones del nodo en su carpeta, donde las busca el flujo de
+    pieza, que no sabe nada del backlog."""
+    ruta = Path(carpeta) / NODOS / nodo / UNIONES
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    ruta.write_text(json.dumps(uniones_del_nodo(carpeta, nodo), ensure_ascii=False, indent=1),
+                    encoding="utf-8")
+    return ruta
+
+
+def leer_uniones(dir_nodo: Path) -> list[dict]:
+    ruta = Path(dir_nodo) / UNIONES
+    return json.loads(ruta.read_text(encoding="utf-8")) if ruta.is_file() else []
+
+
+def uniones_para_el_prompt(dir_nodo: Path) -> str:
+    """Las uniones de la pieza de `dir_nodo` como se le dicen al ingeniero y
+    al diseñador; vacío si no tiene (una pieza suelta)."""
+    uniones = leer_uniones(dir_nodo)
+    if not uniones:
+        return ""
+    return ("Son del plan del proyecto y están aprobadas por la persona. Hazlas tal cual: ni "
+            "otra métrica, ni otro agarre, ni otra cantidad, ni menos sitio.\n"
+            + "\n".join(f"- {u['texto']} (unión {u['id']})" for u in uniones))
+
+
 def _pieza_construida(nodo: Path) -> Path:
     partes = sorted(p.parent for p in (nodo / "parts").glob("*/envolvente.json"))
     if len(partes) != 1:

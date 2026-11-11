@@ -258,3 +258,19 @@ def test_el_eje_que_pasa_por_dentro_del_rodamiento_no_es_su_alojamiento():
     guion = Guion([_concepto(casos=False, componentes=polea)])
     IngenieroAgent(guion, ACTIVO).concebir(RODAMIENTO)
     assert len(guion.prompts) == 1
+
+
+def test_el_ingeniero_recibe_las_uniones_que_el_plan_decidio_para_su_pieza():
+    """F9.4 (canal). El concepto del soporte del pan-tilt (1110-0313) repitió
+    «espacio para inclinar la plataforma» sin cifra, y dejó 12.7 mm. Con el
+    plan, el ingeniero recibe cuánto sitio tiene que dejar, como algo ya
+    aprobado que no le toca cambiar."""
+    guion = Guion([_concepto()])
+    IngenieroAgent(guion, ACTIVO).concebir(
+        SPEC, uniones="- «Plataforma» girará 180°: deja libre un cilindro de radio 25 mm")
+    assert "## Uniones del plan" in guion.prompts[0]
+    assert "cilindro de radio 25 mm" in guion.prompts[0]
+    # Sin plan (una pieza suelta), ni la sección.
+    guion = Guion([_concepto()])
+    IngenieroAgent(guion, ACTIVO).concebir(SPEC)
+    assert "Uniones del plan" not in guion.prompts[0]

@@ -128,8 +128,12 @@ def _disenar_con_kit(raiz: Path, env: dict, cliente):
                 spec.requisitos, resultado, Path(carpeta) / f"{part}.step", freecad,
                 material, componentes, pared_min, agujeros)) or None
 
+        # F9.4 (canal): en un backlog, las uniones del plan están en la
+        # carpeta del nodo (`carpeta` es `<nodo>/parts/<pieza>`).
+        from orchestrator.obra import uniones_para_el_prompt
+        uniones = uniones_para_el_prompt(Path(carpeta).parent.parent)
         return design_and_build(
-            disenador, spec_to_task(spec, concepto).brief, None, carpeta,
+            disenador, spec_to_task(spec, concepto, uniones).brief, None, carpeta,
             freecadcmd=freecad, part=part, request=spec.request, perfil=disenador.perfil,
             max_construcciones=CONSTRUCCIONES_KIT, check=requisitos_medidos,
             entregar_mejor=True, partida=partida,
@@ -727,6 +731,9 @@ def _paso_de_obra(carpeta: Path, peticion: str, raiz: Path, env: dict, nombre: s
     dir_nodo = carpeta / obra.NODOS / nodo
     dir_nodo.mkdir(parents=True, exist_ok=True)
     (dir_nodo / "request.md").write_text(obra.peticion_del_nodo(carpeta, nodo), encoding="utf-8")
+    # F9.4 (canal): lo que el plan decidió de este nodo, aparte de su
+    # petición. Lo leen el ingeniero, el diseñador y las medidas.
+    os.environ["INTELLIPRINT_UNIONES"] = str(obra.escribir_uniones(carpeta, nodo))
     print(f"[{nombre}] nodo «{nombre_nodo}» ({nodo})", flush=True)
     # El gasto de la pieza queda en su nodo y, sumado, en la obra entera.
     with latir(carpeta), _apuntar_gasto(raiz, carpeta, f"pieza «{nombre_nodo}»"):
