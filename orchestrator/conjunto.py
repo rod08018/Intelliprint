@@ -629,3 +629,84 @@ def _resumen(piezas, choques, paso: float = PASO) -> list[str]:
         cuando = "si " + "; y ".join(tramos) if tramos else "en reposo"
         lineas.append(f"{_que(piezas, x)} y {_que(piezas, y)} chocan {cuando} ({como})")
     return lineas
+
+
+# --- el sitio libre de un giro (F9.1 (barrido)) ----------------------------------------------
+
+def _caja_del_montado(m: dict):
+    """La caja de UNA primitiva de lo comprado, en el marco de la pieza que
+    lo monta. De una en una y no todas juntas como `_caja_de`: con dos
+    componentes en una pieza, su caja común taparía el sitio que hay entre
+    los dos."""
+    if m.get("tipo") == "caja":
+        return m["min"], m["max"]
+    r = m["diametro"] / 2
+    fin = [b + e * m["alto"] for b, e in zip(m["base"], m["eje"])]
+    puntos = [[c + s * r for c in q] for q in (m["base"], fin) for s in (-1, 1)]
+    return ([min(p[k] for p in puntos) for k in range(3)],
+            [max(p[k] for p in puntos) for k in range(3)])
+
+
+def _semirrecta_a_la_caja(caja, punto, eje) -> float:
+    """De la semirrecta que sale de `punto` hacia `eje` a la caja, en el
+    marco de la caja. La distancia a un convexo es convexa a lo largo de la
+    semirrecta, así que se busca el mínimo partiendo el tramo en tercios;
+    más allá de la esquina que más lejos se proyecta solo puede crecer."""
+    lo, hi = caja
+    n = math.sqrt(sum(c * c for c in eje))
+    e = [c / n for c in eje]
+    esquinas = [[x, y, z] for x in (lo[0], hi[0]) for y in (lo[1], hi[1]) for z in (lo[2], hi[2])]
+    a, b = 0.0, max(0.0, max(sum((q - p) * d for q, p, d in zip(c, punto, e)) for c in esquinas))
+
+    def lejos(s):
+        return _a_la_caja([p + d * s for p, d in zip(punto, e)], caja)
+
+    for _ in range(100):
+        m1, m2 = a + (b - a) / 3, b - (b - a) / 3
+        if lejos(m1) <= lejos(m2):
+            b = m2
+        else:
+            a = m1
+    return lejos((a + b) / 2)
+
+
+def radio_libre(piezas: dict[str, Pieza], arts: dict[str, Articulacion], pieza: str,
+                salida: dict, paso: float = PASO) -> tuple[float, str | None]:
+    """Cuánto sitio tiene lo que gire alrededor de `salida`, una salida de lo
+    que monta `pieza`: la distancia del eje a lo más cercano de lo que hay
+    DEBAJO —las piezas sobre las que va y lo comprado que montan—, y qué es.
+
+    El pan-tilt del banco 1110-0313 falló por esto y nadie lo había medido:
+    su soporte dejaba 12.7 mm entre el eje de inclinación y el SG90 de la
+    base, la plataforma medía 37.7, y la corrección se le pidió a la
+    plataforma, que no podía encoger tanto. El sitio lo decide la pieza que
+    monta el actuador, y se puede medir en cuanto esa pieza está construida,
+    sin esperar a la que gira.
+
+    Se mide en todos los ángulos de los giros de debajo: el eje de
+    inclinación barre la base entera cuando el soporte gira. Y desde la cara
+    de la salida hacia fuera (semirrecta, no recta): lo que gira va por
+    delante del actuador, y lo que este tiene detrás no le estorba.
+
+    Con cajas, así que es prudente de más: la medida exacta sigue siendo el
+    barrido. Lo de la propia `pieza` no entra —el actuador está dentro de su
+    caja y daría siempre 0—: eso lo mide la sonda con su forma real."""
+    debajo, j = [], piezas[pieza].padre
+    while j is not None:
+        debajo.append(j)
+        j = piezas[j].padre
+    mejor: tuple[float, str | None] = (math.inf, None)
+    juntas = [j for j in _hasta_la_raiz(piezas, pieza) if j in arts]
+    for valores in itertools.product(*[_recorrido(arts[j], paso) for j in juntas]):
+        mundo = poses(piezas, arts, dict(zip(juntas, valores)))
+        for a in debajo:
+            r, t = _componer(_inversa(mundo[a]), mundo[pieza])
+            punto = [x + y for x, y in zip(_mv(r, salida["punto"]), t)]
+            eje = _mv(r, salida["eje"])
+            cajas = [(a, piezas[a].envolvente)]
+            cajas += [(f"{a}: montado", _caja_del_montado(m)) for m in piezas[a].montados]
+            for solido, caja in cajas:
+                d = _semirrecta_a_la_caja(caja, punto, eje)
+                if d < mejor[0] - 1e-9:
+                    mejor = (d, solido)
+    return mejor

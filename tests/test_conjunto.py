@@ -385,3 +385,82 @@ def test_la_correccion_dice_cuanto_gira_y_donde_empieza_lo_que_choca():
     assert nodo == "placa"
     for parte in ("«Base»", "de -90° a -80° y de 80° a 90°", "30.4 mm", "25.0 mm"):
         assert parte in texto, (parte, texto)
+
+
+# --- El sitio libre de un giro (F9.1 (barrido)) --------------------------------------------------
+
+def _torre(h, recorrido=None, montado=None):
+    """Una base de 100 × 100 con la cara de arriba en z = 30 y, encima, una
+    torre con un actuador cuyo eje sale en (0, 0, h) hacia +y. Con
+    `recorrido`, la torre gira sobre la base alrededor de z."""
+    from orchestrator.conjunto import I3, Pieza
+    base = Pieza("base", "Base", None, ([-50, -50, 0], [50, 50, 30]))
+    if montado:
+        base.montados = [{"tipo": "caja", "nombre": "pilar", "de": "pilar",
+                          "min": montado[0], "max": montado[1]}]
+    torre = Pieza("torre", "Torre", None, ([-10, -10, 30], [10, 10, h + 10]), padre="base",
+                  al_padre=(I3, [0, 0, 0]))
+    salida = {"de": "sg90", "nombre": "eje", "punto": [0, 0, h], "eje": [0, 1, 0],
+              "recorrido": (-90, 90), "largo": 0.0}
+    arts = ({"torre": Articulacion("torre", "base", "sg90", [0, 0, 30], [0, 0, 1], recorrido)}
+            if recorrido else {})
+    return {"base": base, "torre": torre}, arts, salida
+
+
+def test_el_sitio_libre_de_un_giro_es_del_eje_a_lo_que_tiene_debajo():
+    """A mano: el eje sale a 50 de altura y la base acaba en 30. Lo que gire
+    alrededor de ese eje tiene 50 − 30 = 20 mm antes de tocar la base."""
+    from orchestrator.conjunto import radio_libre
+    piezas, arts, salida = _torre(50)
+    assert radio_libre(piezas, arts, "torre", salida) == (pytest.approx(20.0), "base")
+
+
+def test_el_sitio_libre_se_mide_en_todos_los_giros_de_lo_de_abajo():
+    """Un pilar montado en la base, de x 40 a 50 y hasta z = 45. Con la torre
+    quieta, el eje (hacia +y) pasa a √(40² + 5²) = 40.3 del pilar y manda la
+    base, a 20. Si la torre gira ±90° sobre la base, a −90° el eje apunta a
+    +x y pasa por encima del pilar: quedan 50 − 45 = 5 mm."""
+    from orchestrator.conjunto import radio_libre
+    pilar = ([40, -5, 30], [50, 5, 45])
+    piezas, arts, salida = _torre(50, montado=pilar)
+    assert radio_libre(piezas, arts, "torre", salida) == (pytest.approx(20.0), "base")
+    piezas, arts, salida = _torre(50, recorrido=(-90, 90), montado=pilar)
+    assert radio_libre(piezas, arts, "torre", salida) == (pytest.approx(5.0), "base: montado")
+
+
+def test_el_sitio_libre_cuenta_desde_la_cara_de_la_salida_hacia_fuera():
+    """El mismo pilar, pero detrás del actuador (y de −50 a −40): la recta
+    del eje pasa a 5 mm de él, pero lo que gira va por delante de la cara de
+    salida. Manda la base, a 20."""
+    from orchestrator.conjunto import radio_libre
+    piezas, arts, salida = _torre(50, montado=([-5, -50, 30], [5, -40, 45]))
+    assert radio_libre(piezas, arts, "torre", salida) == (pytest.approx(20.0), "base")
+
+
+def test_lo_que_no_tiene_nada_debajo_tiene_todo_el_sitio():
+    import math
+
+    from orchestrator.conjunto import radio_libre
+    piezas, arts, salida = _torre(50)
+    assert radio_libre(piezas, arts, "base", salida) == (math.inf, None)
+
+
+def test_el_soporte_del_pan_tilt_dejaba_12_7_mm_para_inclinar(tmp_path):
+    """Las piezas del pan-tilt del banco 1110-0313, con sus rasgos tal como
+    quedaron. A mano: el SG90 del soporte saca su eje a z = 12.2 del soporte;
+    el soporte se colocó a 33.6 por encima del origen de la base; y la
+    carcasa del SG90 de la base acaba en 6.0 + 27.1 = 33.1. Del eje de
+    inclinación al servo de abajo quedan 12.2 + 33.6 − 33.1 = 12.7 mm, y la
+    plataforma que tenía que caber ahí medía 37.7."""
+    from orchestrator.conjunto import radio_libre
+    carpeta = _obra(tmp_path, {
+        "base": ([], [_sg90((13.6, 8.8, 6.0))], ([0, 0, 0], [50, 30, 21.6])),
+        "soporte": (["base"], [_sobre("base", (-19.4, -15.0, -33.6)),
+                               _sg90((-13.55, -11.4, 6.0), [("x", 90), ("z", 90)])],
+                    ([-18, -18, 0], [16, 18, 20])),
+    })
+    piezas = leer_piezas(carpeta, "conjunto")
+    arts = {a.pieza: a for a in articulaciones(piezas)}
+    [salida] = piezas["soporte"].salidas
+    assert salida["punto"] == pytest.approx([13.55, -5.6, 12.2])
+    assert radio_libre(piezas, arts, "soporte", salida) == (pytest.approx(12.7), "base: montado")
