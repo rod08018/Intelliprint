@@ -378,7 +378,7 @@ Es la corrida `1111-1342` del banco, la que se cita en `PLAN_PROYECTO.md` (Fase 
 4. **Conjunto**: se movió entero en la rejilla de 10° sin un solo choque. Queda el ensamble, la animación y el estudio de movimientos.
 5. **Coste**: 45 minutos y 0,53 USD en 20 llamadas. Nota del encargo: cinco comprobaciones de cinco.
 
-Lo que esta corrida no dice: es una sola, y el banco tiene ruido de una corrida a otra; la plataforma que salió es un disco coaxial con el eje de inclinación, que pasa las cinco comprobaciones pero no serviría para cabecear una cámara; y la tornillería ni se planificó ni se midió. Desde F9.6 (previsto) el encargo pide los cuatro tornillos de sus dos servos, y esta corrida, rejuzgada, tiene cero que agarren: queda en 6 de 7.
+Lo que esta corrida no dice: es una sola, y el banco tiene ruido de una corrida a otra; la plataforma que salió es un disco coaxial con el eje de inclinación, que pasa las cinco comprobaciones pero no serviría para cabecear una cámara; y la tornillería ni se planificó ni se midió. Desde F9.6 (previsto) el encargo pide los cuatro tornillos de sus dos servos, y esta corrida, rejuzgada, tenía cero que agarraran. Reanudada una vez, agarran los cuatro, pero al rehacerse la plataforma dejó de caber la cámara: sigue en 6 de 7 (1,46 USD en total).
 
 ---
 

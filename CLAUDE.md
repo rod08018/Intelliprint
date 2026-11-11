@@ -109,10 +109,14 @@ invento. El plan aprobado está en `PLAN_PROYECTO.md`, Fase 9, con su orden.
   de sus dos SG90 no agarra ninguno. La base no taladró nada bajo las orejas
   y el soporte taladró Ø2.2 para tornillos de 2. Ahora el plan los prevé (los
   de lo comprado salen de su ficha), cada pieza los cuenta en su bucle y el
-  banco los pide. **No se ha reanudado:** corregir la base rehace las tres
-  piezas, y ese gasto se acuerda antes con él. **Falta un dato suyo:** el
-  agujero de un M2 de rosca, que se apunta en «Impresora» → «Apuntar otro
-  tornillo»; sin él, el diámetro lo elige el diseñador.
+  banco los pide. **Reanudado una vez, con su visto bueno** (47 min,
+  0,53 USD; 1,46 la corrida entera): ahora los cuatro agarran, pero **sigue
+  en 6 de 7**. Corregir la base rehízo el soporte y la plataforma de cero, y
+  en la plataforma nueva (30 × 28.5) ya no cabe la cámara de 25 × 24; la
+  buena, de 32 × 27, quedó archivada. Es lo que arregla F9.9 (revalidar).
+  El tope era una reanudación: otra se acuerda antes. **Falta un dato
+  suyo:** el agujero de un M2 de rosca, que se apunta en «Impresora» →
+  «Apuntar otro tornillo»; el Ø1.7 de ahora lo eligió el diseñador.
 - **A dónde quiere llegar** (2026-11-11): a diseñar brazos como Arctos
   (6 ejes, NEMA 17 y 23, reductoras y correas) y aeronaves como las de
   Flightory (ala fija y VTOL en LW-PLA). No hay fase aprobada para ninguna de
