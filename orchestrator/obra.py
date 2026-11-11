@@ -132,6 +132,7 @@ def fichar(carpeta: Path, id_: str, nombre: str, destino: Path, proyecto: str = 
 # --- el avance pieza a pieza (F7.2 (desglose)) ---------------------------------------------
 
 OBRA, APROBADA, NODOS, FICHAS, ARCHIVO = "obra.json", "obra_aprobada", "nodos", "fichas", "archivo"
+PLAN_ANTERIOR = "obra_anterior.json"
 ESPERAN_A_LA_PERSONA = ("concepto por aprobar", "diseñada", "con fallos")
 
 
@@ -163,17 +164,18 @@ def _marca(ruta: Path, **datos) -> None:
                                ensure_ascii=False), encoding="utf-8")
 
 
-def guardar(carpeta: Path, obra: Obra, por: str) -> None:
+def guardar(carpeta: Path, obra: Obra, por: str, avisos: list[str] | tuple = ()) -> None:
     """El desglose propuesto. Un solo nodo no espera otro visto bueno: es el
-    flujo de pieza de siempre, con su concepto, sin pasos extra."""
+    flujo de pieza de siempre, con su concepto, sin pasos extra. `avisos`:
+    lo que la persona tiene que saber del plan antes de aprobarlo."""
     carpeta = Path(carpeta)
     (carpeta / OBRA).write_text(obra.model_dump_json(indent=2), encoding="utf-8")
-    (carpeta / "obra.md").write_text(presentar(obra), encoding="utf-8")
+    (carpeta / "obra.md").write_text(presentar(obra, avisos), encoding="utf-8")
     if len(obra.nodos) == 1:
         _marca(carpeta / APROBADA, por=f"{por} (un solo nodo)")
 
 
-def presentar(obra: Obra) -> str:
+def presentar(obra: Obra, avisos: list[str] | tuple = ()) -> str:
     lineas = [f"# {obra.titulo}: el desglose", ""]
     for i in obra.orden():
         n = obra.nodo(i)
@@ -183,7 +185,48 @@ def presentar(obra: Obra) -> str:
                               ("ofrece", n.ofrece), ("necesita", n.necesita)):
             if cosas:
                 lineas.append(f"  - {titulo}: {'; '.join(cosas)}")
+    if obra.uniones:
+        lineas += ["", "## Cómo se unen", "", *(f"- {union_en_palabras(obra, u)}"
+                                               for u in obra.uniones)]
+    if avisos:
+        lineas += ["", "## Avisos", "", *(f"- {a}" for a in avisos)]
     return "\n".join(lineas) + "\n"
+
+
+_AGARRES = {"tuerca": "con tuerca cautiva", "inserto": "con inserto térmico",
+            "rosca": "roscados en el plástico"}
+
+
+def union_en_palabras(obra: Obra, u) -> str:
+    """Una unión del plan (F9.2 (uniones)) como la lee la persona antes de
+    aprobar: sin ids de ficha ni claves del esquema."""
+    from orchestrator.componentes import cargar
+    from orchestrator.schemas.obra import EXTERIOR, Fija
+
+    def nombre(i):
+        return f"«{obra.nodo(i).nombre}»"
+
+    if isinstance(u, Fija):
+        tornillos = f"{u.cantidad} tornillo{'s' if u.cantidad > 1 else ''} {u.metrica}"
+        if u.agarra == EXTERIOR:
+            grosor = f" de {u.grosor_exterior_mm:g} mm" if u.grosor_exterior_mm else ""
+            return f"{nombre(u.cabeza)} se atornilla a algo de fuera{grosor} con {tornillos}"
+        return (f"{nombre(u.cabeza)} se atornilla a {nombre(u.agarra)} con {tornillos}, "
+                f"{_AGARRES[u.agarre]} en {nombre(u.agarra)}")
+    try:
+        que = cargar(u.componente).nombre
+    except Exception:  # noqa: BLE001 — un plan con una ficha que ya no está se enseña igual
+        que = u.componente
+    sitio = (f", y necesita {u.radio_libre_mm:g} mm libres alrededor del eje"
+             if u.radio_libre_mm else "")
+    return (f"{nombre(u.gira)} gira {u.recorrido_grados:g}° sobre el {que} de "
+            f"{nombre(u.sobre)}{sitio}")
+
+
+def plan_anterior(carpeta: Path) -> str | None:
+    """El plan que la persona vio y contestó, o None."""
+    ruta = Path(carpeta) / PLAN_ANTERIOR
+    return ruta.read_text(encoding="utf-8") if ruta.is_file() else None
 
 
 def aprobada(carpeta: Path) -> bool:
@@ -314,6 +357,10 @@ def aprobar(carpeta: Path, respuestas: str = "", por: str = "") -> str:
         if respuestas.strip():
             with (carpeta / "request.md").open("a", encoding="utf-8") as f:
                 f.write(f"\nRespuestas al desglose: {respuestas.strip()}\n")
+            # El plan contestado es el punto de partida del siguiente, como
+            # con el concepto de un nodo: desglosando de cero, corregir una
+            # unión podía rebarajar todas las piezas (F9.3 (planificador)).
+            shutil.copyfile(carpeta / OBRA, carpeta / PLAN_ANTERIOR)
             _archivar(carpeta, carpeta / OBRA, carpeta / "obra.md")
         else:
             _marca(carpeta / APROBADA, por=por)

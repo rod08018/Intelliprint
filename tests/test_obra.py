@@ -33,6 +33,19 @@ PANTILT = {
 }
 
 
+# Las uniones del mismo pan-tilt (F9.2 (uniones)), a mano: cada soporte gira
+# sobre el SG90 del anterior, los 180° que da su hoja.
+UNIONES = [
+    {"tipo": "gira", "id": "u1", "gira": "giro", "sobre": "base", "componente": "sg90",
+     "recorrido_grados": 180, "radio_libre_mm": 25},
+    {"tipo": "gira", "id": "u2", "gira": "inclinacion", "sobre": "giro", "componente": "sg90",
+     "recorrido_grados": 180, "radio_libre_mm": 25},
+]
+CONJUNTO = {"id": "pan-tilt", "nombre": "El pan-tilt", "tipo": "conjunto",
+            "que_hace": "gira e inclina", "depende_de": ["base", "giro", "inclinacion"]}
+PLAN = {**PANTILT, "nodos": [*PANTILT["nodos"], CONJUNTO], "uniones": UNIONES}
+
+
 def _obra(**cambios):
     return Obra(**{**PANTILT, **cambios})
 
@@ -70,11 +83,11 @@ class Guion:
 
 def test_el_desglosador_solo_compra_lo_que_tiene_ficha():
     from orchestrator.agents.desglosador import DesglosadorAgent
-    malo = {**PANTILT, "nodos": [{**PANTILT["nodos"][0], "compra": ["sg91"]},
-                                 *PANTILT["nodos"][1:]]}
-    guion = Guion([json.dumps(malo), json.dumps(PANTILT)])
+    malo = {**PLAN, "uniones": [], "nodos": [{**PANTILT["nodos"][0], "compra": ["sg91"]},
+                                             *PLAN["nodos"][1:]]}
+    guion = Guion([json.dumps(malo), json.dumps(PLAN)])
     obra = DesglosadorAgent(guion).desglosar("un pan-tilt con dos servos SG90 para una cámara")
-    assert obra.orden() == ["base", "giro", "inclinacion"]
+    assert obra.orden() == ["base", "giro", "inclinacion", "pan-tilt"]
     assert "pan-tilt con dos servos SG90" in guion.prompts[0]
     assert "sg91" in guion.prompts[1] and "sg90" in guion.prompts[1]
 
@@ -86,8 +99,8 @@ def test_un_componente_comprado_no_es_un_nodo():
     from orchestrator.agents.desglosador import DesglosadorAgent
     servo = {"id": "servo-giro", "nombre": "Servo SG90 de giro", "que_hace": "gira",
              "compra": ["sg90"], "depende_de": ["base"]}
-    malo = {**PANTILT, "nodos": [PANTILT["nodos"][0], servo, *PANTILT["nodos"][1:]]}
-    guion = Guion([json.dumps(malo), json.dumps(PANTILT)])
+    malo = {**PLAN, "nodos": [PLAN["nodos"][0], servo, *PLAN["nodos"][1:]]}
+    guion = Guion([json.dumps(malo), json.dumps(PLAN)])
     DesglosadorAgent(guion).desglosar("un pan-tilt con dos SG90")
     assert "Servo SG90 de giro" in guion.prompts[1] and "compra" in guion.prompts[1]
 
@@ -99,6 +112,53 @@ def test_una_pieza_que_nombra_su_componente_si_es_un_nodo():
          "compra": ["sg90"]}]}
     obra = DesglosadorAgent(Guion([json.dumps(soporte)])).desglosar("un soporte para un SG90")
     assert obra.orden() == ["soporte"]
+
+
+# --- el desglose es el plan mecánico (F9.3 (planificador)) --------------------------------
+
+def test_un_plan_de_varias_piezas_dice_como_se_unen():
+    """El desglose del pan-tilt del banco 1110-0313 decía «espacio para
+    inclinar la plataforma 180°» y nada más: sin uniones no hay con qué
+    medir si ese espacio existe."""
+    from orchestrator.agents.desglosador import DesglosadorAgent
+    guion = Guion([json.dumps({**PLAN, "uniones": []}), json.dumps(PLAN)])
+    obra = DesglosadorAgent(guion).desglosar("un pan-tilt con dos SG90")
+    assert [u.id for u in obra.uniones] == ["u1", "u2"]
+    assert "uniones" in guion.prompts[1].split("rechazado")[1]
+
+
+def test_el_plan_vuelve_al_desglosador_con_lo_que_dice_la_ficha():
+    """Girar sobre «cuerno» no vale: la ficha del SG90 llama «eje» a su
+    salida. El error le llega tal cual, con el nombre que sí existe."""
+    from orchestrator.agents.desglosador import DesglosadorAgent
+    malo = {**PLAN, "uniones": [{**UNIONES[0], "salida": "cuerno"}, UNIONES[1]]}
+    guion = Guion([json.dumps(malo), json.dumps(PLAN)])
+    DesglosadorAgent(guion).desglosar("un pan-tilt con dos SG90")
+    rechazo = guion.prompts[1].split("rechazado")[1]
+    assert "«cuerno»" in rechazo and "«eje»" in rechazo
+
+
+def test_el_desglosador_sabe_que_tornillos_tabula_la_impresora():
+    """Para que no proponga una M4 con tuerca que luego no se puede taladrar."""
+    from orchestrator.agents.desglosador import DesglosadorAgent
+    guion = Guion([json.dumps(PLAN)])
+    DesglosadorAgent(guion).desglosar("un pan-tilt con dos SG90", agujeros={
+        "M3_through_mm": 3.3, "M3_selftap_mm": 2.8, "M3_insert_mm": 4.1, "M3_nut_af_mm": 5.9,
+        "M4_through_mm": 4.5})
+    assert "M3: pasante, tuerca, inserto, rosca" in guion.prompts[0]
+    assert "M4: pasante" in guion.prompts[0]
+
+
+def test_al_contestar_el_desglosador_parte_del_plan_que_vio_la_persona():
+    """Hasta el 2026-11-10 contestar al desglose lo tiraba y se desglosaba
+    de cero: una corrección a una unión podía rebarajar todas las piezas."""
+    from orchestrator.agents.desglosador import DesglosadorAgent
+    guion = Guion([json.dumps(PLAN)])
+    DesglosadorAgent(guion).desglosar(
+        "un pan-tilt con dos SG90\nRespuestas al desglose: la plataforma necesita 40 mm",
+        anterior=json.dumps(PLAN))
+    assert "plan anterior" in guion.prompts[0]
+    assert '"radio_libre_mm": 25' in guion.prompts[0]
 
 
 # --- el avance --------------------------------------------------------------------------
@@ -135,6 +195,9 @@ def test_contestar_al_desglose_lo_archiva_y_pide_otro(tmp_path):
     assert not (tmp_path / "obra.json").exists()
     assert list((tmp_path / "archivo").rglob("obra.json")), "archivar no es borrar"
     assert "la cámara pesa 40 g" in (tmp_path / "request.md").read_text(encoding="utf-8")
+    # Y el plan contestado queda a mano: el siguiente parte de él.
+    anterior = Obra.model_validate_json(O.plan_anterior(tmp_path))
+    assert anterior.orden() == ["base", "giro", "inclinacion"]
 
 
 def test_lo_que_depende_de_algo_sin_terminar_esta_bloqueado(tmp_path):
@@ -393,7 +456,7 @@ def test_la_orden_obra_para_en_el_desglose_y_luego_disena_el_nodo_que_toca(
         def __init__(self, *a, **k):
             pass
 
-        def desglosar(self, peticion):
+        def desglosar(self, peticion, **_):
             return _obra()
 
     vistos = []
@@ -473,7 +536,7 @@ def test_el_banco_recorre_la_obra_entera_sin_nadie_que_de_el_visto_bueno(
         def __init__(self, *a, **k):
             pass
 
-        def desglosar(self, peticion):
+        def desglosar(self, peticion, **_):
             return _obra(nodos=[*PANTILT["nodos"], conjunto_])
 
     disenadas = []

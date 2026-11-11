@@ -652,17 +652,23 @@ def _paso_de_obra(carpeta: Path, peticion: str, raiz: Path, env: dict, nombre: s
     if not obra.es_obra(carpeta):
         router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
         cliente = _cliente(router, env)
+        from orchestrator.plan import validar_plan
+        # F9.3 (planificador): el plan se hace con lo que la impresora sabe
+        # taladrar, y lo que no tabule se le enseña a la persona como aviso.
+        agujeros = _perfil(raiz, env).datos.get("holes", {})
         with latir(carpeta), _apuntar_gasto(raiz, carpeta, "desglose"):
             try:
                 desglose = DesglosadorAgent(_cliente(router, env, "reason"),
-                                            reserva=cliente).desglosar(peticion)
+                                            reserva=cliente).desglosar(
+                    peticion, agujeros=agujeros, anterior=obra.plan_anterior(carpeta))
             except ValueError as e:
                 (carpeta / "rounds.json").write_text(json.dumps(
                     [{"number": 1, "title": "desglose", "feedback": f"el desglose no salió: {e}",
                       "plan": None}], ensure_ascii=False), encoding="utf-8")
                 sys.exit(f"[{nombre}] ✗ el desglose no salió: {e}")
-            obra.guardar(carpeta, desglose, por="desglosador")
-        print(obra.presentar(desglose), flush=True)
+            avisos = validar_plan(desglose, agujeros)[1]
+            obra.guardar(carpeta, desglose, por="desglosador", avisos=avisos)
+        print(obra.presentar(desglose, avisos), flush=True)
     if not obra.aprobada(carpeta):
         print(f"[{nombre}] ✋ desglose listo: espera tu visto bueno ({carpeta / 'obra.md'})")
         return

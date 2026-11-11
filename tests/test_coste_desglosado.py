@@ -117,7 +117,7 @@ def test_una_obra_suma_su_gasto_paso_a_paso_en_su_carpeta(tmp_path, monkeypatch)
         def __init__(self, cliente, reserva=None):
             self.cliente = cliente
 
-        def desglosar(self, peticion):
+        def desglosar(self, peticion, **_):
             self.cliente.complete("desglosa")
             raise ValueError("no cuadra")
 

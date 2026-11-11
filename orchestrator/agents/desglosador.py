@@ -12,9 +12,27 @@ from pathlib import Path
 
 from orchestrator.componentes import cargar, ids, mencionados, resumen
 from orchestrator.llm.structured import LlmClient, structured
+from orchestrator.plan import validar_plan
 from orchestrator.schemas.obra import Obra
 
 PROMPT_PATH = Path("config/agents/desglosador.md")
+
+_AGARRES = (("through", "pasante"), ("nut_af", "tuerca"), ("insert", "inserto"),
+            ("selftap", "rosca"))
+
+
+def tabulado(agujeros: dict) -> list[str]:
+    """«M3: pasante, tuerca, inserto, rosca»: de cada métrica del perfil, lo
+    que se puede taladrar con ella. Sin el pasante no hay dónde apoyar la
+    cabeza, y la métrica no sale."""
+    metricas = sorted({k.split("_")[0] for k in agujeros if re.match(r"^M\d", k)},
+                      key=lambda m: float(m[1:]))
+    lineas = []
+    for m in metricas:
+        hay = [nombre for clave, nombre in _AGARRES if f"{m}_{clave}_mm" in agujeros]
+        if "pasante" in hay:
+            lineas.append(f"{m}: {', '.join(hay)}")
+    return lineas
 
 
 def es_componente(nombre: str) -> str | None:
@@ -48,7 +66,13 @@ class DesglosadorAgent:
         self._reserva = reserva
         self._instrucciones = prompt_path.read_text(encoding="utf-8")
 
-    def desglosar(self, peticion: str) -> Obra:
+    def desglosar(self, peticion: str, agujeros: dict | None = None,
+                  anterior: str | None = None) -> Obra:
+        """El plan mecánico (F9.3 (planificador)): las piezas y cómo se unen.
+
+        `agujeros` es `holes` del perfil activo: lo que la impresora sabe
+        taladrar. `anterior` es el plan que la persona vio y contestó (sus
+        respuestas ya van al final de la petición): se parte de él."""
         disponibles = ids()
         prompt = (f"{self._instrucciones}\n\n## Componentes con ficha\n\n"
                   f"{', '.join(disponibles)}\n")
@@ -56,7 +80,18 @@ class DesglosadorAgent:
         if nombrados:
             prompt += ("\nLa petición nombra estos:\n\n"
                        + "\n\n".join(resumen(cargar(i)) for i in nombrados) + "\n")
+        if agujeros:
+            prompt += ("\n## Lo que tabula la impresora\n\nPara una unión `fija` solo puedes "
+                       "usar estas métricas, y de cada una solo estos agarres:\n\n"
+                       + "\n".join(f"- {linea}" for linea in tabulado(agujeros)) + "\n")
         prompt += f"\n## Petición\n\n> {peticion.strip()}\n"
+        if anterior:
+            # Sin esto, contestar al desglose lo tiraba y se desglosaba de
+            # cero: corregir una unión podía rebarajar todas las piezas.
+            prompt += ("\n## Tu plan anterior\n\nLa persona vio este plan y contestó; sus "
+                       "respuestas están al final de la petición. Cambia solo lo que piden: "
+                       "los nodos, los ids y las uniones que no toquen se quedan igual.\n\n"
+                       f"```json\n{anterior.strip()}\n```\n")
 
         def validar(obra: Obra) -> None:
             errores = [f"«{c}» (en «{n.id}») no tiene ficha; los ids que hay son: "
@@ -65,11 +100,19 @@ class DesglosadorAgent:
             errores += [f"«{n.id}» es un conjunto y no depende de ninguna pieza: un "
                         "conjunto agrupa las piezas que se mueven"
                         for n in obra.nodos if n.tipo == "conjunto" and not n.depende_de]
+            # Sin la f, al modelo le llegaba «{c}» tal cual en vez del id.
             errores += [f"«{n.nombre}» es el componente comprado «{c}», no una pieza: no se "
-                        "diseña ni se imprime. Quita ese nodo y pon «{c}» en `compra` de la "
+                        f"diseña ni se imprime. Quita ese nodo y pon «{c}» en `compra` de la "
                         "pieza que lo aloja"
                         for n in obra.nodos if n.tipo == "pieza"
                         for c in [es_componente(n.nombre)] if c]
+            piezas = [n for n in obra.nodos if n.tipo == "pieza"]
+            if len(piezas) > 1 and not obra.uniones:
+                errores.append("faltan las `uniones`: con varias piezas hay que decir cómo "
+                               "se une cada una a las demás (`gira` o `fija`)")
+            # Con un componente sin ficha no hay salidas que mirar.
+            if not errores:
+                errores += validar_plan(obra, agujeros or {})[0]
             if errores:
                 raise ValueError("el desglose no vale:\n- " + "\n- ".join(errores))
 
