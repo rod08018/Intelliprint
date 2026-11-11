@@ -703,7 +703,8 @@ def test_reanudar_rehace_con_su_motivo_la_pieza_que_no_orienta_lo_que_lleva(
     bien = {"ok": True, "choques": [], "resumen": [], "articulaciones": [], "correcciones": {}}
     p = _con_informes(_obra_construida(corrida / "01", verificacion=bien),
                       {"base": True, "giro": True})
-    medido = "la mayor cara plana que cambia de orientación al girar mide 47 mm² y hacen falta 600"
+    medido = ("ninguna cara plana cambia de orientación al girar: la mayor (1662 mm²) "
+              "mira a lo largo del eje y gira sobre sí misma")
     monkeypatch.setattr(banco, "medir_sondas", lambda *a, **k: [
         banco.Resultado(estado="no_cumple", detalle=medido)])
 
@@ -715,12 +716,13 @@ def test_reanudar_rehace_con_su_motivo_la_pieza_que_no_orienta_lo_que_lleva(
     monkeypatch.setattr(banco, "rejuzgar", lambda *a, **k: ({"x": []}, {}))
     e = banco.Encargo(nombre="x", categoria="robots", peticion="un pan-tilt", obra=True,
                       oraculo=[{"tipo": "conjunto_libre"},
-                               {"tipo": "se_orienta", "eje": "vertical", "area_min_mm2": 600}])
+                               {"tipo": "se_orienta", "eje": "vertical", "cabe_mm": [25, 24]}])
     banco.reanudar([e], corrida, ["intelliprint", "obra", "--banco"], "fc", {})
 
     assert lanzado, "había algo que reanudar"
     cambios = (p / "nodos" / "giro" / "cambios.md").read_text(encoding="utf-8")
-    assert "47 mm²" in cambios and "perpendicular al eje" in cambios
+    assert "1662 mm²" in cambios and "25 × 24" in cambios
+    assert "perpendicular al eje" in cambios
     assert not (p / "nodos" / "giro" / "parts").exists(), "se rehace desde el concepto"
     assert next(p.glob("archivo/*/nodos/giro/pieza_report.json"), None) is not None
     assert (p / "nodos" / "base" / "lista.json").is_file(), "lo demás se queda"
@@ -756,8 +758,8 @@ def test_si_ya_se_rehizo_por_no_orientar_la_segunda_vez_se_corrige_la_que_hay(
     (nodo / "parts" / "giro" / "programa.py").write_text("PROGRAMA", encoding="utf-8")
     monkeypatch.setattr(banco, "medir_sondas", lambda *a, **k: [banco.Resultado(
         estado="no_cumple",
-        detalle="la mayor cara plana que cambia de orientación al girar mide 450 mm² y hacen "
-                "falta 600")])
+        detalle="en la mayor cara plana que cambia de orientación al girar (31 × 21 mm) no "
+                "cabe un rectángulo de 25 × 24")])
 
     class Hecho:
         stdout, stderr, returncode = "", "", 0
@@ -765,12 +767,12 @@ def test_si_ya_se_rehizo_por_no_orientar_la_segunda_vez_se_corrige_la_que_hay(
     monkeypatch.setattr(banco.subprocess, "run", lambda orden, **k: Hecho())
     monkeypatch.setattr(banco, "rejuzgar", lambda *a, **k: ({"x": []}, {}))
     e = banco.Encargo(nombre="x", categoria="robots", peticion="un pan-tilt", obra=True,
-                      oraculo=[{"tipo": "se_orienta", "eje": "vertical", "area_min_mm2": 600}])
+                      oraculo=[{"tipo": "se_orienta", "eje": "vertical", "cabe_mm": [25, 24]}])
     banco.reanudar([e], corrida, ["intelliprint", "obra", "--banco"], "fc", {})
 
     retoque = json.loads((nodo / "retoque.json").read_text(encoding="utf-8"))
     assert retoque["programa"] == "PROGRAMA"
-    assert "450 mm²" in retoque["cambio"] and "mismo plano" in retoque["cambio"]
+    assert "31 × 21 mm" in retoque["cambio"] and "redondeos" in retoque["cambio"]
     assert (nodo / "concepto_aprobado").is_file(), "el concepto, que ya era bueno, se queda"
 
 

@@ -13,6 +13,20 @@ class PresupuestoAgotado(RuntimeError):
     pass
 
 
+def tope_usd(raiz) -> float | None:
+    """El tope por proyecto que hay en `config/models.yaml`, para decírselo
+    a la persona antes de que pida: la web lo llevaba escrito a mano («hasta
+    5 USD») y habría seguido diciendo 5 con el tope en 10."""
+    from pathlib import Path
+
+    import yaml
+    try:
+        config = yaml.safe_load((Path(raiz) / "config" / "models.yaml").read_text(encoding="utf-8"))
+        return float(config["escalation"]["max_usd_per_project"])
+    except (OSError, KeyError, TypeError, ValueError):
+        return None
+
+
 class Presupuesto:
     def __init__(self, limite_usd: float, precios: dict[str, dict[str, float]]) -> None:
         self.limite_usd = limite_usd

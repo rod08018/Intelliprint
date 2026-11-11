@@ -211,15 +211,16 @@ class ZonaLibre(_Sonda):
 
 
 class CaraQueSeOrienta(_Sonda):
-    """La pieza tiene una cara plana de `area_min_mm2` cuya normal es
-    perpendicular a `eje` (F9.14 (orienta)): lo que se monte en ella cambia
+    """En una cara plana de la pieza cuya normal es perpendicular a `eje`
+    cabe un rectángulo de `cabe_mm` (F9.14 (orienta)): lo que se monte en
+    ella cambia
     de orientación cuando la pieza gira alrededor de ese eje. La plataforma
     del pan-tilt 1111-1342 era un disco centrado en el eje de inclinación:
     pasó el banco y una cámara montada en él habría rodado sobre su eje
     óptico en vez de cabecear."""
     tipo: Literal["cara_que_se_orienta"]
     eje: list[float]
-    area_min_mm2: float
+    cabe_mm: list[float] = Field(min_length=2, max_length=2)
     tolerancia_grados: float = 20.0
 
 
@@ -229,12 +230,15 @@ class SeOrienta(BaseModel):
     `CaraQueSeOrienta` sobre esa pieza, con su eje en su propio marco."""
     tipo: Literal["se_orienta"]
     eje: Literal["vertical", "horizontal"]
-    area_min_mm2: float
+    cabe_mm: list[float] = Field(min_length=2, max_length=2)
+    """Los dos lados de lo que la pieza tiene que llevar: tiene que caber
+    ese rectángulo en la cara. El área sola no basta: en una placa de
+    32 × 22 (704 mm²) no cabe una cámara de 25 × 24 (600 mm²)."""
     tolerancia_grados: float = 20.0
     porque: str = ""
 
     def cotas_de_la_peticion(self) -> list[float]:
-        return []   # el área sale de una hoja de datos, no de la petición
+        return []   # lo que cabe sale de una hoja de datos, no de la petición
 
 
 class Componente(BaseModel):
@@ -892,7 +896,7 @@ def _mide_si_orienta(a: "SeOrienta", proyecto: Path, freecadcmd: str,
     pieza, eje = cual
     step = leer_piezas(Path(proyecto), solo_construidas=True)[pieza].step
     [r] = medir_sondas(step, [CaraQueSeOrienta(
-        tipo="cara_que_se_orienta", eje=eje, area_min_mm2=a.area_min_mm2,
+        tipo="cara_que_se_orienta", eje=eje, cabe_mm=a.cabe_mm,
         tolerancia_grados=a.tolerancia_grados)], freecadcmd, material or {})
     return pieza, r
 
@@ -909,12 +913,13 @@ def la_que_no_orienta(encargo: Encargo, proyecto: Path, freecadcmd: str,
         if pieza is not None and r.estado == "no_cumple":
             return pieza, (
                 f"{NO_ORIENTA}, y como está no lo orienta: "
-                f"{r.detalle}. Lo que lleva tiene que ir en una cara plana de al menos "
-                f"{a.area_min_mm2:g} mm² que mire de lado respecto al eje sobre el que gira "
-                "(su normal, perpendicular al eje): una repisa o una escuadra que sale del "
-                "acople, no un disco centrado en el eje. Cuenta la mayor superficie de un "
-                "mismo plano: un rebaje, una ceja o un escalón la parten en trozos, y lo que "
-                "se monta apoya en uno solo.")
+                f"{r.detalle}. Lo que lleva mide {a.cabe_mm[0]:g} × {a.cabe_mm[1]:g} mm y "
+                "tiene que caber entero en una cara plana que mire de lado respecto al eje "
+                "sobre el que gira (su normal, perpendicular al eje): una repisa o una "
+                "escuadra que sale del acople, no un disco centrado en el eje. Cuenta la "
+                "parte plana de la cara, sin los redondeos del borde: hazla 1 mm más grande "
+                "de cada lado. Los taladros de dentro no quitan sitio; una ceja o un escalón "
+                "sí, porque parten la cara.")
     return None, ""
 
 

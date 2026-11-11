@@ -247,7 +247,8 @@ def _progreso(v: dict) -> str:
 # --- La galería ------------------------------------------------------------------
 
 
-def galeria(grupos: list[dict], workspace: Path, hay_puente: bool, puede_pedir: bool) -> str:
+def galeria(grupos: list[dict], workspace: Path, hay_puente: bool, puede_pedir: bool,
+            tope_usd: float | None = None) -> str:
     """El inventario de inventos (F7.8 (inventario)): de cada uno, qué es
     (pieza, mecanismo, ensamble o robot), en qué punto está, qué se compra y
     cuánto costó. Antes era una galería por categorías donde una pieza y un
@@ -305,7 +306,9 @@ def galeria(grupos: list[dict], workspace: Path, hay_puente: bool, puede_pedir: 
     ocupado = any(g.get("en_marcha") for g in grupos)
     # Lo que tarda y cuesta va siempre: con algo en marcha desaparecía, y es
     # justo cuando la persona decide si esperar o volver luego.
-    coste = "Tarda de 5 a 60 minutos y cuesta hasta 5 USD."
+    # El tope, el de `config/models.yaml`: el mismo que se comprueba al gastar.
+    coste = "Tarda de 5 a 60 minutos" + (
+        f" y cuesta hasta {tope_usd:g} USD." if tope_usd else ".")
     nota = ("Esta web no tiene con qué lanzar diseños." if not puede_pedir else
             f"{coste} Hay un diseño en marcha: espera a que termine." if ocupado else
             f"{coste} Lo verás aparecer en la galería.")
@@ -867,7 +870,7 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
     if g.get("en_marcha"):
         corriendo = next(x for x in versiones if x["id"] == g["en_marcha"])
         # F9.12 (pantalla): pararlo desde aquí. Un diseño tarda hasta una hora
-        # y cuesta hasta 5 USD, y solo se podía cancelar pidiéndoselo a Crafty.
+        # y cuesta dinero, y solo se podía cancelar pidiéndoselo a Crafty.
         # Botón secundario: no es lo que se viene a hacer. Sin lanzador (o en
         # lo del banco) no sale: solo podría fallar.
         cancelar = (f'<p><button class="btn" data-cancelar="{e(corriendo["id"])}">Cancelar</button></p>'

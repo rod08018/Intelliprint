@@ -208,7 +208,7 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
     @app.post("/api/proyectos/{id}/cancelar")
     def cancelar(id: str) -> dict:
         """Para el diseño en marcha de ESTE proyecto (F9.12 (pantalla)). Un
-        diseño tarda hasta una hora y cuesta hasta 5 USD, y desde la web no
+        diseño tarda hasta una hora y cuesta dinero, y desde la web no
         había por dónde pararlo: solo podía Crafty.
 
         `id` es el del proyecto o el de cualquiera de sus versiones; la que
@@ -476,8 +476,10 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
 
     @app.get("/", response_class=HTMLResponse)
     def portada() -> str:
+        from orchestrator.llm.cost import tope_usd
         return paginas.galeria(agrupar(ejecuciones(workspace), workspace), workspace,
-                               hay_puente=puente is not None, puede_pedir=trabajos is not None)
+                               hay_puente=puente is not None, puede_pedir=trabajos is not None,
+                               tope_usd=tope_usd(raiz))
 
     @app.get("/p/{id}", response_class=HTMLResponse)
     def pagina_de_proyecto(id: str, v: str | None = None) -> str:

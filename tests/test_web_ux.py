@@ -195,8 +195,17 @@ def test_lo_que_tarda_y_cuesta_se_ve_aunque_haya_algo_en_marcha(tmp_path):
 
     html = _con_trabajos(tmp_path).get("/").text
 
-    assert "cuesta hasta 5 USD" in html
+    assert "cuesta hasta 10 USD" in html
     assert "espera a que termine" in html
+
+
+def test_lo_que_dice_la_web_que_cuesta_es_el_tope_de_verdad(tmp_path):
+    """El «hasta 5 USD» estaba escrito a mano en la página: el usuario subió
+    el tope a 10 (2026-11-11) y la web habría seguido diciendo 5. Sale de
+    `config/models.yaml`, que es donde se comprueba al gastar."""
+    from orchestrator.web import paginas
+    html = paginas.galeria([], tmp_path, hay_puente=False, puede_pedir=True, tope_usd=7.5)
+    assert "cuesta hasta 7.5 USD" in html and "hasta 5 USD" not in html
 
 
 # --- Legible y tocable ------------------------------------------------------------

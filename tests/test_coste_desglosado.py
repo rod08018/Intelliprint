@@ -142,7 +142,8 @@ def _ya_gastado(carpeta, usd):
 
 
 def test_un_proyecto_que_llego_a_su_tope_no_gasta_mas(tmp_path):
-    """El usuario puso el tope en 5 USD por proyecto (2026-09-21). Solo lo
+    """El usuario puso el tope en 5 USD por proyecto (2026-09-21) y lo subió a
+    10 el 2026-11-11. Solo lo
     comprobaba el flujo de mecanismos: una pieza o un backlog, que es lo que
     se usa, podían pasarse sin que nada los parara, aunque la web dijera
     «hasta 5 USD» (visto al quitar ese flujo, 2026-11-11). Cada paso de un
@@ -155,17 +156,17 @@ def test_un_proyecto_que_llego_a_su_tope_no_gasta_mas(tmp_path):
 
     raiz = Path(__file__).resolve().parents[1]
     config = yaml.safe_load((raiz / "config" / "models.yaml").read_text(encoding="utf-8"))
-    assert config["escalation"]["max_usd_per_project"] == 5.0, "lo decidió el usuario"
+    assert config["escalation"]["max_usd_per_project"] == 10.0, "lo decidió el usuario"
     hecho = []
 
-    _ya_gastado(tmp_path, 5.01)
+    _ya_gastado(tmp_path, 10.01)
     with pytest.raises(SystemExit) as parada:
         with cli._apuntar_gasto(raiz, tmp_path, "pieza «Soporte»"):
             hecho.append("gastó")
     assert hecho == []
-    assert "5.01 USD" in str(parada.value) and "5.00" in str(parada.value)
+    assert "10.01 USD" in str(parada.value) and "10.00" in str(parada.value)
 
-    _ya_gastado(tmp_path, 4.99)
+    _ya_gastado(tmp_path, 9.99)
     with cli._apuntar_gasto(raiz, tmp_path, "pieza «Soporte»"):
         hecho.append("gastó")
     assert hecho == ["gastó"]

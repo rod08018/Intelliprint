@@ -90,4 +90,6 @@ escalation:
   # los precios corregidos (la salida de Flash cuesta 1.20, no 0.42) el
   # trinquete honesto agotó 2 USD en la ronda 21 cuando ya empujaba la rueda.
   # Es por PROYECTO: dos proyectos en paralelo pueden gastar hasta el doble.
-  max_usd_per_project: 5.0
+  # 5.0 desde el 2026-09-21; el usuario lo subió a 10 el 2026-11-11. Desde ese
+  # día lo comprueban también las piezas y los backlogs, antes de cada paso.
+  max_usd_per_project: 10.0

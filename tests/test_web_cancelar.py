@@ -1,6 +1,6 @@
 """Cancelar un diseño desde la web (F9.12 (pantalla)).
 
-Un diseño tarda de 5 a 60 minutos y cuesta hasta 5 USD, y desde la web no
+Un diseño tarda de 5 a 60 minutos y cuesta dinero, y desde la web no
 había por dónde pararlo: solo podía Crafty, con `cancelar_proyecto`. Lo que
 se pide: una ruta que pare el trabajo en marcha de ESE proyecto y conteste
 la verdad —200 si lo paró, 409 con el motivo si no había nada o si no es

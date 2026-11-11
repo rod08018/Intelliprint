@@ -574,17 +574,59 @@ def zona_libre(forma, nombre, punto, eje, radio_mm):
                        f"lo que estorba llega a {cerca:.1f} mm del eje"}
 
 
-def cara_que_se_orienta(forma, eje, area_min_mm2, tolerancia_grados=20.0):
-    """Hay `area_min_mm2` de cara plana cuya normal es perpendicular a `eje`:
-    lo que se monte ahí cambia de orientación cuando la pieza gira sobre ese
-    eje (F9.14 (orienta)). Las caras del mismo plano se suman: una unión de
-    dos cuerpos deja la cara partida, y es la misma superficie."""
+PASO_REJILLA_MM = 0.5
+"""Cada cuánto se mira si un punto de la cara es de la pieza, al buscar
+dónde cabe un rectángulo."""
+
+
+def _cabe_en(caras, origen, u, v, lados) -> bool:
+    """Si en la región que forman `caras` (del mismo plano, con sus agujeros
+    tapados) cabe un rectángulo de `lados`, alineado con `u` y `v`."""
+    rellenas = [Part.Face(c.OuterWire) for c in caras]
+    puntos = [p.Point - origen for c in caras for p in c.OuterWire.Vertexes]
+    us, vs = [q.dot(u) for q in puntos], [q.dot(v) for q in puntos]
+    nu = int((max(us) - min(us)) / PASO_REJILLA_MM + 1e-6) + 1
+    nv = int((max(vs) - min(vs)) / PASO_REJILLA_MM + 1e-6) + 1
+    a, b = (int(round(x / PASO_REJILLA_MM)) for x in lados)
+    if a >= nu or b >= nv:
+        return False
+
+    def dentro(i, j):
+        punto = origen + u * (min(us) + i * PASO_REJILLA_MM) + v * (min(vs) + j * PASO_REJILLA_MM)
+        return any(f.isInside(punto, 1e-3, True) for f in rellenas)
+
+    # Suma acumulada: cuántos puntos de la rejilla son de la pieza en cada
+    # esquina, para saber de una resta si una ventana entera lo es.
+    suma = [[0] * (nv + 1) for _ in range(nu + 1)]
+    for i in range(nu):
+        for j in range(nv):
+            suma[i + 1][j + 1] = suma[i][j + 1] + suma[i + 1][j] - suma[i][j] + dentro(i, j)
+    todos = (a + 1) * (b + 1)
+    return any(suma[i + a + 1][j + b + 1] - suma[i][j + b + 1] - suma[i + a + 1][j]
+               + suma[i][j] == todos
+               for i in range(nu - a) for j in range(nv - b))
+
+
+def cara_que_se_orienta(forma, eje, cabe_mm, tolerancia_grados=20.0):
+    """En una cara plana cuya normal es perpendicular a `eje` cabe un
+    rectángulo de `cabe_mm`: lo que se monte ahí cambia de orientación
+    cuando la pieza gira sobre ese eje (F9.14 (orienta)).
+
+    - Las caras del mismo plano cuentan juntas: una unión de dos cuerpos
+      deja la cara partida, y es la misma superficie.
+    - Los agujeros de dentro no quitan sitio: lo montado los tapa. Lo que
+      manda es el contorno.
+    - El rectángulo se prueba alineado con el eje, de las dos maneras.
+
+    Primero se midió el área, y no era lo que había que medir: la placa de
+    32 × 22 de la corrida 1111-1342 tiene 704 mm², más que los 600 de una
+    cámara de 25 × 24, y la cámara no cabe en el lado de 22."""
     import math
 
     e = FreeCAD.Vector(*eje)
     e.normalize()
     limite = math.sin(math.radians(tolerancia_grados))
-    planos: dict[tuple, float] = {}
+    planos: dict[tuple, list] = {}
     for cara in forma.Faces:
         if cara.Surface.__class__.__name__ != "Plane":
             continue
@@ -592,24 +634,40 @@ def cara_que_se_orienta(forma, eje, area_min_mm2, tolerancia_grados=20.0):
         n = cara.normalAt((u0 + u1) / 2, (v0 + v1) / 2)
         d = n.dot(cara.CenterOfMass)
         clave = (round(n.x, 3), round(n.y, 3), round(n.z, 3), round(d, 2))
-        planos[clave] = planos.get(clave, 0.0) + cara.Area
-    orientadas = [a for (x, y, z, _), a in planos.items()
-                  if abs(x * e.x + y * e.y + z * e.z) <= limite]
-    mejor = max(orientadas, default=0.0)
-    if mejor >= area_min_mm2 - 0.5:
-        return {"cumple": True,
-                "detalle": f"tiene una cara plana de {mejor:.0f} mm² que cambia de orientación "
-                           f"al girar (hacen falta {area_min_mm2:g})"}
-    if mejor > 0:
+        planos.setdefault(clave, []).append(cara)
+    pide = f"{cabe_mm[0]:g} × {cabe_mm[1]:g}"
+    orientados = []   # (área, lados de su envolvente en el plano, caras, u, v)
+    for (x, y, z, _), caras in planos.items():
+        n = FreeCAD.Vector(x, y, z)
+        if abs(n.dot(e)) > limite:
+            continue
+        u = e - n * e.dot(n)
+        u.normalize()
+        v = n.cross(u)
+        puntos = [p.Point for c in caras for p in c.OuterWire.Vertexes]
+        us, vs = [q.dot(u) for q in puntos], [q.dot(v) for q in puntos]
+        orientados.append((sum(c.Area for c in caras), (max(us) - min(us), max(vs) - min(vs)),
+                           caras, u, v))
+    if not orientados:
+        mayor = max((sum(c.Area for c in caras) for caras in planos.values()), default=0.0)
         return {"cumple": False,
-                "detalle": f"la mayor cara plana que cambia de orientación al girar mide "
-                           f"{mejor:.0f} mm² y hacen falta {area_min_mm2:g}: lo que tiene que "
-                           "llevar no cabe"}
-    mayor = max(planos.values(), default=0.0)
+                "detalle": f"ninguna cara plana cambia de orientación al girar: la mayor "
+                           f"({mayor:.0f} mm²) mira a lo largo del eje y gira sobre sí misma. "
+                           f"Hace falta una cara plana donde quepan {pide} mm, con la normal "
+                           "perpendicular al eje"}
+    orientados.sort(key=lambda o: -o[0])
+    for _, (lu, lv), caras, u, v in orientados:
+        origen = FreeCAD.Vector(0, 0, 0) + caras[0].CenterOfMass - u * caras[0].CenterOfMass.dot(u) \
+            - v * caras[0].CenterOfMass.dot(v)
+        if any(_cabe_en(caras, origen, u, v, lados)
+               for lados in (cabe_mm, cabe_mm[::-1])):
+            return {"cumple": True,
+                    "detalle": f"en una cara plana de {lu:.0f} × {lv:.0f} mm que cambia de "
+                               f"orientación al girar caben {pide} mm"}
+    _, (lu, lv), _, _, _ = orientados[0]
     return {"cumple": False,
-            "detalle": f"ninguna cara plana cambia de orientación al girar: la mayor "
-                       f"({mayor:.0f} mm²) mira a lo largo del eje y gira sobre sí misma. "
-                       f"Hacen falta {area_min_mm2:g} mm² con la normal perpendicular al eje"}
+            "detalle": f"en la mayor cara plana que cambia de orientación al girar "
+                       f"({lu:.0f} × {lv:.0f} mm) no cabe un rectángulo de {pide}"}
 
 
 def carga_en_camino(forma, desde, hasta, gravedad, material, secciones=30):

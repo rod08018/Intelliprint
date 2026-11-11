@@ -112,7 +112,8 @@ invento. El plan aprobado está en `PLAN_PROYECTO.md`, Fase 9, con su orden.
   se siguen viendo en la web. **Lo que se perdió:** engranajes y cadenas
   cerradas; un backlog solo sabe piezas que giran sobre un servo o un
   rodamiento, en árbol.
-- **El tope de 5 USD ahora sí para.** Solo lo comprobaba el flujo de
+- **El tope de gasto ahora sí para, y es de 10 USD por proyecto** (lo subió
+  él el 2026-11-11; eran 5). Solo lo comprobaba el flujo de
   mecanismos; una pieza o un backlog nunca se detenían. Cada paso lo mira
   antes de empezar (`cli._apuntar_gasto`).
 - **El banco se corre con el código de hoy desde el servicio `suite`**, que lo
@@ -148,7 +149,8 @@ invento. El plan aprobado está en `PLAN_PROYECTO.md`, Fase 9, con su orden.
 1. ~~El trinquete, la Ginebra y los demás retos de mecanismos.~~ El flujo
    que los hacía se quitó el 2026-11-11 (arriba). El trinquete salió
    (2026-09-21, 1.17 USD) y sigue en `workspace/`.
-3. ~~Decidir el tope de gasto.~~ **Decidido por el usuario: 5 USD por proyecto**
+3. ~~Decidir el tope de gasto.~~ **Decidido por el usuario: 10 USD por proyecto**
+   desde el 2026-11-11; antes, 5 USD
    (2026-09-21). Los 2 USD anteriores los había puesto el asistente por defecto.
 5. **F0.11 (migrar) es la deuda mayor que queda.** La 5090 está aquí, Ollama
    corre con ella y los dos modelos del perfil `prod` están descargados

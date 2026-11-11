@@ -81,7 +81,7 @@ def _apuntar_gasto(raiz: Path, carpeta: Path, etapa: str):
             (raiz / "config" / "models.yaml").read_text(encoding="utf-8"))).continuar(carpeta)
 
     # F5.12 (tope): antes de gastar más se mira lo que el proyecto ya lleva.
-    # El tope lo puso el usuario (5 USD) y solo lo comprobaba el flujo de
+    # El tope lo pone el usuario (10 USD desde el 2026-11-11) y solo lo comprobaba el flujo de
     # mecanismos: una pieza o un backlog podían pasarse sin que nada los
     # parara, con la web diciendo «hasta 5 USD». Se mira al empezar cada paso
     # —el plan, cada pieza—, así que un proyecto se pasa como mucho en lo que

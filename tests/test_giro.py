@@ -341,26 +341,42 @@ ancho, y mira hacia −z: perpendicular al eje, así que al inclinar cambia de
 orientación."""
 
 
+CON_TALADRO = ESCUADRA.format(ancho=30, largo=30).rstrip() + """.taladrar(
+        "paso_del_cable", 6, en=(20, 0, 4), eje="-z")
+"""
+"""La misma escuadra con un taladro de Ø6 en medio de la repisa: la cámara
+lo tapa, y sigue cabiendo."""
+
+
 @pytest.mark.skipif(_freecadcmd() is None, reason="sin freecadcmd")
 @pytest.mark.parametrize("codigo, cumple, cifra", [
     (DISCO, False, "1662 mm²"),
-    # (30 + 2) × 30 = 960 mm²: cabe una cámara de 25 × 24.
-    (ESCUADRA.format(ancho=30, largo=30), True, "960 mm²"),
-    # (18 + 2) × 20 = 400 mm²: orientada, pero no cabe.
-    (ESCUADRA.format(ancho=20, largo=18), False, "400 mm²"),
+    # La cara de abajo mide (30 + 2) × 30: cabe una cámara de 25 × 24.
+    (ESCUADRA.format(ancho=30, largo=30), True, "32 × 30"),
+    (CON_TALADRO, True, "32 × 30"),
+    # (18 + 2) × 20: mira de lado, pero no cabe.
+    (ESCUADRA.format(ancho=20, largo=18), False, "20 × 20"),
+    # La placa de la corrida 1111-1342 tras dos reanudaciones: 32 × 22. Son
+    # 704 mm², más que los 600 de 25 × 24, y la cámara no cabe: 22 < 24.
+    (ESCUADRA.format(ancho=22, largo=30), False, "32 × 22"),
 ])
 def test_la_pieza_que_inclina_tiene_donde_llevar_algo_que_cambie_de_orientacion(
         tmp_path, codigo, cumple, cifra):
     """«Inclina una plataforma para una cámara pequeña» (el encargo 11). Una
     cámara pequeña de verdad mide 25 × 24 mm (el módulo de Raspberry Pi:
     «Around 25 × 24 × 9 mm», raspberrypi.com/documentation/accessories/
-    camera.html): hacen falta 600 mm² de cara plana cuya normal sea
-    perpendicular al eje. El pan-tilt de la corrida 1111-1342 pasó las cinco
-    comprobaciones del banco con un disco coaxial: una cámara montada en él
-    rodaría sobre su eje óptico en vez de cabecear."""
+    camera.html): tiene que caber ese rectángulo en una cara plana cuya
+    normal sea perpendicular al eje. El pan-tilt de la corrida 1111-1342
+    pasó las cinco comprobaciones del banco con un disco coaxial: una cámara
+    montada en él rodaría sobre su eje óptico en vez de cabecear.
+
+    Primero se midió el área (600 mm²). Dos reanudaciones después la placa
+    era de 32 × 22: con taladros y ranuras daba 534 mm² y no pasaba, pero
+    por el motivo equivocado; maciza habría pasado con 704 y la cámara
+    seguiría sin caber. Lo que hay que medir es si cabe."""
     from orchestrator.banco import CaraQueSeOrienta
     build_part(Programa(part="p", codigo=codigo), None, tmp_path, _freecadcmd(), perfil=PERFIL)
-    sonda = CaraQueSeOrienta(tipo="cara_que_se_orienta", eje=[1, 0, 0], area_min_mm2=600)
+    sonda = CaraQueSeOrienta(tipo="cara_que_se_orienta", eje=[1, 0, 0], cabe_mm=[25, 24])
     [r] = medir_sondas(tmp_path / "p.step", [sonda], _freecadcmd(), MATERIAL)
     assert r.estado == ("cumple" if cumple else "no_cumple"), r.detalle
     assert cifra in r.detalle, r.detalle
@@ -388,4 +404,4 @@ def test_el_encargo_del_pan_tilt_pide_que_la_plataforma_incline_de_verdad():
     [pan_tilt] = [e for e in cargar_encargos(Path("tests/banco/encargos"))
                   if e.nombre == "pan_tilt_sg90"]
     [pide] = [a for a in pan_tilt.oraculo if isinstance(a, SeOrienta)]
-    assert pide.eje == "horizontal" and pide.area_min_mm2 == 25 * 24
+    assert pide.eje == "horizontal" and list(pide.cabe_mm) == [25, 24]
