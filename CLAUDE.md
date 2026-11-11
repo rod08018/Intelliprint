@@ -87,6 +87,23 @@ test lo comprueba: si la cita no cuadra con el plan, la suite se pone roja.
 
 ## Por dónde iba esto
 
+**2026-11-10: Fase 9, robots con plan mecánico (ADR-020).** El usuario quiere
+diseñar robots: que el desglose decida antes de dibujar qué gira sobre qué y con
+cuánto sitio, qué va atornillado y con qué, y poder añadir funciones a un
+invento. El plan aprobado está en `PLAN_PROYECTO.md`, Fase 9, con su orden.
+
+- **Los backlogs están desaparcados con tope.** El pan-tilt `1110-0313` chocaba
+  porque el soporte deja 12.7 mm entre el eje de inclinación y el servo de
+  abajo; la culpa era del soporte y se corregía la plataforma. Tras F9.1 a F9.5:
+  **una corrida nueva y como mucho dos reanudaciones**, y solo cuenta pasar las
+  cinco comprobaciones que el encargo tiene hoy. Si no sale, se para y decide él.
+- **El flujo `mecanismo` se quita entero si el pan-tilt sube** (F9.13
+  (limpieza)); si no sube, se le pregunta antes. Queda en git, en la etiqueta
+  `antes-de-fase-9`. Con él se van los pendientes 2 y 4 de abajo.
+- **Decidido por él:** el agarre de cada tornillo lo propone el plan en cada
+  unión; un componente sin ficha entra como borrador que él aprueba viendo la
+  huella; `AGENTS.md` se borra.
+
 **2026-09-20: el sistema se mudó a la PC de la RTX 5090 y entró en contenedores.**
 
 - **FreeCAD dentro, PrusaSlicer fuera** (ADR-014). FreeCAD es una herramienta

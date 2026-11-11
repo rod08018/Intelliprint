@@ -596,6 +596,8 @@ Por qué separarlo, y no meterlo aquí:
 - **El hueco de una pieza impresa es su envolvente.** Barrer de forma exacta una forma cualquiera no sale barato: con el soporte del 608ZZ, extruir sus caras falló en 2 de 3 ejes, y unir copias desplazadas tardó 4 minutos por eje. Así que `hueco()` talla la caja envolvente con holgura. Para casar dos piezas impresas se usan sus agujeros y `punto()`. Si una entra de verdad lo mide `componente_entra`, con la forma real cada 0,5 mm.
 - **Solo los agujeros de eje alineado** pasan a la ficha: son los que una ficha sabe girar en cuartos de vuelta.
 
+**Enmienda (2026-11-10): una pieza que gira se mueve dentro de su propio bucle (ADR-020).** El punto 3 dejaba todo el movimiento para el nodo `conjunto`, que llega cuando las piezas ya tienen el visto bueno. En el pan-tilt `1110-0313` eso enseñó el choque cuando ya no tenía arreglo barato: las tres piezas estaban dadas por buenas y la que había que cambiar era la segunda. Sigue sin simularse nada que no esté construido, pero una pieza que el plan dice que gira se barre contra lo ya construido en cuanto se construye, F9.5 (parcial), y el choque vuelve a su diseñador como cualquier otra medida. El nodo `conjunto` sigue siendo la verificación del todo.
+
 ---
 
 ## ADR-019 · Lo que se entrega es un kit para montar
@@ -657,3 +659,51 @@ Lo que descarga hoy la web es la carpeta del proyecto con su historial, no algo 
 **Lo que no cubre.**
 - **Si un niño de esa edad sabe montarlo** no lo mide ningún test. Lo dice la prueba de F8.10 (prueba) y lo que se registra en F8.9 (reportes).
 - **El coste no incluye** la luz, el desgaste de la impresora, las horas del usuario ni el embalaje. Es el coste de material.
+
+---
+
+## ADR-020 · El plan mecánico decide las uniones y el sitio de cada giro; el código lo valida y lo mide
+
+**Estado:** aceptada (2026-11-10) · **Afecta a:** Fase 9 (F9.1–F9.13), ADR-013, ADR-016, ADR-018, F7.2, F7.4, F7.5, F7.7
+
+**Problema.** El usuario quiere diseñar robots: «tiene que haber un planner que busque las piezas, su footprint, y todos los tornillos, bearings para el diseño mecánico», y poder añadir funciones de varias piezas a un diseño ya hecho. Al revisar por qué el único robot del banco no salía, la causa no fue la tornillería:
+
+- El pan-tilt `1110-0313` falla una sola comprobación, `conjunto_libre`. Su soporte deja **12.7 mm** entre el eje de inclinación y el SG90 de la base: el eje queda a z = 12.2 del soporte, el soporte se coloca a −33.6 de la base y la carcasa del servo de abajo llega a 33.1. Ninguna plataforma con una cámara cabe en ese radio.
+- La regla de F7.7 (culpable) mandó corregir la plataforma, «la que va después». Bajó su radio de 68.4 a 37.7 mm y no podía bajar más. La pieza que tenía que cambiar era el soporte.
+- El desglose lo había dicho en texto libre («espacio para inclinar la plataforma 180°») y el concepto del soporte lo repitió sin cifra. **Nadie decidió cuánto sitio necesita cada giro, y nadie lo midió en la pieza que monta el actuador.**
+
+Y lo que sí faltaba de tornillería:
+
+- `Obra` no tiene uniones. `ofrece` y `necesita` son texto libre, y el desglosador deja los tornillos «al diseño de la pieza».
+- El diseñador de una pieza no recibe la métrica de los tornillos de una ficha (`resumen()` no la imprime) ni el eje sobre el que gira (la ficha de una pieza impresa no conserva las salidas de lo que monta).
+- La lista de compras se deduce al final (`tornilleria.py`): el soporte sujetó su SG90 con dos M3 que lo empujan porque el perfil no tabula M2, y la plataforma taladró Ø3.3 para un cuerno con agujeros de Ø1.0.
+
+**Decisión.** Decidida con el usuario el 2026-11-10.
+
+1. **El desglose pasa a ser el plan mecánico.** El mismo agente y la misma llamada proponen los nodos y sus **uniones**. No es un agente nuevo ni una segunda llamada: nodos y uniones son la misma decisión, y sin coordenadas la salida es corta (unos 2 000 tokens para ocho piezas).
+2. **Dos tipos de unión, los que el sistema sabe comprobar.**
+   - `fija`: en qué nodo apoya la cabeza, en cuál agarra (o en el exterior), la métrica, cuántos y el **agarre** —tuerca cautiva, inserto o rosca en el plástico—. El agarre lo propone el plan en cada unión y el usuario lo ve antes de aprobar.
+   - `gira`: qué nodo gira, sobre qué salida de qué componente montado por qué nodo, cuánto recorre y **cuánto radio libre** necesita alrededor del eje.
+3. **Las fijaciones de lo comprado no las planifica el modelo.** Salen de la `fijacion` de su ficha (los dos M2 que trae un SG90).
+4. **El plan no lleva coordenadas.** El modelo dice quién se une a quién y con qué; dónde cae cada cosa sale de la geometría construida, como hasta ahora (ADR-016, ADR-018).
+5. **El radio libre es un presupuesto de diseño, no una medida.** Lo propone el plan y lo aprueba el usuario, como las cotas de un concepto. Lo que el código **mide** es si se cumple, en las dos piezas: la que monta el actuador no mete nada en ese cilindro, ni lo hace lo que tiene debajo en ningún ángulo de los giros anteriores; la que gira no pasa de él. Esto no contradice que las cifras de un robot no las diga un modelo: las que salen de la geometría las sigue dando el código.
+6. **El culpable de un choque es quien incumple su presupuesto.** Si el sitio medido es menor que el pedido, la culpa es de quien monta el actuador, aunque vaya antes en el árbol.
+7. **Las uniones llegan a cada pieza como datos, no en su petición.** La petición la lee el agente de requisitos, que convierte cada cifra en un requisito (`obra.peticion_del_nodo` lo documenta). Van en `nodos/<id>/uniones.json` al ingeniero, al diseñador y a las medidas.
+8. **Solo gira lo que el plan dice que gira.** Hasta ahora giraba cualquier pieza a menos de 5 mm de una salida.
+9. **Lo previsto se compara con lo medido.** Lo que el plan pidió y `tornilleria.py` no encuentra en lo construido es un defecto del nodo.
+10. **Un invento se amplía con el mismo plan.** La propuesta —nodos nuevos, uniones nuevas y las piezas listas que habría que corregir— espera el visto bueno aparte, sin tocar el plan vigente. Y corregir una pieza ya no archiva todo lo que se diseñó contra ella: se revalida y solo se rehace lo que falla.
+11. **Un componente sin ficha entra como borrador** por plantilla de su clase, con sus fuentes; el usuario lo aprueba viendo la huella, y el invento queda marcado mientras no esté medido.
+
+**Alternativas descartadas.**
+- **Un esqueleto global** con ejes y volúmenes reservados en coordenadas. Obliga al modelo a dar posiciones que nadie puede validar antes de construir. Un radio por giro ataca la causa medida y se comprueba con una resta.
+- **Una segunda llamada para las uniones.** Duplica el coste y deja que el árbol y las uniones no casen.
+- **Meter las uniones en la petición de cada nodo.** Cada cifra acabaría de requisito suelto, que es lo que ADR-016 quitó para los componentes.
+- **Añadir comprobaciones de tornillería al encargo del pan-tilt antes de que se mueva.** Subiría la nota sin arreglar el choque.
+- **Un catálogo de tornillería aparte.** Los largos ya están en `tornilleria.py` y los diámetros son del perfil de la impresora, que calibra el usuario.
+
+**Lo que no cubre.**
+- **Solo árboles de giros** sobre la salida de algo comprado. Ni correderas, ni engranajes, ni cadenas cerradas: una pinza de dos dedos con un solo servo no sale.
+- **El radio libre es un cilindro** desde la cara de la salida hacia fuera. Una horquilla en U que abrace al actuador no cabe en esa descripción.
+- **`radio_libre()` mide con cajas**, así que es prudente de más: puede rechazar lo que no chocaría. La medida exacta sigue siendo el barrido.
+- **Las métricas que el perfil no tabula** (M2, M2.5) no se pueden proponer hasta que el usuario las mida, F9.8 (métricas).
+- **Si el pan-tilt no pasa sus cinco comprobaciones** con una corrida y dos reanudaciones, se para: es la regla que puso el usuario.
