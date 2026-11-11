@@ -194,6 +194,8 @@ def test_las_uniones_de_un_nodo_le_llegan_como_datos_y_no_en_su_peticion(tmp_pat
         ("u1", "gira", "base"), ("u2", "sobre", "inclinacion")]
     gira, monta = (u["texto"] for u in uniones)
     assert "«Base»" in gira and "180°" in gira and "más de 25 mm" in gira
+    # F9.7 (acople): a qué se atornilla, con las cifras de la ficha del SG90.
+    assert "cuerno" in gira and "4.3, 6.3 y 8.3 mm del eje" in gira
     assert "«Soporte de inclinación»" in monta and "radio 25 mm" in monta
     peticion = O.peticion_del_nodo(tmp_path, "giro")
     assert "25" not in peticion and "radio" not in peticion

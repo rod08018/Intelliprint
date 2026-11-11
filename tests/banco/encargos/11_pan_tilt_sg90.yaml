@@ -29,3 +29,13 @@ oraculo:
   - tipo: se_orienta
     eje: horizontal
     cabe_mm: [25, 24]
+  # Cada SG90 se sujeta con los dos tornillos que trae, uno por oreja
+  # (`library/components/sg90.yaml`: dos fijaciones, M2, incluidas): 2 servos
+  # × 2 = 4. Tienen que estar y agarrar: su agujero, más estrecho que ellos.
+  # La corrida 1111-1342 pasó las seis exigencias de arriba con el servo de
+  # la base sin agujeros bajo las orejas y el del soporte con dos de Ø2.2
+  # (añadida el 2026-11-11 con F9.6 (previsto), en el plan aprobado ese día).
+  - tipo: tornillos
+    sujetan: sg90
+    metrica: M2
+    cuantos: 4

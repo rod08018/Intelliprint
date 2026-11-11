@@ -58,10 +58,20 @@ def _con(*uniones, quitar=()) -> dict:
     return plan
 
 
+def _de_las_uniones(avisos) -> list[str]:
+    """Sin el del tornillo de los SG90, que no es de ninguna unión."""
+    return [a for a in avisos if a.startswith("unión ")]
+
+
 def test_el_plan_del_pan_tilt_escrito_a_mano_vale():
+    """Sin errores. Y un solo aviso, desde F9.8 (métricas): los SG90 se
+    sujetan con tornillos M2 que roscan en la pieza, y el perfil de la M5 no
+    tiene ese agujero (ver `tests/test_previsto.py`)."""
     errores, avisos = validar_plan(Obra(**PLAN), AGUJEROS)
     assert errores == []
-    assert avisos == []
+    assert _de_las_uniones(avisos) == []
+    assert len(avisos) == 1 and "M2_selftap_mm" in avisos[0]
+    assert validar_plan(Obra(**PLAN), {**AGUJEROS, "M2_selftap_mm": 1.7}) == ([], [])
 
 
 def test_un_backlog_de_antes_sin_uniones_sigue_cargando():
@@ -184,6 +194,7 @@ def test_una_metrica_que_el_perfil_no_tabula_es_un_aviso_y_no_un_error():
     plan = _con({"tipo": "fija", "id": "u9", "cabeza": "base", "agarra": "exterior",
                  "metrica": "M6", "cantidad": 2}, quitar=("u1",))
     errores, avisos = validar_plan(Obra(**plan), AGUJEROS)
+    avisos = _de_las_uniones(avisos)
     assert errores == []
     assert len(avisos) == 1 and "M6_through_mm" in avisos[0] and "Impresora" in avisos[0]
 
@@ -197,10 +208,12 @@ def test_el_agarre_que_el_perfil_no_tabula_tambien_se_avisa():
     plan["uniones"].append({"tipo": "fija", "id": "u9", "cabeza": "tapa", "agarra": "base",
                             "metrica": "M4", "cantidad": 2, "agarre": "tuerca"})
     errores, avisos = validar_plan(Obra(**plan), AGUJEROS)
+    avisos = _de_las_uniones(avisos)
     assert errores == []
     assert len(avisos) == 1 and "M4_nut_af_mm" in avisos[0]
     plan["uniones"][-1].update(metrica="M3", agarre="inserto")
-    assert validar_plan(Obra(**plan), AGUJEROS) == ([], [])
+    errores, avisos = validar_plan(Obra(**plan), AGUJEROS)
+    assert (errores, _de_las_uniones(avisos)) == ([], [])
 
 
 # --- con el modelo de verdad (F9.3 (planificador)) -------------------------------------------

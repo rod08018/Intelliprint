@@ -99,7 +99,8 @@ Tras cada construcción, `orchestrator/medida.py` reúne lo que la pieza no cump
 - los agujeros que piden los requisitos —diámetro, número y distancias entre centros—, comparados con los rasgos con nombre que el kit registró al taladrar;
 - que cada componente comprado **cabe** y **entra** en su sitio, con la forma de su ficha, y que el programa colocó todos los que el concepto nombra;
 - las sondas de `mech_toolkit/sondas.py`, que corren en FreeCAD sobre el STEP construido: pared mínima, aristas vivas, acceso de la llave a cada tornillo, aberturas por las que tiene que pasar un cuerpo, y el cilindro libre que el plan reserva a cada giro;
-- en un backlog, la pieza que gira se mueve contra lo ya construido en cuanto se construye, F9.5 (parcial).
+- en un backlog, la pieza que gira se mueve contra lo ya construido en cuanto se construye, F9.5 (parcial);
+- en un backlog, los tornillos que el plan prevé y la pieza no lleva, F9.6 (previsto): los de sus uniones (`plan.compras_previstas`) y los que sujetan lo comprado que monta, uno por cada fijación de su ficha. Se cuentan en los agujeros construidos (`tornilleria.tornillos`) por la métrica, las piezas que unen y cómo acaban; uno que rosca en el plástico no cuenta si su agujero es tan ancho como él. De una unión entre dos piezas responde la que se diseñó después; la que se diseña antes, de su mitad.
 
 `derive_assertions` y las aserciones por tipo de interfaz no existen. De ADR-011 queda la regla de fondo: el programa del diseñador declara **dónde** va cada cosa, y la forma se mide en lo construido o se toma de la ficha, que el programa no puede cambiar.
 
@@ -225,7 +226,7 @@ Las recetas (`orchestrator/schemas/recipe.py`, `orchestrator/recipes/compose.py`
 
 ## 7. Perfil de impresora y reglas de impresión
 
-Las holguras, los diámetros de agujero por métrica, las paredes mínimas, el voladizo y el puente máximos, la cama y la resistencia estimada del material están en `config/printers/<impresora>.yaml`. `config/impresion.yaml` elige el perfil activo —hoy la AnkerMake M5 con PLA+— y el perfil de laminado de PrusaSlicer que le corresponde. Esos valores llegan al ingeniero y al diseñador dentro de sus instrucciones, y el kit los aplica al taladrar: el diseñador escribe `tornillo("M3")`, no un diámetro.
+Las holguras, los diámetros de agujero por métrica, las paredes mínimas, el voladizo y el puente máximos, la cama y la resistencia estimada del material están en `config/printers/<impresora>.yaml`. `config/impresion.yaml` elige el perfil activo —hoy la AnkerMake M5 con PLA+— y el perfil de laminado de PrusaSlicer que le corresponde. Esos valores llegan al ingeniero y al diseñador dentro de sus instrucciones, y el kit los aplica al taladrar: el diseñador escribe `tornillo("M3")`, no un diámetro. El perfil trae M3 entero y M4 y M5 pasantes; los demás agujeros de tornillo (un M2 de rosca, la tuerca de un M4) los apunta la persona en la página «Impresora», se guardan con sus otras medidas en `workspace/impresoras/` y se suman a la tabla, F9.8 (métricas). Lo que no esté, el kit no lo taladra y el plan lo avisa.
 
 **Los valores de `config/printers/` son valores por defecto, sin calibrar.** `M3_through_mm: 3.3` es deuda declarada y no se cambia sin medir. El usuario calibra imprimiendo las piezas de `intelliprint calibrar`, F2.18 (calibración), y apunta lo medido en la página «Impresora» de la web, F2.21 (impresora). Eso se guarda en `workspace/impresoras/` y manda sobre `config/printers/`, que no se toca.
 
@@ -352,7 +353,7 @@ Solo sin interfaz. Cada construcción, cada tanda de sondas y cada barrido de ch
 
 Ningún modelo debe sacar de memoria las medidas de un servo. Un componente comprado es **geometría con ficha y fuente** (ADR-016): `library/components/*.yaml`, leídas por `orchestrator/componentes.py`. Hay siete: `608zz`, `hc-sr04`, `mg996r`, `nema17`, `perfil-2020`, `raspberry-pi-4` y `sg90`.
 
-Una ficha dice qué es sólido (`cuerpos`), qué hay que dejar libre y por qué (`despejar`: un cable, el haz de un sensor), dónde se atornilla y con qué (`fijacion`), qué mueve (`salidas`: el eje de un servo con su recorrido) y, en los servos, su par y su masa. Las fuentes van citadas en la propia ficha.
+Una ficha dice qué es sólido (`cuerpos`), qué hay que dejar libre y por qué (`despejar`: un cable, el haz de un sensor), dónde se atornilla y con qué (`fijacion`), qué mueve (`salidas`: el eje de un servo con su recorrido y su `acople`, el cuerno al que se atornilla lo que gira, F9.7 (acople)) y, en los servos, su par y su masa. Cada fijación dice qué tornillo lleva, si viene con el componente y si rosca en la pieza impresa o en el propio componente. Las fuentes van citadas en la propia ficha.
 
 Qué componentes nombra una petición lo decide el código, por los alias de la ficha. Lo que tiene ficha no se busca en internet ni se convierte en requisitos sueltos. De las fichas salen también la lista de materiales y la tornillería (`orchestrator/materiales.py`, `orchestrator/tornilleria.py`), contadas en lo construido, y el estudio de movimientos (`orchestrator/estudio.py`): si aguanta cada servo, si vuelca, hasta dónde llega, cuánto tarda y cuánta carga admite.
 
@@ -377,7 +378,7 @@ Es la corrida `1111-1342` del banco, la que se cita en `PLAN_PROYECTO.md` (Fase 
 4. **Conjunto**: se movió entero en la rejilla de 10° sin un solo choque. Queda el ensamble, la animación y el estudio de movimientos.
 5. **Coste**: 45 minutos y 0,53 USD en 20 llamadas. Nota del encargo: cinco comprobaciones de cinco.
 
-Lo que esta corrida no dice: es una sola, y el banco tiene ruido de una corrida a otra; la plataforma que salió es un disco coaxial con el eje de inclinación, que pasa las cinco comprobaciones pero no serviría para cabecear una cámara; y la tornillería ni se planificó ni se midió en este encargo, que es F9.6 (previsto).
+Lo que esta corrida no dice: es una sola, y el banco tiene ruido de una corrida a otra; la plataforma que salió es un disco coaxial con el eje de inclinación, que pasa las cinco comprobaciones pero no serviría para cabecear una cámara; y la tornillería ni se planificó ni se midió. Desde F9.6 (previsto) el encargo pide los cuatro tornillos de sus dos servos, y esta corrida, rejuzgada, tiene cero que agarren: queda en 6 de 7.
 
 ---
 
@@ -436,4 +437,4 @@ Intelliprint/
 | Carpeta `ui/` y adaptador web del `HumanPort` | La web es `orchestrator/web/` y llama a los trabajos directamente | § 8.5 |
 | Hoja de ruta y tabla de riesgos de este documento | Viven en `PLAN_PROYECTO.md`, que es el que se mantiene | `PLAN_PROYECTO.md` |
 
-Lo que está planeado y todavía por hacer no va en esta tabla: está en `PLAN_PROYECTO.md`. De la Fase 9 faltan F9.6 a F9.12 (comparar lo previsto con lo medido, el acople de las salidas, más métricas, revalidar, ampliar un invento, el borrador de ficha y las pantallas).
+Lo que está planeado y todavía por hacer no va en esta tabla: está en `PLAN_PROYECTO.md`. De la Fase 9 faltan F9.9 a F9.12 (revalidar, ampliar un invento, el borrador de ficha y las pantallas).

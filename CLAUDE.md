@@ -104,6 +104,21 @@ invento. El plan aprobado está en `PLAN_PROYECTO.md`, Fase 9, con su orden.
   tercera, aprobada aparte por el usuario) **pasa 6 de 6**: 0,93 USD en
   total. Es un solo backlog, una sola corrida y tres correcciones dadas por
   el banco; no dice que acierte a la primera.
+- **Con la tornillería contada, ese mismo pan-tilt queda en 6 de 7**
+  (2026-11-11, F9.6 a F9.8, rejuzgado sin modelo): de los cuatro tornillos
+  de sus dos SG90 no agarra ninguno. La base no taladró nada bajo las orejas
+  y el soporte taladró Ø2.2 para tornillos de 2. Ahora el plan los prevé (los
+  de lo comprado salen de su ficha), cada pieza los cuenta en su bucle y el
+  banco los pide. **No se ha reanudado:** corregir la base rehace las tres
+  piezas, y ese gasto se acuerda antes con él. **Falta un dato suyo:** el
+  agujero de un M2 de rosca, que se apunta en «Impresora» → «Apuntar otro
+  tornillo»; sin él, el diámetro lo elige el diseñador.
+- **A dónde quiere llegar** (2026-11-11): a diseñar brazos como Arctos
+  (6 ejes, NEMA 17 y 23, reductoras y correas) y aeronaves como las de
+  Flightory (ala fija y VTOL en LW-PLA). No hay fase aprobada para ninguna de
+  las dos. Para el brazo faltan transmisiones, elegir motor por la carga
+  (F7.11) y fichas; para el avión, superficies y que el laminado sea parte
+  del diseño.
 - **Los backlogs están desaparcados**, con la regla de siempre: no relanzar
   corridas enteras para probar un arreglo (`banco --reanudar`).
 - **El flujo `mecanismo` ya no existe** (F9.13 (limpieza), 2026-11-11): lo

@@ -103,6 +103,36 @@ class Agujero(BaseModel):
     a_lo_largo: Eje | None = None
     """El tornillo puede ir en cualquier punto en esa dirección: la ranura
     del perfil, donde la ficha solo marca uno."""
+    rosca_en_la_pieza: bool = False
+    """El tornillo atraviesa el componente y rosca en la pieza impresa que
+    tiene detrás (la oreja de un servo), no en el componente (la rosca de un
+    motor). Con esto el plan sabe que hace falta el agujero de rosca de esa
+    métrica en el perfil (F9.8 (métricas))."""
+
+
+class AgujeroDeAcople(BaseModel):
+    radio: float = Field(gt=0)
+    """Del eje de la salida al centro del agujero."""
+    diametro: float = Field(gt=0)
+
+
+class Acople(BaseModel):
+    """Aquello a lo que se atornilla lo que gira con la salida: el cuerno de
+    un servo (F9.7 (acople)). Estaba en las notas de la ficha, en prosa; la
+    plataforma del pan-tilt 1111-1342 se sujetó con un M3 por el centro del
+    eje, que no es de ningún cuerno."""
+    nombre: str
+    cubo_diametro: float = Field(gt=0)
+    cubo_alto: float = Field(gt=0)
+    """El cubo que encaja en el eje: lo que se acople le deja ese sitio."""
+    grosor: float = Field(gt=0)
+    """De los brazos."""
+    brazos: int = Field(ge=1)
+    de_punta_a_punta: float = Field(gt=0)
+    agujeros: list[AgujeroDeAcople] = Field(min_length=1)
+    """Los de cada brazo. En qué dirección quedan los brazos no lo dice la
+    ficha: el cuerno entra en el estriado en la posición que se quiera."""
+    porque: str = ""
 
 
 class Salida(BaseModel):
@@ -119,6 +149,7 @@ class Salida(BaseModel):
     del aro de un rodamiento. Con solo el punto, la polea del banco apoyada
     en la cara de ARRIBA del 608ZZ quedaba a 7.35 mm de su cara de abajo y
     no giraba con él (1110-0313)."""
+    acople: Acople | None = None
     porque: str = ""
 
 
@@ -289,7 +320,20 @@ def _tornillo_de(h: Agujero) -> str:
         partes.append(f"entra {_g(h.dentro_mm)} mm")
     if h.tuerca:
         partes.append(f"agarra en: {h.tuerca}")
+    if h.rosca_en_la_pieza:
+        partes.append("atraviesa el componente y rosca en la pieza")
     return "; " + ", ".join(partes)
+
+
+def acople_en_palabras(a: Acople) -> str:
+    """El acople como lo lee quien diseña la pieza que gira."""
+    radios = [_g(h.radio) for h in a.agujeros]
+    diametros = sorted({_g(h.diametro) for h in a.agujeros})
+    return (f"{a.nombre}: cubo de Ø{_g(a.cubo_diametro)} × {_g(a.cubo_alto)} en el eje y "
+            f"{a.brazos} brazo{'s' if a.brazos > 1 else ''} de {_g(a.grosor)} mm de grueso "
+            f"({_g(a.de_punta_a_punta)} de punta a punta), con agujeros de "
+            f"Ø{'/'.join(diametros)} a {', '.join(radios[:-1])}"
+            f"{' y ' if len(radios) > 1 else ''}{radios[-1]} mm del eje")
 
 
 def resumen(ficha: Ficha) -> str:
@@ -330,6 +374,8 @@ def resumen(ficha: Ficha) -> str:
                    *(f"- {s.nombre}: sale en ({', '.join(_g(v) for v in s.en)}) hacia {s.eje} "
                      f"y gira de {_g(s.recorrido[0])}° a {_g(s.recorrido[1])}°"
                      + (f", a lo largo de {_g(s.largo)} mm" if s.largo else "")
+                     + (f". Lo que gira se atornilla a su {acople_en_palabras(s.acople)}"
+                        if s.acople else "")
                      for s in ficha.salidas)]
     if ficha.fijacion:
         lineas += ["Agujeros de fijación:",

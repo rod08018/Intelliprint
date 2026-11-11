@@ -146,6 +146,9 @@ def test_la_ficha_conserva_el_eje_de_lo_que_monta_y_la_metrica_de_sus_agujeros(
     assert s.nombre == "sg90: eje"
     assert s.en == pytest.approx([13.55, -5.6, 12.2]) and s.eje == "+x"
     assert tuple(s.recorrido) == (-90, 90)
+    # F9.7 (acople): la pieza que gira se diseña contra esta ficha, no
+    # contra la del SG90; el cuerno tiene que llegarle por aquí.
+    assert [h.radio for h in s.acople.agujeros] == [4.3, 6.3, 8.3]
     assert {h.nombre: h.tornillo for h in f.fijacion} == {"m3_1": "M3", "guia": ""}
     texto = resumen(f)
     assert "sg90: eje: sale en (13.55, -5.6, 12.2) hacia +x" in texto

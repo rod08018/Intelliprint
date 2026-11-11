@@ -261,3 +261,75 @@ def test_la_orden_disena_con_lo_medido():
     texto = Path("orchestrator/cli.py").read_text(encoding="utf-8")
     sin_medidas = re.findall(r"perfil_activo\(raiz\)", texto)
     assert sin_medidas == []
+
+
+# --- Los tornillos que el perfil no tabula (F9.8 (métricas)) -----------------------------------
+#
+# El perfil solo trae M3 completo y M4 y M5 pasantes. Los dos SG90 del
+# pan-tilt se sujetan con tornillos de 2 mm que roscan en la pieza, y el
+# diseñador no tenía de dónde sacar ese diámetro: taladró Ø2.2 (corrida
+# 1111-1342), por donde el tornillo pasa sin tocar. El número lo pone el
+# usuario, midiendo: «la impresora la configura él».
+
+
+def test_un_m2_de_rosca_apuntado_lo_devuelve_el_perfil_y_config_no_se_toca(tmp_path):
+    antes = _huella(YAML)
+    assert "M2_selftap_mm" not in perfil_activo(RAIZ).datos["holes"]
+
+    registrar(tmp_path, PERFIL, "agujero", dict(metrica="M2", uso="rosca", mm=1.7),
+              fotos=[("m2.jpg", JPEG)], fecha="2026-11-11")
+
+    medido = perfil_activo(RAIZ, workspace=tmp_path)
+    assert medido.impresora.hole_mm("M2_selftap") == 1.7
+    assert medido.medido["holes.M2_selftap_mm"]["fecha"] == "2026-11-11"
+    # Un agujero suelto no dice que las holguras estén medidas.
+    assert medido.impresora.calibrated is False
+    assert "M2_selftap_mm" not in perfil_activo(RAIZ).datos["holes"]
+    assert _huella(YAML) == antes
+
+
+def test_cada_tornillo_apuntado_se_suma_y_del_mismo_manda_el_ultimo(tmp_path):
+    registrar(tmp_path, PERFIL, "agujero", dict(metrica="M2", uso="rosca", mm=1.7), fotos=[])
+    registrar(tmp_path, PERFIL, "agujero", dict(metrica="M4", uso="tuerca", mm=7.2), fotos=[])
+    registrar(tmp_path, PERFIL, "agujero", dict(metrica="M2", uso="rosca", mm=1.6), fotos=[])
+
+    agujeros = perfil_activo(RAIZ, workspace=tmp_path).datos["holes"]
+    assert (agujeros["M2_selftap_mm"], agujeros["M4_nut_af_mm"]) == (1.6, 7.2)
+    assert len(registros(tmp_path, PERFIL)) == 3      # nada se borra
+
+
+@pytest.mark.parametrize("valores, motivo", [
+    # Un tornillo de 2 no rosca en un agujero de 2.2: es el fallo de la corrida.
+    (dict(metrica="M2", uso="rosca", mm=2.2), "más estrecho"),
+    # Ni pasa por uno de 2.
+    (dict(metrica="M2", uso="pasante", mm=2.0), "más ancho"),
+    # La tuerca M4 mide 7 entre caras (ISO 4032): en 6.8 no entra.
+    (dict(metrica="M4", uso="tuerca", mm=6.8), "7"),
+    (dict(metrica="M2", uso="rosca", mm=17), "más estrecho"),     # un 1.7 mal tecleado
+    (dict(metrica="tres", uso="rosca", mm=2.5), "métrica"),
+    (dict(metrica="M2", uso="pegado", mm=1.7), "pasante"),
+    # Los tres de M3 salen de la pieza de calibración, que los prueba juntos.
+    (dict(metrica="M3", uso="pasante", mm=3.4), "holguras"),
+])
+def test_un_agujero_que_no_puede_ser_no_se_apunta(tmp_path, valores, motivo):
+    with pytest.raises(MedidaInvalida, match=motivo):
+        registrar(tmp_path, PERFIL, "agujero", valores, fotos=[])
+    assert registros(tmp_path, PERFIL) == []
+
+
+def test_desde_la_pagina_se_apunta_un_tornillo_que_el_perfil_no_tenia(tmp_path):
+    web = _web(tmp_path)
+    html = web.get("/impresora").text
+    assert 'data-tipo="agujero"' in html
+    assert "Agujero M2 de rosca directa" not in html
+
+    r = web.post("/api/impresora/medidas", json={
+        "tipo": "agujero", "valores": {"metrica": "M2", "uso": "rosca", "mm": "1.7"},
+        "fotos": []})
+
+    assert r.status_code == 200, r.text
+    html = web.get("/impresora").text
+    fila = html.split("Agujero M2 de rosca directa", 1)[1].split("</tr>", 1)[0]
+    assert "1.70 mm" in fila and "medido el" in fila
+    # Los que el perfil ya traía sin medir también se ven: M4 pasante, 4.5.
+    assert "4.50 mm" in html.split("Agujero M4 pasante", 1)[1].split("</tr>", 1)[0]

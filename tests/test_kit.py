@@ -74,6 +74,25 @@ def construir(kit):
     assert r.rasgos[0]["diametro_mm"] == PERFIL["holes"]["M3_through_mm"]
 
 
+def test_el_rasgo_dice_para_que_es_el_agujero_y_de_que_metrica_la_tuerca(tmp_path):
+    """F9.6 (previsto): lo que se le pide al kit es lo que queda apuntado.
+    Sin el uso, un agujero de inserto y uno de rosca eran dos agujeros
+    ciegos iguales, y el plan no podía saber si la unión se hizo como se
+    aprobó; sin la métrica, la tuerca no decía de qué tornillo era."""
+    r = _construir("""
+def construir(kit):
+    p = kit.caja(40, 10, 10)
+    p = p.tornillo("pasa", "M3", en=(5, 5, 10))
+    p = p.tornillo("rosca", "M3", en=(15, 5, 10), tipo="rosca", profundidad=6)
+    p = p.tornillo("inserto", "M3", en=(25, 5, 10), tipo="inserto", profundidad=5)
+    p = p.taladrar("suelto", 3, en=(35, 5, 10))
+    return p.tuerca("tuerca", "M3", en=(5, 5, 0), eje="+z")
+""", tmp_path)
+    usos = {x["nombre"]: x.get("uso") for x in r.rasgos if x["tipo"] == "agujero"}
+    assert usos == {"pasa": "pasante", "rosca": "rosca", "inserto": "inserto", "suelto": None}
+    assert r.rasgos[-1]["metrica"] == "M3"
+
+
 def test_la_lagrima_tiene_el_area_de_la_cuenta(tmp_path):
     r = _construir("""
 def construir(kit):

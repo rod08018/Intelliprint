@@ -258,6 +258,22 @@ class Componente(BaseModel):
         return []
 
 
+class Tornillos(BaseModel):
+    """Obras (F9.6 (previsto)): lo comprado está sujeto con los tornillos
+    de su ficha, y agarran. `cuantos` se cuenta a mano en el encargo; lo que
+    hay se mide en los agujeros de las piezas construidas
+    (`tornilleria.tornillos`). El pan-tilt 1111-1342 pasó el banco con un
+    servo sin tornillos y el otro con dos agujeros más anchos que ellos."""
+    tipo: Literal["tornillos"]
+    sujetan: str
+    """El id de la ficha de lo que sujetan."""
+    metrica: str
+    cuantos: int = Field(ge=1)
+
+    def cotas_de_la_peticion(self) -> list[float]:
+        return []   # salen de la ficha del componente, no de la petición
+
+
 class Pendiente(BaseModel):
     """Lo que el banco exige pero aún no sabe medir. Cuenta como sin medir."""
 
@@ -313,7 +329,8 @@ class Articulaciones(BaseModel):
 Asercion = Annotated[Agujeros | Cilindro | Envolvente | SinSoportes | Pendiente | AristasVivas
                      | Resistencia | Ventana | Coaxiales | PasoLibre | ParedMinima | Ranura
                      | Retencion | ComponenteCabe | ComponenteEntra | AccesoTornillo | ZonaLibre
-                     | CaraQueSeOrienta | SeOrienta | Componente | Encaje | ConjuntoLibre | Articulaciones,
+                     | CaraQueSeOrienta | SeOrienta | Tornillos | Componente | Encaje
+                     | ConjuntoLibre | Articulaciones,
                      Field(discriminator="tipo")]
 
 
@@ -800,7 +817,7 @@ def juzgar_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
 
     de_pieza = [a for a in encargo.oraculo
                 if not isinstance(a, (Componente, Encaje, ConjuntoLibre, Articulaciones,
-                                      SeOrienta))]
+                                      SeOrienta, Tornillos))]
     # Solo se sondea lo que el oráculo pregunta: cada sonda es FreeCAD.
     pedidos = {a.ficha for a in encargo.oraculo if isinstance(a, Componente)}
     encaje = any(isinstance(a, Encaje) for a in encargo.oraculo)
@@ -856,6 +873,8 @@ def juzgar_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
         elif isinstance(a, Articulaciones):
             salida.append(_articulaciones(a, [j for v in verificaciones
                                               for j in v.get("articulaciones", [])]))
+        elif isinstance(a, Tornillos):
+            salida.append(_tornillos(a, proyecto, piezas))
         elif isinstance(a, SeOrienta):
             pieza, r = _mide_si_orienta(a, proyecto, freecadcmd, material)
             salida.append(r if pieza is None else Resultado(
@@ -865,6 +884,28 @@ def juzgar_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
                                   for i, (h, _, _) in medidas.items()],
                                  f"en las {len(medidas)} piezas"))
     return salida
+
+
+def _tornillos(a: Tornillos, proyecto: Path, piezas: dict) -> Resultado:
+    """Cuántos de los tornillos que sujetan `a.sujetan` hay y agarran."""
+    from orchestrator.tornilleria import tornillos
+
+    suyos = [t for t in tornillos(proyecto)
+             if t.componente == a.sujetan and t.metrica == a.metrica]
+    flojos = [t for t in suyos if t.no_rosca()]
+    agarran = len(suyos) - len(flojos)
+    que = f"tornillos {a.metrica} que sujetan los {a.sujetan}"
+    if agarran == a.cuantos:
+        return Resultado(estado="cumple", detalle=f"los {a.cuantos} {que} están y agarran")
+    detalle = f"de los {a.cuantos} {que} agarran {agarran} de {a.cuantos}"
+    if flojos:
+        donde = sorted({piezas[t.lo_monta].nombre for t in flojos})
+        detalle += (f"; {len(flojos)} de «{'», «'.join(donde)}» "
+                    f"{'va' if len(flojos) == 1 else 'van'} en un agujero de "
+                    f"Ø{max(t.agarra_mm for t in flojos):g}, más ancho que el tornillo")
+    if len(suyos) < a.cuantos:
+        detalle += f"; {a.cuantos - len(suyos)} no {'tiene' if a.cuantos - len(suyos) == 1 else 'tienen'} agujero"
+    return Resultado(estado="no_cumple", detalle=detalle)
 
 
 def la_que_gira(proyecto: Path, cual: str) -> tuple[str, list[float]] | None:
@@ -920,6 +961,24 @@ def la_que_no_orienta(encargo: Encargo, proyecto: Path, freecadcmd: str,
                 "parte plana de la cara, sin los redondeos del borde: hazla 1 mm más grande "
                 "de cada lado. Los taladros de dentro no quitan sitio; una ceja o un escalón "
                 "sí, porque parten la cara.")
+    return None, ""
+
+
+def la_que_no_sujeta(encargo: Encargo, proyecto: Path) -> tuple[str | None, str]:
+    """(pieza, lo que le falta) de la primera pieza del backlog, en orden,
+    que no lleva los tornillos que prevé su plan; (None, "") si a ninguna le
+    falta nada o el encargo no lo pide (F9.6 (previsto)). La primera: las
+    que se diseñaron contra ella se rehacen al corregirla, y ya con la
+    cuenta de tornillos en su propio bucle."""
+    if not any(isinstance(a, Tornillos) for a in encargo.oraculo):
+        return None, ""
+    from orchestrator import obra
+    from orchestrator.medida import uniones_sin_hacer
+    arbol = obra.cargar_obra(Path(proyecto))
+    for i in arbol.orden():
+        faltan = uniones_sin_hacer(proyecto, i) if arbol.nodo(i).tipo == "pieza" else []
+        if faltan:
+            return i, "\n".join(faltan)
     return None, ""
 
 
@@ -1044,6 +1103,9 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
             # Todo construido y sin chocar, y aun así la pieza no sirve para
             # lo que se pidió (F9.14 (orienta)).
             nodo, de_concepto = la_que_no_orienta(e, hecho.parent, freecadcmd, material)
+        sin_tornillos = ""
+        if nodo is None and hecho is not None:
+            nodo, sin_tornillos = la_que_no_sujeta(e, hecho.parent)
         if nodo is None:
             continue
         proyecto = hecho.parent
@@ -1062,6 +1124,13 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
                 # moviendo una cota. Se rehace desde su concepto, con lo
                 # medido apuntado para el ingeniero.
                 obra.rehacer(proyecto, nodo, de_concepto)
+        elif sin_tornillos:
+            # Le faltan agujeros: se corrige la que hay, que por lo demás
+            # está bien (pasó todo lo otro), con lo que falta en cifras.
+            if obra.programa_construido(proyecto, nodo):
+                obra.corregir(proyecto, nodo, sin_tornillos)
+            else:
+                obra.rehacer(proyecto, nodo, sin_tornillos)
         elif nodo in correcciones and obra.programa_construido(proyecto, nodo):
             # Se corrige la pieza que hay, como la corrigió la persona en la
             # web el 9 de noviembre. Las otras que chocan se diseñaron contra

@@ -75,6 +75,9 @@ def _salidas(rasgos: list[dict], fichas: Path) -> list[dict]:
                 "en": [round(float(c), 6) for c in colocar(s.en, r["en"], giros)],
                 "eje": _EJES[tuple(orientar(s.eje, giros))],
                 "recorrido": list(s.recorrido), "largo": s.largo,
+                # F9.7 (acople): la pieza que gira se diseña contra esta
+                # ficha y no contra la del servo.
+                **({"acople": s.acople.model_dump()} if s.acople else {}),
                 "porque": f"la salida «{s.nombre}» del {ficha.id} que monta esta pieza"})
     return salida
 
@@ -220,6 +223,16 @@ def presentar(obra: Obra, avisos: list[str] | tuple = ()) -> str:
     if obra.uniones:
         lineas += ["", "## Cómo se unen", "", *(f"- {union_en_palabras(obra, u)}"
                                                for u in obra.uniones)]
+    # F9.6 (previsto): la persona aprueba sabiendo qué tornillería lleva, y
+    # con eso se comprueba después cada pieza.
+    from orchestrator.plan import compras_en_palabras
+    try:
+        tornilleria = compras_en_palabras(obra)
+    except Exception:  # noqa: BLE001 — un plan con una ficha rota se enseña igual
+        tornilleria = []
+    if tornilleria:
+        lineas += ["", "## Lo que lleva de tornillería", "", *(f"- {t}" for t in tornilleria),
+                   "", "El largo de cada tornillo se mide en las piezas, cuando estén hechas."]
     if avisos:
         lineas += ["", "## Avisos", "", *(f"- {a}" for a in avisos)]
     return "\n".join(lineas) + "\n"
@@ -505,7 +518,7 @@ def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
     No va en `peticion_del_nodo`: esa la lee el agente de requisitos, que
     hace un requisito de cada cifra que ve. Va por aquí al ingeniero, al
     diseñador y a las medidas."""
-    from orchestrator.componentes import cargar
+    from orchestrator.componentes import acople_en_palabras, cargar
     from orchestrator.plan import salida_de
     from orchestrator.schemas.obra import EXTERIOR, Fija
 
@@ -565,6 +578,10 @@ def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
                     f"sujeta, y ahí no tiene sitio. No toques la carcasa ni a {nombre(u.sobre)} "
                     "(deja al menos 1 mm) y no te atornilles a ella: lo único que os une es "
                     "el eje."
+                    + (f" Al eje te une su {acople_en_palabras(eje.acople)}. Deja sitio al "
+                       "cubo y atorníllate a esos agujeros (`salida()[\"acople\"]` los da), "
+                       "con los brazos en la dirección que te convenga; no a presión."
+                       if eje.acople else "")
                     + (f" Nada de esta pieza puede quedar a más de {radio:g} mm de ese eje: "
                        f"es el sitio que {nombre(u.sobre)} deja libre." if radio else "")))
             else:
@@ -582,13 +599,57 @@ def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
     return salida
 
 
+def sujeciones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
+    """Con qué tornillos se sujeta lo comprado que monta el nodo, según su
+    ficha (F9.6 (previsto)): una entrada por componente y métrica, con su
+    `texto` para quien lo diseña.
+
+    Las bases de los pan-tilt del banco alojaban su SG90 sin un tornillo: la
+    ficha lo decía en «Agujeros de fijación», entre otras veinte líneas, y
+    nadie lo pedía. Se cuenta al construir (`medida.uniones_sin_hacer`)."""
+    from orchestrator.componentes import cargar
+    from orchestrator.plan import compras_previstas
+
+    carpeta = Path(carpeta)
+    fichas = [carpeta_de_fichas(carpeta)]
+    salida = []
+    for p in compras_previstas(cargar_obra(carpeta), fichas):
+        if not p.componente or p.piezas != (nodo,):
+            continue
+        ficha = cargar(p.componente, fichas)
+        que = ficha.nombre
+        tornillos = f"{p.cantidad} tornillo{'s' if p.cantidad > 1 else ''} {p.metrica}"
+        d = float(p.metrica.lstrip("Mm"))
+        en_la_pieza = any(f.rosca_en_la_pieza for f in ficha.fijacion
+                          if f.tornillo == p.metrica)
+        salida.append({"tipo": "sujeta", "id": p.componente, "metrica": p.metrica,
+                       "cantidad": p.cantidad, "incluido": p.incluido, "texto": (
+            f"El {que} que monta esta pieza se sujeta con {tornillos}"
+            + (", que vienen con él" if p.incluido else ", que se compran aparte")
+            + ", uno por cada fijación de su ficha. `componente.agujeros()` da de cada una el "
+            "punto (`en`), hacia dónde va el tornillo (`eje`) y cuánto de él queda dentro del "
+            "componente (`dentro_mm`). "
+            + ("Atraviesan el componente y roscan en esta pieza: justo detrás de cada "
+               "fijación va un agujero ciego en línea, más estrecho que el tornillo "
+               f"({d:g} mm): `tornillo(..., \"{p.metrica}\", tipo=\"rosca\", "
+               "profundidad=...)` si el perfil tiene esa métrica, y si no, `taladrar` con "
+               f"menos de {d:g} y `profundidad`." if en_la_pieza else
+               "Roscan en el componente: esta pieza lleva, en línea con cada fijación, el "
+               f"agujero pasante por donde entra (`tornillo(..., \"{p.metrica}\")`), con "
+               "sitio para la cabeza.")
+            + " Al construir se cuentan.")})
+    return salida
+
+
 def escribir_uniones(carpeta: Path, nodo: str) -> Path:
     """Deja las uniones del nodo en su carpeta, donde las busca el flujo de
-    pieza, que no sabe nada del backlog."""
+    pieza, que no sabe nada del backlog. Y con ellas, con qué se sujeta lo
+    comprado que monta."""
     ruta = Path(carpeta) / NODOS / nodo / UNIONES
     ruta.parent.mkdir(parents=True, exist_ok=True)
-    ruta.write_text(json.dumps(uniones_del_nodo(carpeta, nodo), ensure_ascii=False, indent=1),
-                    encoding="utf-8")
+    ruta.write_text(json.dumps([*uniones_del_nodo(carpeta, nodo),
+                                *sujeciones_del_nodo(carpeta, nodo)],
+                               ensure_ascii=False, indent=1), encoding="utf-8")
     return ruta
 
 
@@ -605,7 +666,8 @@ def uniones_para_el_prompt(dir_nodo: Path) -> str:
         return ""
     return ("Son del plan del proyecto y están aprobadas por la persona. Hazlas tal cual: ni "
             "otra métrica, ni otro agarre, ni otra cantidad, ni menos sitio.\n"
-            + "\n".join(f"- {u['texto']} (unión {u['id']})" for u in uniones))
+            + "\n".join(f"- {u['texto']}" + ("" if u.get("tipo") == "sujeta"
+                                              else f" (unión {u['id']})") for u in uniones))
 
 
 def _pieza_construida(nodo: Path) -> Path:

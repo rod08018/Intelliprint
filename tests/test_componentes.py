@@ -10,7 +10,7 @@ ficha misma.
 
 import pytest
 
-from orchestrator.componentes import cargar, ids, primitivas
+from orchestrator.componentes import cargar, ids, primitivas, resumen
 
 
 def test_cada_ficha_carga_y_cita_su_fuente():
@@ -184,6 +184,34 @@ def test_608_es_un_anillo():
 def _kit(*ids_):
     from mech_toolkit.kit import Kit
     return Kit(fichas={i: cargar(i).model_dump() for i in ids_})
+
+
+def test_la_ficha_del_sg90_dice_a_que_se_atornilla_lo_que_gira_con_su_eje():
+    """F9.7 (acople). Lo que gira con un servo no se atornilla al eje: se
+    atornilla a su cuerno. Estaba en las notas de la ficha, en prosa, y la
+    plataforma del pan-tilt 1111-1342 se sujetó con un M3 por el centro.
+
+    Del plano TA0233, literal: «cuernos con cubo de Ø6.9 × 2.5 y brazos de
+    1.5»; el de cruz (#2) mide 20.3 de punta a punta en los dos sentidos
+    —cuatro brazos— y tiene agujeros de Ø1.0 a R4.3, R6.3 y R8.3."""
+    [eje] = cargar("sg90").salidas
+    a = eje.acople
+    assert (a.cubo_diametro, a.cubo_alto, a.grosor) == (6.9, 2.5, 1.5)
+    assert (a.brazos, a.de_punta_a_punta) == (4, 20.3)
+    assert [(h.radio, h.diametro) for h in a.agujeros] == [(4.3, 1.0), (6.3, 1.0), (8.3, 1.0)]
+    assert "agujeros de Ø1 a 4.3, 6.3 y 8.3 mm del eje" in resumen(cargar("sg90"))
+    # Un rodamiento no tiene cuerno: lo que gira con él lo abraza.
+    assert cargar("608zz").salidas[0].acople is None
+
+
+def test_el_kit_da_el_acople_con_la_salida_ya_colocada():
+    """Quien dibuja la pieza que gira lo pide donde pide el eje."""
+    servo = _kit("sg90").componente("sg90", en=(10, 20, 5))
+    acople = servo.salida()["acople"]
+    assert [(h["radio"], h["diametro"]) for h in acople["agujeros"]] == [
+        (4.3, 1.0), (6.3, 1.0), (8.3, 1.0)]
+    assert (acople["cubo_diametro"], acople["brazos"]) == (6.9, 4)
+    assert _kit("608zz").componente("608zz", en=(0, 0, 0)).salida()["acople"] is None
 
 
 def test_el_kit_coloca_el_componente_con_su_ficha_y_lo_registra():

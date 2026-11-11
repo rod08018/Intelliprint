@@ -441,7 +441,7 @@ class Cuerpo:
     # --- rasgos con nombre --------------------------------------------------------
 
     def taladrar(self, nombre, diametro, en, eje="-z", profundidad=None,
-                 lagrima=False, avellanado=None, _tornillo=None) -> "Cuerpo":
+                 lagrima=False, avellanado=None, _tornillo=None, _uso=None) -> "Cuerpo":
         """Agujero de `diametro` que entra por el punto `en` y avanza en la
         dirección `eje`. Sin `profundidad` atraviesa todo lo que encuentra.
         `lagrima=True` para agujeros horizontales: se imprimen sin soporte.
@@ -478,7 +478,8 @@ class Cuerpo:
                              entrada=list(base), eje=list(d),
                              profundidad_mm=None if profundidad is None else float(profundidad),
                              lagrima=bool(lagrima), avellanado_mm=avellanado,
-                             **({"tornillo": str(_tornillo)} if _tornillo else {}))
+                             **({"tornillo": str(_tornillo)} if _tornillo else {}),
+                             **({"uso": _uso} if _uso else {}))
         return self._cortar(nombre, broca)
 
     def tornillo(self, nombre, metrica, en, eje="-z", tipo="pasante", profundidad=None,
@@ -491,9 +492,12 @@ class Cuerpo:
             raise KitError(f"«{nombre}»: `tipo` es «pasante», «rosca» o «inserto», no {tipo!r}")
         d = self._kit.agujero_mm(f"{metrica}_{sufijo}")
         # La métrica va en el rasgo: con ella se comprueba que la cabeza
-        # llega (proyecto del 608ZZ, 2026-11-09).
+        # llega (proyecto del 608ZZ, 2026-11-09). Y para qué es: un agujero
+        # de inserto y uno de rosca son dos ciegos que solo se distinguen
+        # por el diámetro, y el plan aprobó uno de los dos (F9.6 (previsto)).
         return self.taladrar(nombre, d, en, eje=eje, profundidad=profundidad,
-                             lagrima=lagrima, avellanado=avellanado, _tornillo=metrica)
+                             lagrima=lagrima, avellanado=avellanado, _tornillo=metrica,
+                             _uso=tipo)
 
     def tuerca(self, nombre, metrica, en, eje="-z", profundidad=None) -> "Cuerpo":
         """Alojamiento hexagonal para una tuerca cautiva, con la entrecaras del
@@ -507,8 +511,11 @@ class Cuerpo:
                 raise KitError(f"«{nombre}»: di la `profundidad` de la tuerca {metrica}") from None
         hueco = self._kit._prisma_hexagonal(entrecaras, float(profundidad) + 1,
                                             _v(en) - _eje(eje) * 1, _eje(eje))
+        # Con su métrica: la tornillería la leía del rasgo y el rasgo no la
+        # llevaba, así que una tuerca sola no decía de qué tornillo era.
         self._kit._registrar(nombre, "tuerca", entrecaras_mm=entrecaras, entrada=list(_v(en)),
-                             eje=list(_eje(eje)), profundidad_mm=float(profundidad))
+                             eje=list(_eje(eje)), profundidad_mm=float(profundidad),
+                             metrica=str(metrica))
         return self._cortar(nombre, hueco)
 
     def colisa(self, nombre, ancho, desde, hasta, eje="-z", profundidad=None) -> "Cuerpo":
@@ -704,13 +711,18 @@ class Componente:
 
     def agujeros(self) -> list:
         """Los agujeros de fijación de la ficha, ya colocados en la pieza:
-        [{"nombre", "diametro", "en", "eje"}]. `en` es el centro del agujero
-        en la cara del componente; `eje`, hacia dónde va el tornillo."""
+        [{"nombre", "diametro", "en", "eje", "tornillo", "dentro_mm"}]. `en`
+        es el centro del agujero en la cara del componente; `eje`, hacia
+        dónde va el tornillo; `tornillo`, su métrica si la ficha la dice
+        («M2») y `dentro_mm`, cuánto de él queda dentro del componente
+        desde `en` (el grueso de la oreja de un servo)."""
         from mech_toolkit.componentes import colocar, orientar
 
         return [{"nombre": a["nombre"], "diametro": float(a["diametro"]),
                  "en": tuple(colocar(a["en"], self._en, self._giros)),
-                 "eje": tuple(orientar(a["eje"], self._giros))}
+                 "eje": tuple(orientar(a["eje"], self._giros)),
+                 "tornillo": a.get("tornillo") or "",
+                 "dentro_mm": float(a.get("dentro_mm") or 0.0)}
                 for a in self._ficha.get("fijacion") or []]
 
     def punto(self, nombre) -> tuple:
@@ -724,16 +736,23 @@ class Componente:
     def salidas(self) -> list:
         """Lo que el componente mueve (el eje de un servo, el aro de un
         rodamiento), ya colocado en la pieza: [{"nombre", "punto", "eje",
-        "recorrido", "largo"}]. `punto` es donde el eje sale del componente y
-        `eje`, hacia dónde sale: lo que se acople a él gira alrededor de esa
-        recta. Una pieza del backlog ya terminada trae las de lo que monta,
-        con el nombre de su componente delante («sg90: eje»)."""
+        "recorrido", "largo", "acople"}]. `punto` es donde el eje sale del
+        componente y `eje`, hacia dónde sale: lo que se acople a él gira
+        alrededor de esa recta. Una pieza del backlog ya terminada trae las
+        de lo que monta, con el nombre de su componente delante («sg90:
+        eje»). `acople` es aquello a lo que se atornilla lo que gira (el
+        cuerno de un servo), o None: {"nombre", "cubo_diametro",
+        "cubo_alto", "grosor", "brazos", "de_punta_a_punta", "agujeros":
+        [{"radio", "diametro"}]}. Cada agujero está a `radio` del eje, en
+        cada brazo; los brazos van en la dirección que elijas, repartidos
+        por igual alrededor del eje."""
         from mech_toolkit.componentes import colocar, orientar
 
         return [{"nombre": s["nombre"],
                  "punto": tuple(colocar(s["en"], self._en, self._giros)),
                  "eje": tuple(orientar(s["eje"], self._giros)),
-                 "recorrido": tuple(s["recorrido"]), "largo": float(s.get("largo") or 0.0)}
+                 "recorrido": tuple(s["recorrido"]), "largo": float(s.get("largo") or 0.0),
+                 "acople": s.get("acople")}
                 for s in self._ficha.get("salidas") or []]
 
     def salida(self, nombre=None) -> dict:

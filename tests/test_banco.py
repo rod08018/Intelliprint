@@ -813,3 +813,112 @@ def test_el_banco_se_reanuda_desde_la_orden(tmp_path, monkeypatch):
     assert llamado["encargos"] == ["pan_tilt_sg90"]
     assert (tmp_path / "banco_reanudado.md").is_file()
     assert (tmp_path / "banco_reanudado-2.md").is_file()
+
+
+# --- los tornillos de lo comprado (F9.6 (previsto)) -------------------------------------------
+
+def _con_guias(carpeta, d_base, d_giro):
+    """Un agujero guía ciego bajo cada oreja de los dos SG90 de
+    `_obra_construida`. A mano, con las muescas de la ficha en (-2.95, 6.2,
+    18.5) y (25.75, 6.2, 18.5) y la oreja de 2.9 de grueso:
+
+    - base, servo en (23.6, 6, 0) sin girar: muescas en (20.65, 12.2) y
+      (49.35, 12.2); bajo la oreja, z = 18.5 - 2.9 = 15.6, hacia -z;
+    - soporte, servo en (-5.8, 27.1, 18.8) girado 90° sobre x, que lleva
+      (x, y, z) a (x, -z, y): muescas en (-8.75, 8.6, 25) y (19.95, 8.6, 25),
+      tornillo hacia +y; tras la oreja, y = 8.6 + 2.9 = 11.5."""
+    import json
+
+    def guia(nombre, en, eje, d):
+        return {"nombre": nombre, "tipo": "agujero", "diametro_mm": d, "entrada": list(en),
+                "eje": list(eje), "profundidad_mm": 8, "lagrima": False, "avellanado_mm": None}
+
+    nuevos = {"base": [guia("guia_eje", (20.65, 12.2, 15.6), (0, 0, -1), d_base),
+                       guia("guia_cable", (49.35, 12.2, 15.6), (0, 0, -1), d_base)],
+              "giro": [guia("guia_eje", (-8.75, 11.5, 25.0), (0, 1, 0), d_giro),
+                       guia("guia_cable", (19.95, 11.5, 25.0), (0, 1, 0), d_giro)]}
+    for nodo, agujeros in nuevos.items():
+        ruta = carpeta / "projects" / "a" / "nodos" / nodo / "parts" / nodo / "rasgos.json"
+        ruta.write_text(json.dumps(json.loads(ruta.read_text(encoding="utf-8")) + agujeros),
+                        encoding="utf-8")
+    return carpeta
+
+
+def test_los_tornillos_de_los_servos_se_cuentan_y_tienen_que_agarrar(tmp_path):
+    """Dos SG90, dos orejas cada uno, un tornillo M2 por oreja: 4 (la ficha).
+    El pan-tilt de la corrida 1111-1342 pasó seis comprobaciones de seis con
+    el servo de la base sin un agujero bajo las orejas y el del soporte con
+    dos de Ø2.2, por donde un tornillo de 2 pasa sin tocar."""
+    pide = [{"tipo": "tornillos", "sujetan": "sg90", "metrica": "M2", "cuantos": 4}]
+    [r], _ = _juzgar_obra(_obra_construida(tmp_path / "sin"), pide)
+    assert r.estado == "no_cumple" and "0 de 4" in r.detalle
+
+    [r], _ = _juzgar_obra(_con_guias(_obra_construida(tmp_path / "con"), 1.7, 1.7), pide)
+    assert r.estado == "cumple", r.detalle
+
+    [r], _ = _juzgar_obra(_con_guias(_obra_construida(tmp_path / "flojos"), 1.7, 2.2), pide)
+    assert r.estado == "no_cumple" and "2 de 4" in r.detalle
+    assert "Ø2.2" in r.detalle and "«Soporte de giro»" in r.detalle
+    assert "«Base»" not in r.detalle
+
+
+def test_el_encargo_del_pan_tilt_pide_los_cuatro_tornillos_de_sus_servos():
+    from pathlib import Path
+
+    from orchestrator.banco import Tornillos, cargar_encargos
+    [pan_tilt] = [e for e in cargar_encargos(Path("tests/banco/encargos"))
+                  if e.nombre == "pan_tilt_sg90"]
+    [pide] = [a for a in pan_tilt.oraculo if isinstance(a, Tornillos)]
+    assert (pide.sujetan, pide.metrica, pide.cuantos) == ("sg90", "M2", 4)
+
+
+def _con_sus_servos_en_el_plan(p):
+    """`_obra_construida` no dice qué compra cada pieza; el plan sí."""
+    import json
+    plan = json.loads((p / "obra.json").read_text(encoding="utf-8"))
+    for n in plan["nodos"]:
+        if n["tipo"] == "pieza":
+            n["compra"] = ["sg90"]
+    (p / "obra.json").write_text(json.dumps(plan), encoding="utf-8")
+    return p
+
+
+def test_reanudar_corrige_la_primera_pieza_que_no_sujeta_su_servo(tmp_path, monkeypatch):
+    """F9.6 (previsto). La corrida 1111-1342 tiene sus piezas resueltas, no
+    choca y orienta: al reanudar no había nada que hacer, y sin embargo su
+    base lleva el servo suelto. Se corrige la pieza que hay, con lo que le
+    falta dicho en cifras: 2 tornillos de 2 (la ficha del SG90)."""
+    import json
+    from orchestrator import banco
+    bien = {"ok": True, "choques": [], "resumen": [], "articulaciones": [], "correcciones": {}}
+    pide = [{"tipo": "tornillos", "sujetan": "sg90", "metrica": "M2", "cuantos": 4}]
+    e = banco.Encargo(nombre="x", categoria="robots", peticion="un pan-tilt", obra=True,
+                      oraculo=pide)
+
+    class Hecho:
+        stdout, stderr, returncode = "", "", 0
+
+    lanzado = []
+    monkeypatch.setattr(banco.subprocess, "run", lambda orden, **k: lanzado.append(orden) or Hecho())
+    monkeypatch.setattr(banco, "rejuzgar", lambda *a, **k: ({"x": []}, {}))
+
+    corrida = tmp_path / "corrida"
+    p = _con_sus_servos_en_el_plan(_con_informes(
+        _obra_construida(corrida / "01", verificacion=bien), {"base": True, "giro": True}))
+    (p / "nodos" / "base" / "concepto_aprobado").write_text("{}", encoding="utf-8")
+    (p / "nodos" / "base" / "parts" / "base" / "programa.py").write_text("PROGRAMA",
+                                                                        encoding="utf-8")
+    banco.reanudar([e], corrida, ["intelliprint", "obra", "--banco"], "fc", {})
+    assert lanzado, "había algo que reanudar"
+    retoque = json.loads((p / "nodos" / "base" / "retoque.json").read_text(encoding="utf-8"))
+    assert retoque["programa"] == "PROGRAMA"
+    assert "Micro servo SG90" in retoque["cambio"] and "faltan 2" in retoque["cambio"]
+
+    # Con los cuatro tornillos en su sitio no hay nada que reanudar.
+    lanzado.clear()
+    otra = tmp_path / "otra"
+    _con_sus_servos_en_el_plan(_con_informes(
+        _con_guias(_obra_construida(otra / "01", verificacion=bien), 1.7, 1.7),
+        {"base": True, "giro": True}))
+    banco.reanudar([e], otra, ["intelliprint", "obra", "--banco"], "fc", {})
+    assert lanzado == []

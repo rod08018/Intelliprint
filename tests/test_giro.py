@@ -286,6 +286,10 @@ def test_un_pan_tilt_hecho_a_mano_se_mide_pieza_a_pieza_y_luego_se_mueve_entero(
     (tmp_path / "obra.json").write_text(json.dumps(_plan(radio_inclinar=25.0, radio_girar=30.0)),
                                         encoding="utf-8")
     monkeypatch.setenv("INTELLIPRINT_FICHAS", str(O.carpeta_de_fichas(tmp_path)))
+    # `cli._paso_de_obra` la deja puesta en el proceso: si un test de
+    # `test_obra.py` corre antes que este, el kit rechaza el SG90 de la base
+    # como si fuera de otro backlog (visto al correrlos en otro orden).
+    monkeypatch.delenv("INTELLIPRINT_AJENOS", raising=False)
 
     def disenar(nodo, codigo):
         parte = tmp_path / "nodos" / nodo / "parts" / nodo

@@ -37,6 +37,9 @@ def _tornilleria(carpeta: Path) -> tuple[Counter, Counter, dict]:
         compra[t.nombre()] += 1
         for _ in t.tuercas if not t.compra_aparte else ():
             compra[f"Tuerca {t.metrica}"] += 1
+        if t.termina == "inserto":
+            # No salía en ninguna lista: el agujero era un ciego más.
+            compra[f"Inserto térmico {t.metrica}"] += 1
         if t.compra_aparte:
             compra[t.compra_aparte] += 1
     return compra, incluido, con

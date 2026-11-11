@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 from orchestrator.calibracion import BARRA, HOLGURAS_MM, M3_INSERTO_MM, M3_ROSCA_Y_PASANTE_MM
 from orchestrator.impresion import perfil_activo
 from orchestrator.medidas_impresora import (
-    MAX_FOTOS, MedidaInvalida, carpeta, registrar, registros)
+    MAX_FOTOS, METRICAS, USOS, MedidaInvalida, carpeta, nombre_de_agujero, registrar, registros)
 from orchestrator.web.paginas import _documento, e
 
 # Lo que el diseño usa y la persona puede medir: (clave en el perfil, nombre, unidad).
@@ -73,6 +73,8 @@ def _resumen(r: dict) -> str:
         return (f"Holguras: presión {v['press_mm']:.2f}, deslizante {v['slide_mm']:.2f}, "
                 f"libre {v['clearance_mm']:.2f}. M3: pasante {v['m3_through_mm']:.2f}, "
                 f"rosca {v['m3_selftap_mm']:.2f}, inserto {v['m3_insert_mm']:.2f}")
+    if r["tipo"] == "agujero":
+        return f"{v['metrica']} {USOS[v['uso']][1]}: {v['mm']:.2f} mm"
     if r["tipo"] == "resistencia":
         como = "tumbada" if v["orientacion"] == "xy" else "de pie"
         return f"Barra {como}: rompió con {v['carga_kg']:g} kg → {v['MPa']:.1f} MPa"
@@ -95,7 +97,13 @@ def pagina(workspace: Path, raiz: Path) -> str:
     activo = perfil_activo(raiz, workspace=workspace)
     perfil = activo.impresora.id
     filas = []
-    for clave, nombre, unidad in VALORES:
+    # F9.8 (métricas): los demás tornillos del perfil, los que traía sin medir
+    # (M4 y M5 pasantes) y los que la persona apuntó.
+    fijos = {clave for clave, _, _ in VALORES}
+    tornillos = [(f"holes.{k}", nombre_de_agujero(k), "mm")
+                 for k in sorted(activo.datos.get("holes") or {})
+                 if f"holes.{k}" not in fijos and nombre_de_agujero(k)]
+    for clave, nombre, unidad in [*VALORES, *tornillos]:
         r = activo.medido.get(clave)
         origen = (f'<span class="ok">medido el {e(r["fecha"])}</span>' if r else
                   '<span class="suave">sin medir: valor por defecto</span>')
@@ -143,6 +151,27 @@ def pagina(workspace: Path, raiz: Path) -> str:
         <label>Inserto M3 (recto, sin grietas ni girar) {_opciones("m3_insert_mm", M3_INSERTO_MM, _valor(datos, "holes.M3_insert_mm"), "Ø {:.1f}")}</label>
         {fotos}{nota}
         <button class="btn pri">Guardar holguras</button>
+      </form>
+    </section>
+
+    <section>
+      <h2>Apuntar otro tornillo</h2>
+      <p class="nota">Un agujero que la tabla no tiene, o uno que tiene sin medir: el de un M2 que
+        rosca en el plástico, el alojamiento de la tuerca de un M4. Imprime unos cuantos de
+        prueba y apunta el primero que cumple. Sin él, el diseño no puede usar ese tornillo y el
+        plan te avisa.</p>
+      <form class="medida" data-tipo="agujero">
+        <label>Tornillo <select name="metrica" required>{"".join(
+            f"<option>{m}</option>" for m in METRICAS)}</select></label>
+        <label>Para qué <select name="uso" required>
+          <option value="rosca">rosca directa en el plástico (rosca firme sin partir)</option>
+          <option value="pasante">pasante (pasa sin tocar)</option>
+          <option value="inserto">inserto térmico (recto, sin grietas ni girar)</option>
+          <option value="tuerca">tuerca cautiva, entre caras (entra y no gira)</option>
+        </select></label>
+        <label>Mide <input type="number" name="mm" min="0.5" max="20" step="0.05" required> mm</label>
+        {fotos}{nota}
+        <button class="btn pri">Guardar tornillo</button>
       </form>
     </section>
 

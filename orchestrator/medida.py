@@ -497,6 +497,42 @@ def sondas_de_giro(carpeta: Path, nodo: str) -> list:
             for u in giros if u.sobre == nodo for s in _salidas_del_giro(piezas, u)]
 
 
+def uniones_sin_hacer(carpeta: Path, nodo: str) -> list[str]:
+    """Los tornillos que el plan prevé y la pieza construida de `nodo` no
+    lleva (F9.6 (previsto)), sin FreeCAD: los de sus uniones y los de lo
+    comprado que monta.
+
+    El pan-tilt 1111-1342 pasó el banco con el SG90 de la base sin un solo
+    tornillo y el del soporte con dos agujeros de Ø2.2 para tornillos de 2.
+    La lista de compras se deducía al final de lo que hubiera; nadie había
+    dicho cuántos tenía que haber.
+
+    De una unión entre dos piezas ya construidas responde la que se diseñó
+    después: la otra está dada por buena y es contra ella que se taladra."""
+    from orchestrator import obra as O
+    from orchestrator.conjunto import leer_piezas
+    from orchestrator.plan import sin_hacer
+    from orchestrator.tornilleria import tornillos
+
+    carpeta = Path(carpeta)
+    obra = O.cargar_obra(carpeta)
+    construidas = set(leer_piezas(carpeta, solo_construidas=True))
+    if nodo not in construidas:
+        return []
+    orden = obra.orden()
+    fichas = [O.carpeta_de_fichas(carpeta)]
+    return [f.texto(obra, fichas)
+            for f in sin_hacer(obra, tornillos(carpeta), construidas, fichas)
+            if max(f.piezas, key=orden.index) == nodo]
+
+
+def defectos_del_plan() -> list[str]:
+    """`uniones_sin_hacer` de la pieza que se está diseñando, si es de un
+    backlog."""
+    backlog = _del_backlog()
+    return uniones_sin_hacer(*backlog) if backlog is not None else []
+
+
 def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
                          material: dict, componentes=(), pared_min_mm=None,
                          agujeros_del_perfil=None, holgura_al_moverse_mm=None) -> list[str]:
@@ -532,6 +568,12 @@ def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
                     fallos.append(movida["correccion"])
         except Exception as fallo:  # noqa: BLE001
             print(f"  sin medir el sitio de los giros: {type(fallo).__name__}: {fallo}",
+                  flush=True)
+        # Aparte: que falle una medida no deja sin hacer la otra.
+        try:
+            fallos += defectos_del_plan()
+        except Exception as fallo:  # noqa: BLE001
+            print(f"  sin contar los tornillos del plan: {type(fallo).__name__}: {fallo}",
                   flush=True)
     for sonda, medida in zip(sondas, medir_sondas(step, sondas, freecadcmd, material)):
         if medida.estado != "no_cumple":

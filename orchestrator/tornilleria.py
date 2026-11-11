@@ -48,6 +48,10 @@ class _Tramo:
     incluido_con: str = ""
     tuerca_aparte: str = ""
     a_lo_largo: list | None = None
+    uso: str = ""
+    """De un agujero hecho con `kit.tornillo`: «pasante», «rosca» o «inserto»."""
+    ficha: str = ""
+    """De una fijación: el id de la ficha de lo comprado."""
 
 
 @dataclass
@@ -58,8 +62,9 @@ class Tornillo:
     largo: int | None
     """El de catálogo. None si depende de dónde se fije la pieza."""
     termina: str
-    """«tuerca», «rosca» (en el plástico), «componente» (en lo comprado) o
-    «superficie» (atraviesa y no llega a nada: va a donde se fije)."""
+    """«tuerca», «rosca» (en el plástico), «inserto» (térmico, en el
+    plástico), «componente» (en lo comprado) o «superficie» (atraviesa y no
+    llega a nada: va a donde se fije)."""
     pieza: str
     """Donde apoya la cabeza: se mueve con ella."""
     cabeza: list
@@ -70,6 +75,30 @@ class Tornillo:
     compra_aparte: str = ""
     tuercas: list = field(default_factory=list)
     agujeros: list = field(default_factory=list)
+    # Para comparar con lo que previó el plan (F9.6 (previsto)).
+    piezas: list = field(default_factory=list)
+    """Las piezas por las que pasa, sin repetir."""
+    componente: str = ""
+    """La ficha de lo comprado que sujeta, si pasa por una fijación suya."""
+    lo_monta: str = ""
+    """La pieza que monta ese componente."""
+    agarra_en: str = ""
+    agarra_mm: float | None = None
+    """El agujero donde acaba la punta y su diámetro: si es el plástico lo
+    que tiene que roscar, ha de ser más estrecho que el tornillo."""
+
+    def rosca_en_el_plastico(self) -> bool:
+        """Lo que lo sujeta es el plástico del último agujero: ni tuerca, ni
+        inserto, ni la rosca de lo comprado. El que sujeta un servo por la
+        oreja lo es aunque su agujero guía atraviese la pieza."""
+        return self.termina == "rosca" or (self.termina == "superficie"
+                                           and bool(self.componente))
+
+    def no_rosca(self) -> bool:
+        """Su agujero es tan ancho como él o más. El soporte del pan-tilt
+        1111-1342 taladró Ø2.2 para un tornillo de 2: pasa sin tocar."""
+        return (self.rosca_en_el_plastico() and self.agarra_mm is not None
+                and self.agarra_mm >= _diametro(self.metrica) - 1e-6)
 
     def nombre(self) -> str:
         cabeza = " avellanado" if self.avellanado else ""
@@ -285,7 +314,7 @@ def _tramos(p: _Pieza, fichas: list[Path]) -> list[_Tramo]:
                              diametro=float(r.get("diametro_mm") or 0),
                              metrica=r.get("tornillo") or "",
                              pasante=not r.get("profundidad_mm"),
-                             avellanado=r.get("avellanado_mm")))
+                             avellanado=r.get("avellanado_mm"), uso=r.get("uso") or ""))
     for c in p.componentes:
         try:
             ficha = cargar(c["ficha"], fichas)
@@ -302,7 +331,7 @@ def _tramos(p: _Pieza, fichas: list[Path]) -> list[_Tramo]:
                 metrica=f.tornillo, incluido_con=ficha.nombre if f.incluido else "",
                 tuerca_aparte=f.tuerca,
                 a_lo_largo=(_unit(_girar(p.mundo, orientar(f.a_lo_largo, giros)))
-                            if f.a_lo_largo else None)))
+                            if f.a_lo_largo else None), ficha=ficha.id))
     return tramos
 
 
@@ -379,6 +408,10 @@ def _tornillo(g: list[_Tramo], piezas: dict[str, _Pieza]) -> Tornillo | None:
         termina = "tuerca"
     elif punta.tipo == "fijacion" and punta is not cabeza:
         termina = "componente"
+    elif punta.tipo == "agujero" and punta.uso in ("rosca", "inserto"):
+        # Lo dice el rasgo: un inserto y una rosca son dos agujeros ciegos
+        # que solo se distinguen por el diámetro.
+        termina = punta.uso
     elif punta.tipo == "agujero" and punta.pasante:
         termina = "superficie"
     else:
@@ -415,7 +448,11 @@ def _tornillo(g: list[_Tramo], piezas: dict[str, _Pieza]) -> Tornillo | None:
         avellanado=cabeza.avellanado if cabeza.tipo == "agujero" else None,
         viene_con=next((t.incluido_con for t in g if t.incluido_con), ""),
         compra_aparte=aparte, tuercas=dibujo,
-        agujeros=[f"{t.pieza}: {t.nombre}" for t in g])
+        agujeros=[f"{t.pieza}: {t.nombre}" for t in g],
+        piezas=sorted({t.pieza for t in g}),
+        componente=fij[0].ficha if fij else "", lo_monta=fij[0].pieza if fij else "",
+        agarra_en=punta.nombre if punta.tipo == "agujero" else "",
+        agarra_mm=punta.diametro if punta.tipo == "agujero" else None)
 
 
 def tornillos(carpeta: Path, conjunto: str | None = None) -> list[Tornillo]:
