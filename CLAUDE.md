@@ -1,7 +1,8 @@
 # Intelliprint
 
-Sistema multiagente que diseña piezas y mecanismos imprimibles en 3D, los monta
-en FreeCAD y **verifica que funcionan** antes de que nadie imprima nada.
+Sistema multiagente que diseña piezas imprimibles en 3D —sueltas, o las de un
+robot, una a una—, las monta en FreeCAD y **verifica que funcionan** antes de
+que nadie imprima nada.
 
 ## Cómo se trabaja aquí
 
@@ -42,7 +43,7 @@ zombi no existen igual.
 
 ```bash
 docker compose run --rm suite                       # la suite rápida
-docker compose run --rm orchestrator mecanismo peticion.md --archivo
+docker compose run --rm orchestrator pieza peticion.md --archivo
 docker compose run --rm orchestrator animar <carpeta-del-proyecto>
 docker compose up -d web                            # http://localhost:8080
 docker compose up -d crafty                         # Telegram
@@ -101,9 +102,16 @@ invento. El plan aprobado está en `PLAN_PROYECTO.md`, Fase 9, con su orden.
   inclinar una cámara: está escrito en la Fase 9 del plan.
 - **Los backlogs están desaparcados**, con la regla de siempre: no relanzar
   corridas enteras para probar un arreglo (`banco --reanudar`).
-- **El flujo `mecanismo` se quita entero** (F9.13 (limpieza)): lo decidió él
-  para cuando el pan-tilt subiera. Queda en git, en la etiqueta
-  `antes-de-fase-9`. Con él se van los pendientes 2 y 4 de abajo.
+- **El flujo `mecanismo` ya no existe** (F9.13 (limpieza), 2026-11-11): lo
+  decidió él para cuando el pan-tilt subiera. Con él se fueron `new`/`resume`
+  (LangGraph), el bot propio y el QA de interfaces, que no llamaba nadie.
+  Todo está en git, en la etiqueta `antes-de-fase-9`. Los mecanismos ya hechos
+  se siguen viendo en la web. **Lo que se perdió:** engranajes y cadenas
+  cerradas; un backlog solo sabe piezas que giran sobre un servo o un
+  rodamiento, en árbol.
+- **El tope de 5 USD ahora sí para.** Solo lo comprobaba el flujo de
+  mecanismos; una pieza o un backlog nunca se detenían. Cada paso lo mira
+  antes de empezar (`cli._apuntar_gasto`).
 - **El banco se corre con el código de hoy desde el servicio `suite`**, que lo
   monta en vivo; `orchestrator` y `web` llevan el de su imagen hasta
   reconstruirla (`docker compose build`):
@@ -128,36 +136,17 @@ invento. El plan aprobado está en `PLAN_PROYECTO.md`, Fase 9, con su orden.
 - **Crafty vive en su contenedor**, con la configuración generada desde el `.env`
   y ningún secreto en `openclaw.json`.
 
-Antes de eso, lo último había sido endurecer el diseño de mecanismos para que el
-ensamble **demuestre** que funciona en vez de declararlo: apoyos por contacto
-(`rest_on`), bloqueos comprobados forzando la articulación, y la regla de que no
-se puede declarar que algo frena a una pieza cuyo movimiento impones con una
-fórmula. **Esa regla sigue sin ejercitarse en una ejecución real.**
-
 ### Lo que quedó pendiente
 
 0. ✅ **Los modelos de DeepSeek funcionan** (comprobado llamándolos el
    2026-10-23). `deepseek-chat` y `deepseek-reasoner` son alias que DeepSeek
    sirve con `deepseek-flash` (sin y con pensamiento), y ya se cobran como
    Flash: está explicado en `config/models.yaml`, junto a los precios.
-1. ✅ **El trinquete sale de verdad** (2026-09-21,
-   `workspace/projects/2026-09-21-1611-trinquete_y_rueda`, ronda 10, 1.17 USD).
-   Solo la palanca va por fórmula; la rueda se mueve **empujada por la palanca**
-   (`rest_on` con `carry`), el trinquete se apoya en la rueda, y el **bloqueo** se
-   comprueba forzando la rueda hacia atrás. Hicieron falta cinco ejecuciones y
-   cinco arreglos del sistema (propuestas rechazadas guardadas, rondas inválidas
-   que no matan el proyecto, una sola motriz por fórmula, búsqueda de apoyo
-   alargada por el código, y memoria del mejor diseño: volvió cinco veces a la
-   ronda 4). Límites: el barrido fue de 7 posiciones (cada 5°) y el resorte está
-   modelado fijo; su fuerza no se simula.
-
-2. **Relanzar el mecanismo de Ginebra**: murió porque el razonador agotó
-   `max_tokens` tres veces. La reserva existe (tras dos cortes contesta el modelo
-   sin pensamiento), pero **nadie la ha visto entrar en una ejecución real**.
+1. ~~El trinquete, la Ginebra y los demás retos de mecanismos.~~ El flujo
+   que los hacía se quitó el 2026-11-11 (arriba). El trinquete salió
+   (2026-09-21, 1.17 USD) y sigue en `workspace/`.
 3. ~~Decidir el tope de gasto.~~ **Decidido por el usuario: 5 USD por proyecto**
    (2026-09-21). Los 2 USD anteriores los había puesto el asistente por defecto.
-4. **Los demás retos** (leva, gato de tijera, prensa) no se han relanzado con el
-   conjunto completo de mejoras.
 5. **F0.11 (migrar) es la deuda mayor que queda.** La 5090 está aquí, Ollama
    corre con ella y los dos modelos del perfil `prod` están descargados
    (`qwen3.8` y `gemma3:12b`, comprobado al 100% en GPU). Falta el cliente de

@@ -1,7 +1,7 @@
 """Trabajos en segundo plano (F5.6 (telegram)).
 
-Crafty, el agente de OpenClaw, no puede quedarse esperando: diseñar un
-mecanismo tarda minutos. Lanza el trabajo, le devuelven un identificador y
+Crafty, el agente de OpenClaw, no puede quedarse esperando: diseñar tarda
+minutos. Lanza el trabajo, le devuelven un identificador y
 pregunta el estado cuando quiere.
 """
 
@@ -219,12 +219,12 @@ def test_cancelar_un_trabajo_lanzado_por_otro_gestor(tmp_path):
 
 
 def test_una_pieza_se_lanza_con_su_orden_y_se_reanuda_con_la_misma(tmp_path):
-    """F5.17 (pieza): la web y Crafty piden piezas sueltas, no solo mecanismos.
-    Reanudar tiene que repetir la orden con la que se lanzó: con la del
-    gestor, una pieza se reanudaba como mecanismo."""
-    mecanismo = [sys.executable, "-c", "print('orden mecanismo')"]
+    """F5.17 (pieza): reanudar tiene que repetir la orden con la que se lanzó.
+    Con la orden por omisión del gestor (entonces, la de mecanismos), una
+    pieza se reanudaba como lo que no era."""
+    omision = [sys.executable, "-c", "print('orden por omisión')"]
     pieza = [sys.executable, "-c", "print('orden pieza')"]
-    store = JobStore(tmp_path, comando=mecanismo)
+    store = JobStore(tmp_path, comando=omision)
     job = store.start("gancho de pared", comando=pieza)
     _esperar(store, job, "terminado")
 
@@ -233,14 +233,14 @@ def test_una_pieza_se_lanza_con_su_orden_y_se_reanuda_con_la_misma(tmp_path):
 
     registro = (tmp_path / job / "run.log").read_text()
     assert registro.count("orden pieza") == 2
-    assert "orden mecanismo" not in registro
+    assert "orden por omisión" not in registro
 
 
 def test_aprobar_el_concepto_reanuda_la_pieza_con_su_orden(tmp_path):
     """F3.20 (concepto): la web y Crafty dan el visto bueno y la pieza sigue
     sola, con la orden con la que se lanzó."""
     pieza = [sys.executable, "-c", "print('orden pieza')"]
-    store = JobStore(tmp_path, comando=["mecanismo"])
+    store = JobStore(tmp_path, comando=["la-orden-por-omision"])
     job = store.start("gancho de pared", comando=pieza)
     _esperar(store, job, "terminado")
     (tmp_path / job / "concepto.json").write_text("{}", encoding="utf-8")
@@ -281,10 +281,10 @@ def test_no_se_aprueba_un_concepto_que_no_existe(tmp_path):
 
 def test_un_concepto_lanzado_desde_la_consola_sigue_como_pieza(tmp_path):
     """Sin `job.json` (la pieza se pidió con `intelliprint pieza`), aprobar
-    desde la web lanzaba la orden por defecto, la de MECANISMOS, sobre el
-    concepto de una pieza (2026-11-05, el soporte del HC-SR04). Un concepto
-    solo lo tiene una pieza."""
-    store = JobStore(tmp_path, comando=[sys.executable, "-c", "print('orden mecanismo')"],
+    desde la web lanzaba la orden por defecto (entonces, la de mecanismos)
+    sobre el concepto de una pieza (2026-11-05, el soporte del HC-SR04). Un
+    concepto solo lo tiene una pieza."""
+    store = JobStore(tmp_path, comando=[sys.executable, "-c", "print('orden por omisión')"],
                      comando_pieza=[sys.executable, "-c", "print('orden pieza')"])
     carpeta = tmp_path / "2026-11-05-202849-sensor"
     carpeta.mkdir()
@@ -297,4 +297,60 @@ def test_un_concepto_lanzado_desde_la_consola_sigue_como_pieza(tmp_path):
     _esperar(store, carpeta.name, "terminado")
 
     registro = (carpeta / "run.log").read_text()
-    assert "orden pieza" in registro and "orden mecanismo" not in registro
+    assert "orden pieza" in registro and "orden por omisión" not in registro
+
+
+@pytest.mark.parametrize("rastro", ["job.json", "mechanism.json"])
+def test_continuar_un_mecanismo_ya_hecho_lo_dice_claro_y_no_lanza_nada(tmp_path, monkeypatch, rastro):
+    """F9.13 (limpieza): el flujo de mecanismos se quitó, pero sus proyectos
+    siguen en el workspace y su `job.json` guarda `intelliprint mecanismo`.
+    Continuar uno relanzaba esa orden, que ya no existe: el trabajo moría al
+    arrancar con un error de argparse en `run.log` y quien preguntaba veía
+    «fallido» sin saber por qué. Uno lanzado por consola no tiene `job.json`:
+    se le reconoce por su `mechanism.json`."""
+    import json
+
+    import orchestrator.jobs as jobs
+
+    def no_lances(*a, **k):
+        raise AssertionError(f"no hay nada que lanzar: {a}")
+
+    monkeypatch.setattr(jobs.subprocess, "Popen", no_lances)
+    store = JobStore(tmp_path, comando=["intelliprint", "obra"],
+                     comando_pieza=["intelliprint", "pieza"])
+    carpeta = tmp_path / "2026-09-21-1611-trinquete_y_rueda"
+    carpeta.mkdir()
+    (carpeta / "request.md").write_text("un trinquete con su rueda\n", encoding="utf-8")
+    (carpeta / "rounds.json").write_text('[{"number": 1, "feedback": "- choca"}]', encoding="utf-8")
+    if rastro == "job.json":
+        (carpeta / "job.json").write_text(json.dumps(
+            {"comando": ["intelliprint", "mecanismo"]}), encoding="utf-8")
+    else:
+        (carpeta / "mechanism.json").write_text('{"title": "Trinquete"}', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="mecanismo"):
+        store.resume(carpeta.name)
+
+    assert not (carpeta / "run.log").exists()
+
+
+def test_lo_que_no_se_sabe_con_que_se_lanzo_no_se_continua_con_la_orden_por_omision(tmp_path, monkeypatch):
+    """Un proyecto anterior al registro, o la pieza de calibración, no dejan
+    orden en `job.json`. Continuarlo con la orden por omisión sería desglosar
+    como backlog —y pagar por ello— algo que no lo es."""
+    import orchestrator.jobs as jobs
+
+    def no_lances(*a, **k):
+        raise AssertionError(f"no hay nada que lanzar: {a}")
+
+    monkeypatch.setattr(jobs.subprocess, "Popen", no_lances)
+    store = JobStore(tmp_path, comando=["intelliprint", "obra"],
+                     comando_pieza=["intelliprint", "pieza"])
+    carpeta = tmp_path / "2026-10-24-1607-calibracion_holguras"
+    carpeta.mkdir()
+    (carpeta / "request.md").write_text("Pieza de calibración de holguras\n", encoding="utf-8")
+    (carpeta / "rounds.json").write_text('[{"number": 1, "feedback": ""}]', encoding="utf-8")
+    (carpeta / "job.json").write_text('{"pid": 99999999}', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="no se sabe con qué orden"):
+        store.resume(carpeta.name)

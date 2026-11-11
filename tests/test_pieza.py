@@ -13,7 +13,6 @@ from orchestrator.pieza import aprobar_concepto, concebir_pieza, disenar_pieza
 from orchestrator.registry import estado_de
 from orchestrator.schemas.part_result import PartResult
 from orchestrator.schemas.recipe import Recipe
-from orchestrator.schemas.slicing_report import SlicingReport
 from orchestrator.schemas.concepto import Concepto, ConceptoComprobado
 from orchestrator.schemas.spec import Spec
 
@@ -38,18 +37,14 @@ def _disenar(untraced=(), defectos=()):
     return disenar
 
 
-def _laminar(stl, gcode):
-    return SlicingReport(plate=1, filament_mm=1000, grams=3.0, time_s=600,
-                         needs_supports=False)
-
-
 def test_una_pieza_que_sale_queda_aprobada_en_el_registro_con_su_titulo(tmp_path):
     informe = disenar_pieza(PETICION, tmp_path, requisitos=Requisitos(),
-                            disenar=_disenar(), laminar=_laminar, log=lambda *_: None)
+                            disenar=_disenar(), log=lambda *_: None)
 
-    assert informe.resuelto and informe.gramos == 3.0
+    assert informe.resuelto
     assert (tmp_path / "request.md").read_text(encoding="utf-8").strip() == PETICION
-    assert json.loads((tmp_path / "fabrication" / "slicing_report.json").read_text())["grams"] == 3
+    # El diseño no lamina (2026-11-09): no deja G-code ni informe de laminado.
+    assert not (tmp_path / "fabrication").exists()
     fila = estado_de(tmp_path)
     assert fila["estado"] == "aprobado"
     assert fila["titulo"] == "Gancho de pared"
@@ -60,7 +55,7 @@ def test_una_pieza_que_no_se_construye_deja_el_porque(tmp_path):
         raise ConstruccionFallida("3 construcciones fallidas. Último motivo: sólido partido")
 
     informe = disenar_pieza(PETICION, tmp_path, requisitos=Requisitos(), disenar=falla,
-                            laminar=_laminar, log=lambda *_: None)
+                            log=lambda *_: None)
 
     assert not informe.resuelto
     assert "sólido partido" in (tmp_path / "blocked.md").read_text(encoding="utf-8")
@@ -71,36 +66,11 @@ def test_una_cota_pedida_que_no_esta_en_la_pieza_no_sale_aprobada(tmp_path):
     """La trazabilidad solo avisaba al pie del informe por consola; desde la
     web nadie lo veía y la pieza salía como buena."""
     informe = disenar_pieza(PETICION, tmp_path, requisitos=Requisitos(),
-                            disenar=_disenar(untraced=[40.0]), laminar=_laminar,
-                            log=lambda *_: None)
+                            disenar=_disenar(untraced=[40.0]), log=lambda *_: None)
 
     assert not informe.resuelto
     assert "40 mm" in informe.motivo
     assert estado_de(tmp_path)["estado"] == "fallido"
-
-
-def test_un_laminado_que_falla_no_pierde_la_pieza_construida(tmp_path):
-    """El 2026-11-05 el puente del host no encontró el STL y la excepción
-    tumbó el proceso: nueve piezas construidas quedaron sin informe y el
-    banco las contó como no hechas. La pieza existe; lo que falta es su
-    laminado, y eso se dice."""
-    from orchestrator.slicing import LaminadoFallido
-
-    def revienta(stl, gcode):
-        raise LaminadoFallido("no encuentro el STL")
-
-    informe = disenar_pieza(PETICION, tmp_path, requisitos=Requisitos(),
-                            disenar=_disenar(), laminar=revienta, log=lambda *_: None)
-
-    assert informe.volumen_mm3 == 1234.0 and informe.gramos is None
-    assert not informe.resuelto and "no encuentro el STL" in informe.motivo
-    assert json.loads((tmp_path / "pieza_report.json").read_text())["volumen_mm3"] == 1234.0
-
-
-def test_sin_laminador_la_pieza_sale_igual(tmp_path):
-    informe = disenar_pieza(PETICION, tmp_path, requisitos=Requisitos(),
-                            disenar=_disenar(), laminar=None, log=lambda *_: None)
-    assert informe.resuelto and informe.gramos is None
 
 
 # --- la puerta del concepto (F3.20 (concepto)) ------------------------------------
@@ -169,7 +139,7 @@ def test_aprobado_se_modela_ese_concepto_sin_volver_a_redactar_nada(tmp_path):
             raise AssertionError("ya había una especificación aprobada")
 
     informe = disenar_pieza(PETICION, tmp_path, requisitos=NoRedactes(), disenar=disenar,
-                            laminar=_laminar, log=_nada)
+                            log=_nada)
 
     assert informe.resuelto
     assert recibido["concepto"].concepto.idea.startswith("gancho en J")
@@ -252,7 +222,7 @@ def test_con_un_retoque_el_disenador_parte_del_programa_construido(tmp_path):
             raise AssertionError("ya había una especificación aprobada")
 
     disenar_pieza(PETICION, tmp_path, requisitos=NoRedactes(), disenar=disenar,
-                  laminar=_laminar, log=_nada)
+                  log=_nada)
     assert recibido["partida"] == ("CODIGO", "la tuerca más adentro")
 
 
@@ -291,9 +261,8 @@ def test_una_pieza_con_defectos_sale_pero_no_aprobada(tmp_path):
     """F6.8 (mejor): se entrega la mejor que salió, y se dice qué no cumple."""
     falta = "R2 («uno de 5 mm»): pide 1 agujero(s) de Ø5 y hay 0"
     informe = disenar_pieza(PETICION, tmp_path, requisitos=Requisitos(),
-                            disenar=_disenar(defectos=[falta]), laminar=_laminar,
-                            log=lambda *_: None)
-    assert not informe.resuelto and informe.gramos == 3.0
+                            disenar=_disenar(defectos=[falta]), log=lambda *_: None)
+    assert not informe.resuelto and informe.volumen_mm3 == 1234.0
     assert falta in informe.motivo
     assert falta in (tmp_path / "blocked.md").read_text(encoding="utf-8")
 
@@ -358,4 +327,4 @@ def test_intelliprint_pieza_no_lamina(tmp_path, monkeypatch):
                               aprobar_concepto=False, comando="pieza")
     cli._pieza(args, Path("."), {"DEEPSEEK_API_KEY": "x", "INTELLIPRINT_WORKSPACE": str(tmp_path)},
                "t")
-    assert recibido["laminar"] is None
+    assert "laminar" not in recibido

@@ -22,6 +22,7 @@ Lo esperado sale de cómo se construye cada carpeta, no de lo que pinte la web.
 
 import datetime as dt
 import json
+import re
 
 import yaml
 
@@ -183,7 +184,8 @@ def test_el_ejemplo_corresponde_al_tipo_elegido(tmp_path):
 
     # «una pieza» va elegida: su ejemplo es el que se ve al abrir.
     assert "sargento" not in EJEMPLOS["pieza"].lower()
-    assert "sargento" in EJEMPLOS["mecanismo"].lower()
+    # Uno por cada tipo que se puede pedir, y ninguno de más.
+    assert set(EJEMPLOS) == {"pieza", "obra"}
     placeholder = html.split('id="peticion"', 1)[1].split(">", 1)[0]
     assert "sargento" not in placeholder.lower()
 
@@ -220,6 +222,9 @@ def test_lo_que_se_toca_mide_al_menos_44_px_y_el_movimiento_se_puede_quitar():
 
 
 def test_el_proyecto_de_varias_piezas_se_llama_backlog(tmp_path):
-    """El usuario no entendía «obra» (2026-11-09): pidió «backlog»."""
+    """El usuario no entendía «obra» (2026-11-09): pidió «backlog», y así se
+    llama. Desde F9.13 (limpieza) la opción dice además para qué es —por ahí
+    entra ahora lo que se mueve—. «Obra» es solo el valor interno."""
     html = _web(tmp_path).get("/").text
-    assert "un backlog: varias piezas, una a una" in html
+    (opcion,) = re.findall(r'<option value="obra"[^>]*>([^<]*)</option>', html)
+    assert opcion == "un backlog: un robot o un conjunto, pieza a pieza"

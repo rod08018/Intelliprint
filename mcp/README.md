@@ -10,12 +10,8 @@ Herramientas deterministas. Es donde vive la geometría que el LLM no debe calcu
 
 | Subcarpeta | Contenido |
 |---|---|
-| `generators/` | Un módulo por generador (`generate_bearing_housing`, `generate_bolt_pattern`, `generate_servo_mount`…). Es el catálogo que el Part Designer compone en su receta |
+| `generators/` | Un módulo por generador (`generate_bearing_housing`, `generate_bolt_pattern`, `generate_servo_mount`…). Es el catálogo con el que se componen las recetas (hoy, las piezas de calibración) |
 
 **Regla de la sección 6 del plan:** las herramientas deterministas deben tener tests **antes** de que un agente las use.
 
 Añadir un generador aquí es la respuesta correcta cuando la métrica de escotilla sube (§ 6.3): cada pieza atípica nombra el generador que falta.
-
-## `sim`
-
-Pruebas físicas: ikpy, PyBullet, trimesh. Cinemática, torques, colisiones, estabilidad y `export_urdf`.

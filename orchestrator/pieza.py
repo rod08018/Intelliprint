@@ -1,11 +1,9 @@
-"""Una pieza suelta, sin pasar por el flujo de mecanismos (F5.17 (pieza)).
+"""Una pieza suelta (F5.17 (pieza)).
 
-Hasta ahora la web, Crafty y el bot solo sabían pedir mecanismos, y un
-mecanismo exige dos piezas como mínimo: un soporte o un gancho había que
-disfrazarlo de mecanismo. Esto es el camino de `intelliprint new` sin la
-confirmación por consola —quien pide desde la web o Telegram ya confirmó
-al pedir— y en la carpeta que le dan, para que el registro, la web y el
-canal lo vean como a cualquier otro proyecto.
+Sin confirmación por consola —quien pide desde la web o Telegram ya
+confirmó al pedir— y en la carpeta que le dan, para que el registro, la web
+y el canal la vean como a cualquier otro proyecto. Las piezas de un backlog
+se diseñan por este mismo camino, cada una en la carpeta de su nodo.
 
 Deja en la carpeta lo mismo que espera el registro: `request.md`,
 `rounds.json` (una ronda; su `feedback` es lo que falla) y, si no sale,
@@ -29,7 +27,6 @@ from orchestrator.build import ConstruccionFallida, carpeta_libre, guardar_disen
 from orchestrator.registry import latir
 from orchestrator.schemas.concepto import ConceptoComprobado
 from orchestrator.schemas.spec import Spec
-from orchestrator.slicing import LaminadoFallido
 from orchestrator.tasks import spec_to_task
 
 
@@ -40,8 +37,6 @@ class InformePieza(BaseModel):
     motivo: str = ""
     volumen_mm3: float | None = None
     bbox_mm: list[float] = []
-    gramos: float | None = None
-    soportes: bool | None = None
     avisos: list[str] = []
     """Lo que el kit no pudo hacer sin romper la pieza (aristas que quedaron vivas)."""
 
@@ -198,11 +193,13 @@ def _concebir(peticion: str, carpeta: Path, *, requisitos, ingeniero,
 
 
 def _disenar(peticion: str, carpeta: Path, *, requisitos,
-             disenar: Callable, laminar: Callable | None, log=print) -> InformePieza:
+             disenar: Callable, log=print) -> InformePieza:
     """`requisitos`: el Requirements Agent. `disenar(spec, carpeta, parte,
     concepto)` devuelve (receta, resultado) o lanza `ConstruccionFallida`.
-    `laminar(stl, gcode)` devuelve el `SlicingReport`; None si no hay
-    laminador (la pieza sale igual, sin gramos).
+
+    No lamina: al diseñar no se sabe en qué impresora se va a imprimir
+    (decidido por el usuario, 2026-11-09). Los gramos y el tiempo salen al
+    abrir PrusaSlicer desde la web; el banco lamina por su cuenta para juzgar.
 
     Con un concepto aprobado en la carpeta, se modela ESE concepto con la
     especificación que se aprobó: redactarla otra vez podría dar otra."""
@@ -244,23 +241,6 @@ def _disenar(peticion: str, carpeta: Path, *, requisitos,
         # F6.8 (mejor): la pieza sale, pero no como la pediste, y se dice qué falta.
         informe.motivo = "\n".join(filter(None, [
             informe.motivo, "la pieza entregada no cumple:", *resultado.defectos]))
-
-    if laminar is not None:
-        log("  laminado…")
-        fabricacion = carpeta / "fabrication"
-        fabricacion.mkdir(exist_ok=True)
-        stl = carpeta / "parts" / tarea.part / f"{tarea.part}.stl"
-        # Un laminado que falla no borra la pieza: el 2026-11-05 la excepción
-        # tumbó el proceso y nueve piezas construidas quedaron sin informe.
-        try:
-            lamina = laminar(stl, fabricacion / f"{tarea.part}.gcode")
-        except LaminadoFallido as e:
-            informe.motivo = "\n".join(filter(None, [
-                informe.motivo, f"no se pudo laminar: {e}"]))
-        else:
-            (fabricacion / "slicing_report.json").write_text(
-                json.dumps(lamina.model_dump(), indent=2), encoding="utf-8")
-            informe.gramos, informe.soportes = lamina.grams, lamina.needs_supports
 
     informe.resuelto = not informe.motivo
     _cerrar(carpeta, spec.title, informe, peticion)

@@ -16,7 +16,6 @@ import io
 import os
 import zipfile
 from pathlib import Path
-from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response
@@ -34,7 +33,7 @@ from orchestrator.categorias import CATEGORIAS
 from orchestrator.web import paginas
 from orchestrator.web.versiones import (  # noqa: F401 (los tests los importan de aquí)
     ProyectoDesconocido, agrupar, corridas_del_banco, ejecuciones, lanzar_modificacion,
-    marca_de, piezas_de, raices, resolver_proyecto)
+    piezas_de, raices, resolver_proyecto)
 
 
 def empaquetar(carpeta: Path) -> bytes:
@@ -55,9 +54,11 @@ def empaquetar(carpeta: Path) -> bytes:
 
 
 def usos_de(carpeta: Path) -> dict[str, str]:
-    """El uso que el diseñador declaró para cada pieza (F3.16 (usos)). Se lee
-    el JSON a pelo: un mechanism.json anterior a los usos no lo trae, y no
-    por eso deja de valer. Sin uso, «general»."""
+    """El uso que el diseñador declaró para cada pieza de un mecanismo
+    (F3.16 (usos)). El flujo ya no existe, pero sus proyectos se siguen
+    abriendo en PrusaSlicer con los ajustes de cada pieza. Se lee el JSON a
+    pelo: un mechanism.json anterior a los usos no lo trae, y no por eso
+    deja de valer. Sin uso, «general»."""
     try:
         spec = json.loads((Path(carpeta) / "mechanism.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -65,15 +66,8 @@ def usos_de(carpeta: Path) -> dict[str, str]:
     return {p["name"]: p.get("uso") or "general" for p in spec.get("parts", []) if "name" in p}
 
 
-def piezas_con_uso(carpeta: Path) -> list[dict]:
-    usos = usos_de(carpeta)
-    return [{"nombre": stl.stem, "uso": usos.get(stl.stem, "general")} for stl in piezas_de(carpeta)]
-
-
 class Modificacion(BaseModel):
     peticion: str = Field(max_length=20_000)
-    pieza: str = Field(default="", max_length=200)
-    """Si el cambio es de una sola pieza, cuál: las demás no se tocan."""
 
     @field_validator("peticion")
     @classmethod
@@ -111,12 +105,22 @@ class Rehacer(BaseModel):
 
 
 class Pedido(Modificacion):
-    basado_en: str | None = None
-    tipo: Literal["pieza", "mecanismo", "obra"]
-    """F5.17 (pieza): una pieza suelta no pasa por el flujo de mecanismos,
-    que exige dos piezas como mínimo. Obligatorio: con «mecanismo» por
-    omisión, una página abierta antes del selector mandó el soporte de la
-    Raspberry al flujo viejo de recetas (2026-11-04)."""
+    tipo: str
+    """«pieza» u «obra» (un backlog). Obligatorio: con un tipo por omisión,
+    una página abierta antes del selector mandó el soporte de la Raspberry
+    al flujo que no era (2026-11-04)."""
+
+    @field_validator("tipo")
+    @classmethod
+    def _que_se_pueda_pedir(cls, v: str) -> str:
+        if v == "mecanismo":
+            # Una página abierta de antes de F9.13 (limpieza) todavía lo
+            # ofrece: que diga qué pedir, no «valor no permitido».
+            raise ValueError("los mecanismos ya no se piden aparte: pide «un robot o "
+                             "conjunto», y lo que se mueve se verifica como conjunto")
+        if v not in ("pieza", "obra"):
+            raise ValueError("di si es una pieza o un robot o conjunto de varias")
+        return v
 
 
 ESTATICOS = ("three.module.min.js", "OrbitControls.js")
@@ -148,26 +152,25 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
     def disenar(pedido: Pedido) -> dict:
         if trabajos is None:
             raise HTTPException(503, "esta web no tiene con qué lanzar diseños")
-        referencias = [_proyecto(pedido.basado_en).name] if pedido.basado_en else []
         otro = trabajos.current() or en_marcha(workspace / "projects")
         if otro:
             raise HTTPException(
                 409, f"ya hay un proyecto en marcha ({otro}); espera a que termine")
         try:
-            comando = {"pieza": orden_pieza, "obra": orden_obra}.get(pedido.tipo)
-            if pedido.tipo != "mecanismo" and not comando:
+            # La orden, siempre explícita: lo que no la tenga no cae en la
+            # orden por omisión del gestor.
+            comando = {"pieza": orden_pieza, "obra": orden_obra}[pedido.tipo]
+            if not comando:
                 raise HTTPException(503, f"esta web no tiene con qué diseñar «{pedido.tipo}»")
-            return {"id": trabajos.start(pedido.peticion, referencias=referencias,
-                                         comando=comando)}
+            return {"id": trabajos.start(pedido.peticion, comando=comando)}
         except RuntimeError as e:
             raise HTTPException(409, str(e))
 
     @app.post("/api/proyectos/{id}/modificar")
     def modificar(id: str, pedido: Modificacion) -> dict:
-        """Una versión nueva del proyecto de `id`, partiendo de `id`.
-
-        Antes, cambiar algo era pedir un diseño nuevo «partiendo de» otro, y
-        cada intento salía como un proyecto más en la lista."""
+        """Una versión nueva del proyecto de `id`, partiendo de `id`. Solo
+        de una pieza suelta: un backlog se cambia pieza a pieza, y un
+        mecanismo ya hecho no se cambia."""
         if trabajos is None:
             raise HTTPException(503, "esta web no tiene con qué lanzar diseños")
         base = _proyecto(id)
@@ -177,11 +180,9 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
                 409, f"ya hay un proyecto en marcha ({otro}); espera a que termine")
         try:
             return lanzar_modificacion(trabajos, workspace, base, pedido.peticion,
-                                       pieza=pedido.pieza, orden_pieza=orden_pieza)
-        except RuntimeError as e:
+                                       orden_pieza=orden_pieza)
+        except (RuntimeError, ValueError) as e:   # ValueError: no es una pieza suelta
             raise HTTPException(409, str(e))
-        except ValueError as e:   # una pieza que no existe
-            raise HTTPException(422, str(e))
 
     @app.post("/api/proyectos/{id}/aprobar")
     def aprobar(id: str, visto: VistoBueno) -> dict:
@@ -261,24 +262,17 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
             raise HTTPException(409, str(e))
         return {"id": carpeta.name, "rehechos": rehechos}
 
-    @app.get("/api/proyectos")
-    def proyectos() -> list[dict]:
-        return agrupar(ejecuciones(workspace), workspace)
-
     @app.get("/api/proyectos/{id}")
     def detalle(id: str) -> dict:
-        """Una VERSIÓN: el id es el de su carpeta."""
+        """Lo que enseña «Detalles técnicos» de una VERSIÓN (el id es el de
+        su carpeta), y nada más: la página lo pide al desplegarlo."""
         carpeta = _proyecto(id)
         en_marcha = estado_de(carpeta)["estado"] == "en marcha"
         peticion = ((carpeta / "request.md").read_text(encoding="utf-8", errors="ignore").strip()
                     if (carpeta / "request.md").is_file() else "")
-        return {"id": carpeta.name, "peticion": peticion,
-                "modificacion": marca_de(carpeta).get("modificacion"),
-                "piezas": piezas_con_uso(carpeta),
-                "es_mecanismo": (carpeta / "mechanism.json").is_file(),
-                "vista": bool(piezas_de(carpeta)),
-                "documentos": documentos_de(carpeta),
-                **estadisticas(carpeta, en_marcha=en_marcha)}
+        e = estadisticas(carpeta, en_marcha=en_marcha)
+        return {"peticion": peticion, "documentos": documentos_de(carpeta),
+                "rondas": e["rondas"], "requisitos": e["requisitos"], "coste": e["coste"]}
 
     @app.get("/proyectos/{id}/vista.png")
     def vista(id: str) -> FileResponse:
@@ -511,8 +505,8 @@ def main() -> None:
         workspace,
         puente=os.environ.get("PRUSASLICER_BRIDGE") or None,
         host_workspace=os.environ.get("HOST_WORKSPACE", ""),
-        # La misma orden que lanza Crafty (mcp_server._store).
-        trabajos=JobStore(workspace / "projects", ["intelliprint", "mecanismo"],
+        # Las mismas órdenes que lanza Crafty (mcp_server._store).
+        trabajos=JobStore(workspace / "projects", ["intelliprint", "obra"],
                           comando_pieza=["intelliprint", "pieza"]),
         orden_pieza=["intelliprint", "pieza"],
         orden_obra=["intelliprint", "obra"],

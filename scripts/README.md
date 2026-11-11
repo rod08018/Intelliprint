@@ -4,7 +4,6 @@ Utilidades del **host**, fuera de Docker.
 
 | Script | Para qué |
 |---|---|
-| `eval_part_designer.py` | Mide al Part Designer contra peticiones de referencia |
 | `eval_requirements.py` | Mide la extracción de requisitos |
 | `eval_structured_output.py` | Mide cuántas veces el modelo devuelve un esquema válido a la primera |
 

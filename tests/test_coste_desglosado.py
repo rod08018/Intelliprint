@@ -134,6 +134,43 @@ def test_una_obra_suma_su_gasto_paso_a_paso_en_su_carpeta(tmp_path, monkeypatch)
     assert "0.0018 USD" in (tmp_path / "design_cost.md").read_text(encoding="utf-8")
 
 
+def _ya_gastado(carpeta, usd):
+    (carpeta / "design_cost.json").write_text(json.dumps({"resumen": {}, "detalle": [
+        {"agente": "razonador", "modelo": "deepseek-reasoner", "etapa": "pieza «Base»",
+         "tokens_entrada": 1, "tokens_salida": 1, "usd": usd, "con_precio": True}]}),
+        encoding="utf-8")
+
+
+def test_un_proyecto_que_llego_a_su_tope_no_gasta_mas(tmp_path):
+    """El usuario puso el tope en 5 USD por proyecto (2026-09-21). Solo lo
+    comprobaba el flujo de mecanismos: una pieza o un backlog, que es lo que
+    se usa, podían pasarse sin que nada los parara, aunque la web dijera
+    «hasta 5 USD» (visto al quitar ese flujo, 2026-11-11). Cada paso de un
+    proyecto —el plan, cada pieza— mira antes de empezar lo que ya lleva."""
+    from pathlib import Path
+
+    import yaml
+
+    from orchestrator import cli
+
+    raiz = Path(__file__).resolve().parents[1]
+    config = yaml.safe_load((raiz / "config" / "models.yaml").read_text(encoding="utf-8"))
+    assert config["escalation"]["max_usd_per_project"] == 5.0, "lo decidió el usuario"
+    hecho = []
+
+    _ya_gastado(tmp_path, 5.01)
+    with pytest.raises(SystemExit) as parada:
+        with cli._apuntar_gasto(raiz, tmp_path, "pieza «Soporte»"):
+            hecho.append("gastó")
+    assert hecho == []
+    assert "5.01 USD" in str(parada.value) and "5.00" in str(parada.value)
+
+    _ya_gastado(tmp_path, 4.99)
+    with cli._apuntar_gasto(raiz, tmp_path, "pieza «Soporte»"):
+        hecho.append("gastó")
+    assert hecho == ["gastó"]
+
+
 def test_una_pieza_suelta_tambien_deja_su_coste(tmp_path, monkeypatch):
     """Solo los mecanismos dejaban `design_cost.md`; una pieza suelta, que es
     lo que más se pide, no decía cuánto costó. Un concepto que no sale tras

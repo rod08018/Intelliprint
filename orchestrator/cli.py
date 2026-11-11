@@ -1,10 +1,11 @@
-"""`intelliprint`: línea de comandos (entregable de la Fase 1).
+"""`intelliprint`: línea de comandos.
 
-    intelliprint new "lo que quieres diseñar"
-    intelliprint resume <proyecto>
+    intelliprint pieza "lo que quieres diseñar"
+    intelliprint obra "un robot o un conjunto: varias piezas, una a una"
 
-`resume` existe porque el estado se persiste tras cada etapa: si algo se
-cae a mitad, se retoma sin repetir la admisión ni lo ya construido.
+Las dos dan un paso y paran donde hace falta la persona (el concepto, el
+desglose, el visto bueno de cada pieza). El estado está en la carpeta del
+proyecto: volver a lanzar la orden con `--carpeta` sigue donde se quedó.
 """
 
 import argparse
@@ -13,14 +14,11 @@ import datetime as dt
 import os
 import shutil
 import sys
-import uuid
 from contextlib import contextmanager
 from pathlib import Path
 
 from orchestrator.build import design_and_build
 from orchestrator.config import load_env
-from orchestrator.graph import Dependencias, crear_grafo
-from orchestrator.human.adapters.cli import CliAdapter
 from orchestrator.impresion import perfil_activo
 from orchestrator.llm.providers.deepseek import DeepSeekClient
 from orchestrator.llm.router import Router
@@ -72,11 +70,27 @@ def _cliente(router: Router, env: dict, role: str = "design"):
 def _apuntar_gasto(raiz: Path, carpeta: Path, etapa: str):
     """Suma al coste de `carpeta` las llamadas de los clientes creados dentro
     del bloque, salga como salga: un paso que se para a medias también gastó.
-    Solo los mecanismos dejaban `design_cost.md`; la ronda del pan-tilt del
-    banco (1110-0313) no pudo decir cuánto costó (2026-11-10)."""
+    Las piezas y los backlogs no dejaban `design_cost.md`; la ronda del
+    pan-tilt del banco (1110-0313) no pudo decir cuánto costó (2026-11-10)."""
     import yaml
 
-    from orchestrator.llm.cost import Presupuesto
+    from orchestrator.llm.cost import Presupuesto, PresupuestoAgotado
+
+    def presupuesto_de_hoy():
+        return Presupuesto.from_config(yaml.safe_load(
+            (raiz / "config" / "models.yaml").read_text(encoding="utf-8"))).continuar(carpeta)
+
+    # F5.12 (tope): antes de gastar más se mira lo que el proyecto ya lleva.
+    # El tope lo puso el usuario (5 USD) y solo lo comprobaba el flujo de
+    # mecanismos: una pieza o un backlog podían pasarse sin que nada los
+    # parara, con la web diciendo «hasta 5 USD». Se mira al empezar cada paso
+    # —el plan, cada pieza—, así que un proyecto se pasa como mucho en lo que
+    # cuesta un paso.
+    try:
+        presupuesto_de_hoy().comprobar()
+    except PresupuestoAgotado as tope:
+        sys.exit(f"✗ {tope} El tope está en `escalation.max_usd_per_project` de "
+                 "config/models.yaml.")
 
     desde = len(_CLIENTES)
     try:
@@ -84,8 +98,7 @@ def _apuntar_gasto(raiz: Path, carpeta: Path, etapa: str):
     finally:
         nuevos = _CLIENTES[desde:]
         if any(c.llamadas for c, _ in nuevos):
-            presupuesto = Presupuesto.from_config(yaml.safe_load(
-                (raiz / "config" / "models.yaml").read_text(encoding="utf-8"))).continuar(carpeta)
+            presupuesto = presupuesto_de_hoy()
             presupuesto.etapa(etapa)
             for c, rol in nuevos:
                 presupuesto.vigila(c, _AGENTES.get(rol, rol))
@@ -96,9 +109,8 @@ CONSTRUCCIONES_KIT = 5
 
 
 def _disenar_con_kit(raiz: Path, env: dict, cliente):
-    """Las piezas sueltas se dibujan con el kit (F5.18 (kit)): el catálogo
-    de generadores no sabía hacer una cartela, un hexágono ni un chaflán. Los
-    mecanismos siguen con recetas hasta que el kit los cubra."""
+    """Las piezas se dibujan con el kit (F5.18 (kit)): el catálogo de
+    generadores no sabía hacer una cartela, un hexágono ni un chaflán."""
     from orchestrator.agents.disenador_kit import DisenadorKitAgent
     from orchestrator.componentes import mencionados
     from orchestrator.medida import defectos_de_la_pieza
@@ -144,22 +156,6 @@ def _disenar_con_kit(raiz: Path, env: dict, cliente):
     return disenar
 
 
-def _grafo(raiz: Path, env: dict):
-    from orchestrator.agents.requirements import RequirementsAgent
-
-    router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
-    cliente = _cliente(router, env)
-    deps = Dependencias(
-        requirements=RequirementsAgent(cliente, activo=_perfil(raiz, env)),
-        disenar=_disenar_con_kit(raiz, env, cliente),
-        laminar=elegir_laminador(raiz, env),
-        port=CliAdapter(),
-        workspace=_workspace(raiz, env) / "projects",
-        ingeniero=_ingeniero(raiz, router, env, cliente),
-    )
-    return crear_grafo(deps, _workspace(raiz, env) / "state.sqlite")
-
-
 def _ingeniero(raiz: Path, router: Router, env: dict, reserva):
     """F3.18 (ingeniero), con el razonador: decidir cómo se resuelve una
     pieza es el paso que más pensar pide. `reserva` es el modelo sin
@@ -181,178 +177,17 @@ def _workspace(raiz: Path, env: dict) -> Path:
     return Path(env["INTELLIPRINT_WORKSPACE"]) if env.get("INTELLIPRINT_WORKSPACE") else raiz / "workspace"
 
 
-def _informar(final: dict, nombre: str) -> None:
-    print()
-    if final.get("estado") == "INTAKE":
-        print(f"[{nombre}] No confirmado: el proyecto se queda en admisión, sin gastar nada.")
-        return
-    r, s = final["result"], final["slicing"]
-    h, m = divmod(s["time_s"] // 60, 60)
-    print(f"[{nombre}] Listo: {final['part']}")
-    print(f"  pieza:    {r['volume_mm3']:.1f} mm³, envolvente {' x '.join(f'{v:g}' for v in r['bbox_mm'])} mm")
-    print(f"  laminado: {s['grams']:.1f} g, {s['filament_mm'] / 1000:.2f} m, {h} h {m} min")
-    print(f"  proyecto: {final['proyecto']}")
-    for d in r.get("defectos", []):
-        print(f"  ⚠️ no cumple: {d}")
-    if r.get("untraced_mm"):
-        cotas = ", ".join(f"{c:g} mm" for c in r["untraced_mm"])
-        print(f"  ⚠️ cotas de tu petición que NO aparecen en la pieza: {cotas}. Revísala antes de imprimir.")
-    print("  ⚠️ el G-code de inicio del perfil de la M5 no está verificado: revísalo antes de imprimir.")
-
-
-def _mecanismo(args, raiz: Path, env: dict, nombre: str) -> None:
-
-    from mech_toolkit.generators import CATALOGO
-    from orchestrator.agents.part_designer import PartDesignerAgent
-    from orchestrator.mechanisms.run import build_mechanism, llm_designer
-    from orchestrator.mechanisms.slider_crank import SliderCrankLayout
-
-    perfil = _perfil(raiz, env).impresora
-    if args.peticion != ["biela-manivela"]:
-        _mecanismo_desde_texto(args, raiz, env, nombre, perfil)
-        return
-    if args.carrera is None:
-        sys.exit("biela-manivela necesita --carrera")
-    layout = SliderCrankLayout(stroke_mm=args.carrera, profile=perfil)
-    origen = "referencia" if args.referencia else "modelo"
-    carpeta = (_workspace(raiz, env) / "projects"
-               / f"{dt.date.today():%Y-%m-%d}-biela_manivela_{args.carrera:g}mm_{origen}")
-    print(f"[{nombre}] Biela-manivela-corredera, carrera {args.carrera:g} mm → {carpeta}")
-    freecad = _freecadcmd(env)
-    disenar = None
-    if not args.referencia:
-        router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
-        agente = PartDesignerAgent(_cliente(router, env), CATALOGO)
-        disenar = llm_designer(agente, layout.briefs(), freecad, check=layout.check_bounds)
-        print(f"  las piezas las diseña el modelo ({router.profile_name})")
-    informe = build_mechanism(layout, carpeta, freecad,
-                              min_gap_mm=perfil.fit_mm("slide") / 2, disenar=disenar)
-    print(f"  ensamble:  {informe.assembly}  (ábrelo en FreeCAD)")
-    print(f"  animación: {informe.animation}")
-    if informe.ok:
-        print(f"  ✓ sin choques en {len(informe.angles)} posiciones de la vuelta "
-              f"(holgura mínima {informe.min_gap_mm:g} mm)")
-    else:
-        print(f"  ✗ choques en {len({c.angle for c in informe.collisions})} de "
-              f"{len(informe.angles)} posiciones:")
-        for linea in informe.collision_summary():
-            print(f"    - {linea}")
-
-
-def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> None:
-    """F3.15 (mecanismos): todo lo decide Intelliprint a partir del texto."""
-    import yaml
-
-    from mech_toolkit.generators import CATALOGO
-    from orchestrator.agents.design_reviewer import DesignReviewerAgent
-    from orchestrator.agents.mechanism_designer import MechanismDesignerAgent
-    from orchestrator.llm.cost import Presupuesto
-    from orchestrator.agents.part_designer import PartDesignerAgent
-    from orchestrator.mechanisms.flow import design_mechanism
-    from orchestrator.tasks import slug
-
-    peticion = " ".join(args.peticion)
-    if args.archivo:
-        peticion = Path(peticion).read_text(encoding="utf-8")
-    impresora = _perfil(raiz, env).datos
-    cama = tuple(impresora["bed_mm"][k] for k in "xyz")
-    hueco = perfil.fit_mm("slide") / 2
-    router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
-    cliente = _cliente(router, env)
-    mecanico = _cliente(router, env, "reason")
-    presupuesto = Presupuesto.from_config(
-        yaml.safe_load((raiz / "config" / "models.yaml").read_text(encoding="utf-8")))
-    presupuesto.vigila(cliente, "Part Designer / Design Reviewer")
-    presupuesto.vigila(mecanico, "Mechanism Designer")
-    carpeta = Path(args.carpeta) if args.carpeta else (
-        _workspace(raiz, env) / "projects"
-        / f"{dt.datetime.now():%Y-%m-%d-%H%M}-{slug(peticion.split(chr(10))[0])[:40]}")
-    from orchestrator.mechanisms.referencias import ReferenciaInvalida, desde_el_entorno
-    try:
-        referencias = desde_el_entorno(args.adjunto, _workspace(raiz, env), env)
-    except ReferenciaInvalida as e:
-        sys.exit(f"referencia no válida: {e}")
-    # Una versión nueva de un proyecto parte de su base y solo cambia lo
-    # pedido: rediseñar entero un sargento para agrandarle el mango eran
-    # 4-7 rondas del razonador (2026-10-26).
-    from orchestrator.web.versiones import edicion_de
-    edicion = (edicion_de(carpeta, _workspace(raiz, env))
-               if args.carpeta and not args.continuar else None)
-    base, cambio, pieza = edicion or (None, "", "")
-    print(f"[{nombre}] Mecanismo desde tu texto → {carpeta}")
-    if base is not None:
-        print(f"  versión nueva: parte de {base.name} y cambia "
-              + (f"solo «{pieza}»" if pieza else "lo pedido"))
-    print(f"  Mechanism Designer: {router.for_role('reason').model} · "
-          f"Part Designer: {router.for_role('design').model}")
-    # Crafty lanza esto en el contenedor del MCP y la web lo mira desde el
-    # suyo: sin latido, el pid de job.json no le dice nada (2026-10-26).
-    from orchestrator.registry import latir
-    with latir(carpeta):
-        informe = design_mechanism(
-            peticion,
-            MechanismDesignerAgent(mecanico, CATALOGO, perfil, cama, hueco,
-                                   wall_mm=impresora["walls"]["structural_mm"],
-                                   reserva=cliente),
-            PartDesignerAgent(cliente, CATALOGO),
-            carpeta, _freecadcmd(env), min_gap_mm=hueco,
-            reviewer=DesignReviewerAgent(cliente), continuar=args.continuar,
-            presupuesto=presupuesto, referencias=referencias,
-            base=base, cambio=cambio, pieza=pieza,
-        )
-    f = informe.final
-    print()
-    motivo_parada = {
-        "resuelto": "", "atascado": " — se atascó repitiendo el mismo fallo",
-        "presupuesto": f" — se acabó el presupuesto ({informe.spent_usd:.2f} USD)",
-        "rondas": " — se alcanzó el límite de rondas",
-        "con_defectos": " — CON DEFECTOS: el revisor ve requisitos sin cumplir",
-    }[informe.stopped_because]
-    print(f"[{nombre}] {informe.rounds[-1].title}: {len(informe.rounds)} ronda(s)"
-          f"{motivo_parada}. Gasto: {informe.spent_usd:.2f} USD "
-          f"(desglose en design_cost.md)")
-    if f is not None:
-        print(f"  ensamble:  {f.assembly}  (ábrelo en FreeCAD)")
-        print(f"  animación: {f.animation}")
-        for nota in f.notes:
-            print(f"  · {nota}")
-    if informe.ok:
-        print(f"  ✓ sin choques en {len(f.angles)} posiciones; contactos y requisitos cumplidos")
-    else:
-        print("  ✗ no quedó resuelto. Lo último que falló:")
-        print(informe.rounds[-1].feedback)
-    if informe.review is not None:
-        r = informe.review
-        print(f"\n  Revisión frente a tu petición ({len(r.por_veredicto('cumple'))} cumplen, "
-              f"{len(r.por_veredicto('no_cumple'))} no, "
-              f"{len(r.por_veredicto('no_verificable'))} sin verificar):")
-        for i in r.items:
-            if i.verdict != "cumple":
-                print(f"    · {i.verdict}: {i.requirement} — {i.comment}")
-        print(f"    {r.summary}")
-
-
 def _animar(args, raiz: Path, env: dict, nombre: str) -> None:
-    """Rehace ensamble y animación desde el mecanismo y las piezas ya
-    construidas: no vuelve a diseñar ni a gastar modelo."""
-
-    from orchestrator.mechanisms.run import build_mechanism
-    from orchestrator.mechanisms.spec_layout import SpecLayout
-    from orchestrator.schemas.mechanism import MechanismSpec
-
+    """Vuelve a mover los conjuntos ya verificados de un backlog y deja su
+    animación: no vuelve a diseñar ni a gastar modelo."""
     from orchestrator import obra
 
     carpeta = Path(args.carpeta)
-    if obra.es_obra(carpeta):
-        return _animar_obra(carpeta, raiz, env, nombre)
-    spec = MechanismSpec.model_validate_json((carpeta / "mechanism.json").read_text(encoding="utf-8"))
-    perfil = _perfil(raiz, env).impresora
-    informe = build_mechanism(
-        SpecLayout(spec), carpeta, _freecadcmd(env),
-        min_gap_mm=perfil.fit_mm("slide") / 2, disenar=lambda n, c: None, animar=True)
-    print(f"[{nombre}] {spec.title}")
-    print(f"  ensamble:  {informe.assembly}")
-    print(f"  animación: {informe.animation}")
+    if not obra.es_obra(carpeta):
+        # Los mecanismos que ya hay conservan la animación que se les hizo;
+        # lo que la rehacía se fue con su flujo (F9.13 (limpieza)).
+        sys.exit(f"{carpeta.name} no es un backlog: solo se animan los conjuntos de un backlog")
+    _animar_obra(carpeta, raiz, env, nombre)
 
 
 def _animar_obra(carpeta: Path, raiz: Path, env: dict, nombre: str) -> None:
@@ -460,8 +295,7 @@ def _calibrar(args, raiz: Path, env: dict, nombre: str) -> None:
 
 def _pieza(args, raiz: Path, env: dict, nombre: str) -> None:
     """Una pieza suelta sin confirmación por consola (F5.17 (pieza)): quien la
-    lanza desde la web o Telegram ya confirmó al pedirla. Para probar a mano
-    con confirmación sigue estando `intelliprint new`."""
+    lanza desde la web o Telegram ya confirmó al pedirla."""
     texto = " ".join(args.peticion)
     peticion = Path(texto).read_text(encoding="utf-8") if args.archivo else texto
     carpeta = (Path(args.carpeta) if args.carpeta else _workspace(raiz, env) / "projects"
@@ -509,11 +343,10 @@ def _hacer_pieza(args, peticion: str, carpeta: Path, raiz: Path, env: dict, nomb
     # perdido (decidido por el usuario, 2026-11-09). Se lamina cuando la
     # persona abre PrusaSlicer desde la web; el banco lamina para juzgar.
     informe = disenar_pieza(peticion, carpeta, requisitos=requisitos,
-                            disenar=_disenar_con_kit(raiz, env, cliente), laminar=None)
+                            disenar=_disenar_con_kit(raiz, env, cliente))
     if informe.resuelto:
-        gramos = f", {informe.gramos:.1f} g" if informe.gramos is not None else ""
         print(f"[{nombre}] ✓ {informe.titulo}: "
-              f"{' x '.join(f'{v:g}' for v in informe.bbox_mm)} mm{gramos}")
+              f"{' x '.join(f'{v:g}' for v in informe.bbox_mm)} mm")
     else:
         print(f"[{nombre}] ✗ {informe.titulo}: {informe.motivo}")
         sys.exit(1)
@@ -749,33 +582,14 @@ def _banco(args, raiz: Path, env: dict, nombre: str) -> None:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="intelliprint")
     sub = parser.add_subparsers(dest="comando", required=True)
-    nuevo = sub.add_parser("new", help="empezar un proyecto")
-    nuevo.add_argument("peticion", nargs="+")
-    reanudar = sub.add_parser("resume", help="reanudar un proyecto interrumpido")
-    reanudar.add_argument("proyecto")
-    anim = sub.add_parser("animar", help="rehacer el ensamble y la animación de un proyecto ya diseñado")
+    anim = sub.add_parser("animar", help="volver a mover los conjuntos ya verificados de un "
+                                         "backlog, con su animación")
     anim.add_argument("carpeta")
     estu = sub.add_parser("estudio", help="estudio de movimientos: carga, servos, vuelco, alcance y tiempos")
     estu.add_argument("carpeta")
     proy = sub.add_parser("proyectos", help="listar proyectos y ordenar el workspace")
     proy.add_argument("--archivar", action="store_true",
                       help="mover lo no aprobado a workspace/archivo (no borra nada)")
-    meca = sub.add_parser("mecanismo", help="diseñar un mecanismo y ver su ensamble animado")
-    meca.add_argument("peticion", nargs="+",
-                      help='el mecanismo en texto, o "biela-manivela" con --carrera')
-    meca.add_argument("--archivo", action="store_true",
-                      help="la petición es la ruta de un archivo de texto")
-    meca.add_argument("--carrera", type=float, help="solo biela-manivela: carrera, mm")
-    meca.add_argument("--carpeta", help="carpeta del proyecto (por defecto, una nueva en workspace)")
-    meca.add_argument("--continuar", action="store_true",
-                      help="seguir un proyecto fallido: parte de su último diseño y del motivo")
-    meca.add_argument("--referencia", action="store_true",
-                      help="usar las recetas fijas de la disposición en vez del modelo")
-    # F5.2 (adjuntos). No se llama --referencia porque ese nombre ya era de la
-    # disposición fija de la biela-manivela.
-    meca.add_argument("--adjunto", action="append", default=[], metavar="IMAGEN|TEXTO|PROYECTO",
-                      help="una referencia para el diseñador: una imagen, un texto o el id de "
-                           "un proyecto que ya salió. Se puede repetir.")
     cal = sub.add_parser("calibrar", help="pieza de calibración de holguras (F2.18 (calibración))")
     acciones = cal.add_subparsers(dest="accion", required=True)
     acciones.add_parser("pieza", help="construir las piezas para imprimirlas")
@@ -795,12 +609,11 @@ def _parser() -> argparse.ArgumentParser:
     pieza.add_argument("--archivo", action="store_true",
                        help="la petición es la ruta de un archivo de texto")
     pieza.add_argument("--carpeta", help="carpeta del proyecto (por defecto, una nueva)")
-    # Lo que pasa JobStore a cualquier orden. Reanudar una pieza es volver a
-    # hacerla en su carpeta; los adjuntos aún no los usa el flujo de piezas.
+    # Lo pasa JobStore al relanzar. Reanudar una pieza es volver a hacerla en
+    # su carpeta, así que no cambia nada.
     pieza.add_argument("--continuar", action="store_true", help=argparse.SUPPRESS)
     pieza.add_argument("--aprobar-concepto", action="store_true",
                        help="dar por bueno el concepto y modelar sin parar (el banco)")
-    pieza.add_argument("--adjunto", action="append", default=[], help=argparse.SUPPRESS)
     ob = sub.add_parser("obra", help="un proyecto por partes (F7.2 (desglose)): lo desglosa y "
                                      "diseña una pieza cada vez, parando a por tu visto bueno")
     ob.add_argument("peticion", nargs="+")
@@ -808,7 +621,6 @@ def _parser() -> argparse.ArgumentParser:
                     help="la petición es la ruta de un archivo de texto")
     ob.add_argument("--carpeta", help="carpeta del proyecto (por defecto, una nueva)")
     ob.add_argument("--continuar", action="store_true", help=argparse.SUPPRESS)
-    ob.add_argument("--adjunto", action="append", default=[], help=argparse.SUPPRESS)
     ob.add_argument("--banco", action="store_true",
                     help="solo el banco: la obra entera, con el visto bueno dado por él")
     banco = sub.add_parser("banco", help="pedir las piezas del banco y medir si salen usables "
@@ -836,9 +648,6 @@ def main(argv: list[str] | None = None) -> None:
     os.chdir(raiz)
     env = load_env(raiz / ".env")
     nombre = env.get("AGENT_NAME") or "Crafty"
-    if args.comando == "mecanismo":
-        _mecanismo(args, raiz, env, nombre)
-        return
     if args.comando == "animar":
         _animar(args, raiz, env, nombre)
         return
@@ -864,16 +673,6 @@ def main(argv: list[str] | None = None) -> None:
     if args.comando == "obra":
         _obra(args, raiz, env, nombre)
         return
-    grafo = _grafo(raiz, env)
-
-    if args.comando == "new":
-        hilo = f"{dt.datetime.now():%Y%m%d-%H%M%S}-{uuid.uuid4().hex[:6]}"
-        print(f"[{nombre}] Proyecto {hilo}. Si algo se interrumpe: intelliprint resume {hilo}")
-        final = grafo.invoke({"peticion": " ".join(args.peticion)},
-                             {"configurable": {"thread_id": hilo}})
-    else:
-        final = grafo.invoke(None, {"configurable": {"thread_id": args.proyecto}})
-    _informar(final, nombre)
 
 
 if __name__ == "__main__":

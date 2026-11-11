@@ -1,18 +1,15 @@
 """Trazabilidad petición → receta (F1.16 (trazabilidad)).
 
 El bug real: se pidió "agujeros de 3.3 mm", el resumen perdió la cota y
-el Part Designer puso Ø3.2 sacado de lo que sabe de un NEMA17. La pieza
+el diseñador puso Ø3.2 sacado de lo que sabe de un NEMA17. La pieza
 salió bien construida, con un valor que contradecía la petición, y
 ningún test lo vio. Esta guardia es determinista: no pregunta a ningún
 modelo si la receta respeta la petición, compara números.
 """
 
-import json
-
 import pytest
 
 from mech_toolkit.generators import CATALOGO
-from orchestrator.agents.part_designer import PartDesignerAgent
 from orchestrator.build import design_and_build
 from orchestrator.schemas.recipe import Recipe, RecipeStep
 from orchestrator.traceability import requested_dimensions, untraced
@@ -50,27 +47,29 @@ def test_detecta_la_cota_que_la_receta_perdio():
     assert untraced(PETICION, _receta(3.3)) == []
 
 
-class ClienteGuionizado:
-    def __init__(self, respuestas):
-        self._r = list(respuestas)
-        self.prompts = []
+class DisenadorGuionizado:
+    """Un diseñador con las recetas escritas: lo que se prueba es qué le
+    devuelve el bucle de construcción (`rechazos`), no un agente."""
 
-    def complete(self, prompt, **kwargs):
-        self.prompts.append(prompt)
+    def __init__(self, recetas):
+        self._r = list(recetas)
+        self.rechazos = []
+
+    def design(self, tarea, rechazo=None):
+        self.rechazos.append(rechazo)
         return self._r.pop(0)
 
 
 @pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
 def test_una_cota_perdida_vuelve_al_disenador_con_el_valor(tmp_path):
-    cliente = ClienteGuionizado([_receta(3.2).model_dump_json(), _receta(3.3).model_dump_json()])
+    agente = DisenadorGuionizado([_receta(3.2), _receta(3.3)])
 
     receta, resultado = design_and_build(
-        PartDesignerAgent(cliente, CATALOGO), "brief", CATALOGO, tmp_path,
-        freecadcmd=_freecadcmd(), request=PETICION,
+        agente, "brief", CATALOGO, tmp_path, freecadcmd=_freecadcmd(), request=PETICION,
     )
 
     assert receta.steps[2].params["hole_diameter_mm"] == 3.3
-    assert "3.3 mm" in cliente.prompts[1]
+    assert "3.3 mm" in agente.rechazos[1][1]
     assert resultado.untraced_mm == []
 
 
@@ -78,10 +77,8 @@ def test_una_cota_perdida_vuelve_al_disenador_con_el_valor(tmp_path):
 def test_si_insiste_se_construye_pero_queda_anotado(tmp_path):
     """La guardia es heurística: si la cota sigue sin aparecer tras los
     reintentos, no rompe la construcción. Queda anotada para el informe."""
-    cliente = ClienteGuionizado([_receta(3.2).model_dump_json()] * 3)
-
     _, resultado = design_and_build(
-        PartDesignerAgent(cliente, CATALOGO), "brief", CATALOGO, tmp_path,
+        DisenadorGuionizado([_receta(3.2)] * 3), "brief", CATALOGO, tmp_path,
         freecadcmd=_freecadcmd(), request=PETICION,
     )
 

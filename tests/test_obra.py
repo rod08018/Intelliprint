@@ -674,7 +674,7 @@ def test_aprobar_una_obra_sigue_con_su_orden(tmp_path):
     from orchestrator import obra as O
     from orchestrator.jobs import JobStore
     orden = [sys.executable, "-c", "print('orden obra')"]
-    store = JobStore(tmp_path, comando=["mecanismo"], comando_pieza=["pieza"])
+    store = JobStore(tmp_path, comando=["la-orden-por-omision"], comando_pieza=["pieza"])
     job = store.start("un pan-tilt con dos SG90", comando=orden)
     _esperar(store, job)
     O.guardar(tmp_path / job, _obra(), por="prueba")

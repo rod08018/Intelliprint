@@ -74,9 +74,9 @@ def resolver_proyecto(id: str, workspace: Path, banco: bool = False) -> Path:
 
 
 def piezas_de(carpeta: Path) -> list[Path]:
-    """Las STL que construyó el sistema. Las dos rutas del diseño —pieza
-    única y mecanismo— las dejan en parts/<nombre>/<nombre>.stl; una obra,
-    en la carpeta de cada nodo (F7.2 (desglose))."""
+    """Las STL que construyó el sistema. Una pieza suelta (y los mecanismos
+    que ya hay) las deja en parts/<nombre>/<nombre>.stl; una obra, en la
+    carpeta de cada nodo (F7.2 (desglose))."""
     carpeta = Path(carpeta)
     return sorted([*carpeta.glob("parts/*/*.stl"), *carpeta.glob("nodos/*/parts/*/*.stl")])
 
@@ -94,7 +94,6 @@ def ejecuciones(workspace: Path, banco: bool = False) -> list[dict]:
             fila = {k: v for k, v in fila.items() if k != "carpeta"}
             fila["seccion"] = seccion
             fila["piezas"] = len(piezas_de(carpeta / fila["id"]))
-            fila["es_mecanismo"] = (carpeta / fila["id"] / "mechanism.json").is_file()
             e = estadisticas(carpeta / fila["id"], en_marcha=fila["estado"] == "en marcha")
             # La lista lleva el resumen; la historia de rondas y la tabla de
             # requisitos son del detalle, o la portada pesaría lo que pesan
@@ -122,8 +121,10 @@ def marca_de(carpeta: Path) -> dict:
 
 
 def _citado(carpeta: Path) -> str | None:
-    """El proyecto del que partió, si una de sus referencias lo cita. El
-    título lo escribe `referencias._proyecto`: «proyecto <id> (…)»."""
+    """El proyecto del que partió, si una de sus referencias lo cita:
+    «proyecto <id> (…)». Las escribía el flujo de mecanismos, que ya no
+    existe; se siguen leyendo para que los rediseños que dejó salgan como
+    versiones de su proyecto y no como proyectos sueltos."""
     for texto in sorted((carpeta / "referencias").glob("texto_*.md")):
         try:
             primera = texto.read_text(encoding="utf-8").split("\n", 1)[0]
@@ -273,61 +274,36 @@ def proyectos(workspace: Path) -> list[dict]:
 
 
 def lanzar_modificacion(trabajos, workspace: Path, base: Path, cambio: str,
-                        pieza: str = "", orden_pieza: list[str] | None = None) -> dict:
+                        orden_pieza: list[str] | None = None) -> dict:
     """Una versión nueva del proyecto de `base`, partiendo de `base`. La usan
     la web y Crafty: antes Crafty solo podía pedir un diseño NUEVO, y una
     corrección del sargento salió como otro proyecto (2026-10-26).
 
-    `pieza`: si el cambio es de una sola pieza, cuál. Va en la petición para
-    que el diseñador no toque las demás."""
+    Solo de una pieza suelta. Lo demás se dice con `ValueError` y no lanza
+    nada: sin esto, lo que no era una pieza caía en la orden por omisión del
+    gestor con la petición entera del proyecto."""
     base = Path(base)
+    if (base / "obra.json").is_file():
+        raise ValueError("un backlog se cambia pieza a pieza, con Corregir o Rehacer en su "
+                         "tarjeta; no se rehace entero")
+    if (base / "mechanism.json").is_file():
+        raise ValueError(
+            f"{base.name} es un mecanismo, y el flujo de mecanismos se retiró: se puede ver, "
+            "descargar y abrir en PrusaSlicer, pero no cambiar. Lo que se mueve se pide ahora "
+            "como un robot o conjunto")
+    # Una pieza se rehace como pieza (2026-11-04: el gancho, al cambiarlo,
+    # salía por la orden por omisión, entonces el flujo viejo de recetas).
+    es_pieza = (base / "pieza.json").is_file() or "pieza" in (
+        (_leer(base / "job.json") or {}).get("comando") or [])
+    if not es_pieza:
+        raise ValueError(f"{base.name} no es una pieza suelta: no hay con qué rehacerlo")
+    if not orden_pieza:
+        raise RuntimeError("esto no tiene con qué rehacer una pieza suelta")
     raiz = raices(workspace).get(base.name, base.name)
     original = ((base / "request.md").read_text(encoding="utf-8", errors="ignore")
                 if (base / "request.md").is_file() else "")
-    cambio, pieza = cambio.strip(), pieza.strip()
-    if pieza and pieza not in nombres_de_piezas(base):
-        raise ValueError(f"la versión {base.name} no tiene ninguna pieza «{pieza}»; tiene: "
-                         + ", ".join(nombres_de_piezas(base)))
-    texto = (f"Solo la pieza «{pieza}»; las demás se quedan como están: {cambio}"
-             if pieza else cambio)
-    # Sin mechanism.json el cargador de referencias rechaza el id y el
-    # trabajo moriría al arrancar; la petición ya lleva lo que se pidió.
-    referencias = [base.name] if (base / "mechanism.json").is_file() else []
-    # Una pieza se rehace como pieza. Sin esto salía la orden por omisión del
-    # gestor, `intelliprint mecanismo`: el gancho, al cambiarlo, habría ido
-    # al flujo viejo de recetas (2026-11-04).
-    es_pieza = (base / "pieza.json").is_file() or "pieza" in (
-        (_leer(base / "job.json") or {}).get("comando") or [])
-    if es_pieza and not orden_pieza:
-        raise RuntimeError("esto no tiene con qué rehacer una pieza suelta")
+    cambio = cambio.strip()
     nueva = trabajos.start(
-        componer_modificacion(original, base.name, texto),
-        referencias=referencias,
-        comando=orden_pieza if es_pieza else None,
-        # `cambio` y `pieza` por separado: la CLI los lee (`edicion_de`) para
-        # editar la base en vez de diseñar desde cero.
-        proyecto={"proyecto": raiz, "basado_en": base.name, "modificacion": texto,
-                  "cambio": cambio, "pieza": pieza})
+        componer_modificacion(original, base.name, cambio), comando=orden_pieza,
+        proyecto={"proyecto": raiz, "basado_en": base.name, "modificacion": cambio})
     return {"id": nueva, "proyecto": raiz}
-
-
-def nombres_de_piezas(carpeta: Path) -> list[str]:
-    spec = _leer(Path(carpeta) / "mechanism.json") or {}
-    return [p["name"] for p in spec.get("parts", []) if "name" in p]
-
-
-def edicion_de(carpeta: Path, workspace: Path) -> tuple[Path, str, str] | None:
-    """Si `carpeta` es una modificación de otra versión que tiene diseño:
-    (esa versión, el cambio, la pieza o ""). Si no, None: se diseña desde
-    cero. Las modificaciones de antes de esto no guardaban `cambio` y se
-    siguen rediseñando enteras, como se hacía entonces."""
-    marca = marca_de(carpeta)
-    if not marca.get("basado_en") or not marca.get("cambio"):
-        return None
-    try:
-        base = resolver_proyecto(marca["basado_en"], workspace)
-    except ProyectoDesconocido:
-        return None
-    if not (base / "mechanism.json").is_file():
-        return None
-    return base, marca["cambio"], marca.get("pieza") or ""

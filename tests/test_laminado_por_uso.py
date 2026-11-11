@@ -1,9 +1,14 @@
 """Laminado por pieza según su uso (F3.16 (usos)).
 
 Una pieza que aguanta la tensión de un resorte no se lamina igual que una
-tapa. El diseñador elige el USO de cada pieza en una lista cerrada; los
-números de cada uso los fija `config/slicing/usos.yaml`, que revisa una
-persona. El modelo nunca escribe un ajuste de PrusaSlicer.
+tapa. El USO de cada pieza sale de una lista cerrada; los números de cada
+uso los fija `config/slicing/usos.yaml`, que revisa una persona. El modelo
+nunca escribe un ajuste de PrusaSlicer.
+
+Quien declaraba el uso era el diseñador de mecanismos, que se quitó en
+F9.13 (limpieza): los mecanismos que ya hay lo llevan en su
+`mechanism.json` y se siguen abriendo en PrusaSlicer con él. Una pieza o un
+backlog no declaran uso y van como «general».
 
 Lo esperado sale de la tabla aprobada por el usuario el 2026-10-24
 (estructural: 5 perímetros, gyroid al 40 %, 6 capas arriba y abajo…).
@@ -14,7 +19,6 @@ import io
 import json
 import struct
 import subprocess
-import typing
 import zipfile
 from pathlib import Path
 
@@ -62,33 +66,6 @@ def test_cada_ajuste_de_la_tabla_lo_entiende_prusaslicer():
     tabla = yaml.safe_load((CATALOGO / "usos.yaml").read_text(encoding="utf-8"))
     conocidas = claves_conocidas()
     assert [k for ajustes in tabla.values() for k in (ajustes or {}) if k not in conocidas] == []
-
-
-# --- El diseñador declara el uso; el esquema lo cierra ---------------------
-
-
-def test_una_pieza_sin_uso_es_general_y_un_uso_inventado_no_pasa():
-    from pydantic import ValidationError
-
-    from orchestrator.schemas.mechanism import PartDef
-
-    base = dict(name="tapa", brief="una tapa", bbox_min=[0, 0, 0], bbox_max=[10, 10, 2])
-    assert PartDef(**base).uso == "general"
-    assert PartDef(**base, uso="estructural").uso == "estructural"
-    with pytest.raises(ValidationError):
-        PartDef(**base, uso="blindado")
-
-
-def test_el_esquema_y_la_tabla_no_se_separan():
-    from orchestrator.schemas.mechanism import PartDef
-
-    assert typing.get_args(PartDef.model_fields["uso"].annotation) == USOS
-
-
-def test_el_prompt_del_disenador_explica_cada_uso():
-    prompt = Path("config/agents/mechanism_designer.md").read_text(encoding="utf-8")
-    for uso in USOS:
-        assert f"`{uso}`" in prompt
 
 
 # --- Cómo llegan los ajustes a PrusaSlicer ---------------------------------

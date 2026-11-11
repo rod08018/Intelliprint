@@ -25,8 +25,9 @@ from orchestrator.registry import estado_de, indice
 mcp = MCPServer(
     "intelliprint",
     instructions=(
-        "Diseño de mecanismos imprimibles en 3D. `disenar_mecanismo` tarda "
-        "minutos y trabaja en segundo plano: no esperes, pregunta el estado."
+        "Diseño de piezas imprimibles en 3D, sueltas (`disenar_pieza`) o de un "
+        "robot o conjunto de varias (`disenar_backlog`). Diseñar tarda minutos y "
+        "trabaja en segundo plano: no esperes, pregunta el estado."
     ),
 )
 
@@ -54,23 +55,19 @@ def _store() -> JobStore:
     (2026-10-26)."""
     global _STORE
     if _STORE is None:
-        raiz = _raiz()
-        ejecutable = raiz / ".venv" / "bin" / "intelliprint"
-        comando = [str(ejecutable) if ejecutable.exists() else "intelliprint", "mecanismo"]
-        _STORE = JobStore(_proyectos(), comando, comando_pieza=_orden_pieza())
-        # Tras F7.2 (desglose), una obra se relanza con la orden de su job.json.
+        _STORE = JobStore(_proyectos(), _orden_obra(), comando_pieza=_orden_pieza())
     return _STORE
 
 
 def _orden_pieza() -> list[str]:
-    """La orden de una pieza suelta (F5.17 (pieza)), con el mismo ejecutable
-    que la de mecanismos."""
+    """La orden de una pieza suelta (F5.17 (pieza))."""
     ejecutable = _raiz() / ".venv" / "bin" / "intelliprint"
     return [str(ejecutable) if ejecutable.exists() else "intelliprint", "pieza"]
 
 
 def _orden_obra() -> list[str]:
-    """La orden de un proyecto por partes (F7.2 (desglose))."""
+    """La orden de un proyecto por partes (F7.2 (desglose)), con el mismo
+    ejecutable que la de piezas. Es la orden por omisión del gestor."""
     return [*_orden_pieza()[:-1], "obra"]
 
 
@@ -109,11 +106,12 @@ def buscar_medidas(que: str) -> dict:
 
 @mcp.tool()
 def disenar_pieza(peticion: str) -> dict:
-    """Diseña UNA pieza que no se mueve —un soporte, un gancho, una escuadra,
-    un adaptador, un clip— y la construye y lamina.
+    """Diseña UNA pieza suelta —un soporte, un gancho, una escuadra, un
+    adaptador, un clip— y la construye. No la lamina: los gramos y el tiempo
+    salen al abrirla en PrusaSlicer desde la web.
 
-    Para piezas sueltas. Si lo que pide tiene partes que se mueven entre sí
-    (bisagras, trinquetes, prensas), es `disenar_mecanismo`.
+    Si lo que pide lleva varias piezas, o partes que se mueven entre sí (un
+    pan-tilt, un brazo, una caja con su tapa), es `disenar_backlog`.
 
     Devuelve el identificador al momento. Primero el ingeniero propone CÓMO
     resolverlo y para: `estado_proyecto` dirá «por aprobar» y traerá el
@@ -207,45 +205,6 @@ def rehacer_pieza(proyecto: str, nodo: str, cambio: str = "", desde_cero: bool =
 
 
 @mcp.tool()
-def disenar_mecanismo(peticion: str, referencias: list[str] | None = None) -> dict:
-    """Diseña un mecanismo a partir de una petición en texto y lo verifica.
-
-    Tarda varios minutos: devuelve al momento el identificador del proyecto
-    y sigue trabajando por su cuenta. Consulta `estado_proyecto` para saber
-    cómo va y `archivos_proyecto` cuando termine.
-
-    La petición debe describir el mecanismo con todo lo que el usuario haya
-    dicho: qué tiene que hacer, medidas, límites de movimiento y qué piezas
-    exige. Cuanto más completa, menos rondas de corrección.
-
-    `referencias` (opcional): lo que el usuario mandó como ejemplo de algo
-    que YA funciona. Rutas de imágenes (jpg, png, webp) o textos (md, txt,
-    json) que te llegaron por Telegram, o el id de un proyecto que ya salió.
-    Pásalas siempre que el usuario mande fotos o diga «como el de antes».
-    """
-    from orchestrator.mechanisms.referencias import ReferenciaInvalida, desde_el_entorno
-
-    referencias = [r for r in referencias or [] if r and r.strip()]
-    # Antes de lanzar: si una referencia no vale, hay que saberlo ya, no diez
-    # minutos después en el registro de un trabajo que murió al arrancar.
-    try:
-        desde_el_entorno(referencias, _proyectos().parent, os.environ)
-    except ReferenciaInvalida as e:
-        return {"error": f"referencia no válida: {e}"}
-    store = _store()
-    try:
-        job = store.start(peticion, referencias=referencias)
-    except RuntimeError as e:
-        return {"error": str(e), "en_marcha": store.current()}
-    return {
-        "proyecto": job,
-        "aviso": "Diseñando. Cada ronda tarda unos 4 minutos y sigue hasta que funciona, "
-                 "se atasca o llega al tope de gasto. Pregunta el estado de vez en cuando; "
-                 "no te quedes esperando.",
-    }
-
-
-@mcp.tool()
 def estado_proyecto(proyecto: str = "") -> dict:
     """Cómo va un proyecto: si sigue trabajando, en qué ronda y lo último
     que hizo. Sin argumento, el más reciente.
@@ -295,11 +254,14 @@ def estado_proyecto(proyecto: str = "") -> dict:
 @mcp.tool()
 def archivos_proyecto(proyecto: str = "") -> dict:
     """Archivos del proyecto, ya copiados donde el canal puede leerlos:
-    `animacion` (el GIF del movimiento, lo PRIMERO que hay que mandar),
-    `ensamble` (.FCStd para abrir en FreeCAD), `revision` y `coste`.
+    `animacion` (el GIF del conjunto de un backlog moviéndose, lo PRIMERO
+    que hay que mandar), `coste` y, si se detuvo, `bloqueo`. Los mecanismos
+    que ya había traen además `ensamble` (.FCStd para abrir en FreeCAD) y
+    `revision`.
 
-    Si no aparece `animacion`, el proyecto todavía no la generó: dilo en vez
-    de mandar otra cosa en su lugar."""
+    Si no aparece `animacion`, el proyecto no la tiene —una pieza suelta no
+    se mueve, y un backlog la deja al verificar su último conjunto—: dilo en
+    vez de mandar otra cosa en su lugar."""
     from orchestrator.jobs import entregar
 
     carpeta = _proyectos() / proyecto if proyecto else None
@@ -345,15 +307,17 @@ def listar_proyectos(limite: int = 10) -> list[dict]:
 
 
 @mcp.tool()
-def modificar_proyecto(proyecto: str, cambio: str, pieza: str = "") -> dict:
-    """Cambia algo de un proyecto que ya existe: crea una VERSIÓN nueva del
-    mismo proyecto partiendo de su mejor versión (o de la versión que
-    nombres). Úsalo para toda corrección, cambio o reintento de un encargo;
-    `disenar_mecanismo` es solo para encargos nuevos.
+def modificar_proyecto(proyecto: str, cambio: str) -> dict:
+    """Cambia algo de una PIEZA SUELTA que ya existe: crea una VERSIÓN nueva
+    del mismo proyecto partiendo de su mejor versión (o de la versión que
+    nombres). Úsalo para toda corrección o cambio de una pieza suelta;
+    `disenar_pieza` es solo para encargos nuevos.
 
-    `cambio`: lo que el usuario quiere distinto, con sus palabras y medidas.
-    `pieza` (opcional): si el cambio es de una sola pieza, su nombre; las
-    demás se quedan como están."""
+    Una pieza de un backlog se cambia con `rehacer_pieza`. Los mecanismos
+    que ya había se pueden ver, pero no cambiar: contesta `error` con el
+    motivo.
+
+    `cambio`: lo que el usuario quiere distinto, con sus palabras y medidas."""
     from orchestrator.web.versiones import (
         ProyectoDesconocido, lanzar_modificacion, proyectos, resolver_proyecto)
 
@@ -370,11 +334,10 @@ def modificar_proyecto(proyecto: str, cambio: str, pieza: str = "") -> dict:
         base = resolver_proyecto(grupo["mejor"], workspace)
     store = _store()
     try:
-        r = lanzar_modificacion(store, workspace, base, cambio, pieza=pieza,
-                                orden_pieza=_orden_pieza())
+        r = lanzar_modificacion(store, workspace, base, cambio, orden_pieza=_orden_pieza())
     except RuntimeError as e:
         return {"error": str(e), "en_marcha": store.current()}
-    except ValueError as e:   # una pieza que no existe
+    except ValueError as e:   # no es una pieza suelta: un backlog o un mecanismo
         return {"error": str(e)}
     return {"proyecto": r["proyecto"], "version": r["id"], "basado_en": base.name,
             "aviso": "Versión nueva en marcha. Pregunta el estado de vez en cuando."}
@@ -382,9 +345,11 @@ def modificar_proyecto(proyecto: str, cambio: str, pieza: str = "") -> dict:
 
 @mcp.tool()
 def continuar_proyecto(proyecto: str = "") -> dict:
-    """Sigue intentando un proyecto que no quedó resuelto, partiendo de su
-    último diseño y del motivo por el que falló (no empieza de cero).
-    Sin argumento, el más reciente."""
+    """Vuelve a lanzar un proyecto que no quedó resuelto o se quedó a medias,
+    en su misma carpeta y con su misma orden: no empieza otro. Una pieza se
+    modela otra vez con el concepto que se aprobó (o lo propone de nuevo si
+    no lo estaba); un backlog da su siguiente paso. Sin argumento, el más
+    reciente."""
     store = _store()
     if not proyecto:
         proyectos = store.list(1)
@@ -393,9 +358,9 @@ def continuar_proyecto(proyecto: str = "") -> dict:
         proyecto = proyectos[0]["id"]
     try:
         store.resume(proyecto)
-    except (KeyError, RuntimeError) as e:
+    except (KeyError, RuntimeError, ValueError) as e:   # ValueError: no se puede seguir
         return {"error": str(e)}
-    return {"proyecto": proyecto, "aviso": "Reintentando desde el último diseño."}
+    return {"proyecto": proyecto, "aviso": "Relanzado en su misma carpeta."}
 
 
 @mcp.tool()

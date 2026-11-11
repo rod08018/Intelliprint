@@ -65,6 +65,8 @@ Cada agujero, tuerca o hueco lleva **nombre** y queda registrado como rasgo (ADR
 
 **Lo que se conserva.** Un error del modelo sigue volviendo como un error con línea y motivo, dentro del bucle de reintento, antes de lanzar FreeCAD. Los mecanismos siguen con recetas hasta que el kit los cubra: el flujo de mecanismos depende de las cajas envolventes de cada generador.
 
+**Enmienda (2026-11-11): retirada del código.** El Part Designer de recetas (`orchestrator/agents/part_designer.py` y su prompt) se quitó en F9.13 (limpieza) con el flujo de mecanismos, que era el último que lo usaba (ADR-013). Las piezas las escribe el diseñador del kit. De las recetas siguen el esquema, el compositor (`orchestrator/recipes/`) y los generadores con los que se construyen las piezas de calibración (`orchestrator/calibracion.py`). Queda en git, en la etiqueta `antes-de-fase-9`.
+
 ---
 
 ## ADR-003 · El veredicto del QA es aritmético; el LLM solo puede añadir defectos
@@ -143,6 +145,8 @@ El LLM escribe en una **lista de defectos**, nunca en el veredicto. No existe ni
 
 **Seguridad.** Este canal es entrada no confiable a un sistema que puede ejecutar código (ADR-002). Lista blanca obligatoria; el texto entrante es dato y nunca instrucción de sistema; una petición de cambio nunca abre la escotilla de Python sin gate; el filtro de salida de DeepSeek se aplica también aquí.
 
+**Enmienda (2026-11-11): retirada del código.** El `HumanPort` (`orchestrator/human/port.py`) y su adaptador de consola se quitaron en F9.13 (limpieza), con el grafo de `intelliprint new`, que era su único llamador; el adaptador de Telegram ya lo había sustituido Crafty. Lo que sigue vivo de esta decisión es su fondo: el canal no es un agente. Crafty (OpenClaw) y la web son dos transportes que llaman a lo mismo —`orchestrator/jobs.py`, por el servidor MCP o por HTTP—, y cada barrera humana (el visto bueno al concepto, al desglose y a cada pieza) es una marca en la carpeta del proyecto, escrita por el mismo código llegue por donde llegue. Queda en git, en la etiqueta `antes-de-fase-9`.
+
 ---
 
 ## ADR-007 · Dos modelos residentes, configurados por perfil
@@ -200,6 +204,8 @@ Y un estado `INTAKE` delante de todo, donde el Requirements Agent **conversa** h
 - Es asíncrona, como `BLOCKED_ON_HUMAN`: un proyecto puede esperar días en `INTAKE`.
 - Los **adjuntos son entrada de diseño real**, no decoración, porque el stack tiene visión (ADR-007): fotos del sitio de montaje, croquis a mano con cotas, o un STL con el que la pieza debe encajar.
 - Tres reglas de seguridad nuevas (5–7 de § 8.5): lista blanca de tipos y tamaño, el contenido de una imagen es dato (un modelo de visión lee el texto escrito dentro de una foto, así que la inyección por imagen es real), y los adjuntos no se ejecutan ni salen de `workspace/`.
+
+**Enmienda (2026-11-11): retirada del código.** La máquina de estados con `INTAKE` y su confirmación por el `HumanPort` (`orchestrator/state_machine.py`, `orchestrator/graph.py`, LangGraph) se quitó en F9.13 (limpieza): solo la recorría `intelliprint new`, que nadie usaba ya. Lo que pedía esta decisión —que el sistema pregunte antes de diseñar, y que no se pueda saltar— lo hace hoy la puerta del concepto, F3.20 (concepto) y ADR-015: `intelliprint pieza` y `obra` proponen y paran, y sin la marca del visto bueno en la carpeta no se modela (solo el banco se lo da a sí mismo). Los encargos se arrancan desde la web o por Crafty, no por consola. Los adjuntos como entrada de diseño ya no existen: solo los recibía el diseñador de mecanismos (ver la enmienda de ADR-013). Queda en git, en la etiqueta `antes-de-fase-9`.
 
 ---
 
@@ -381,6 +387,7 @@ Por decisión del usuario, **una especificación con más de una pieza movida po
 
 **Límite conocido.** Que un diseño pase todas las comprobaciones no significa que sea lo que el usuario imaginaba. La primera bisagra aprobada era en realidad un pivote en plano. Juzgar eso necesita un revisor con visión (capa 3 del QA, § 7.1), que el perfil dev no tiene. Hasta entonces, el GIF lo revisa el usuario.
 
+**Enmienda (2026-11-11): retirada del código.** El flujo de mecanismos se quitó entero en F9.13 (limpieza), por decisión del usuario (2026-11-10/11): el Mechanism Designer, el Design Reviewer y el Part Designer de recetas, `orchestrator/mechanisms/`, sus esquemas (`MechanismSpec`, `ReviewReport`), el paquete `mcp/sim`, la orden `intelliprint mecanismo` y los generadores que solo usaba él (barra, prisma, rueda y uña de trinquete, Ginebra, resorte). Era un mundo aparte: sus piezas no pasaban por las fichas ni por las sondas, y no usaba servos. ADR-018 ya lo había sustituido para los proyectos grandes, y con el pan-tilt pasando sus cinco comprobaciones como backlog (corrida `1111-1342`), los mecanismos de un robot se hacen como conjuntos de un backlog. **Lo que se pierde:** era el único camino para lo que no es un árbol de giros —correderas, cadenas cerradas, engranajes—, que un backlog no sabe hacer (ADR-020). Con él se van las referencias (fotos, textos y proyectos anteriores, F5.2 (adjuntos)), que solo recibía este diseñador, y «Partir de» en la web. **Lo que sigue:** los proyectos de mecanismo que ya hay en `workspace/` se ven en la web —galería, ficha, animación, piezas, descarga y PrusaSlicer—, pero no se pueden pedir, continuar ni cambiar; el ensamble, el barrido de choques y la animación (`orchestrator/assembly.py`, `orchestrator/animation.py`) los usan los conjuntos. Queda en git, en la etiqueta `antes-de-fase-9`.
 
 ---
 

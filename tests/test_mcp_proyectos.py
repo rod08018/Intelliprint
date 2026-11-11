@@ -16,13 +16,17 @@ import orchestrator.mcp_server as servidor
 from orchestrator.jobs import JobStore
 
 
-def _ejecucion(ws, nombre, peticion, feedback="", mecanismo=True):
+def _ejecucion(ws, nombre, peticion, feedback="", mecanismo=True, pieza=False):
+    """Una ejecución terminada. Por omisión, un mecanismo de los que ya hay
+    en el workspace; con `pieza`, lo que deja una pieza suelta."""
     carpeta = ws / "projects" / nombre
     carpeta.mkdir(parents=True)
     (carpeta / "request.md").write_text(peticion + "\n", encoding="utf-8")
     (carpeta / "rounds.json").write_text(
         json.dumps([{"number": 1, "feedback": feedback}]), encoding="utf-8")
-    if mecanismo:
+    if pieza:
+        (carpeta / "pieza.json").write_text('{"title": "Gancho"}', encoding="utf-8")
+    elif mecanismo:
         (carpeta / "mechanism.json").write_text(json.dumps(
             {"title": "Sargento", "parts": [{"name": "cuerpo"}, {"name": "mango"}]}), encoding="utf-8")
     viejo = 1_700_000_000
@@ -34,8 +38,12 @@ def _ejecucion(ws, nombre, peticion, feedback="", mecanismo=True):
 @pytest.fixture
 def ws(tmp_path, monkeypatch):
     monkeypatch.setenv("INTELLIPRINT_WORKSPACE", str(tmp_path))
-    store = JobStore(tmp_path / "projects", comando=[sys.executable, "-c", "import sys; print(sys.argv)"])
+    imprime = [sys.executable, "-c", "import sys; print(sys.argv)"]
+    store = JobStore(tmp_path / "projects", comando=imprime, comando_pieza=imprime)
     monkeypatch.setattr(servidor, "_store", lambda: store)
+    # Ningún test de aquí puede lanzar el `intelliprint pieza` de verdad: en
+    # el contenedor está la clave de DeepSeek y sería un diseño de pago.
+    monkeypatch.setattr(servidor, "_orden_pieza", lambda: imprime)
     return tmp_path
 
 
@@ -45,27 +53,19 @@ def test_el_mcp_usa_un_solo_gestor_de_trabajos(monkeypatch, tmp_path):
     assert servidor._store() is servidor._store()
 
 
-def test_modificar_un_proyecto_crea_una_version_del_mismo(ws):
-    _ejecucion(ws, "2026-10-27-035747-sargento", "Un sargento de banco")
+def test_modificar_una_pieza_crea_una_version_del_mismo_proyecto(ws):
+    _ejecucion(ws, "2026-10-27-035747-gancho", "Un gancho de pared", pieza=True)
 
-    r = servidor.modificar_proyecto("2026-10-27-035747-sargento", "el mango de 40 mm")
+    r = servidor.modificar_proyecto("2026-10-27-035747-gancho", "20 mm más largo")
 
+    assert "error" not in r, r
     nueva = ws / "projects" / r["version"]
-    assert r["proyecto"] == "2026-10-27-035747-sargento"
+    assert r["proyecto"] == "2026-10-27-035747-gancho"
     assert json.loads((nueva / "proyecto.json").read_text(encoding="utf-8"))["proyecto"] == \
-        "2026-10-27-035747-sargento"
+        "2026-10-27-035747-gancho"
     peticion = (nueva / "request.md").read_text(encoding="utf-8")
-    assert peticion.startswith("Un sargento de banco")
-    assert "el mango de 40 mm" in peticion
-
-
-def test_modificar_una_pieza_lo_dice_en_la_peticion(ws):
-    _ejecucion(ws, "2026-10-27-035747-sargento", "Un sargento de banco")
-
-    r = servidor.modificar_proyecto("2026-10-27-035747-sargento", "Ø40 mm", pieza="mango")
-
-    peticion = (ws / "projects" / r["version"] / "request.md").read_text(encoding="utf-8")
-    assert "«mango»" in peticion
+    assert peticion.startswith("Un gancho de pared")
+    assert "20 mm más largo" in peticion
 
 
 def test_modificar_algo_que_no_es_un_proyecto_lo_dice(ws):
@@ -86,36 +86,9 @@ def test_listar_da_proyectos_con_sus_versiones(ws):
     assert sargento["mejor"] == "2026-10-27-040328-sargento"
 
 
-def test_la_version_nueva_sabe_de_que_version_y_pieza_parte(ws):
-    """La CLI lee esto para editar la base en vez de diseñar desde cero."""
-    from orchestrator.web.versiones import edicion_de
-
-    base = _ejecucion(ws, "2026-10-27-035747-sargento", "Un sargento de banco")
-    r = servidor.modificar_proyecto("2026-10-27-035747-sargento", "Ø40 mm", pieza="mango")
-
-    assert edicion_de(ws / "projects" / r["version"], ws) == (base, "Ø40 mm", "mango")
-
-
-def test_un_diseno_nuevo_no_es_una_edicion(ws):
-    from orchestrator.web.versiones import edicion_de
-
-    r = servidor.disenar_mecanismo("Un sargento de banco")
-    assert edicion_de(ws / "projects" / r["proyecto"], ws) is None
-
-
-def test_cambiar_una_pieza_que_no_existe_lo_dice_sin_lanzar_nada(ws):
-    _ejecucion(ws, "2026-10-27-035747-sargento", "Un sargento de banco")
-    antes = sorted(p.name for p in (ws / "projects").iterdir())
-
-    r = servidor.modificar_proyecto("2026-10-27-035747-sargento", "más grande", pieza="manivela")
-
-    assert "manivela" in r["error"] and "mango" in r["error"]
-    assert sorted(p.name for p in (ws / "projects").iterdir()) == antes
-
-
 def test_crafty_puede_pedir_una_pieza_suelta(ws, monkeypatch):
-    """F5.17 (pieza): un gancho o un soporte no es un mecanismo, y por el
-    flujo de mecanismos no entraba: exige dos piezas."""
+    """F5.17 (pieza): un gancho o un soporte es una pieza suelta. Cuando
+    Crafty solo sabía pedir mecanismos no entraba: exigían dos piezas."""
     import time
 
     monkeypatch.setattr(servidor, "_orden_pieza",
@@ -184,3 +157,55 @@ def test_crafty_busca_medidas_con_el_buscador_de_intelliprint(monkeypatch):
     assert r["datos"] == [dato.model_dump()]
     assert r["sin_encontrar"] == ["diámetro exterior"]
     assert "https://tornillos.example/m5" in r["texto"] and "calibre" in r["texto"]
+
+
+# --- Los mecanismos que ya hay (F9.13 (limpieza)) -------------------------------
+#
+# El flujo de mecanismos se quitó. Crafty sigue viendo los proyectos que dejó,
+# pero no puede cambiarlos ni continuarlos, y lo que recibe es el motivo.
+
+
+def _sin_lanzar(monkeypatch):
+    import orchestrator.jobs as jobs
+
+    def no_lances(*a, **k):
+        raise AssertionError(f"no hay nada que lanzar: {a}")
+
+    monkeypatch.setattr(jobs.subprocess, "Popen", no_lances)
+
+
+def test_modificar_un_mecanismo_ya_hecho_lo_dice_sin_lanzar_nada(ws, monkeypatch):
+    _ejecucion(ws, "2026-10-27-035747-sargento", "Un sargento de banco")
+    _sin_lanzar(monkeypatch)
+    antes = sorted(p.name for p in (ws / "projects").iterdir())
+
+    r = servidor.modificar_proyecto("2026-10-27-035747-sargento", "el mango de 40 mm")
+
+    assert "mecanismo" in r["error"]
+    assert sorted(p.name for p in (ws / "projects").iterdir()) == antes
+
+
+def test_continuar_un_mecanismo_ya_hecho_contesta_el_motivo(ws, monkeypatch):
+    carpeta = _ejecucion(ws, "2026-10-27-035747-sargento", "Un sargento de banco",
+                         feedback="- la mordaza choca con la guía")
+    (carpeta / "job.json").write_text(
+        json.dumps({"comando": ["intelliprint", "mecanismo"]}), encoding="utf-8")
+    _sin_lanzar(monkeypatch)
+
+    r = servidor.continuar_proyecto("2026-10-27-035747-sargento")
+
+    assert "mecanismo" in r["error"]
+
+
+def test_cada_herramienta_que_nombran_las_instrucciones_de_crafty_existe():
+    """Crafty solo sabe lo que dice `INTELLIPRINT.md`. Si nombra una
+    herramienta que el servidor ya no ofrece, la llama, falla y se lo cuenta
+    al usuario como un error del sistema."""
+    import re
+    from pathlib import Path
+
+    texto = Path("config/openclaw/INTELLIPRINT.md").read_text(encoding="utf-8")
+    nombradas = set(re.findall(r"`([a-z_]+)\(", texto))
+    assert nombradas, "las instrucciones ya no nombran herramientas: revisa el patrón"
+    faltan = sorted(n for n in nombradas if not callable(getattr(servidor, n, None)))
+    assert not faltan, f"INTELLIPRINT.md nombra herramientas que no existen: {faltan}"

@@ -1,7 +1,7 @@
 """Trabajos en segundo plano (F5.6 (telegram)).
 
-Diseñar un mecanismo tarda minutos, y quien pide por Telegram no puede
-quedarse colgado esperando. Cada petición se lanza como un proceso
+Diseñar tarda minutos, y quien pide por Telegram no puede quedarse
+colgado esperando. Cada petición se lanza como un proceso
 propio, con su carpeta de proyecto y su registro; el estado se lee de
 esos archivos, así que sobrevive a que se reinicie quien pregunta.
 
@@ -67,9 +67,17 @@ def entregar(proyecto: Path, buzon: Path | None = None) -> dict[str, str]:
     return entregados
 
 
+class FlujoRetirado(ValueError):
+    """El proyecto lo hizo un flujo que ya no existe: se ve, pero no se sigue."""
+
+
 class JobStore:
     def __init__(self, carpeta: Path, comando: list[str],
                  comando_pieza: list[str] | None = None) -> None:
+        """`comando`: la orden por omisión, la de un backlog (`intelliprint
+        obra`). `comando_pieza`: la de una pieza suelta. Hasta F9.13 (limpieza)
+        la orden por omisión era `intelliprint mecanismo`, y todo lo que no
+        decía qué era acababa en ese flujo."""
         self.carpeta = Path(carpeta)
         self.carpeta.mkdir(parents=True, exist_ok=True)
         self._comando = comando
@@ -78,12 +86,9 @@ class JobStore:
 
     # --- lanzar y parar -------------------------------------------------------
 
-    def start(self, peticion: str, referencias: list[str] | None = None,
-              proyecto: dict | None = None, comando: list[str] | None = None) -> str:
-        """`referencias`: imágenes, textos o ids de proyectos que ya salieron,
-        para el diseñador (F5.2 (adjuntos)). Opcionales.
-
-        `proyecto`: si esto es una versión nueva de un proyecto que ya
+    def start(self, peticion: str, proyecto: dict | None = None,
+              comando: list[str] | None = None) -> str:
+        """`proyecto`: si esto es una versión nueva de un proyecto que ya
         existe, de cuál (`web.versiones`). Se escribe ANTES de arrancar:
         mientras trabaja, la web ya tiene que pintarla dentro de su proyecto.
 
@@ -112,8 +117,7 @@ class JobStore:
         # `start_new_session`: el trabajo tiene su propio grupo de procesos, así
         # se puede cancelar con todo lo que lanza (freecadcmd incluido).
         proceso = subprocess.Popen(
-            [*comando, str(destino / "request.md"), "--archivo", "--carpeta", str(destino),
-             *(x for r in referencias or [] for x in ("--adjunto", r))],
+            [*comando, str(destino / "request.md"), "--archivo", "--carpeta", str(destino)],
             stdout=registro, stderr=subprocess.STDOUT, start_new_session=True,
             env=ENTORNO,
         )
@@ -124,8 +128,8 @@ class JobStore:
         return nombre
 
     def resume(self, job_id: str) -> str:
-        """Reintenta un proyecto en su propia carpeta, partiendo de su último
-        diseño y del motivo por el que falló, en vez de empezar de cero."""
+        """Vuelve a lanzar un proyecto en su propia carpeta, con la orden con
+        la que se lanzó: sigue donde se quedó en vez de empezar otro."""
         destino = self.carpeta / job_id
         if not destino.exists():
             raise KeyError(f"no existe el proyecto {job_id!r}")
@@ -134,17 +138,41 @@ class JobStore:
             raise RuntimeError(f"ya hay un proyecto en marcha ({en_marcha})")
         return self._relanzar(job_id)
 
-    def _relanzar(self, job_id: str) -> str:
-        destino = self.carpeta / job_id
-        registro = (destino / "run.log").open("a", encoding="utf-8")
+    def _orden_de(self, destino: Path) -> list[str]:
+        """Con qué orden se sigue un proyecto que ya existe. Lo dice lo que
+        hay en su carpeta; lo que no se sabe qué es no se lanza."""
+        from orchestrator import obra
         from orchestrator.registry import _lee_json
-        comando = (_lee_json(destino / "job.json") or {}).get("comando") or self._comando
+        comando = (_lee_json(destino / "job.json") or {}).get("comando")
         if (destino / "concepto.json").exists() and self._comando_pieza:
             # Concepto solo tiene una pieza. Sin job.json (se pidió con
             # `intelliprint pieza`), aprobarlo lanzaba la orden por defecto, la
             # de mecanismos, y esa dejaba escrito «mecanismo» en job.json para
             # la siguiente vez (el soporte del HC-SR04, 2026-11-05).
-            comando = self._comando_pieza
+            return self._comando_pieza
+        if "mecanismo" in (comando or []) or (destino / "mechanism.json").is_file():
+            # Los proyectos de mecanismo siguen en el workspace con
+            # `intelliprint mecanismo` en su job.json. Relanzarla era un error
+            # de argparse en run.log y un «fallido» sin explicación.
+            raise FlujoRetirado(
+                f"{destino.name} es un mecanismo, y el flujo de mecanismos se retiró: se "
+                "puede ver, descargar y abrir en PrusaSlicer, pero no continuar ni cambiar. "
+                "Lo que se mueve se pide ahora como un robot o conjunto (un backlog).")
+        if comando:
+            return comando
+        if obra.es_obra(destino):
+            return self._comando
+        # Ni job.json con orden ni nada que diga qué es (un proyecto anterior
+        # al registro, la pieza de calibración): con la orden por omisión se
+        # desglosaría como backlog, gastando modelo, algo que no lo es.
+        raise ValueError(f"de {destino.name} no se sabe con qué orden se lanzó: "
+                         "no se puede continuar desde aquí")
+
+    def _relanzar(self, job_id: str, comando: list[str] | None = None) -> str:
+        destino = self.carpeta / job_id
+        # Antes de abrir el registro: lo que no se puede seguir no deja rastro.
+        comando = comando or self._orden_de(destino)
+        registro = (destino / "run.log").open("a", encoding="utf-8")
         proceso = subprocess.Popen(
             [*comando, str(destino / "request.md"), "--archivo",
              "--carpeta", str(destino), "--continuar"],
@@ -182,6 +210,9 @@ class JobStore:
         en_marcha = self.current()
         if en_marcha:
             raise RuntimeError(f"ya hay un proyecto en marcha ({en_marcha})")
+        # La orden, antes de mover el concepto: es lo que dice que esto es
+        # una pieza cuando no hay job.json.
+        comando = self._orden_de(destino)
         if respuestas.strip():
             # Al ingeniero, no a la petición: el agente de requisitos hacía de
             # cada cifra de una respuesta un requisito (2026-11-09).
@@ -192,7 +223,7 @@ class JobStore:
             (destino / CONCEPTO).replace(destino / ANTERIOR)
         else:
             aprobar_concepto(destino, por=por)
-        return self._relanzar(job_id)
+        return self._relanzar(job_id, comando)
 
     def _libre(self) -> None:
         en_marcha = self.current()

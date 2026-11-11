@@ -135,11 +135,6 @@ def test_la_portada_lista_los_proyectos(web):
     assert "2026-09-01-leva" in html
 
 
-def test_la_lista_tambien_se_puede_pedir_en_json(web):
-    ids = {p["id"] for p in web.get("/api/proyectos").json()}
-    assert ids == {"2026-09-20-trinquete", "2026-09-01-leva"}
-
-
 def test_bajar_un_proyecto_devuelve_un_zip_con_su_nombre(web):
     r = web.get("/proyectos/2026-09-20-trinquete.zip")
     assert r.status_code == 200
@@ -198,16 +193,20 @@ def test_cada_pieza_del_proyecto_lleva_los_ajustes_de_su_uso(ws, puente):
     assert 'key="perimeters"' not in pawl
 
 
-def test_el_detalle_dice_el_uso_de_cada_pieza(ws, puente):
+def test_la_ficha_dice_el_uso_de_cada_pieza_que_no_es_general(ws, puente):
     carpeta = ws / "projects" / "2026-09-20-trinquete"
     (carpeta / "mechanism.json").write_text(json.dumps({"parts": [
         {"name": "rueda", "uso": "estructural"}, {"name": "pawl"}]}), encoding="utf-8")
     web = TestClient(crear_app(ws, puente=puente, host_workspace=HOST))
 
-    detalle = web.get("/api/proyectos/2026-09-20-trinquete").json()
+    html = web.get("/p/2026-09-20-trinquete").text
 
-    assert detalle["piezas"] == [{"nombre": "pawl", "uso": "general"},
-                                 {"nombre": "rueda", "uso": "estructural"}]
+    def rotulo(pieza):
+        return re.search(rf'piezas/{pieza}\.png.*?<div class="nombre-pieza">(.*?)</div>',
+                         html, re.S).group(1)
+
+    assert '<span class="uso">estructural</span>' in rotulo("rueda")
+    assert "uso" not in rotulo("pawl")
 
 
 def test_abrir_un_proyecto_sin_piezas_lo_dice(web, puente):
@@ -244,9 +243,8 @@ def ws_con_rondas(ws):
     return ws
 
 
-def test_la_lista_lleva_ronda_coste_y_si_hay_animacion(ws_con_rondas, puente):
-    web = TestClient(crear_app(ws_con_rondas, puente=puente, host_workspace=HOST))
-    (fila,) = [p for p in web.get("/api/proyectos").json() if p["id"] == "2026-09-20-trinquete"]
+def test_la_lista_lleva_ronda_coste_y_si_hay_animacion(ws_con_rondas):
+    (fila,) = [p for p in _grupos(ws_con_rondas) if p["id"] == "2026-09-20-trinquete"]
     assert fila["ronda"] == 1
     assert fila["animacion"] is True
     assert fila["requisitos"]["cumplen"] == 1
@@ -311,9 +309,10 @@ def _ws_con_trabajos(ws):
 
     from orchestrator.jobs import JobStore
 
-    trabajos = JobStore(ws / "projects", comando=[
-        sys.executable, "-c", "import sys; print(sys.argv)"])
-    return TestClient(crear_app(ws, host_workspace=HOST, trabajos=trabajos))
+    imprime = [sys.executable, "-c", "import sys; print(sys.argv)"]
+    trabajos = JobStore(ws / "projects", comando=imprime, comando_pieza=imprime)
+    return TestClient(crear_app(ws, host_workspace=HOST, trabajos=trabajos,
+                                orden_pieza=imprime, orden_obra=imprime))
 
 
 def _esperar_registro(carpeta, segundos=20):
@@ -330,9 +329,9 @@ def _esperar_registro(carpeta, segundos=20):
 
 def test_pedir_un_diseno_crea_el_proyecto_con_la_peticion_literal(ws):
     web = _ws_con_trabajos(ws)
-    peticion = "Una bisagra de 40 mm\ncon pasador de 3 mm que gire 180°"
+    peticion = "Un gancho de pared de 40 mm\ncon dos agujeros de 4.5 mm"
 
-    r = web.post("/api/disenar", json={"tipo": "mecanismo", "peticion": peticion})
+    r = web.post("/api/disenar", json={"tipo": "pieza", "peticion": peticion})
 
     assert r.status_code == 200, r.text
     carpeta = ws / "projects" / r.json()["id"]
@@ -341,36 +340,14 @@ def test_pedir_un_diseno_crea_el_proyecto_con_la_peticion_literal(ws):
     assert f"'{(carpeta / 'request.md')}'" in registro
 
 
-def test_partir_de_un_proyecto_lo_pasa_como_referencia(ws):
-    web = _ws_con_trabajos(ws)
-
-    r = web.post("/api/disenar", json={"tipo": "mecanismo", "peticion": "como el trinquete, pero con 12 dientes",
-                                       "basado_en": "2026-09-20-trinquete"})
-
-    assert r.status_code == 200, r.text
-    registro = _esperar_registro(ws / "projects" / r.json()["id"])
-    assert "'--adjunto', '2026-09-20-trinquete'" in registro
-
-
 @pytest.mark.parametrize("vacia", ["", "   \n\t "])
 def test_una_peticion_vacia_no_lanza_nada(ws, vacia):
     web = _ws_con_trabajos(ws)
     antes = sorted(p.name for p in (ws / "projects").iterdir())
 
-    r = web.post("/api/disenar", json={"tipo": "mecanismo", "peticion": vacia})
+    r = web.post("/api/disenar", json={"tipo": "pieza", "peticion": vacia})
 
     assert r.status_code == 422
-    assert sorted(p.name for p in (ws / "projects").iterdir()) == antes
-
-
-@pytest.mark.parametrize("malo", ["..", "../projects", "no-existe", "/etc"])
-def test_partir_de_algo_que_no_es_un_proyecto_no_lanza_nada(ws, malo):
-    web = _ws_con_trabajos(ws)
-    antes = sorted(p.name for p in (ws / "projects").iterdir())
-
-    r = web.post("/api/disenar", json={"tipo": "mecanismo", "peticion": "una leva", "basado_en": malo})
-
-    assert r.status_code == 404
     assert sorted(p.name for p in (ws / "projects").iterdir()) == antes
 
 
@@ -386,7 +363,7 @@ def test_con_otro_proyecto_en_marcha_no_se_lanza_un_segundo(ws):
     (otro / "job.json").write_text(json.dumps({"pid": os.getpid()}), encoding="utf-8")
     web = _ws_con_trabajos(ws)
 
-    r = web.post("/api/disenar", json={"tipo": "mecanismo", "peticion": "una leva"})
+    r = web.post("/api/disenar", json={"tipo": "pieza", "peticion": "un gancho"})
 
     assert r.status_code == 409
     assert "2026-10-23-de-crafty" in r.json()["detail"]
@@ -395,16 +372,13 @@ def test_con_otro_proyecto_en_marcha_no_se_lanza_un_segundo(ws):
 
 
 def test_sin_lanzador_configurado_pedir_explica_que_falta(web):
-    r = web.post("/api/disenar", json={"tipo": "mecanismo", "peticion": "una leva"})
+    r = web.post("/api/disenar", json={"tipo": "pieza", "peticion": "un gancho"})
     assert r.status_code == 503
 
 
 def test_la_portada_tiene_donde_escribir_la_peticion(ws):
     html = _ws_con_trabajos(ws).get("/").text
     assert '<textarea id="peticion"' in html
-    # Se puede partir de los proyectos que hay, archivados incluidos.
-    assert '<option value="2026-09-20-trinquete">' in html
-    assert '<option value="2026-09-01-leva">' in html
 
 
 def test_lo_que_se_refresca_solo_no_borra_lo_que_estas_escribiendo(ws):
@@ -455,7 +429,10 @@ def _version(ws, nombre, peticion, feedback=None, seccion="projects", requisitos
 
 
 def _grupos(ws):
-    return TestClient(crear_app(ws, host_workspace=HOST)).get("/api/proyectos").json()
+    """Los proyectos con sus versiones, como los pinta la portada."""
+    from orchestrator.web.versiones import proyectos
+
+    return proyectos(ws)
 
 
 def test_las_ejecuciones_de_la_misma_peticion_son_versiones_de_un_proyecto(ws):
@@ -548,8 +525,8 @@ def test_la_portada_pinta_un_proyecto_por_solicitud_con_sus_versiones(ws):
     web = TestClient(crear_app(ws, host_workspace=HOST))
 
     html = web.get("/").text
-    assert html.count('data-id="2026-09-21-01-gato"') == 1
-    assert 'data-id="2026-09-21-02-gato"' not in html
+    assert html.count('href="/p/2026-09-21-01-gato"') == 1
+    assert 'href="/p/2026-09-21-02-gato"' not in html
 
     # En su página están todas, abre con la mejor, y los botones bajan esa.
     pagina = web.get("/p/2026-09-21-01-gato").text
@@ -561,60 +538,59 @@ def test_la_portada_pinta_un_proyecto_por_solicitud_con_sus_versiones(ws):
 # --- Pedir una modificación dentro del proyecto -----------------------------
 
 
+def _gancho(ws):
+    """Una pieza suelta terminada: lo único a lo que se le pide un cambio."""
+    base = ws / "projects" / "2026-11-04-gancho"
+    base.mkdir()
+    (base / "request.md").write_text("un gancho de pared\n", encoding="utf-8")
+    (base / "pieza.json").write_text('{"title": "Gancho"}', encoding="utf-8")
+    (base / "rounds.json").write_text('[{"number": 1, "title": "t", "feedback": ""}]',
+                                      encoding="utf-8")
+    return base
+
+
 def test_pedir_una_modificacion_crea_una_version_del_mismo_proyecto(ws):
-    base = ws / "projects" / "2026-09-20-trinquete"
-    (base / "mechanism.json").write_text('{"title": "Trinquete"}', encoding="utf-8")
+    _gancho(ws)
     web = _ws_con_trabajos(ws)
 
-    r = web.post("/api/proyectos/2026-09-20-trinquete/modificar",
-                 json={"peticion": "que la rueda tenga 12 dientes"})
+    r = web.post("/api/proyectos/2026-11-04-gancho/modificar",
+                 json={"peticion": "que sea 20 mm más largo"})
 
     assert r.status_code == 200, r.text
     nueva = ws / "projects" / r.json()["id"]
     # El diseñador recibe lo que se pidió al principio y el cambio, literal.
     peticion = (nueva / "request.md").read_text(encoding="utf-8")
-    assert peticion.startswith("un trinquete\n")
-    assert peticion.rstrip().endswith("que la rueda tenga 12 dientes")
-    assert "2026-09-20-trinquete" in peticion
-    # Y el diseño del que parte, como referencia.
-    assert "'--adjunto', '2026-09-20-trinquete'" in _esperar_registro(nueva)
-    (trinquete,) = [g for g in web.get("/api/proyectos").json()
-                    if g["id"] == "2026-09-20-trinquete"]
-    assert [v["id"] for v in trinquete["versiones"]] == ["2026-09-20-trinquete", nueva.name]
-    assert trinquete["versiones"][1]["modificacion"] == "que la rueda tenga 12 dientes"
+    assert peticion.startswith("un gancho de pared\n")
+    assert peticion.rstrip().endswith("que sea 20 mm más largo")
+    assert "2026-11-04-gancho" in peticion
+    _esperar_registro(nueva)
+    (gancho,) = [g for g in _grupos(ws) if g["id"] == "2026-11-04-gancho"]
+    assert [v["id"] for v in gancho["versiones"]] == ["2026-11-04-gancho", nueva.name]
+    assert gancho["versiones"][1]["modificacion"] == "que sea 20 mm más largo"
 
 
 def test_modificar_una_modificacion_sigue_en_el_proyecto_original(ws):
+    _gancho(ws)
     web = _ws_con_trabajos(ws)
-    primera = web.post("/api/proyectos/2026-09-20-trinquete/modificar",
-                       json={"peticion": "12 dientes"}).json()["id"]
+    primera = web.post("/api/proyectos/2026-11-04-gancho/modificar",
+                       json={"peticion": "20 mm más largo"}).json()["id"]
     _esperar_registro(ws / "projects" / primera)
-    # El «diseñador» de prueba no deja rondas: sin rounds.json, una carpeta
-    # recién tocada cuenta como en marcha y no dejaría lanzar la segunda.
+    # El «diseñador» de prueba no deja lo que deja una pieza: sin rounds.json,
+    # una carpeta recién tocada cuenta como en marcha y no dejaría lanzar la
+    # segunda; y sin pieza.json no se sabría que es una pieza.
     web.app.state.trabajos._procesos[primera].wait(timeout=20)
     (ws / "projects" / primera / "rounds.json").write_text(
         '[{"number": 1, "title": "t", "feedback": ""}]', encoding="utf-8")
+    (ws / "projects" / primera / "pieza.json").write_text('{"title": "Gancho"}', encoding="utf-8")
 
     r = web.post(f"/api/proyectos/{primera}/modificar", json={"peticion": "y más grueso"})
 
     assert r.status_code == 200, r.text
     peticion = (ws / "projects" / r.json()["id"] / "request.md").read_text(encoding="utf-8")
     # Las modificaciones se acumulan: la segunda parte de la primera.
-    assert "12 dientes" in peticion and "y más grueso" in peticion
-    (trinquete,) = [g for g in web.get("/api/proyectos").json()
-                    if g["id"] == "2026-09-20-trinquete"]
-    assert len(trinquete["versiones"]) == 3
-
-
-def test_modificar_una_version_sin_diseno_no_la_pasa_como_referencia(ws):
-    """El cargador de referencias rechaza un proyecto sin mechanism.json y el
-    trabajo moriría al arrancar: la petición ya lleva lo que se pidió."""
-    web = _ws_con_trabajos(ws)
-
-    r = web.post("/api/proyectos/2026-09-01-leva/modificar", json={"peticion": "más alta"})
-
-    assert r.status_code == 200, r.text
-    assert "--adjunto" not in _esperar_registro(ws / "projects" / r.json()["id"])
+    assert "20 mm más largo" in peticion and "y más grueso" in peticion
+    (gancho,) = [g for g in _grupos(ws) if g["id"] == "2026-11-04-gancho"]
+    assert len(gancho["versiones"]) == 3
 
 
 @pytest.mark.parametrize("vacia", ["", "  \n "])
@@ -642,40 +618,36 @@ def test_con_otro_proyecto_en_marcha_no_se_lanza_una_modificacion(ws):
     otro.mkdir()
     (otro / "request.md").write_text("un gato de tijera\n", encoding="utf-8")
     (otro / "job.json").write_text(json.dumps({"pid": os.getpid()}), encoding="utf-8")
+    _gancho(ws)
     web = _ws_con_trabajos(ws)
 
-    r = web.post("/api/proyectos/2026-09-20-trinquete/modificar", json={"peticion": "algo"})
+    r = web.post("/api/proyectos/2026-11-04-gancho/modificar", json={"peticion": "algo"})
 
     assert r.status_code == 409
+    assert "2026-10-23-de-crafty" in r.json()["detail"]
 
 
-def test_el_detalle_de_una_version_dice_que_modificacion_se_pidio(ws):
+def test_la_version_nueva_dice_que_modificacion_se_pidio(ws):
+    _gancho(ws)
     web = _ws_con_trabajos(ws)
-    nueva = web.post("/api/proyectos/2026-09-20-trinquete/modificar",
-                     json={"peticion": "12 dientes"}).json()["id"]
+    nueva = web.post("/api/proyectos/2026-11-04-gancho/modificar",
+                     json={"peticion": "12 mm más ancho"}).json()["id"]
 
-    detalle = web.get(f"/api/proyectos/{nueva}").json()
-
-    assert detalle["modificacion"] == "12 dientes"
-    assert detalle["peticion"].startswith("un trinquete")
-
-
-def test_cada_mecanismo_tiene_donde_pedir_una_modificacion(ws):
-    (ws / "projects" / "2026-09-20-trinquete" / "mechanism.json").write_text(
-        '{"parts": []}', encoding="utf-8")
-    html = _ws_con_trabajos(ws).get("/p/2026-09-20-trinquete").text
-    assert 'data-modificar="2026-09-20-trinquete"' in html
+    # En la tira de versiones; la petición entera, en los detalles técnicos.
+    assert 'title="12 mm más ancho"' in web.get("/p/2026-11-04-gancho").text
+    assert web.get(f"/api/proyectos/{nueva}").json()["peticion"].startswith("un gancho de pared")
 
 
-def test_pedir_una_pieza_lanza_la_orden_de_piezas_y_no_la_de_mecanismos(ws):
-    """F5.17 (pieza): un soporte o un gancho no es un mecanismo, y el flujo de
-    mecanismos exige dos piezas. Desde la web se elige qué se pide."""
+def test_pedir_una_pieza_lanza_la_orden_de_piezas_y_no_la_orden_por_omision(ws):
+    """F5.17 (pieza): desde la web se elige qué se pide, y una pieza sale
+    con la orden de piezas. Cuando no se elegía, un soporte acababa en el
+    flujo de mecanismos, que exigía dos piezas."""
     import sys
 
     from orchestrator.jobs import JobStore
 
     trabajos = JobStore(ws / "projects", comando=[
-        sys.executable, "-c", "import sys; print('MECANISMO', sys.argv)"])
+        sys.executable, "-c", "import sys; print('OMISION', sys.argv)"])
     web = TestClient(crear_app(ws, host_workspace=HOST, trabajos=trabajos, orden_pieza=[
         sys.executable, "-c", "import sys; print('PIEZA', sys.argv)"]))
 
@@ -683,12 +655,7 @@ def test_pedir_una_pieza_lanza_la_orden_de_piezas_y_no_la_de_mecanismos(ws):
 
     assert r.status_code == 200, r.text
     registro = _esperar_registro(ws / "projects" / r.json()["id"])
-    assert "PIEZA" in registro and "MECANISMO" not in registro
-
-
-def test_la_pagina_deja_elegir_entre_pieza_y_mecanismo(ws):
-    html = _ws_con_trabajos(ws).get("/").text
-    assert 'id="tipo"' in html and 'value="pieza"' in html and 'value="mecanismo"' in html
+    assert "PIEZA" in registro and "OMISION" not in registro
 
 
 # --- El visto bueno al concepto (F3.20 (concepto)) ---------------------------
@@ -876,14 +843,9 @@ def test_modificar_una_pieza_la_rehace_como_pieza(ws):
 
     from orchestrator.jobs import JobStore
 
-    base = ws / "projects" / "2026-11-04-gancho"
-    base.mkdir()
-    (base / "request.md").write_text("un gancho de pared\n", encoding="utf-8")
-    (base / "pieza.json").write_text('{"title": "Gancho"}', encoding="utf-8")
-    (base / "rounds.json").write_text('[{"number": 1, "title": "t", "feedback": ""}]',
-                                      encoding="utf-8")
+    _gancho(ws)
     trabajos = JobStore(ws / "projects", comando=[
-        sys.executable, "-c", "import sys; print('MECANISMO', sys.argv)"])
+        sys.executable, "-c", "import sys; print('OMISION', sys.argv)"])
     web = TestClient(crear_app(ws, host_workspace=HOST, trabajos=trabajos, orden_pieza=[
         sys.executable, "-c", "import sys; print('PIEZA', sys.argv)"]))
 
@@ -891,7 +853,7 @@ def test_modificar_una_pieza_la_rehace_como_pieza(ws):
 
     assert r.status_code == 200, r.text
     registro = _esperar_registro(ws / "projects" / r.json()["id"])
-    assert "PIEZA" in registro and "MECANISMO" not in registro
+    assert "PIEZA" in registro and "OMISION" not in registro
 
 
 def test_el_concepto_ensena_lo_que_aloja_con_su_ficha(ws):
@@ -926,3 +888,86 @@ def test_como_entra_y_como_se_sujeta_se_leen_por_separado(ws):
     assert "Cómo se sujeta: Reborde de Ø18.5 abajo." in texto
     assert "Ajuste: a presión" in texto
     assert ".;" not in texto
+
+
+# --- Los mecanismos ya no se piden ni se cambian (F9.13 (limpieza)) ------------
+#
+# El flujo de mecanismos se quitó: lo que se mueve se diseña como conjunto de
+# un backlog. Los proyectos que dejó se siguen viendo, pero la web no puede
+# lanzar nada sobre ellos, y tiene que decirlo en vez de arrancar otra cosa.
+
+
+def _nada_nuevo(ws, antes):
+    return sorted(p.name for p in (ws / "projects").iterdir()) == antes
+
+
+def test_pedir_un_mecanismo_se_rechaza_y_dice_que_pedir_en_su_lugar(ws):
+    web = _ws_con_trabajos(ws)
+    antes = sorted(p.name for p in (ws / "projects").iterdir())
+
+    r = web.post("/api/disenar", json={"tipo": "mecanismo", "peticion": "una bisagra de 40 mm"})
+
+    assert r.status_code == 422
+    motivo = json.dumps(r.json(), ensure_ascii=False)
+    assert "mecanismo" in motivo and "conjunto" in motivo
+    assert _nada_nuevo(ws, antes)
+
+
+def test_el_dialogo_ofrece_pieza_o_conjunto_y_nada_de_lo_retirado(ws):
+    html = _ws_con_trabajos(ws).get("/").text
+    assert 'id="tipo"' in html and 'value="pieza"' in html and 'value="obra"' in html
+    assert "un backlog: un robot o un conjunto, pieza a pieza" in html
+    assert 'value="mecanismo"' not in html
+    # «Partir de» solo servía a los mecanismos: con una pieza o un backlog se
+    # ignoraba, y partiendo de algo que no fuera un mecanismo el trabajo moría.
+    assert "Partir de" not in html and "basado_en" not in html
+
+
+def test_un_mecanismo_ya_hecho_no_se_puede_modificar(ws):
+    base = ws / "projects" / "2026-09-20-trinquete"
+    (base / "mechanism.json").write_text(
+        '{"title": "Trinquete", "parts": [{"name": "rueda"}, {"name": "pawl"}]}', encoding="utf-8")
+    web = _ws_con_trabajos(ws)
+    antes = sorted(p.name for p in (ws / "projects").iterdir())
+
+    r = web.post("/api/proyectos/2026-09-20-trinquete/modificar",
+                 json={"peticion": "que la rueda tenga 12 dientes"})
+
+    assert r.status_code == 409
+    assert "mecanismo" in r.json()["detail"]
+    assert _nada_nuevo(ws, antes)
+
+
+def test_un_backlog_no_se_modifica_entero_y_no_lanza_nada(ws):
+    """Sin `pieza.json`, modificar un backlog caía en la orden por omisión, la
+    de mecanismos, con la petición del backlog entero. Un backlog se cambia en
+    la tarjeta de cada pieza; ampliarlo llegará con F9.10 (ampliar)."""
+    from orchestrator import obra as O
+    from tests.test_obra import _obra
+
+    carpeta = ws / "projects" / "2026-11-09-pan-tilt"
+    carpeta.mkdir()
+    (carpeta / "request.md").write_text("un pan-tilt con dos SG90\n", encoding="utf-8")
+    O.guardar(carpeta, _obra(), por="prueba")
+    web = _ws_con_trabajos(ws)
+    antes = sorted(p.name for p in (ws / "projects").iterdir())
+
+    r = web.post("/api/proyectos/2026-11-09-pan-tilt/modificar",
+                 json={"peticion": "la base más alta"})
+
+    assert r.status_code == 409
+    assert "pieza a pieza" in r.json()["detail"]
+    assert _nada_nuevo(ws, antes)
+
+
+def test_lo_que_no_es_una_pieza_suelta_tampoco_se_modifica(ws):
+    """La leva archivada no dejó ni diseño ni `pieza.json`: no hay flujo con
+    el que rehacerla."""
+    web = _ws_con_trabajos(ws)
+    antes = sorted(p.name for p in (ws / "projects").iterdir())
+
+    r = web.post("/api/proyectos/2026-09-01-leva/modificar", json={"peticion": "más alta"})
+
+    assert r.status_code == 409
+    assert "pieza suelta" in r.json()["detail"]
+    assert _nada_nuevo(ws, antes)

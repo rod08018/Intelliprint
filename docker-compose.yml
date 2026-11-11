@@ -10,7 +10,7 @@
 # va a imprimir; el contenedor se lo pide por el puente del host, que hay
 # que tener arrancado (scripts/start-host-mcps.ps1).
 #
-#   docker compose run --rm orchestrator mecanismo peticion.md --archivo
+#   docker compose run --rm orchestrator pieza peticion.md --archivo
 #   docker compose run --rm suite            # la suite rápida, en Linux
 #   docker compose up -d ollama              # modelos locales con la 5090
 
@@ -117,21 +117,14 @@ services:
       # El buzón de Crafty, en la MISMA ruta que dentro de su contenedor: el
       # MCP devuelve rutas y Crafty las abre tal cual.
       INTELLIPRINT_BUZON: /home/node/.openclaw/workspace/intelliprint
-      # Las fotos y ejemplos que te llegan por Telegram los guarda OpenClaw en
-      # su estado, montado aquí en /crafty-estado. Crafty pasa las rutas como
-      # las ve él (/home/node/.openclaw/...) y el alias las traduce
-      # (F5.2 (adjuntos)). NO se monta en la misma ruta: en solo lectura
-      # impedía montar el buzón dentro y el contenedor no arrancaba. Solo esa
-      # carpeta y el workspace: la ruta la escribe un modelo a partir de lo que
-      # llegó por Telegram, y /proc/self/environ lleva la clave.
-      INTELLIPRINT_RAICES_REFERENCIAS: /crafty-estado
-      INTELLIPRINT_ALIAS_REFERENCIAS: /home/node/.openclaw=/crafty-estado
     volumes:
       - ./workspace:/workspace
       - ./config:/app/config:ro
       - ./library:/app/library:ro
-      # Solo lectura: Intelliprint mira las fotos de Crafty, no toca su estado.
-      - crafty_estado:/crafty-estado:ro
+      # El estado de Crafty (donde OpenClaw guarda las fotos que le llegan)
+      # NO se monta: solo lo leían las referencias del flujo de mecanismos,
+      # y lo que no hace falta ver no se enseña a un servidor que recibe
+      # rutas escritas por un modelo.
       - crafty_buzon:/home/node/.openclaw/workspace/intelliprint
     # Sin puertos publicados: solo lo llama Crafty, por la red interna. Este
     # servidor lanza proyectos que gastan dinero; no tiene por qué verlo

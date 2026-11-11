@@ -1,6 +1,6 @@
 # Intelliprint
 
-Sistema multiagente local para diseñar piezas y mecanismos imprimibles en 3D usando FreeCAD y PrusaSlicer vía MCP.
+Sistema multiagente local para diseñar piezas imprimibles en 3D —sueltas, o las de un robot o conjunto— usando FreeCAD y PrusaSlicer vía MCP.
 
 En el canal humano el sistema se llama **Crafty**: es la cara visible del orquestador, que por dentro coordina once agentes.
 
@@ -11,7 +11,7 @@ donde miras **qué vas a imprimir** antes de mandarlo a la máquina (ADR-014).
 docker compose up -d web            # la interfaz:  http://localhost:8080
 docker compose up -d crafty         # Crafty en Telegram
 docker compose run --rm suite       # la suite, donde dice la verdad
-docker compose run --rm orchestrator mecanismo peticion.md --archivo
+docker compose run --rm orchestrator pieza peticion.md --archivo
 ```
 
 Y en el PC, para que el contenedor pueda usar tu PrusaSlicer:

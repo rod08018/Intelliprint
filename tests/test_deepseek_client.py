@@ -197,3 +197,38 @@ def test_el_modelo_que_no_piensa_no_cambia():
     DeepSeekClient(api_key="k", model="deepseek-chat",
                    transport=httpx.MockTransport(responder)).complete("hola")
     assert enviado["max_tokens"] == 8192
+
+
+# --- Imágenes junto al texto ----------------------------------------------------
+#
+# El cliente sabe mandar imágenes: lo estrenaron las referencias que se le
+# pasaban al diseñador, F5.2 (adjuntos). Sin ellas, el mensaje tiene que
+# seguir siendo texto plano.
+
+URL = "data:image/jpeg;base64,/9j/AAAA"
+
+
+def test_el_cliente_manda_las_imagenes_junto_al_texto():
+    enviado = {}
+
+    def responder(request):
+        enviado.update(json.loads(request.content))
+        return httpx.Response(200, json={"choices": [{"message": {"content": "{}"}}]})
+
+    DeepSeekClient(api_key="k", model="deepseek-reasoner",
+                   transport=httpx.MockTransport(responder)).complete("mira esto", imagenes=[URL])
+    contenido = enviado["messages"][0]["content"]
+    assert {"type": "text", "text": "mira esto"} in contenido
+    assert {"type": "image_url", "image_url": {"url": URL}} in contenido
+
+
+def test_sin_imagenes_el_mensaje_sigue_siendo_texto_plano():
+    enviado = {}
+
+    def responder(request):
+        enviado.update(json.loads(request.content))
+        return httpx.Response(200, json={"choices": [{"message": {"content": "{}"}}]})
+
+    DeepSeekClient(api_key="k", model="deepseek-chat",
+                   transport=httpx.MockTransport(responder)).complete("hola")
+    assert enviado["messages"][0]["content"] == "hola"

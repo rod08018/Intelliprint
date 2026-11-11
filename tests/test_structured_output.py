@@ -212,3 +212,39 @@ def test_un_intento_cortado_queda_registrado_sin_respuesta():
         structured(Cortado(), "x", Pieza)
     assert fallo.value.intentos[0]["respuesta"] is None
     assert "max_tokens" in fallo.value.intentos[0]["error"]
+
+
+# --- Imágenes -------------------------------------------------------------------
+
+URL = "data:image/jpeg;base64,/9j/AAAA"
+
+
+class _Anota:
+    def __init__(self, respuestas):
+        self.respuestas, self.llamadas = list(respuestas), []
+
+    def complete(self, prompt, imagenes=None):
+        self.llamadas.append(imagenes)
+        return self.respuestas.pop(0)
+
+
+def test_las_imagenes_van_en_cada_intento_tambien_al_reintentar():
+    class P(BaseModel):
+        a: int
+
+    cliente = _Anota(['{"b": 1}', '{"a": 1}'])
+    structured(cliente, "x", P, imagenes=[URL])
+    assert cliente.llamadas == [[URL], [URL]]
+
+
+def test_sin_imagenes_structured_no_toca_la_llamada():
+    """Los clientes que no saben de imágenes (y los de los tests) siguen
+    funcionando: sin imágenes no se les pasa nada nuevo."""
+    class P(BaseModel):
+        a: int
+
+    class SoloTexto:
+        def complete(self, prompt):
+            return '{"a": 1}'
+
+    assert structured(SoloTexto(), "x", P).a == 1

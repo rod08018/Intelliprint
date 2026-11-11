@@ -1,6 +1,6 @@
-# Las categorías de la galería (F5.5 (web)). El Mechanism Designer elige una
-# para cada diseño, y el usuario la puede cambiar desde la web. Lo que no
-# encaje en ninguna va a «otros».
+# Las categorías de la galería (F5.5 (web)). La elige el usuario desde la web;
+# los mecanismos que ya hay traen la que les puso su diseñador. Lo que no
+# tenga ninguna va a «otros».
 - sujeción
 - mecanismos
 - organización

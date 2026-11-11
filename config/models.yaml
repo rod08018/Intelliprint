@@ -18,7 +18,7 @@ profiles:
 
   prod:                                  # PC con RTX 5090 (32 GB VRAM)
     design: local/qwen3.8                #   27B, tools + thinking + vision — 16.5 GB
-    reason: local/qwen3.8                #   el mismo, con thinking activado (Mechanism Designer)
+    reason: local/qwen3.8                #   el mismo, con thinking activado (desglose, ingeniero, kit)
     qa:     local/gemma3:12b             #   revisor distinto, con visión   — ~8 GB
     embed:  local/nomic-embed-text       #                                  — ~0.3 GB
     # Total ~25 GB de 32 GB. Requiere OLLAMA_MAX_LOADED_MODELS=2.
@@ -27,7 +27,7 @@ profiles:
 
   dev:                                   # portátil sin GPU: DeepSeek en la nube
     design: deepseek/deepseek-chat
-    reason: deepseek/deepseek-reasoner   # razonamiento espacial: Mechanism Designer (F3.15 (mecanismos))
+    reason: deepseek/deepseek-reasoner   # razonamiento espacial: desglose, ingeniero y kit
     qa:     deepseek/deepseek-chat       # sin diversidad de modelo: ver abajo
     embed:  null                         # DeepSeek no ofrece embeddings
 

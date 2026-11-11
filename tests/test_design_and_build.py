@@ -2,7 +2,10 @@
 
 Primer nivel: receta inválida → error de esquema, sin lanzar FreeCAD.
 Segundo nivel: receta VÁLIDA que FreeCAD rechaza al construir → el motivo
-vuelve al Part Designer para que la corrija. Máximo 3 construcciones.
+vuelve al diseñador para que la corrija. Máximo 3 construcciones.
+
+El diseñador de estos tests lleva las recetas escritas: lo que se prueba es
+el bucle —qué construye, qué le devuelve y cuándo se rinde—, no un agente.
 """
 
 import json
@@ -10,18 +13,21 @@ import json
 import pytest
 
 from mech_toolkit.generators import CATALOGO
-from orchestrator.agents.part_designer import PartDesignerAgent
 from orchestrator.build import ConstruccionFallida, design_and_build, motivo_del_fallo
+from orchestrator.schemas.recipe import Recipe
 from tests.test_generators import _freecadcmd
 
 
-class ClienteGuionizado:
-    def __init__(self, respuestas):
-        self._r = list(respuestas)
-        self.prompts = []
+class DisenadorGuionizado:
+    """`rechazos`: lo que el bucle le devolvió en cada llamada, (su receta
+    anterior, el motivo), o None la primera vez."""
 
-    def complete(self, prompt, **kwargs):
-        self.prompts.append(prompt)
+    def __init__(self, recetas):
+        self._r = [Recipe.model_validate_json(r) for r in recetas]
+        self.rechazos = []
+
+    def design(self, tarea, rechazo=None):
+        self.rechazos.append(rechazo)
         return self._r.pop(0)
 
 
@@ -62,8 +68,7 @@ def test_sin_motivo_marcado_devuelve_el_final_del_traceback():
 def test_una_receta_que_parte_la_pieza_se_corrige_con_el_motivo(tmp_path):
     """Taladro Ø70 en placa de 60: válida como receta, rota como pieza.
     El agente recibe "4 sólidos" y en el segundo intento pide Ø22."""
-    cliente = ClienteGuionizado([_receta(70), _receta(22)])
-    agente = PartDesignerAgent(cliente, CATALOGO)
+    agente = DisenadorGuionizado([_receta(70), _receta(22)])
 
     receta, resultado = design_and_build(
         agente, "placa con taladro", CATALOGO, tmp_path, freecadcmd=_freecadcmd()
@@ -71,8 +76,10 @@ def test_una_receta_que_parte_la_pieza_se_corrige_con_el_motivo(tmp_path):
 
     assert resultado.solids == 1
     assert receta.steps[1].params["diameter_mm"] == 22
-    assert "4 sólidos" in cliente.prompts[1]
-    assert '"diameter_mm": 70' in cliente.prompts[1]  # ve su propia receta
+    assert agente.rechazos[0] is None
+    anterior, motivo = agente.rechazos[1]
+    assert "4 sólidos" in motivo
+    assert '"diameter_mm": 70' in anterior  # ve su propia receta
 
 
 @pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
@@ -81,9 +88,8 @@ def test_cada_construccion_fallida_queda_guardada_con_su_motivo(tmp_path):
     quedó la última; por qué no colocó el soporte hubo que reproducirlo a
     mano. Cada intento queda en `intentos/<n>/`, con lo que escribió y el
     porqué."""
-    cliente = ClienteGuionizado([_receta(70), _receta(22)])
-    design_and_build(PartDesignerAgent(cliente, CATALOGO), "placa con taladro", CATALOGO,
-                     tmp_path, freecadcmd=_freecadcmd())
+    design_and_build(DisenadorGuionizado([_receta(70), _receta(22)]), "placa con taladro",
+                     CATALOGO, tmp_path, freecadcmd=_freecadcmd())
     assert "4 sólidos" in (tmp_path / "intentos" / "1" / "motivo.md").read_text(encoding="utf-8")
     assert '"diameter_mm": 70' in (tmp_path / "intentos" / "1" / "programa.txt").read_text(
         encoding="utf-8")
@@ -92,14 +98,13 @@ def test_cada_construccion_fallida_queda_guardada_con_su_motivo(tmp_path):
 
 @pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
 def test_tres_construcciones_fallidas_se_rinden_con_el_ultimo_motivo(tmp_path):
-    cliente = ClienteGuionizado([_receta(70)] * 3)
-    agente = PartDesignerAgent(cliente, CATALOGO)
+    agente = DisenadorGuionizado([_receta(70)] * 3)
 
     with pytest.raises(ConstruccionFallida, match="4 sólidos"):
         design_and_build(
             agente, "placa", CATALOGO, tmp_path, freecadcmd=_freecadcmd()
         )
-    assert len(cliente.prompts) == 3
+    assert len(agente.rechazos) == 3
 
 
 @pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
@@ -107,7 +112,6 @@ def test_la_construccion_informa_de_donde_queda_la_pieza(tmp_path):
     """El tamaño no basta para ensamblar: una placa de 60 mm centrada en el
     origen y otra que empieza en el origen miden lo mismo."""
     from orchestrator.build import build_part
-    from orchestrator.schemas.recipe import Recipe
 
     r = build_part(Recipe.model_validate_json(_receta(8)), CATALOGO, tmp_path, _freecadcmd())
     assert r.bbox_min == pytest.approx([-30, -30, 0], abs=1e-6)
@@ -118,33 +122,31 @@ def test_la_construccion_informa_de_donde_queda_la_pieza(tmp_path):
 def test_una_comprobacion_fallida_tras_construir_vuelve_al_agente(tmp_path):
     """Una pieza construible pero mal colocada es un rechazo más: su motivo
     llega al agente igual que un fallo de FreeCAD."""
-    cliente = ClienteGuionizado([_receta(8), _receta(10)])
-    agente = PartDesignerAgent(cliente, CATALOGO)
+    agente = DisenadorGuionizado([_receta(8), _receta(10)])
 
     def comprobar(resultado):
         return None if resultado.volume_mm3 < 60 * 60 * 6 - 400 else "el taladro central tiene que ser mayor"
 
     _, resultado = design_and_build(
         agente, "placa", CATALOGO, tmp_path, freecadcmd=_freecadcmd(), check=comprobar)
-    assert len(cliente.prompts) == 2
-    assert "el taladro central tiene que ser mayor" in cliente.prompts[1]
+    assert len(agente.rechazos) == 2
+    assert "el taladro central tiene que ser mayor" in agente.rechazos[1][1]
     assert resultado.volume_mm3 < 60 * 60 * 6 - 400
 
 
 @pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
 def test_una_caja_que_no_cuadra_no_quema_los_tres_intentos(tmp_path):
     """4 rondas del trinquete se fueron así: la pieza estaba bien dibujada y
-    era la caja DECLARADA la que no cuadraba, pero se le pedía al Part
-    Designer que arreglara un desacuerdo que no era suyo."""
-    cliente = ClienteGuionizado([_receta(8)] * 3)
-    agente = PartDesignerAgent(cliente, CATALOGO)
+    era la caja DECLARADA la que no cuadraba, pero se le pedía al diseñador
+    de la pieza que arreglara un desacuerdo que no era suyo."""
+    agente = DisenadorGuionizado([_receta(8)] * 3)
 
     with pytest.raises(ConstruccionFallida, match="caja"):
         design_and_build(agente, "placa", CATALOGO, tmp_path, freecadcmd=_freecadcmd(),
                          check=lambda r: "la pieza ocupa x de -30 a 30; se necesita de 0 a 60",
                          check_es_de_la_caja=True)
 
-    assert len(cliente.prompts) == 2      # un intento y una corrección, no tres
+    assert len(agente.rechazos) == 2      # un intento y una corrección, no tres
 
 
 @pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")

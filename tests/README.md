@@ -31,7 +31,7 @@ La suite rápida lee archivos y representaciones intermedias. **Eso no basta**: 
 | Marcador | Qué hace | Coste |
 |---|---|---|
 | `gui` | Abre la pieza en la **interfaz real** de FreeCAD y pregunta qué se ve | Abre una ventana unos segundos |
-| `llm` | `intelliprint new` de extremo a extremo con el modelo real, aislado con `INTELLIPRINT_WORKSPACE` | Unos céntimos de DeepSeek |
+| `llm` | `intelliprint pieza` de extremo a extremo con el modelo real, aislado con `INTELLIPRINT_WORKSPACE` | Unos céntimos de DeepSeek |
 
 **Regla:** antes de dar por cerrada una tarea que toque FreeCAD, el laminado o un agente, se ejecuta `pytest -m "gui or llm"`.
 

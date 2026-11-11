@@ -66,24 +66,7 @@ _corte.Tool = _union
 doc.recompute()
 """
 
-# --- Para mecanismos ---------------------------------------------------------
-
-# Barra en forma de estadio con un agujero en cada centro: sirve igual para
-# una manivela que para una biela. El ORIGEN está en el primer agujero, que
-# es el pivote, para que la pieza gire alrededor de su propio origen al
-# ensamblarla.
-_BARRA = """\
-_d, _w, _t = $center_distance_mm, $width_mm, $thickness_mm
-_rh = $hole_diameter_mm / 2.0
-_cuerpo = Part.makeBox(_d, _w, _t, FreeCAD.Vector(0, -_w / 2.0, 0))
-for _cx in (0.0, _d):
-    _cuerpo = _cuerpo.fuse(Part.makeCylinder(_w / 2.0, _t, FreeCAD.Vector(_cx, 0, 0)))
-for _cx in (0.0, _d):
-    _cuerpo = _cuerpo.cut(Part.makeCylinder(_rh, _t + 2, FreeCAD.Vector(_cx, 0, -1)))
-_barra = doc.addObject("Part::Feature", "barra")
-_barra.Shape = _cuerpo.removeSplitter()
-doc.recompute()
-"""
+# --- Cuerpos colocados donde se pide ------------------------------------------
 
 # Caja centrada en (x, y) en planta y apoyada en z. Si ya hay cuerpo, se
 # suma a él: así se construye una bancada con su placa y sus raíles.
@@ -157,131 +140,6 @@ _herramienta = Part.makeBox($length_mm, $width_mm, $height_mm, FreeCAD.Vector(
     ($x_mm) - ($length_mm) / 2.0, ($y_mm) - ($width_mm) / 2.0, $z_mm))
 """ + _RESTAR
 
-# Prisma de un polígono en planta [[x, y], ...], de z a z + espesor.
-_PRISMA = """
-_pts = [FreeCAD.Vector(_x, _y, $z_mm) for _x, _y in $points_mm]
-_forma = Part.Face(Part.makePolygon(_pts + [_pts[0]])).extrude(FreeCAD.Vector(0, 0, $thickness_mm))
-""" + _SUMAR
-
-# Rueda de trinquete con dientes de sierra, centrada en el origen, de z = 0 a
-# z = espesor. Cada diente sube en línea recta del fondo (ángulo k·p) a la
-# punta (ángulo (k+1)·p) y cae en radial: la cara radial es la que empuja el
-# trinquete. Gira en sentido antihorario para avanzar. El mismo perfil está en
-# sim.ratchet; si cambia aquí, tiene que cambiar allí.
-_RUEDA_TRINQUETE = """
-import math as _m
-_n = int($teeth)
-_p = 2 * _m.pi / _n
-_pts = []
-for _k in range(_n):
-    for _r, _a in ((($root_diameter_mm) / 2.0, _k * _p), (($tip_diameter_mm) / 2.0, (_k + 1) * _p)):
-        _pts.append(FreeCAD.Vector(_r * _m.cos(_a), _r * _m.sin(_a), 0))
-_forma = Part.Face(Part.makePolygon(_pts + [_pts[0]])).extrude(FreeCAD.Vector(0, 0, $thickness_mm))
-""" + _SUMAR
-
-# Resorte helicoidal a lo largo de +z, de z = 0 a z = largo. Representación
-# simplificada: se estira o se comprime escalando en z al ensamblar.
-_RESORTE = """
-_vueltas = (($length_mm) - ($wire_diameter_mm)) / ($pitch_mm)
-if _vueltas < 1:
-    raise RuntimeError(
-        "INTELLIPRINT_FALLO: el resorte sale de %.2f vueltas (largo %s, alambre %s, paso %s): "
-        "menos de una vuelta no es un resorte. Alarga el resorte o baja el paso."
-        % (_vueltas, $length_mm, $wire_diameter_mm, $pitch_mm))
-# La hélice va de w/2 a L - w/2: con el alambre, el resorte ocupa de 0 a L y
-# sus puntas no se meten en los asientos.
-_helice = Part.makeHelix($pitch_mm, ($length_mm) - ($wire_diameter_mm), ($coil_diameter_mm) / 2.0)
-_helice.translate(FreeCAD.Vector(0, 0, ($wire_diameter_mm) / 2.0))
-_ini = _helice.Edges[0].valueAt(_helice.Edges[0].FirstParameter)
-_tan = _helice.Edges[0].tangentAt(_helice.Edges[0].FirstParameter)
-_perfil = Part.Wire(Part.makeCircle(($wire_diameter_mm) / 2.0, _ini, _tan))
-_forma = Part.Wire(_helice.Edges).makePipeShell([_perfil], True, True)
-""" + _SUMAR
-
-
-# Uña de trinquete: un dedo que sale del cubo del pivote y termina en punta.
-# La cara de ataque (la que empuja o retiene el diente) es la de abajo, radial
-# al pivote; la de arriba se estrecha con `tip_angle_deg` para dejar alivio.
-# Origen en el pivote; la punta, en +X.
-_UNA = """
-import math as _m
-_L, _w, _t = $pivot_to_tip_mm, $width_mm, $thickness_mm
-_hub, _ang = ($hub_diameter_mm) / 2.0, _m.radians($tip_angle_deg)
-_alivio = min(_w, _L * _m.tan(_ang))
-_pts = [
-    FreeCAD.Vector(0, -_w / 2.0, 0),
-    FreeCAD.Vector(_L, -0.2, 0),                 # punta: 0.4 mm de ancho
-    FreeCAD.Vector(_L, 0.2, 0),
-    FreeCAD.Vector(_L - _alivio, _w / 2.0, 0),   # alivio hacia el lomo
-    FreeCAD.Vector(0, _w / 2.0, 0),
-]
-_forma = Part.Face(Part.makePolygon(_pts + [_pts[0]])).extrude(FreeCAD.Vector(0, 0, _t))
-_forma = _forma.fuse(Part.makeCylinder(_hub, _t)).removeSplitter()
-_forma = _forma.cut(Part.makeCylinder(($hole_diameter_mm) / 2.0, _t + 2,
-                                      FreeCAD.Vector(0, 0, -1)))
-""" + _SUMAR
-
-
-# Mecanismo de Ginebra externo. Rueda y disco de bloqueo salen de las MISMAS
-# cuatro cifras —ranuras N, distancia entre centros C, diámetro del pasador y
-# holgura— con las fórmulas estándar, así que encajan por construcción:
-#
-#   a = C·sen(180°/N)      radio de manivela (centro del pasador al eje conductor)
-#   b = C·cos(180°/N)      radio al que el pasador entra en la ranura
-#   w = pasador + 2·holgura                          ancho de ranura
-#   R = √(b² + (w/2)²)                               radio de la rueda
-#   r = a − w/2 − holgura − 1                        radio del disco de bloqueo
-#
-# Dos límites para `r`, y el segundo es el que manda: por dentro del círculo
-# que recorre el pasador (o el bloqueo chocaría con él), y el arco que deja en
-# la rueda (radio r + holgura) a 1 mm de la esquina de la boca de cada
-# ranura. Con r = a − pasador/2 − holgura el arco se comía esas esquinas y el
-# pasador entraba tarde, de golpe (lo cazó el test de la caja). Fallo real (Ginebra del 2026-09-21): el diseñador
-# componía la rueda con cilindros y cajas —salía en 5 trozos— y probaba
-# radios de bloqueo a ojo (41.4, 17.57, 34.5), y se perdieron 5 de 10 rondas.
-_GINEBRA_COMUN = """
-import math as _m
-_n, _C, _d = int($slots), float($center_distance_mm), float($pin_diameter_mm)
-_t, _cl = float($thickness_mm), float($clearance_mm)
-_a, _b = _C * _m.sin(_m.pi / _n), _C * _m.cos(_m.pi / _n)
-_w = _d + 2 * _cl
-_R = _m.hypot(_b, _w / 2.0)
-_rl = _a - _w / 2.0 - _cl - 1.0
-if _rl <= 0:
-    raise RuntimeError(
-        "INTELLIPRINT_FALLO: con %d ranuras, entre centros %s y pasador %s, el disco de "
-        "bloqueo no cabe (radio %.2f): agranda la distancia entre centros o reduce el pasador."
-        % (_n, _C, _d, _rl))
-"""
-
-# Rueda: centrada en el origen, de z = 0 a espesor. Ranura k a lo largo del
-# ángulo k·360/N (la 0 en +X); arco cóncavo de bloqueo k a (k+½)·360/N,
-# centrado a C del centro, de radio r + holgura. La ranura llega hasta donde
-# baja el pasador (C − a) más su radio y la holgura.
-_RUEDA_GINEBRA = _GINEBRA_COMUN + """
-_forma = Part.makeCylinder(_R, _t)
-_fondo = _C - _a - _d / 2.0 - _cl
-for _k in range(_n):
-    _ang = _k * 360.0 / _n
-    _ranura = Part.makeBox(_R + 2 - _fondo, _w, _t + 2, FreeCAD.Vector(_fondo, -_w / 2.0, -1))
-    _ranura.rotate(FreeCAD.Vector(0, 0, 0), FreeCAD.Vector(0, 0, 1), _ang)
-    _forma = _forma.cut(_ranura)
-    _medio = _m.radians(_ang + 180.0 / _n)
-    _forma = _forma.cut(Part.makeCylinder(
-        _rl + _cl, _t + 2, FreeCAD.Vector(_C * _m.cos(_medio), _C * _m.sin(_medio), -1)))
-_forma = _forma.removeSplitter()
-""" + _SUMAR
-
-# Disco de bloqueo: centrado en el eje conductor (origen), de z = 0 a espesor,
-# radio r, con el alivio hacia +X —la dirección del pasador— para que la rueda
-# pueda girar mientras el pasador está en la ranura. El pasador va aparte, en
-# (a, 0), con generate_cylinder.
-_BLOQUEO_GINEBRA = _GINEBRA_COMUN + """
-_forma = Part.makeCylinder(_rl, _t)
-_forma = _forma.cut(Part.makeCylinder(_R + _cl, _t + 2, FreeCAD.Vector(_C, 0, -1)))
-_forma = _forma.removeSplitter()
-""" + _SUMAR
-
 
 CATALOGO = GeneratorCatalog(
     [
@@ -302,13 +160,6 @@ CATALOGO = GeneratorCatalog(
             description='Cuatro agujeros verticales pasantes en las esquinas de un cuadrado de lado `pitch_mm` centrado en el origen.',
             required_params={"hole_diameter_mm", "pitch_mm"},
             template=_PATRON_CUADRADO,
-        ),
-        GeneratorSpec(
-            name="generate_link",
-            description='Barra de estadio: primer agujero en el origen, segundo en (center_distance, 0), de z = 0 a z = espesor. Para manivelas, bielas, brazos. Caja: x de −ancho/2 a distancia+ancho/2, y ±ancho/2, z de 0 a espesor.',
-            required_params={"center_distance_mm", "width_mm", "thickness_mm",
-                             "hole_diameter_mm"},
-            template=_BARRA,
         ),
         GeneratorSpec(
             name="generate_box",
@@ -341,60 +192,6 @@ CATALOGO = GeneratorCatalog(
             description='Vaciado con una caja centrada en (x, y) en planta, de z a z + height (ranuras, alojamientos). Corta lo anterior.',
             required_params={"length_mm", "width_mm", "height_mm", "x_mm", "y_mm", "z_mm"},
             template=_VACIADO,
-        ),
-        GeneratorSpec(
-            name="generate_prism",
-            description='Polígono [[x, y], ...] en planta extruido de z a z + espesor. Se suma a lo anterior. Caja: la del polígono, y de z a z+espesor.',
-            required_params={"points_mm", "thickness_mm", "z_mm"},
-            template=_PRISMA,
-        ),
-        GeneratorSpec(
-            name="generate_ratchet_wheel",
-            description='Rueda de trinquete centrada en el origen, de z = 0 a espesor. Cada diente sube en línea recta del fondo (ángulo k·360/N) a la punta (ángulo (k+1)·360/N) y cae en radial: avanza girando en sentido antihorario. Se suma a lo anterior; el agujero del eje va aparte. Caja: NO es ±tip/2 salvo que una punta caiga sobre el eje; es el máximo de r·cos y r·sin sobre los vértices del perfil.',
-            required_params={"teeth", "tip_diameter_mm", "root_diameter_mm", "thickness_mm"},
-            template=_RUEDA_TRINQUETE,
-        ),
-        GeneratorSpec(
-            name="generate_pawl",
-            description=("Uña de trinquete: dedo con punta que sale de un cubo de pivote. "
-                         "Origen en el pivote, punta en +X a `pivot_to_tip_mm`, de z = 0 a "
-                         "espesor. La cara de ataque es la de -Y (radial al pivote) y la de "
-                         "+Y se estrecha con `tip_angle_deg` para dejar alivio. Caja: x de "
-                         "-hub/2 a pivot_to_tip, y ±max(ancho, hub)/2, z de 0 a espesor."),
-            required_params={"pivot_to_tip_mm", "width_mm", "thickness_mm", "tip_angle_deg",
-                             "hub_diameter_mm", "hole_diameter_mm"},
-            template=_UNA,
-        ),
-        GeneratorSpec(
-            name="generate_geneva_wheel",
-            description=("Rueda de Ginebra externa, centrada en el origen, de z = 0 a espesor. "
-                         "Todo sale de N, C (entre centros), pasador y holgura: radio de manivela "
-                         "a = C·sen(180°/N), b = C·cos(180°/N), ranuras de ancho pasador + 2·holgura "
-                         "a lo largo de k·360/N (la 0 en +X), y arcos cóncavos de bloqueo a "
-                         "(k+½)·360/N que casan con generate_geneva_lock de las mismas cifras. "
-                         "USA ESTO en vez de componer la rueda con cajas y cilindros. El agujero "
-                         "del eje va aparte. Caja con N múltiplo de 4: ±b en X e Y."),
-            required_params={"slots", "center_distance_mm", "pin_diameter_mm", "thickness_mm",
-                             "clearance_mm"},
-            template=_RUEDA_GINEBRA,
-        ),
-        GeneratorSpec(
-            name="generate_geneva_lock",
-            description=("Disco de bloqueo de la Ginebra, centrado en el eje conductor (origen), "
-                         "de z = 0 a espesor, de radio r = a − w/2 − holgura − 1 (w = pasador + 2·holgura), con el alivio "
-                         "hacia +X: el pasador tiene que ir en +X, en (a, 0), con generate_cylinder. "
-                         "Mismas cifras que generate_geneva_wheel y encajan solos. Caja: y ±r; x de "
-                         "−r hasta donde se cruzan disco y alivio, (C² + r² − (R+holgura)²)/(2C), "
-                         "con R = √(b² + (w/2)²)."),
-            required_params={"slots", "center_distance_mm", "pin_diameter_mm", "thickness_mm",
-                             "clearance_mm"},
-            template=_BLOQUEO_GINEBRA,
-        ),
-        GeneratorSpec(
-            name="generate_spring",
-            description='Resorte helicoidal a lo largo de z, de z = 0 a z = largo, centrado en el eje Z. Caja: en planta ±(coil+wire)/2 (el alambre sobresale del diámetro de espira), en z de 0 a largo. Necesita al menos una vuelta: (largo − alambre)/paso ≥ 1.',
-            required_params={"coil_diameter_mm", "wire_diameter_mm", "pitch_mm", "length_mm"},
-            template=_RESORTE,
         ),
     ]
 )

@@ -246,8 +246,8 @@ def galeria(grupos: list[dict], workspace: Path, hay_puente: bool, puede_pedir: 
                                          f"{usd:.2f} USD" if usd >= 0.005 else "") if x)
         compras = _compras(m)
         tarjetas.append(f"""
-      <a class="tarjeta" href="/p/{e(g['id'])}" data-id="{e(g['id'])}" data-estado="{e(estado)}"
-         data-tipo="{tipo}" data-etapa="{etapa}" data-categoria="{e(categoria_de(workspace, g))}" data-nombre="{e(nombre.lower())}"{' data-archivado="1"' if archivado else ''}>
+      <a class="tarjeta" href="/p/{e(g['id'])}" data-estado="{e(estado)}"
+         data-tipo="{tipo}" data-etapa="{etapa}" data-nombre="{e(nombre.lower())}"{' data-archivado="1"' if archivado else ''}>
         <div class="foto">{foto}</div>
         <div class="pie-tarjeta">
           <div class="linea"><span class="tipo {tipo}">{e(como)}</span></div>
@@ -269,8 +269,6 @@ def galeria(grupos: list[dict], workspace: Path, hay_puente: bool, puede_pedir: 
     vacio = ('<p class="vacio">Todavía no hay inventos. Pide el primero con «Nuevo diseño», '
              'o por Telegram a Crafty.</p>') if not grupos else ""
     ocupado = any(g.get("en_marcha") for g in grupos)
-    opciones = "".join(f'<option value="{e(g["mejor"])}">{e(_recortar(nombre_de(workspace, g), 60))}</option>'
-                       for g in grupos)
     # Lo que tarda y cuesta va siempre: con algo en marcha desaparecía, y es
     # justo cuando la persona decide si esperar o volver luego.
     coste = "Tarda de 5 a 60 minutos y cuesta hasta 5 USD."
@@ -287,10 +285,9 @@ def galeria(grupos: list[dict], workspace: Path, hay_puente: bool, puede_pedir: 
   </header>
   <dialog id="nuevo">
     <form method="dialog" class="cabeza-dialogo"><h2>Nuevo diseño</h2><button class="cerrar" aria-label="Cerrar">✕</button></form>
-    <label class="partir">Qué es <select id="tipo"><option value="pieza" data-ejemplo="{e(EJEMPLOS['pieza'])}">una pieza (soporte, gancho, adaptador…)</option><option value="mecanismo" data-ejemplo="{e(EJEMPLOS['mecanismo'])}">un mecanismo (piezas que se mueven)</option><option value="obra" data-ejemplo="{e(EJEMPLOS['obra'])}">un backlog: varias piezas, una a una</option></select></label>
+    <label class="partir">Qué es <select id="tipo"><option value="pieza" data-ejemplo="{e(EJEMPLOS['pieza'])}">una pieza (soporte, gancho, adaptador…)</option><option value="obra" data-ejemplo="{e(EJEMPLOS['obra'])}">un backlog: un robot o un conjunto, pieza a pieza</option></select></label>
     <label for="peticion" class="partir">Qué quieres</label>
     <textarea id="peticion" rows="9" placeholder="{e(EJEMPLOS['pieza'])}"></textarea>
-    <label class="partir">Partir de <select id="basado_en"><option value="">nada, empezar de cero</option>{opciones}</select></label>
     <div class="pie-dialogo"><span class="nota" id="nota-pedir">{e(nota)}</span>
       <button class="btn pri" id="disenar" {"" if puede_pedir and not ocupado else "disabled"}>Diseñar</button></div>
   </dialog>
@@ -776,6 +773,14 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
         tira.append(f'<a class="version"{actual} href="/p/{raiz}?v={e(x["id"])}" title="{e(titulo)}">'
                     f'{mini}<span><b class="punto {c}"></b>v{x["version"]}</span></a>')
 
+    # Una pieza suelta se cambia desde aquí (hasta el 2026-11-08 a un soporte
+    # no había por dónde pedirle un cambio). Un backlog no: se cambia pieza a
+    # pieza en su árbol. Y los mecanismos que ya hay se ven, pero su flujo se
+    # quitó (F9.13 (limpieza)) y no hay con qué rehacerlos.
+    # Por aprobar ya tiene su formulario, «Contestar»: dos sitios donde
+    # escribir una corrección y no se sabría cuál vale.
+    se_puede_modificar = (carpeta / "pieza.json").is_file() and v["estado"] != "por aprobar"
+
     # Qué es, en una frase, y lo que no salió como se pidió.
     explicacion = ""
     es_obra = (carpeta / "obra.json").is_file()
@@ -790,8 +795,10 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
         explicacion = f'<div class="aviso ambar"><b>Lo que no salió como pediste</b><ul>{lista}</ul></div>'
     elif v["estado"] == "fallido":
         motivo = v.get("fallo") or v.get("motivo") or ""
+        salida = ("Puedes pedir un cambio abajo, o ver los detalles técnicos."
+                  if se_puede_modificar else "Lo que pasó está en los detalles técnicos.")
         explicacion = (f'<div class="aviso mal"><b>Por qué no salió</b><p>{e(_recortar(motivo, 220))}</p>'
-                       '<p class="suave">Puedes pedir un cambio abajo, o ver los detalles técnicos.</p></div>')
+                       f'<p class="suave">{salida}</p></div>')
     elif v["estado"] == "por aprobar":
         # F3.20 (concepto): lo primero que hay que ver es la idea, y con qué
         # aprobarla o contestar a sus preguntas. Sin botones, el proyecto se
@@ -850,21 +857,14 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
              if imagen or con_visor or not revisando else
              (f'<div class="visor">{nav_tira}</div>' if len(versiones) > 1 else ""))
 
-    es_mecanismo = (carpeta / "mechanism.json").is_file()
-    # El servidor ya sabía rehacer una pieza suelta (`lanzar_modificacion`),
-    # pero la página solo ponía el formulario en los mecanismos: a un soporte
-    # no había por dónde pedirle un cambio (2026-11-08).
-    # Por aprobar ya tiene su formulario, «Contestar»: dos sitios donde
-    # escribir una corrección y no se sabría cuál vale.
-    se_puede_modificar = es_mecanismo or (
-        (carpeta / "pieza.json").is_file() and v["estado"] != "por aprobar")
     se_puede_cambiar = puede_pedir and not ocupado
     motivo_no = ("" if se_puede_cambiar else
                  "Hay un diseño en marcha: espera a que termine." if ocupado else
                  "Esta web no puede lanzar diseños.")
     desactivado = "" if se_puede_cambiar else " disabled"
 
-    # Las piezas, cada una con su miniatura y su «cambiar».
+    # Las piezas, cada una con su miniatura. El uso solo lo declaraban los
+    # mecanismos, y los que hay lo siguen enseñando.
     usos = {p.get("name"): p.get("uso") or "general"
             for p in (_leer(carpeta / "mechanism.json") or {}).get("parts", [])}
     piezas = []
@@ -872,20 +872,17 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
         n = stl.stem
         uso = usos.get(n, "general")
         etiqueta = f'<span class="uso">{e(uso)}</span>' if uso != "general" else ""
-        cambiar = (f"""<form class="cambiar-pieza" data-pieza="{e(n)}" data-modificar="{raiz}" data-base="{vid}">
-            <input name="cambio" placeholder="Qué cambiar" aria-label="Qué cambiar de {e(n)}"{desactivado}>
-            <button class="btn"{desactivado}>Cambiar</button></form>""" if es_mecanismo else "")
         piezas.append(f"""<div class="pieza"><div class="foto-pieza">
             <img src="/proyectos/{vid}/piezas/{e(n)}.png" alt="{e(_legible(n))}" loading="lazy"></div>
-          <div class="nombre-pieza">{e(_legible(n))} {etiqueta}</div>{cambiar}</div>""")
+          <div class="nombre-pieza">{e(_legible(n))} {etiqueta}</div></div>""")
     # Las de una obra ya salen en su nodo, con sus botones.
     seccion_piezas = (f'<section><h2>Piezas</h2><div class="piezas">{"".join(piezas)}</div></section>'
                       if piezas and not es_obra else "")
 
     cambiar_todo = (f"""<section class="cambiar"><h2>Cambiar algo</h2>
       <form class="cambiar-todo" data-modificar="{raiz}" data-base="{vid}">
-        <textarea name="cambio" rows="2" placeholder="Por ejemplo: que la boca abra hasta 60 mm"{desactivado}></textarea>
-        <div class="pie-cambiar"><span class="nota">{e(motivo_no or ("Crea una versión nueva a partir de esta. Si es de una sola pieza, cámbiala en su tarjeta: es más rápido." if es_mecanismo else "Crea una versión nueva a partir de esta."))}</span>
+        <textarea name="cambio" rows="2" placeholder="Por ejemplo: que la base mida 60 mm de largo"{desactivado}></textarea>
+        <div class="pie-cambiar"><span class="nota">{e(motivo_no or "Crea una versión nueva a partir de esta.")}</span>
         <button class="btn pri"{desactivado}>Pedir cambio</button></div></form></section>""" if se_puede_modificar else "")
 
     # Las instrucciones de una pieza suelta (la de calibración), a la vista:
@@ -1103,8 +1100,8 @@ def _documento(titulo: str, cuerpo: str, guion: str) -> str:
 
 
 EJEMPLOS = {
-    # Uno por tipo: con «una pieza» elegida se enseñaba un sargento, que es
-    # un mecanismo, y no se sabía qué tipo había que elegir (2026-11-08).
+    # Uno por tipo: con «una pieza» elegida se enseñaba un sargento, que no
+    # es una pieza suelta, y no se sabía qué tipo había que elegir (2026-11-08).
     "obra": (
         "El proyecto entero; se partirá en piezas y se diseñará una cada vez, "
         "con tu visto bueno en cada paso. Por ejemplo:\n\n"
@@ -1116,12 +1113,6 @@ EJEMPLOS = {
         "Un soporte para un servo SG90 que se atornille a una placa con dos "
         "tornillos M3 separados 30 mm. El eje del servo, a 20 mm de la placa.\n\n"
         "Medidas, qué aloja, cómo se sujeta y qué carga aguanta."
-    ),
-    "mecanismo": (
-        "Qué quieres que haga, con todo lo que sepas. Por ejemplo:\n\n"
-        "Un sargento de banco para piezas de hasta 40 mm, con tornillo M8 de ferretería. "
-        "La mordaza móvil desliza sobre dos guías.\n\n"
-        "Medidas, qué se mueve y cuánto, y qué sacrificar si algo no se puede."
     ),
 }
 
@@ -1397,7 +1388,7 @@ GUION_GALERIA = r"""
     const caja = document.querySelector("#peticion"), b = document.querySelector("#disenar");
     if (!caja.value.trim()) { avisar("Escribe primero qué quieres que diseñe."); caja.focus(); return; }
     b.disabled = true; b.textContent = "Lanzando…";
-    const [ok, d] = await enviar("/api/disenar", {peticion: caja.value, tipo: document.querySelector("#tipo").value, basado_en: document.querySelector("#basado_en").value || null});
+    const [ok, d] = await enviar("/api/disenar", {peticion: caja.value, tipo: document.querySelector("#tipo").value});
     if (ok) { location.href = "/p/" + encodeURIComponent(d.id); return; }
     avisar(detalle(d) || "No se pudo lanzar."); b.disabled = false; b.textContent = "Diseñar";
   });
@@ -1633,7 +1624,7 @@ GUION_PROYECTO = r"""
     if (!caja.value.trim()) { avisar("Escribe primero qué quieres cambiar."); caja.focus(); return; }
     b.disabled = true; const antes = b.textContent; b.textContent = "Lanzando…";
     const [ok, d] = await enviar("/api/proyectos/" + encodeURIComponent(f.dataset.base) + "/modificar",
-                                 {peticion: caja.value, pieza: f.dataset.pieza || ""});
+                                 {peticion: caja.value});
     if (ok) { location.href = "/p/" + encodeURIComponent(f.dataset.modificar); return; }
     avisar(detalle(d) || "No se pudo lanzar."); b.disabled = false; b.textContent = antes;
   }));

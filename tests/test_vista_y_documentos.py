@@ -84,13 +84,6 @@ def test_sin_piezas_no_hay_vista(web):
     assert web.get("/proyectos/2026-10-20-trinquete/vista.png").status_code == 404
 
 
-def test_el_detalle_dice_que_no_es_un_mecanismo_y_que_hay_vista(web):
-    d = web.get(f"/api/proyectos/{ID}").json()
-
-    assert d["es_mecanismo"] is False and d["vista"] is True
-    assert web.get("/api/proyectos/2026-10-20-trinquete").json()["es_mecanismo"] is True
-
-
 def test_el_detalle_trae_las_instrucciones_de_la_pieza(web):
     (doc,) = web.get(f"/api/proyectos/{ID}").json()["documentos"]
 
@@ -107,9 +100,10 @@ def test_la_fila_ensena_la_vista_si_no_hay_animacion(web):
     assert f'src="/proyectos/{ID}/vista.png"' in html
 
 
-def test_a_un_proyecto_que_no_es_un_mecanismo_no_se_le_piden_modificaciones(web):
-    """Una modificación relanza el DISEÑO del mecanismo con la petición del
-    proyecto: con la de la pieza de calibración, el diseñador inventaría
-    un mecanismo a partir de «Pieza de calibración de holguras»."""
-    assert f'data-modificar="{ID}"' not in web.get(f"/p/{ID}").text
-    assert 'data-modificar="2026-10-20-trinquete"' in web.get("/p/2026-10-20-trinquete").text
+def test_a_lo_que_no_es_una_pieza_suelta_no_se_le_piden_modificaciones(web):
+    """Una modificación relanza el diseño con la petición del proyecto: con
+    la de la pieza de calibración, el diseñador inventaría algo a partir de
+    «Pieza de calibración de holguras». Y un mecanismo ya hecho no tiene con
+    qué rehacerse: su flujo se quitó (F9.13 (limpieza))."""
+    assert 'data-modificar="' not in web.get(f"/p/{ID}").text
+    assert 'data-modificar="' not in web.get("/p/2026-10-20-trinquete").text

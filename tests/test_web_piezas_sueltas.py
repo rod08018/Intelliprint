@@ -148,7 +148,7 @@ def test_mientras_se_disena_la_pieza_late(tmp_path):
         return construir(spec, carpeta, parte, concepto)
 
     disenar_pieza(PETICION, tmp_path, requisitos=Requisitos(), disenar=disenar,
-                  laminar=None, log=lambda *_: None)
+                  log=lambda *_: None)
 
     assert visto == [True]
     assert not (tmp_path / "latido").exists()

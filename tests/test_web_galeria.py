@@ -96,20 +96,24 @@ def test_la_galeria_dice_el_estado_en_palabras_y_sin_jerga(tmp_path):
         assert jerga not in html.lower(), jerga
 
 
-def test_cada_tarjeta_sigue_llevando_su_categoria(tmp_path):
+def _categoria_elegida(web, id_):
+    """La que sale marcada en el desplegable de la ficha del invento."""
+    return re.search(r'<option value="([^"]+)" selected>', web.get(f"/p/{id_}").text).group(1)
+
+
+def test_cada_invento_sigue_llevando_su_categoria(tmp_path):
     """La categoría era el filtro de la portada; desde el inventario
     (F7.8 (inventario)) se filtra por tipo y etapa, y la categoría queda como
-    dato del invento, que se sigue pudiendo cambiar."""
+    dato del invento, en su ficha, que se sigue pudiendo cambiar."""
     _version(tmp_path, "2026-10-01-sargento", mecanismo=SARGENTO)
     _version(tmp_path, "2026-10-02-algo", "Algo sin categoría")
     cal = _version(tmp_path, "2026-10-03-calibracion", "Pieza de calibración de holguras")
     (cal / "calibracion.md").write_text("# c\n", encoding="utf-8")
+    web = _web(tmp_path)
 
-    html = _web(tmp_path).get("/").text
-
-    assert 'data-categoria="sujeción"' in html
-    assert 'data-categoria="otros"' in html
-    assert 'data-categoria="calibración"' in html
+    assert _categoria_elegida(web, "2026-10-01-sargento") == "sujeción"
+    assert _categoria_elegida(web, "2026-10-02-algo") == "otros"
+    assert _categoria_elegida(web, "2026-10-03-calibracion") == "calibración"
 
 
 def test_la_categoria_se_cambia_desde_la_web(tmp_path):
@@ -121,10 +125,9 @@ def test_la_categoria_se_cambia_desde_la_web(tmp_path):
     assert web.post("/api/proyectos/2026-10-01-sargento/categoria",
                     json={"categoria": "<script>"}).status_code == 422
 
-    html = web.get("/").text
-    assert 'data-categoria="juguetes"' in html
+    assert _categoria_elegida(web, "2026-10-01-sargento") == "juguetes"
     # Cambiar la categoría no es trabajo del proyecto: no lo pone «en marcha».
-    assert "Diseñando" not in html
+    assert "Diseñando" not in web.get("/").text
 
 
 def test_la_galeria_ensena_la_animacion_o_la_vista(tmp_path):
@@ -183,21 +186,6 @@ def test_lo_que_no_salio_dice_por_que_en_una_frase(tmp_path):
     assert "la tijera choca con la base" in html
 
 
-def test_cada_pieza_tiene_su_miniatura_y_se_puede_cambiar_sola(tmp_path):
-    _version(tmp_path, "2026-10-01-sargento", mecanismo=SARGENTO, piezas=("cuerpo", "mango"))
-    web = _con_trabajos(tmp_path)
-
-    html = web.get("/p/2026-10-01-sargento").text
-    assert 'src="/proyectos/2026-10-01-sargento/piezas/mango.png"' in html
-    assert 'data-pieza="mango"' in html
-
-    r = web.post("/api/proyectos/2026-10-01-sargento/modificar",
-                 json={"peticion": "Ø40 mm", "pieza": "mango"})
-    assert r.status_code == 200, r.text
-    marca = json.loads((tmp_path / "projects" / r.json()["id"] / "proyecto.json").read_text(encoding="utf-8"))
-    assert marca["pieza"] == "mango" and marca["cambio"] == "Ø40 mm"
-
-
 def test_la_miniatura_de_una_pieza_es_una_imagen(tmp_path):
     _version(tmp_path, "2026-10-01-sargento", mecanismo=SARGENTO, piezas=("mango",))
     web = _web(tmp_path)
@@ -225,26 +213,6 @@ def test_lo_tecnico_existe_pero_aparte(tmp_path):
 
 
 # --- Lo que la web necesita del diseño --------------------------------------------
-
-
-def test_el_revisor_da_como_mucho_tres_frases_para_el_usuario():
-    from orchestrator.schemas.review import ReviewReport
-
-    r = ReviewReport.model_validate({"items": [], "summary": "s",
-                                     "para_el_usuario": ["a", "b", "c", "d"]})
-    assert r.para_el_usuario == ["a", "b", "c"]
-    assert ReviewReport.model_validate({"items": [], "summary": "s"}).para_el_usuario == []
-
-
-def test_el_disenador_elige_la_categoria_de_la_lista():
-    from mech_toolkit.generators import CATALOGO
-    from orchestrator.agents.mechanism_designer import MechanismDesignerAgent
-    from orchestrator.categorias import CATEGORIAS
-    from tests.test_mechanism_flow import PERFIL, Guion
-
-    agente = MechanismDesignerAgent(Guion([]), CATALOGO, PERFIL, (235, 235, 250), 0.1)
-    for categoria in CATEGORIAS:
-        assert categoria in agente._instrucciones
 
 
 def test_una_categoria_que_no_esta_en_la_lista_es_otros():
@@ -343,3 +311,37 @@ def test_una_pieza_no_lleva_lista_de_materiales_si_no_compra_nada(tmp_path):
     from tests.test_web_obra import _visible
     _inventario(tmp_path)
     assert "Lo que lleva" not in _visible(_web(tmp_path).get("/p/2026-11-08-soporte").text)
+
+
+# --- Los mecanismos que ya hay (F9.13 (limpieza)) -------------------------------
+
+
+def test_un_mecanismo_ya_hecho_se_sigue_viendo_pero_no_se_puede_cambiar(tmp_path):
+    """El flujo de mecanismos se quitó, pero los que dejó en el workspace son
+    trabajo del usuario: se ven en la galería y en su ficha, con su animación,
+    sus piezas, la descarga y PrusaSlicer. Lo que ya no hay es con qué
+    cambiarlos, así que la ficha no lo ofrece."""
+    carpeta = _version(tmp_path, "2026-10-01-sargento", mecanismo=SARGENTO,
+                       piezas=("cuerpo", "mango"))
+    (carpeta / "animation.gif").write_bytes(b"GIF89a")
+    web = _con_trabajos(tmp_path)
+
+    portada = web.get("/").text
+    tarjeta = _tarjeta(portada, "2026-10-01-sargento")
+    assert 'data-tipo="mecanismo"' in tarjeta and ">Mecanismo<" in tarjeta
+    assert "Sargento de banco" in tarjeta
+    assert 'data-filtro="tipo:mecanismo"' in portada
+
+    html = web.get("/p/2026-10-01-sargento").text
+    assert "<h1>Sargento de banco</h1>" in html
+    assert 'src="/proyectos/2026-10-01-sargento/animation.gif"' in html
+    for pieza in ("cuerpo", "mango"):
+        assert f'src="/proyectos/2026-10-01-sargento/piezas/{pieza}.png"' in html
+    assert 'href="/proyectos/2026-10-01-sargento.zip"' in html
+    assert 'data-abrir="2026-10-01-sargento"' in html
+    assert web.get("/proyectos/2026-10-01-sargento/animation.gif").status_code == 200
+    assert web.get("/proyectos/2026-10-01-sargento.zip").status_code == 200
+    # Ni «Cambiar» en cada pieza ni «Cambiar algo» (el guion nombra el
+    # atributo sin valor; un formulario lo lleva con él).
+    assert 'data-modificar="' not in html and 'data-pieza="' not in html
+    assert "Cambiar algo" not in html
