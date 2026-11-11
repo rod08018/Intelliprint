@@ -58,24 +58,6 @@ profiles:
 active_profile_env: INTELLIPRINT_PROFILE
 active_profile_default: dev
 
-# Los agentes referencian roles del perfil, nunca modelos concretos.
-agents:
-  requirements:   {model: $design}
-  decomposition:  {model: $design, escalate_to: deepseek, escalate_after_failures: 1}
-  kinematics:     {model: $design}
-  mechanism:      {model: $reason}       # con deepseek-chat no cerró la bisagra en 3 rondas
-  disenador_kit:  {model: $reason}       # F5.18 (kit): con deepseek-chat no corregía su geometría
-  ingeniero:      {model: $reason}       # F3.18 (ingeniero): decidir cómo se resuelve pide pensar
-  actuation:      {model: $design}
-  electronics:    {model: $design}
-  part_designer:  {model: $design, escalate_to: deepseek, escalate_after_failures: 2}
-  tolerances:     {model: $design}
-  qa:             {model: $qa}           # sin escalamiento: el veredicto no es del LLM (§ 7.1)
-  assembly:       {model: $design}
-  test_sim:       {model: $design}
-  slicing:        {model: $design}
-  default:        {model: $design, escalate_to: deepseek, escalate_after_failures: 2}
-
 # Precios por millón de tokens, para el tope de gasto (F5.12 (tope)). Cambian con el
 # proveedor: por eso viven aquí y no en el código. Un modelo sin precio no
 # cuenta para el tope (los locales no cuestan dinero).
@@ -109,6 +91,3 @@ escalation:
   # trinquete honesto agotó 2 USD en la ronda 21 cuando ya empujaba la rueda.
   # Es por PROYECTO: dos proyectos en paralelo pueden gastar hasta el doble.
   max_usd_per_project: 5.0
-  max_context_tokens_local: 16000
-  # La escotilla de Python libre (§ 6.3) usa SIEMPRE deepseek, no el modelo local.
-  hatch_provider: deepseek

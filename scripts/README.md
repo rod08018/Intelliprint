@@ -4,7 +4,6 @@ Utilidades del **host**, fuera de Docker.
 
 | Script | Para qué |
 |---|---|
-| `demo.py` | Recorrido de extremo a extremo para ver el sistema funcionando. **Usa DeepSeek**: el Requirements Agent y el Part Designer son agentes de verdad, así que necesita `DEEPSEEK_API_KEY` |
 | `eval_part_designer.py` | Mide al Part Designer contra peticiones de referencia |
 | `eval_requirements.py` | Mide la extracción de requisitos |
 | `eval_structured_output.py` | Mide cuántas veces el modelo devuelve un esquema válido a la primera |
@@ -23,9 +22,9 @@ herramienta interna —construye y calla—, así que va en la imagen. PrusaSlic
 donde la persona mira **qué va a imprimir** antes de mandarlo a la máquina, y
 tiene que ser el suyo, con su versión y sus ajustes.
 
-El puente ofrece `laminar` (sin ventana, devuelve gramos y horas),
+El puente ofrece `laminar` (sin ventana, devuelve gramos y horas) y
 `abrir_en_prusaslicer` (abre el programa con las piezas y el perfil cargados —es
-lo que hace el botón de la interfaz web) y `perfiles`.
+lo que hace el botón de la interfaz web).
 
 Comprueba lo que entra **aunque el orquestador ya lo haya comprobado**: el que
 ejecuta no delega eso en el que pide. Las rutas tienen que estar dentro de

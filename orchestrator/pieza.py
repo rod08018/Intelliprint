@@ -51,11 +51,6 @@ INVESTIGACION = "investigacion.json"
 APROBADO = "concepto_aprobado"
 
 
-def concepto_pendiente(carpeta: Path) -> bool:
-    """Hay un concepto y nadie le ha dado el visto bueno."""
-    return (Path(carpeta) / CONCEPTO).exists() and not (Path(carpeta) / APROBADO).exists()
-
-
 def aprobar_concepto(carpeta: Path, por: str) -> None:
     """La marca del visto bueno, con quién y cuándo: es la barrera humana
     del concepto, y queda en el proyecto como cualquier otra evidencia."""

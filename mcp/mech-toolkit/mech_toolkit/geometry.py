@@ -192,8 +192,3 @@ def find_holes_on_circle(
         else:
             agujeros.append((en_plano, c))
     return [c for _, c in agujeros]
-
-
-def axis_distance(cara: Cylinder, frame: Frame) -> float:
-    """Distancia del eje de una cara al eje del frame (son paralelos)."""
-    return _distancia_a_recta(cara.point, frame.origin, frame.axis)

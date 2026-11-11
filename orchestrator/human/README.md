@@ -1,13 +1,12 @@
 # human — `HumanPort`
 
-Un puerto, tres adaptadores. Ver [SISTEMA_MULTIAGENTE.md](../../SISTEMA_MULTIAGENTE.md) § 8.5 y [DECISIONES.md](../../DECISIONES.md) ADR-006.
+Un puerto, dos adaptadores. Ver [SISTEMA_MULTIAGENTE.md](../../SISTEMA_MULTIAGENTE.md) § 8.5 y [DECISIONES.md](../../DECISIONES.md) ADR-006.
 
 ```
 port.py                 interfaz: ask(pregunta, adjuntos) -> respuesta
                                   notify(evento)
 adapters/cli.py         consola          (F0.9)
 adapters/web.py         navegador        (F5.4)
-adapters/telegram.py    OpenClaw         (F5.5)
 ```
 
 Los dos gates, las preguntas del Requirements Agent, las consultas del QA y las peticiones de cambio son **la misma operación**. Se implementa una vez, aquí.

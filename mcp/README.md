@@ -11,7 +11,6 @@ Herramientas deterministas. Es donde vive la geometría que el LLM no debe calcu
 | Subcarpeta | Contenido |
 |---|---|
 | `generators/` | Un módulo por generador (`generate_bearing_housing`, `generate_bolt_pattern`, `generate_servo_mount`…). Es el catálogo que el Part Designer compone en su receta |
-| `assertions/` | Derivación de aserciones de QA por tipo de interfaz (§ 3.3). Es la capa 1 del QA |
 
 **Regla de la sección 6 del plan:** las herramientas deterministas deben tener tests **antes** de que un agente las use.
 

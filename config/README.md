@@ -4,7 +4,7 @@ Configuración. Cambiar cualquier cosa de aquí **no debe requerir tocar código
 
 | Archivo | Contenido |
 |---|---|
-| `models.yaml` | Perfiles de modelos (`prod` / `dev`), asignación por agente y política de escalamiento (§ 6) |
+| `models.yaml` | Perfiles de modelos (`prod` / `dev`), precios y tope de gasto (§ 6) |
 | `printers/*.yaml` | Perfil por impresora **y material**: holguras, agujeros, paredes, cama (§ 7). Sirve para **diseñar** |
 | `slicing/*.ini` | Perfil de **laminado** de PrusaSlicer (F1.12). Sirve para **imprimir**. Son dos archivos distintos para dos cosas distintas |
 | `agents/*.md` | Prompt de sistema de cada agente |

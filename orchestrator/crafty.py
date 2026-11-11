@@ -7,8 +7,8 @@ de memoria. Aquí la configuración es una función del entorno, con tests,
 y el contenedor la aplica cada vez que arranca.
 
 TELEGRAM_ALLOWED_USERS es la ÚNICA fuente de quién puede escribir
-(F5.10 (lista)), para el bot propio y para Crafty. Es opcional: vacía, el
-canal está abierto (decisión del usuario, 2026-09-21).
+(F5.10 (lista)). Es opcional: vacía, el canal está abierto (decisión del
+usuario, 2026-09-21).
 
     python -m orchestrator.crafty > lote.json
     openclaw config set --batch-json "$(cat lote.json)"
@@ -18,7 +18,30 @@ import json
 import os
 import sys
 
-from orchestrator.human.adapters.telegram import leer_lista_blanca
+
+class ListaBlancaInvalida(ValueError):
+    """TELEGRAM_ALLOWED_USERS no es una lista de ids."""
+
+
+def leer_lista_blanca(texto: str | None) -> frozenset[int] | None:
+    """Los ids numéricos de `TELEGRAM_ALLOWED_USERS`, o None si no hay lista.
+
+    Sin lista, el canal está ABIERTO: decisión del usuario (2026-09-21). La
+    lista se había hecho obligatoria sin que él lo aprobara.
+
+    Solo ids numéricos. Un @alias se cambia cuando se quiere y lo puede
+    coger otra persona; el id es de la cuenta para siempre.
+    """
+    partes = [p.strip() for p in (texto or "").split(",") if p.strip()]
+    if not partes:
+        return None
+    malos = [p for p in partes if not p.lstrip("-").isdigit()]
+    if malos:
+        raise ListaBlancaInvalida(
+            f"TELEGRAM_ALLOWED_USERS solo admite ids numéricos, no {malos}: un "
+            "@alias se puede cambiar y lo puede coger otro")
+    return frozenset(int(p) for p in partes)
+
 
 URL_INTELLIPRINT = "http://intelliprint-mcp:8200/mcp"
 """El servicio del compose. Dentro de la red de Docker se llama por su

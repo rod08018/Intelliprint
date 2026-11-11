@@ -39,9 +39,9 @@ def test_la_referencia_cumple_las_cotas_normalizadas_de_la_cara_nema17():
 @pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
 def test_el_soporte_generado_no_se_atraviesa_con_un_motor_que_no_disenamos(tmp_path):
     """Condición NECESARIA, no suficiente: intersección cero = no se
-    atraviesan. Tocarse no es encajar: la holgura la comprueba
-    tests/test_fit.py (F2.20 (encaje)). Este test solía llamarse "encaja" y daba por
-    buena una holgura de cero."""
+    atraviesan. Tocarse no es encajar (F2.20 (encaje)): que quede holgura lo
+    mide el barrido de choques del ensamble (`orchestrator/assembly.py`).
+    Este test solía llamarse "encaja" y daba por buena una holgura de cero."""
     import subprocess
 
     step_soporte = _nema17(tmp_path)
@@ -103,9 +103,9 @@ def test_no_hay_referencias_sin_procedencia():
 
 
 @pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
-def test_el_608zz_real_tiene_las_cotas_que_usa_el_qa():
-    """derive_assertions usa od=22 y width=7 para un asiento de 608. Aquí
-    se confirman contra un rodamiento que no dibujamos."""
+def test_el_608zz_real_tiene_las_cotas_de_su_ficha():
+    """La ficha (`library/components/608zz.yaml`) dice 8 × 22 × 7. Aquí se
+    confirman contra un rodamiento que no dibujamos."""
     caras = extract_cylinders(REF / "bearing_608zz.step", _freecadcmd())
     agujero = max((c for c in caras if c.internal), key=lambda c: c.radius)
     exterior = max((c for c in caras if not c.internal), key=lambda c: c.radius)

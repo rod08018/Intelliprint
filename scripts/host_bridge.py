@@ -199,12 +199,6 @@ def _desenganchado() -> dict:
     return {"start_new_session": True, "close_fds": True}
 
 
-@mcp.tool()
-def perfiles() -> list[str]:
-    """Los perfiles de laminado que este PC tiene disponibles."""
-    return sorted(p.name for p in (_raiz() / "config" / "slicing").glob("*.ini"))
-
-
 def main() -> None:
     # 0.0.0.0 porque quien llama es un contenedor: desde dentro, el host no
     # es "localhost" sino `host.docker.internal`, y un servidor atado a

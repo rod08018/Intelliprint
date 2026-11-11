@@ -332,54 +332,6 @@ def _mecanismo_desde_texto(args, raiz: Path, env: dict, nombre: str, perfil) -> 
         print(f"    {r.summary}")
 
 
-def _diseñar_mecanismo(peticion: str, raiz: Path, env: dict, nombre: str, log):
-    """El trabajo que hace el bot: el mismo flujo del comando `mecanismo`."""
-
-    from mech_toolkit.generators import CATALOGO
-    from orchestrator.agents.design_reviewer import DesignReviewerAgent
-    from orchestrator.agents.mechanism_designer import MechanismDesignerAgent
-    from orchestrator.agents.part_designer import PartDesignerAgent
-    from orchestrator.mechanisms.flow import design_mechanism
-    from orchestrator.tasks import slug
-
-    impresora = _perfil(raiz, env).datos
-    perfil = _perfil(raiz, env).impresora
-    cama = tuple(impresora["bed_mm"][k] for k in "xyz")
-    hueco = perfil.fit_mm("slide") / 2
-    router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
-    cliente = _cliente(router, env)
-    carpeta = (_workspace(raiz, env) / "projects"
-               / f"{dt.datetime.now():%Y-%m-%d-%H%M}-{slug(peticion.splitlines()[0])[:40]}")
-    from orchestrator.registry import latir
-    with latir(carpeta):
-        informe = design_mechanism(
-            peticion,
-            MechanismDesignerAgent(_cliente(router, env, "reason"), CATALOGO, perfil, cama, hueco,
-                                   wall_mm=impresora["walls"]["structural_mm"]),
-            PartDesignerAgent(cliente, CATALOGO),
-            carpeta, _freecadcmd(env), min_gap_mm=hueco,
-            reviewer=DesignReviewerAgent(cliente), log=log,
-        )
-    f = informe.final
-    lineas = [f"[{nombre}] {informe.rounds[-1].title}: {len(informe.rounds)} ronda(s)"]
-    if f is not None:
-        lineas += [f"· {n}" for n in f.notes]
-        lineas.append("✓ sin choques en el ciclo completo" if informe.ok
-                      else "✗ quedaron problemas:\n" + informe.rounds[-1].feedback)
-    if informe.review is not None:
-        r = informe.review
-        lineas.append(f"\nRevisión: {len(r.por_veredicto('cumple'))} cumplen, "
-                      f"{len(r.por_veredicto('no_cumple'))} no, "
-                      f"{len(r.por_veredicto('no_verificable'))} sin verificar")
-        lineas += [f"· {i.verdict}: {i.requirement} — {i.comment}"
-                   for i in r.items if i.verdict != "cumple"]
-        lineas.append(r.summary)
-    lineas.append(f"\nProyecto: {carpeta}")
-    archivos = [Path(f.animation) for f in [f] if f and f.animation]
-    archivos += [Path(f.assembly) for f in [f] if f and f.assembly]
-    return {"texto": "\n".join(lineas), "archivos": archivos}
-
-
 def _animar(args, raiz: Path, env: dict, nombre: str) -> None:
     """Rehace ensamble y animación desde el mecanismo y las piezas ya
     construidas: no vuelve a diseñar ni a gastar modelo."""
@@ -456,33 +408,6 @@ def _proyectos(args, raiz: Path, env: dict, nombre: str) -> None:
         marca = {"aprobado": "✓", "con reparos": "~", "antiguo": "·", "fallido": "✗",
                  "en marcha": "…", "incompleto": "?"}.get(f["estado"], "?")
         print(f"  {marca} {f['id']}  {f['rondas']} rondas  {f['usd']:.2f} USD  {f['titulo'][:40]}")
-
-
-def _bot(raiz: Path, env: dict, nombre: str) -> None:
-    from orchestrator.human.adapters.telegram import (
-        ListaBlancaInvalida, TelegramBot, TelegramClient, leer_lista_blanca)
-
-    token = env.get("TELEGRAM_BOT_TOKEN")
-    if not token:
-        sys.exit("falta TELEGRAM_BOT_TOKEN en .env (plantilla en .env.example)")
-    # La lista es opcional (F5.10 (lista)): sin ella el canal está abierto,
-    # por decisión del usuario.
-    try:
-        permitidos = leer_lista_blanca(env.get("TELEGRAM_ALLOWED_USERS"))
-    except ListaBlancaInvalida as e:
-        sys.exit(str(e))
-    print(f"[{nombre}] Escuchando en Telegram. Ctrl+C para parar.")
-    if permitidos:
-        print(f"  Solo atiendo a {len(permitidos)} usuario(s) de TELEGRAM_ALLOWED_USERS.")
-    else:
-        print("  Canal abierto: atiendo a cualquiera que escriba al bot.")
-    bot = TelegramBot(
-        TelegramClient(token),
-        lambda peticion, avisar: _diseñar_mecanismo(peticion, raiz, env, nombre, log=avisar),
-        nombre=nombre,
-        permitidos=permitidos,
-    )
-    bot.run()
 
 
 def _calibrar(args, raiz: Path, env: dict, nombre: str) -> None:
@@ -828,7 +753,6 @@ def _parser() -> argparse.ArgumentParser:
     nuevo.add_argument("peticion", nargs="+")
     reanudar = sub.add_parser("resume", help="reanudar un proyecto interrumpido")
     reanudar.add_argument("proyecto")
-    sub.add_parser("bot", help="atender peticiones por Telegram (F5.6 (telegram))")
     anim = sub.add_parser("animar", help="rehacer el ensamble y la animación de un proyecto ya diseñado")
     anim.add_argument("carpeta")
     estu = sub.add_parser("estudio", help="estudio de movimientos: carga, servos, vuelco, alcance y tiempos")
@@ -914,9 +838,6 @@ def main(argv: list[str] | None = None) -> None:
     nombre = env.get("AGENT_NAME") or "Crafty"
     if args.comando == "mecanismo":
         _mecanismo(args, raiz, env, nombre)
-        return
-    if args.comando == "bot":
-        _bot(raiz, env, nombre)
         return
     if args.comando == "animar":
         _animar(args, raiz, env, nombre)

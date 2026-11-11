@@ -20,6 +20,8 @@ Fecha de la sesión: **2026-09-18**.
 
 **Consecuencias.** El esquema `Interface` gana un estado y el validador impide que una interfaz `symbolic` llegue a la Fase 3. Aparece una dependencia invertida respecto al plan original: `F3.3 resolve_interfaces` depende de `F4.2` y `F4.4` para productos con cinemática.
 
+**Enmienda (2026-11-11): retirada del código.** El esquema `Interface` (`orchestrator/schemas/interface.py`) se quitó en F9.13 (limpieza), con el resto del QA de interfaces (`orchestrator/qa.py` y sus esquemas): ningún flujo vivo lo llamaba. Las piezas se miden con las sondas del kit y los requisitos (`orchestrator/medida.py`), y los conjuntos, moviéndolos (`orchestrator/conjunto.py`). Queda en git, en la etiqueta `antes-de-fase-9`.
+
 ---
 
 ## ADR-002 · El Part Designer emite recetas, no Python
@@ -84,6 +86,8 @@ El LLM escribe en una **lista de defectos**, nunca en el veredicto. No existe ni
 **Habilitado por ADR-001.** Solo es posible porque una interfaz resuelta contiene lo necesario para generar sus propias pruebas: de `IF-003 = bearing_seat, 608zz, press` se deriva mecánicamente "agujero Ø22.10 ±0.05 en el frame de IF-003". Las interfaces dejan de ser documentación y pasan a ser la especificación ejecutable del QA.
 
 **Consecuencia lateral.** Usar un modelo distinto para QA deja de ser un requisito de correctitud y pasa a ser una segunda red opcional. Eso libera presión de VRAM y desacopla el diseño de la elección de modelos.
+
+**Enmienda (2026-11-11): retirada del código.** El QA de interfaces (`orchestrator/qa.py`, el `QaReport` con la regla del veredicto en `orchestrator/schemas/qa_report.py` y la derivación de aserciones de `mech_toolkit/assertions.py`) se quitó en F9.13 (limpieza): ningún flujo vivo lo llamaba. Las piezas se miden con las sondas del kit y los requisitos (`orchestrator/medida.py`), y los conjuntos, moviéndolos (`orchestrator/conjunto.py`). Queda en git, en la etiqueta `antes-de-fase-9`.
 
 ---
 
@@ -317,6 +321,8 @@ Buscar por contrato no tiene esa debilidad. Un agujero en el sitio equivocado no
 Por eso **cada pieza necesita una `placement`** en el ensamble, y **la asigna la resolución de interfaces** (F3.3), no el `Assembly` Agent. El motivo es de orden: Assembly corre *después* del QA de piezas, así que si la placement viniera de ahí habría que medir en el ensamble en vez de al construir, retrasando la detección de errores justo hasta donde son más caros de arreglar. Es la misma lección que ADR-001.
 
 Para `static_part` de una sola pieza la placement es la identidad, así que en la Fase 1 no cuesta nada — pero el esquema la lleva desde el principio, que es lo que evita descubrirlo en la semana 10 con la garra a medias.
+
+**Enmienda (2026-11-11): retirada del código.** El QA de interfaces (`orchestrator/qa.py` y sus esquemas, con `mech_toolkit/assertions.py`) se quitó en F9.13 (limpieza): ningún flujo vivo lo llamaba. Las piezas se miden con las sondas del kit y los requisitos (`orchestrator/medida.py`), y los conjuntos, moviéndolos (`orchestrator/conjunto.py`). Queda en git, en la etiqueta `antes-de-fase-9`. De la búsqueda por contrato siguen en `mech_toolkit/geometry.py` `find_bore`, `find_boss` y `find_holes_on_circle`, que hoy solo usan los tests de la extracción y de las referencias.
 
 ---
 

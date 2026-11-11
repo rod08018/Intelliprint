@@ -6,7 +6,7 @@ El orquestador: máquina de estados, agentes y puertos. Ver [SISTEMA_MULTIAGENTE
 |---|---|
 | `graph.py` | LangGraph: estados, transiciones, gates y reapertura selectiva |
 | `agents/` | Un módulo por agente: prompt, esquema de salida y lista blanca de herramientas |
-| `schemas/` | Pydantic: `Spec`, `ProductTree`, `Interface`, `Recipe`, `PartTask`, `QaReport` |
+| `schemas/` | Pydantic: `Spec`, `ProductTree`, `Recipe`, `PartTask` |
 | `recipes/` | Compositor `recipe.json` → `build.py` y plantillas de macros |
 | `human/` | `HumanPort` y sus adaptadores (§ 8.5) |
 | `llm/` | `router.py`: modelo local vs. DeepSeek, perfiles y presupuestos |
