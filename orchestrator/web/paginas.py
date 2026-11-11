@@ -141,12 +141,46 @@ def tipo_de(carpeta: Path) -> tuple[str, str]:
     return "pieza", "Pieza"
 
 
+_MATERIALES: dict[str, tuple] = {}
+"""Los materiales ya calculados de cada invento, con la firma de lo que
+había en disco cuando se calcularon."""
+
+_DE_QUE_DEPENDEN = ("obra.json", "pieza.json", "parts/*/rasgos.json", "parts/*/*.stl",
+                    "nodos/*/lista.json", "nodos/*/parts/*/rasgos.json",
+                    "nodos/*/parts/*/*.stl", "fichas/*.yaml")
+
+
+def _firma(carpeta: Path) -> tuple:
+    firma = []
+    for patron in _DE_QUE_DEPENDEN:
+        for ruta in sorted(carpeta.glob(patron)):
+            dato = ruta.stat()
+            firma.append((str(ruta), dato.st_mtime_ns, dato.st_size))
+    return tuple(firma)
+
+
 def _materiales(carpeta: Path) -> dict | None:
+    """Con memoria. Medido el 2026-11-11 con tres inventos: la portada tardaba
+    10 segundos en cada carga, 8 de ellos midiendo otra vez en la malla de
+    cada pieza el grosor que atraviesa cada tornillo; y mientras algo se
+    diseña se recarga sola cada 15. Se vuelve a calcular solo si cambió algo
+    de lo que depende: una pieza, una ficha, el backlog o una marca de
+    «impresa»."""
     from orchestrator.materiales import materiales
     try:
-        return materiales(carpeta)
+        firma = _firma(carpeta)
+    except OSError:      # un archivo que desaparece a media lectura
+        firma = None
+    guardado = _MATERIALES.get(str(carpeta))
+    if firma is not None and guardado is not None and guardado[0] == firma:
+        return guardado[1]
+    try:
+        m = materiales(carpeta)
     except Exception:   # un proyecto a medias no tumba la portada
-        return None
+        m = None
+    if firma is not None:
+        _MATERIALES[str(carpeta)] = (firma, m)
+    return m
 
 
 def _compras(m: dict | None) -> str:

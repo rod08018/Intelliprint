@@ -345,3 +345,34 @@ def test_un_mecanismo_ya_hecho_se_sigue_viendo_pero_no_se_puede_cambiar(tmp_path
     # atributo sin valor; un formulario lo lleva con él).
     assert 'data-modificar="' not in html and 'data-pieza="' not in html
     assert "Cambiar algo" not in html
+
+
+def test_la_portada_no_recalcula_los_tornillos_de_un_invento_que_no_ha_cambiado(
+        tmp_path, monkeypatch):
+    """Medido el 2026-11-11 con tres inventos: la portada tardaba 10 segundos
+    en cada carga, 8 de ellos midiendo otra vez el grosor que atraviesa cada
+    tornillo en la malla de cada pieza. Y mientras algo se diseña se recarga
+    sola cada 15 segundos. La lista de materiales solo cambia si cambia una
+    pieza, una ficha, el backlog o la marca de «impresa»."""
+    from orchestrator import materiales as M
+    from orchestrator.web import paginas
+    from tests.test_materiales import _pan_tilt
+
+    carpeta = _pan_tilt(tmp_path)
+    veces = []
+    de_verdad = M.materiales
+    monkeypatch.setattr(M, "materiales", lambda c: veces.append(c) or de_verdad(c))
+
+    primera = paginas._materiales(carpeta)
+    assert paginas._materiales(carpeta) == primera and len(veces) == 1
+
+    rasgos = next(carpeta.rglob("rasgos.json"))
+    rasgos.write_text(rasgos.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    paginas._materiales(carpeta)
+    assert len(veces) == 2, "cambió una pieza: se mide otra vez"
+
+    marca = carpeta / "nodos" / "base" / "lista.json"
+    marca.parent.mkdir(parents=True, exist_ok=True)
+    marca.write_text('{"por": "web", "impresa": true}', encoding="utf-8")
+    paginas._materiales(carpeta)
+    assert len(veces) == 3, "se marcó una pieza como impresa"
