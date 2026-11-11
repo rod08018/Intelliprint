@@ -228,3 +228,62 @@ def test_el_proyecto_de_varias_piezas_se_llama_backlog(tmp_path):
     html = _web(tmp_path).get("/").text
     (opcion,) = re.findall(r'<option value="obra"[^>]*>([^<]*)</option>', html)
     assert opcion == "un backlog: un robot o un conjunto, pieza a pieza"
+
+
+# --- Rótulos, colores y palabras (F9.13 (limpieza)) --------------------------------
+
+
+def test_el_enlace_de_vuelta_dice_inventos_en_las_tres_paginas(tmp_path):
+    """La portada es el inventario de inventos: él la llama «plataforma de
+    administración de inventos». El proyecto volvía a «← Inventos» y el banco
+    y la impresora a «← Proyectos», que es el mismo sitio con otro nombre."""
+    _pieza(tmp_path, "2026-11-06-soporte")
+    web = _web(tmp_path)
+
+    for pagina in ("/p/2026-11-06-soporte", "/banco", "/impresora"):
+        enlaces = re.findall(r'<a class="volver" href="/">([^<]*)</a>', web.get(pagina).text)
+        assert enlaces == ["← Inventos"], pagina
+
+
+def test_toda_variable_de_color_que_se_usa_esta_definida():
+    """`var(--fondo-suave, …)` se usaba sin definir en `:root`: tiraba
+    siempre de la reserva, y una variable que no existe no se ve al leer la
+    paleta. Las que se usan, definidas; y ninguna con reserva."""
+    paleta = ESTILO.split(":root {", 1)[1].split("}", 1)[0]
+    definidas = set(re.findall(r"(--[\w-]+):", paleta))
+
+    usadas = set(re.findall(r"var\((--[\w-]+)", ESTILO))
+
+    assert usadas - definidas == set()
+    assert "--fondo-suave:rgba(127,127,127,.12)" in paleta
+    assert re.findall(r"var\(--[\w-]+\s*,", ESTILO) == []
+
+
+def _regla(selector):
+    """Las declaraciones de la regla de `selector` en la hoja de estilos."""
+    return re.search(r"(?m)^\s*" + re.escape(selector) + r"\s*\{([^}]*)\}", ESTILO).group(1)
+
+
+def test_la_foto_de_una_tarjeta_no_destella_en_blanco_mientras_carga():
+    """En el tema oscuro, cada tarjeta de la galería era un rectángulo
+    blanco hasta que llegaba su imagen: el hueco tenía `--foto`, que es
+    blanco en los dos temas. El hueco lleva un color del tema; la imagen no
+    se toca."""
+    (variable,) = re.findall(r"background:var\((--[\w-]+)\)", _regla(".tarjeta .foto"))
+    oscuro = ESTILO.split("@media (prefers-color-scheme: dark)", 1)[1].split("}", 1)[0]
+
+    (color,) = re.findall(re.escape(variable) + r":(#[0-9a-fA-F]+)", oscuro)
+
+    # Oscuro de verdad: ninguno de sus tres canales pasa de un cuarto.
+    canales = [int(color[i:i + 2], 16) for i in (1, 3, 5)]
+    assert len(color) == 7 and max(canales) < 64, color
+
+
+def test_sin_con_que_disenar_un_backlog_el_error_dice_backlog(tmp_path):
+    """«esta web no tiene con qué diseñar «obra»»: `obra` es el valor
+    interno del selector, y el usuario lo llama backlog."""
+    r = _con_trabajos(tmp_path).post("/api/disenar", json={"tipo": "obra", "peticion": "un robot"})
+
+    assert r.status_code == 503
+    assert "un backlog" in r.json()["detail"]
+    assert "obra" not in r.json()["detail"]

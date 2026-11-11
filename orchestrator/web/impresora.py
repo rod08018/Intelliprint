@@ -120,7 +120,7 @@ def pagina(workspace: Path, raiz: Path) -> str:
     nota = '<label>Nota <textarea name="nota" rows="2" placeholder="Lo que quieras recordar"></textarea></label>'
 
     cuerpo = f"""
-  <header class="barra"><a class="volver" href="/">← Proyectos</a></header>
+  <header class="barra"><a class="volver" href="/">← Inventos</a></header>
   <main class="impresora">
     <h1>Impresora</h1>
     <p><b>{e(perfil)}</b> · {e(activo.material)} · {calibrado}</p>

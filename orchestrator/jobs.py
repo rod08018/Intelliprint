@@ -67,6 +67,11 @@ def entregar(proyecto: Path, buzon: Path | None = None) -> dict[str, str]:
     return entregados
 
 
+ESPERA_AL_CANCELAR_S = 5
+"""Lo que se espera a que el trabajo cancelado muera de verdad. Sin
+manejador de SIGTERM muere al momento; esto es por si no."""
+
+
 class FlujoRetirado(ValueError):
     """El proyecto lo hizo un flujo que ya no existe: se ve, pero no se sigue."""
 
@@ -266,7 +271,14 @@ class JobStore:
         self._relanzar(job_id)
         return rehechos
 
-    def cancel(self, job_id: str) -> None:
+    def cancel(self, job_id: str) -> bool:
+        """Para el trabajo y dice si lo paró (F9.12 (pantalla)).
+
+        `False`: aquí no había nada que parar. O el trabajo ya no corría, o
+        corre en OTRO contenedor —lo que lanza Crafty vive en el del MCP y lo
+        que lanza la web, en el suyo— y desde este no se le puede mandar una
+        señal: su pid es de allí. Sin esta respuesta, quien llama no tiene
+        cómo saberlo: la marca `cancelado` puede ser de una vez anterior."""
         proceso = self._procesos.get(job_id)
         if proceso and proceso.poll() is None:
             # El grupo entero: el proceso lanza freecadcmd por su cuenta.
@@ -274,26 +286,62 @@ class JobStore:
                 os.killpg(os.getpgid(proceso.pid), signal.SIGTERM)
             except (ProcessLookupError, PermissionError):
                 proceso.terminate()
-            (self.carpeta / job_id / "cancelado").write_text("", encoding="utf-8")
-        elif self._cancelar_ajeno(job_id):
-            (self.carpeta / job_id / "cancelado").write_text("", encoding="utf-8")
+            try:
+                proceso.wait(timeout=ESPERA_AL_CANCELAR_S)
+                muerto = True
+            except subprocess.TimeoutExpired:
+                muerto = False
+        elif (pid := self._cancelar_ajeno(job_id)):
+            muerto = self._esperar_a_que_muera(job_id, pid)
+        else:
+            return False
+        destino = self.carpeta / job_id
+        (destino / "cancelado").write_text("", encoding="utf-8")
+        if muerto:
+            # Muere con SIGTERM sin pasar por el `finally` que quita su
+            # latido, y el registro lo da por vivo mientras el latido sea
+            # reciente: la web seguía diciendo «Diseñando…» y sin dejar pedir
+            # nada minuto y medio después de cancelar. Solo si ha muerto: a
+            # uno que siga vivo no se le quita lo que dice que lo está.
+            # El de la carpeta y el del nodo que se estuviera diseñando.
+            from orchestrator.obra import NODOS
+            from orchestrator.registry import LATIDO
+            for latido in (destino / LATIDO, *destino.glob(f"{NODOS}/*/{LATIDO}")):
+                latido.unlink(missing_ok=True)
+        return True
 
-    def _cancelar_ajeno(self, job_id: str) -> bool:
+    def _cancelar_ajeno(self, job_id: str) -> int | None:
         """Un trabajo que no lanzó este gestor: el MCP creaba uno nuevo en
         cada llamada y `cancelar_proyecto` contestaba «terminado» con el
         trabajo siguiendo (2026-10-26). Se para por el pid de job.json, solo
-        si ese proceso es el que arrancó con el trabajo."""
+        si ese proceso es el que arrancó con el trabajo. Devuelve el pid al
+        que mandó la señal, o None si aquí no hay tal proceso."""
         from orchestrator.registry import _lee_json, _vivo
 
         trabajo = _lee_json(self.carpeta / job_id / "job.json") or {}
         pid = trabajo.get("pid")
         if not pid or not _vivo(pid, trabajo.get("inicio")):
-            return False
+            return None
         try:
             # Lanzado con start_new_session: su grupo lleva su mismo número.
             os.killpg(pid, signal.SIGTERM)
         except (ProcessLookupError, PermissionError):
-            return False
+            return None
+        return pid
+
+    def _esperar_a_que_muera(self, job_id: str, pid: int) -> bool:
+        """De un proceso que no es hijo de este gestor no hay `wait()`: se
+        mira si sigue ahí."""
+        import time
+
+        from orchestrator.registry import _lee_json, _vivo
+
+        inicio = (_lee_json(self.carpeta / job_id / "job.json") or {}).get("inicio")
+        limite = time.monotonic() + ESPERA_AL_CANCELAR_S
+        while _vivo(pid, inicio):
+            if time.monotonic() > limite:
+                return False
+            time.sleep(0.1)
         return True
 
     # --- consultar ------------------------------------------------------------

@@ -348,11 +348,26 @@ def _fila(r: dict, datos: list[dict]) -> str:
             f'<td class="fuente">{fuente}</td></tr>')
 
 
-def _componente(x: dict, fichas=()) -> str:
+def _sin_ficha(id_: str, piezas: dict) -> str:
+    """Cómo se nombra lo que no tiene ficha. `obra-<nodo>` es el id interno
+    de la ficha de una pieza del backlog: a la persona se le dice qué pieza
+    es, con el nombre que le dio el desglose si se sabe (F9.13 (limpieza)).
+    Lo demás es de la biblioteca y se llama por su id, que es el que se busca."""
+    from orchestrator import obra
+
+    prefijo = obra.id_de_ficha("")
+    if not id_.startswith(prefijo):
+        return id_
+    nodo = id_.removeprefix(prefijo)
+    return f"la pieza «{piezas.get(nodo, nodo)}» del backlog"
+
+
+def _componente(x: dict, fichas=(), piezas: dict | None = None) -> str:
     """Un componente que aloja la pieza (F6.11 (biblioteca)): su tamaño, cómo
     entra, cómo se sujeta y de qué planos salen sus medidas. `fichas`: las de
     las piezas ya terminadas de la obra; sin ellas, el soporte de giro del
-    pan-tilt (2026-11-09) decía «obra-base (no hay ficha)» con la base fichada."""
+    pan-tilt (2026-11-09) decía «obra-base (no hay ficha)» con la base fichada.
+    `piezas`: {nodo: nombre} del backlog, para nombrar la que no tenga ficha."""
     from orchestrator.componentes import cargar, envolvente
 
     from orchestrator.schemas.concepto import AJUSTES
@@ -366,7 +381,7 @@ def _componente(x: dict, fichas=()) -> str:
     try:
         f = cargar(str(x.get("id")), fichas)
     except (KeyError, ValueError):
-        return (f'<tr><td>{e(str(x.get("id")))} (no hay ficha){como}</td>'
+        return (f'<tr><td>{e(_sin_ficha(str(x.get("id")), piezas or {}))} (no hay ficha){como}</td>'
                 '<td class="valor"></td><td class="fuente"></td></tr>')
     a, b = envolvente(f)
     tamano = " × ".join(f"{round(y - z, 3):g}" for z, y in zip(a, b)) + " mm"
@@ -420,12 +435,19 @@ def _concepto(carpeta: Path, aprobado: bool = False) -> str | None:
     from orchestrator import obra
     fichas = ([obra.carpeta_de_fichas(carpeta.parent.parent)]
               if carpeta.parent.name == obra.NODOS else [])
+    piezas = {}
+    if fichas and componentes:
+        try:
+            piezas = {n.id: n.nombre for n in obra.cargar_obra(carpeta.parent.parent).nodos}
+        except (OSError, ValueError):
+            pass   # sin desglose que leer, la pieza se nombra por su nodo
     if componentes:
         partes.append('<h3>Lo que aloja</h3><p class="nota-grupo">Su forma sale de la '
                       'ficha de la biblioteca; al dibujar se mete en la pieza para ver si '
                       'cabe y si entra. Mide el tuyo: las unidades varían.</p>'
                       '<table class="medidas"><tbody>'
-                      + "".join(_componente(x, fichas) for x in componentes) + "</tbody></table>")
+                      + "".join(_componente(x, fichas, piezas) for x in componentes)
+                      + "</tbody></table>")
 
     requisitos = spec.get("requisitos") or []
     for origen, titulo, nota in GRUPOS_DE_ORIGEN:
@@ -810,10 +832,16 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
     vivo = ""
     if g.get("en_marcha"):
         corriendo = next(x for x in versiones if x["id"] == g["en_marcha"])
+        # F9.12 (pantalla): pararlo desde aquí. Un diseño tarda hasta una hora
+        # y cuesta hasta 5 USD, y solo se podía cancelar pidiéndoselo a Crafty.
+        # Botón secundario: no es lo que se viene a hacer. Sin lanzador (o en
+        # lo del banco) no sale: solo podría fallar.
+        cancelar = (f'<p><button class="btn" data-cancelar="{e(corriendo["id"])}">Cancelar</button></p>'
+                    if puede_pedir else "")
         vivo = (f'<div class="aviso vivo" id="en-marcha" data-version="{e(corriendo["id"])}">'
                 f'<b>Diseñando la versión {corriendo["version"]}</b>'
                 f'<p>{e(_progreso(corriendo) + _lleva(_carpeta(workspace, corriendo)))}. '
-                'Esta página se actualiza sola.</p></div>')
+                f'Esta página se actualiza sola.</p>{cancelar}</div>')
 
     # Lo que se aprobó, a la vista después de aprobarlo: es contra lo que se
     # juzga la pieza, y antes desaparecía al darle el visto bueno.
@@ -1078,7 +1106,7 @@ def banco(corridas: list[dict], hay_puente: bool) -> str:
                      f'<ul class="encargos">{encargos}</ul></section>')
     vacio = "" if corridas else '<p class="vacio">Todavía no hay ninguna corrida del banco.</p>'
     return _documento("Banco · Intelliprint", f"""
-  <header class="barra"><a class="volver" href="/">← Proyectos</a><span class="estado-puente">{_puente(hay_puente)}</span></header>
+  <header class="barra"><a class="volver" href="/">← Inventos</a><span class="estado-puente">{_puente(hay_puente)}</span></header>
   <main class="banco"><h1>El banco</h1>
     <p class="lead">Lo que mide si el sistema mejora: encargos fijos, juzgados sin el propio
     sistema. Cada encargo abre su proyecto para verlo.</p>
@@ -1120,7 +1148,8 @@ EJEMPLOS = {
 ESTILO = """
   :root { --bg:#f4f4f1; --fg:#1b1b19; --suave:#6e6e68; --linea:#e3e3de; --tarjeta:#fff; --foto:#fff;
           --acento:#2463eb; --acento-fg:#fff; --ok:#1f7a4d; --ok-bg:#e3f4ea; --mal:#b3361c; --mal-bg:#fbe9e4;
-          --ambar:#8a5a00; --ambar-bg:#fbf0d6; --vivo:#2463eb; --vivo-bg:#e6eefe; --sombra:0 1px 2px rgba(0,0,0,.05),0 4px 16px rgba(0,0,0,.05); }
+          --ambar:#8a5a00; --ambar-bg:#fbf0d6; --vivo:#2463eb; --vivo-bg:#e6eefe; --sombra:0 1px 2px rgba(0,0,0,.05),0 4px 16px rgba(0,0,0,.05);
+          --fondo-suave:rgba(127,127,127,.12); }
   @media (prefers-color-scheme: dark) {
     :root { --bg:#121212; --fg:#ececea; --suave:#9b9b95; --linea:#2a2a28; --tarjeta:#1c1c1b; --foto:#fff;
             --acento:#6b9cff; --acento-fg:#0b1530; --ok:#6fd19a; --ok-bg:#16291f; --mal:#ff9b80; --mal-bg:#2e1a14;
@@ -1185,6 +1214,10 @@ ESTILO = """
   .tarjeta[hidden] { display:none; }
   .foto { aspect-ratio:4/3; background:var(--foto); display:flex; align-items:center; justify-content:center; overflow:hidden; }
   .foto img { width:100%; height:100%; object-fit:contain; }
+  /* En la galería el hueco lleva el color de la tarjeta, no `--foto`, que es
+     blanco también en el tema oscuro: cada tarjeta era un rectángulo blanco
+     hasta que llegaba su imagen. La imagen no se toca. */
+  .tarjeta .foto { background:var(--tarjeta); }
   .sin-foto { color:#8a8f94; font-size:14px; }
   .tarjeta[data-estado="en marcha"] .sin-foto { animation:latir 1.6s ease-in-out infinite; }
   @keyframes latir { 50% { opacity:.4; } }
@@ -1279,7 +1312,7 @@ ESTILO = """
   .cambiar-pieza input, .cambiar-pieza textarea { padding:8px 10px; font-size:14px; border-radius:9px; }
   .cambiar-pieza textarea { flex:1; min-width:0; resize:vertical; font:inherit; }
   .cambiar-pieza:has(textarea) { align-items:flex-end; }
-  .corregida { font-size:14px; padding:8px 10px; border-radius:9px; background:var(--fondo-suave, rgba(127,127,127,.12)); }
+  .corregida { font-size:14px; padding:8px 10px; border-radius:9px; background:var(--fondo-suave); }
   .cambiar-pieza .btn { padding:8px 12px; }
   .cambiar { max-width:760px; }
   .documento { background:var(--tarjeta); border:1px solid var(--linea); border-radius:14px; padding:6px 18px 14px; font-size:14px; }
@@ -1669,12 +1702,28 @@ GUION_PROYECTO = r"""
     } catch (e) { caja.textContent = "No se pudo cargar: " + e; }
   });
 
+  // Cancelar el diseño en marcha (F9.12 (pantalla)). Delegado en la página: el
+  // bloque #en-marcha se cambia entero cada 10 s, y un manejador puesto en el
+  // botón se iría con el primero.
+  let cancelando = false;
+  pagina.addEventListener("click", async ev => {
+    const b = ev.target.closest("[data-cancelar]");
+    if (!b || cancelando) return;
+    if (!confirm("Se para el diseño; lo gastado hasta ahora no se recupera. ¿Cancelarlo?")) return;
+    cancelando = true; b.disabled = true; const antes = b.textContent; b.textContent = "Cancelando…";
+    const [ok, d] = await enviar("/api/proyectos/" + encodeURIComponent(b.dataset.cancelar) + "/cancelar");
+    if (ok) { location.reload(); return; }
+    // P. ej. lo lanzó Crafty desde su contenedor: la ruta dice desde dónde se para.
+    avisar(detalle(d) || "No se pudo cancelar."); cancelando = false; b.disabled = false; b.textContent = antes;
+  });
+
   // Mientras se diseña, la línea de progreso se pone al día; al terminar,
   // la página se recarga, salvo que estés escribiendo un cambio.
   const enMarcha = document.querySelector("#en-marcha");
   if (enMarcha) setInterval(async () => {
     try {
       const doc = new DOMParser().parseFromString(await (await fetch(location.href)).text(), "text/html");
+      if (cancelando) return;   // el botón está diciendo «Cancelando…»: no se le cambia debajo
       const nuevo = doc.querySelector("#en-marcha");
       const escribiendo = [...document.querySelectorAll("[name=cambio]")].some(x => x.value.trim());
       if (nuevo) document.querySelector("#en-marcha").replaceWith(nuevo);

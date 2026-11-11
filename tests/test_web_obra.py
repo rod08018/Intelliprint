@@ -363,3 +363,34 @@ def test_lo_de_una_pieza_ya_lista_va_plegado(tmp_path):
     assert re.search(r'<details class="mas"><summary>Más</summary>\s*'
                      r'<form class="cambiar-pieza" data-impresa="base"', base), base
     assert '<details class="mas">' not in giro
+
+
+def _giro_que_aloja(carpeta, *ids):
+    """El concepto del soporte de giro, por aprobar, alojando `ids`."""
+    _disenar_nodo(carpeta, "base")
+    O.dar_por_lista(carpeta, "base", por="prueba")
+    giro = carpeta / "nodos" / "giro"
+    giro.mkdir(parents=True)
+    (giro / "concepto.json").write_text(json.dumps({"concepto": {
+        "idea": "una placa sobre el cuerno", "componentes": [
+            {"id": i, "como_entra": "ya montada", "como_se_sujeta": "no se fija",
+             "ajuste": "clearance"} for i in ids]}}), encoding="utf-8")
+    (giro / "concepto.md").write_text("# Giro\n", encoding="utf-8")
+
+
+def test_una_pieza_del_backlog_sin_ficha_se_nombra_y_no_sale_su_id(tmp_path):
+    """«obra-base (no hay ficha)»: `obra-<nodo>` es el id interno de la ficha
+    de una pieza del backlog. A la persona se le dice qué pieza es, con el
+    nombre que le dio el desglose (F9.13 (limpieza))."""
+    carpeta = _empezar(tmp_path, aprobada=True)
+    _giro_que_aloja(carpeta, "obra-base", "obra-fantasma", "sensor-raro")
+    (O.carpeta_de_fichas(carpeta) / "obra-base.yaml").unlink()   # se perdió su ficha
+
+    texto = _visible(_ws_con_trabajos(tmp_path).get(f"/p/{ID}").text)
+
+    assert "la pieza «Base» del backlog (no hay ficha)" in texto
+    # Una que el desglose no tiene: al menos, sin el prefijo interno.
+    assert "la pieza «fantasma» del backlog (no hay ficha)" in texto
+    assert "obra-" not in texto
+    # Lo que no es del backlog se sigue llamando por su id, que es el de la biblioteca.
+    assert "sensor-raro (no hay ficha)" in texto

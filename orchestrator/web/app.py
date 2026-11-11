@@ -161,7 +161,9 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
             # orden por omisión del gestor.
             comando = {"pieza": orden_pieza, "obra": orden_obra}[pedido.tipo]
             if not comando:
-                raise HTTPException(503, f"esta web no tiene con qué diseñar «{pedido.tipo}»")
+                # «obra» es el valor interno: él lo llama backlog.
+                que = {"pieza": "una pieza", "obra": "un backlog"}[pedido.tipo]
+                raise HTTPException(503, f"esta web no tiene con qué diseñar {que}")
             return {"id": trabajos.start(pedido.peticion, comando=comando)}
         except RuntimeError as e:
             raise HTTPException(409, str(e))
@@ -202,6 +204,37 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
             raise HTTPException(409, str(e))
         except RuntimeError as e:
             raise HTTPException(409, str(e))
+
+    @app.post("/api/proyectos/{id}/cancelar")
+    def cancelar(id: str) -> dict:
+        """Para el diseño en marcha de ESTE proyecto (F9.12 (pantalla)). Un
+        diseño tarda hasta una hora y cuesta hasta 5 USD, y desde la web no
+        había por dónde pararlo: solo podía Crafty.
+
+        `id` es el del proyecto o el de cualquiera de sus versiones; la que
+        trabaja suele ser otra carpeta que la que da nombre al proyecto."""
+        if trabajos is None:
+            raise HTTPException(503, "esta web no tiene con qué lanzar ni parar diseños")
+        carpeta = _proyecto(id)
+        raiz_de = raices(workspace)
+        raiz = raiz_de.get(carpeta.name, carpeta.name)
+        en_curso = [n for n, r in sorted(raiz_de.items())
+                    if r == raiz and (trabajos.carpeta / n).is_dir()
+                    and trabajos.status(n)["estado"] == "trabajando"]
+        if not en_curso:
+            raise HTTPException(409, f"{id} no tiene ningún diseño en marcha: no hay nada que cancelar")
+        # Lo que diga el gestor, no lo que se quiera oír: de un trabajo que
+        # lanzó Crafty se ve el latido, pero su proceso está en el contenedor
+        # del MCP y la señal de aquí no llega. Un 200 sería decir «parado»
+        # con el diseño gastando.
+        parados = [n for n in en_curso if trabajos.cancel(n)]
+        if not parados:
+            raise HTTPException(
+                409, f"{en_curso[-1]} no lo lanzó esta web: su proceso corre en otro contenedor "
+                "y desde aquí no se le puede parar. Si lo pediste por Telegram, dile a Crafty "
+                "que lo cancele; si lo lanzaste desde una terminal, páralo allí.")
+        return {"id": parados[-1], "proyecto": raiz,
+                "estado": trabajos.status(parados[-1])["estado"]}
 
     # --- La obra, nodo a nodo (F7.3 (arbol)) ------------------------------------
 
