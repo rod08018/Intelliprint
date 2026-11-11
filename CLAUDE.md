@@ -99,7 +99,10 @@ invento. El plan aprobado está en `PLAN_PROYECTO.md`, Fase 9, con su orden.
   abajo; ahora el plan reserva el sitio de cada giro y cada pieza lo mide en su
   propio bucle (F9.1 a F9.5). **Es una sola corrida**, y su plataforma es un
   disco coaxial con el eje, que no inclina nada: el banco lo ve desde
-  F9.14 (orienta), y con esa exigencia la corrida queda en **5 de 6**.
+  F9.14 (orienta), y con esa exigencia la corrida queda en **5 de 6**. Las
+  dos reanudaciones del tope se gastaron en arreglarlo y no bastaron (la
+  placa de la cámara salió de 32 × 22 y hacen falta 25 × 24): **el pan-tilt
+  está en 5 de 6 y parado, a la espera de lo que decida el usuario.**
 - **Los backlogs están desaparcados**, con la regla de siempre: no relanzar
   corridas enteras para probar un arreglo (`banco --reanudar`).
 - **El flujo `mecanismo` ya no existe** (F9.13 (limpieza), 2026-11-11): lo
