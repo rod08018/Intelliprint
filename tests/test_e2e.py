@@ -1,7 +1,14 @@
-"""`intelliprint new` de extremo a extremo (F1.17 (verificación), marcador `llm`).
+"""`intelliprint pieza` de extremo a extremo (F1.17 (verificación), marcador `llm`).
 
 Llama a un modelo real y cuesta unos céntimos. Aislado con
 INTELLIPRINT_WORKSPACE: nunca toca el workspace/ de verdad.
+
+Hasta el 2026-11-11 esto pedía con `intelliprint new`, el grafo de LangGraph
+que ya no usaba nadie —la web, Crafty y el banco piden con `pieza`—, y
+exigía una línea de laminado que el diseño dejó de producir a propósito
+(el usuario, 2026-11-09: se lamina al abrir PrusaSlicer). La prueba
+obligatoria antes de cerrar una tarea medía un camino muerto. Ahora pide
+como el banco: el flujo de pieza entero, con el concepto aprobado tal cual.
 
 Lo esperado sale A MANO de la petición: un oráculo independiente del
 sistema, no una salida suya. Se mide la pieza construida —envolvente,
@@ -64,17 +71,16 @@ CASOS = [
 @pytest.mark.parametrize("peticion,oraculo", CASOS)
 def test_de_la_frase_a_la_pieza(tmp_path, peticion, oraculo):
     proceso = subprocess.run(
-        [INTELLIPRINT, "new", peticion],
-        input="sí\n", capture_output=True, text=True, timeout=900,
+        [INTELLIPRINT, "pieza", "--aprobar-concepto", peticion],
+        capture_output=True, text=True, timeout=1800,
         env={**os.environ, "INTELLIPRINT_WORKSPACE": str(tmp_path)},
     )
     salida = proceso.stdout
 
-    # Sin la línea, que se vea por qué, con el error del proceso: un
-    # AttributeError de None no decía nada, y el fallo real era el
-    # laminado, no la pieza (2026-10-27).
-    linea = re.search(r"pieza:\s+([\d.]+) mm³", salida)
-    assert linea, f"{salida}\n--- stderr ---\n{proceso.stderr[-4000:]}"
+    # Sin la línea de «✓», que se vea por qué, con el error del proceso: un
+    # AttributeError de None no decía nada (2026-10-27).
+    assert proceso.returncode == 0 and re.search(r"✓ .+ mm", salida), \
+        f"{salida}\n--- stderr ---\n{proceso.stderr[-4000:]}"
     proyecto = next((tmp_path / "projects").iterdir())
     hechos = extraer_hechos(next(proyecto.glob("parts/*/*.step")), _freecadcmd(), None)
     fallos = [r.detalle for r in (juzgar(a, hechos) for a in oraculo) if r.estado != "cumple"]
@@ -84,4 +90,3 @@ def test_de_la_frase_a_la_pieza(tmp_path, peticion, oraculo):
 
     fcstd = next(proyecto.glob("parts/*/*.FCStd"))
     assert sum(_visibilidad_gui(fcstd).values()) == 1  # se verá al abrirlo
-    assert re.search(r"laminado:\s+([\d.]+) g", salida)
