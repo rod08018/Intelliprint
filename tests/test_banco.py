@@ -687,6 +687,54 @@ def test_reanudar_corrige_con_lo_medido_la_pieza_que_salio_con_defectos(tmp_path
     assert (p / "nodos" / "giro" / "concepto_aprobado").is_file(), "el concepto se queda"
 
 
+def test_reanudar_rehace_con_su_motivo_la_pieza_que_no_orienta_lo_que_lleva(
+        tmp_path, monkeypatch):
+    """F9.14 (orienta). El pan-tilt 1111-1342 tenía todas sus piezas
+    resueltas y el conjunto sin chocar, así que al reanudar no había nada
+    que rehacer; pero su plataforma era un disco en el eje, que no inclina.
+    Es un fallo de concepto: la pieza se rehace desde su concepto (no se
+    retoca la que hay), con lo que midió el juez apuntado para el ingeniero.
+
+    En la obra de muestra, el soporte de giro gira sobre el SG90 de la base,
+    de eje vertical: es la pieza que la exigencia mira."""
+    import json
+    from orchestrator import banco
+    corrida = tmp_path / "corrida"
+    bien = {"ok": True, "choques": [], "resumen": [], "articulaciones": [], "correcciones": {}}
+    p = _con_informes(_obra_construida(corrida / "01", verificacion=bien),
+                      {"base": True, "giro": True})
+    medido = "la mayor cara plana que cambia de orientación al girar mide 47 mm² y hacen falta 600"
+    monkeypatch.setattr(banco, "medir_sondas", lambda *a, **k: [
+        banco.Resultado(estado="no_cumple", detalle=medido)])
+
+    class Hecho:
+        stdout, stderr, returncode = "", "", 0
+
+    lanzado = []
+    monkeypatch.setattr(banco.subprocess, "run", lambda orden, **k: lanzado.append(orden) or Hecho())
+    monkeypatch.setattr(banco, "rejuzgar", lambda *a, **k: ({"x": []}, {}))
+    e = banco.Encargo(nombre="x", categoria="robots", peticion="un pan-tilt", obra=True,
+                      oraculo=[{"tipo": "conjunto_libre"},
+                               {"tipo": "se_orienta", "eje": "vertical", "area_min_mm2": 600}])
+    banco.reanudar([e], corrida, ["intelliprint", "obra", "--banco"], "fc", {})
+
+    assert lanzado, "había algo que reanudar"
+    cambios = (p / "nodos" / "giro" / "cambios.md").read_text(encoding="utf-8")
+    assert "47 mm²" in cambios and "perpendicular al eje" in cambios
+    assert not (p / "nodos" / "giro" / "parts").exists(), "se rehace desde el concepto"
+    assert next(p.glob("archivo/*/nodos/giro/pieza_report.json"), None) is not None
+    assert (p / "nodos" / "base" / "lista.json").is_file(), "lo demás se queda"
+
+    # Si orienta, no hay nada que reanudar.
+    monkeypatch.setattr(banco, "medir_sondas", lambda *a, **k: [
+        banco.Resultado(estado="cumple", detalle="tiene una cara plana de 960 mm²")])
+    lanzado.clear()
+    otra = tmp_path / "otra"
+    _con_informes(_obra_construida(otra / "01", verificacion=bien), {"base": True, "giro": True})
+    banco.reanudar([e], otra, ["intelliprint", "obra", "--banco"], "fc", {})
+    assert lanzado == []
+
+
 def test_la_carpeta_de_un_encargo_se_busca_por_su_nombre(tmp_path):
     """Las carpetas de una corrida van numeradas por el puesto del encargo
     en la lista con la que se lanzó. La 1110-0313 se lanzó solo con los dos

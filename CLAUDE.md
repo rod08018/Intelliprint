@@ -98,8 +98,8 @@ invento. El plan aprobado está en `PLAN_PROYECTO.md`, Fase 9, con su orden.
   porque el soporte dejaba 12.7 mm entre el eje de inclinación y el servo de
   abajo; ahora el plan reserva el sitio de cada giro y cada pieza lo mide en su
   propio bucle (F9.1 a F9.5). **Es una sola corrida**, y su plataforma es un
-  disco coaxial con el eje, que el banco no sabe ver que no sirve para
-  inclinar una cámara: está escrito en la Fase 9 del plan.
+  disco coaxial con el eje, que no inclina nada: el banco lo ve desde
+  F9.14 (orienta), y con esa exigencia la corrida queda en **5 de 6**.
 - **Los backlogs están desaparcados**, con la regla de siempre: no relanzar
   corridas enteras para probar un arreglo (`banco --reanudar`).
 - **El flujo `mecanismo` ya no existe** (F9.13 (limpieza), 2026-11-11): lo

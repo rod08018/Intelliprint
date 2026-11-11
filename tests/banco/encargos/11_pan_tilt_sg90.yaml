@@ -15,3 +15,15 @@ oraculo:
     ejes: [vertical, horizontal]
     recorrido_grados: 180
   - tipo: sin_soportes
+  # «Inclina una plataforma para una cámara pequeña»: lo que el servo de
+  # arriba mueve tiene que llevar la cámara de forma que cambie de
+  # orientación al inclinar. Una cámara pequeña de verdad mide 25 × 24 mm
+  # (módulo de cámara de Raspberry Pi, «Around 25 × 24 × 9 mm»,
+  # raspberrypi.com/documentation/accessories/camera.html): 600 mm² de cara
+  # plana con la normal perpendicular al eje de inclinación. La corrida
+  # 1111-1342 pasó las cinco exigencias de arriba con un disco centrado en
+  # ese eje, que gira sobre sí mismo (añadida el 2026-11-11, a petición del
+  # usuario).
+  - tipo: se_orienta
+    eje: horizontal
+    area_min_mm2: 600

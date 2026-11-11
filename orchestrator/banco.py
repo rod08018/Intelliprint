@@ -210,6 +210,33 @@ class ZonaLibre(_Sonda):
     radio_mm: float
 
 
+class CaraQueSeOrienta(_Sonda):
+    """La pieza tiene una cara plana de `area_min_mm2` cuya normal es
+    perpendicular a `eje` (F9.14 (orienta)): lo que se monte en ella cambia
+    de orientación cuando la pieza gira alrededor de ese eje. La plataforma
+    del pan-tilt 1111-1342 era un disco centrado en el eje de inclinación:
+    pasó el banco y una cámara montada en él habría rodado sobre su eje
+    óptico en vez de cabecear."""
+    tipo: Literal["cara_que_se_orienta"]
+    eje: list[float]
+    area_min_mm2: float
+    tolerancia_grados: float = 20.0
+
+
+class SeOrienta(BaseModel):
+    """Obras: la pieza que gira sobre el eje `eje` (en el mundo, en reposo)
+    lleva lo suyo de forma que cambie de orientación al girar. Se mide con
+    `CaraQueSeOrienta` sobre esa pieza, con su eje en su propio marco."""
+    tipo: Literal["se_orienta"]
+    eje: Literal["vertical", "horizontal"]
+    area_min_mm2: float
+    tolerancia_grados: float = 20.0
+    porque: str = ""
+
+    def cotas_de_la_peticion(self) -> list[float]:
+        return []   # el área sale de una hoja de datos, no de la petición
+
+
 class Componente(BaseModel):
     """El componente de la biblioteca cabe en la pieza y se puede meter
     (F6.11 (biblioteca)). La forma sale de la ficha; dónde va y por dónde
@@ -282,7 +309,7 @@ class Articulaciones(BaseModel):
 Asercion = Annotated[Agujeros | Cilindro | Envolvente | SinSoportes | Pendiente | AristasVivas
                      | Resistencia | Ventana | Coaxiales | PasoLibre | ParedMinima | Ranura
                      | Retencion | ComponenteCabe | ComponenteEntra | AccesoTornillo | ZonaLibre
-                     | Componente | Encaje | ConjuntoLibre | Articulaciones,
+                     | CaraQueSeOrienta | SeOrienta | Componente | Encaje | ConjuntoLibre | Articulaciones,
                      Field(discriminator="tipo")]
 
 
@@ -768,7 +795,8 @@ def juzgar_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
     sin_construir = [n.nombre for n in ob.nodos if n.tipo == "pieza" and n.id not in piezas]
 
     de_pieza = [a for a in encargo.oraculo
-                if not isinstance(a, (Componente, Encaje, ConjuntoLibre, Articulaciones))]
+                if not isinstance(a, (Componente, Encaje, ConjuntoLibre, Articulaciones,
+                                      SeOrienta))]
     # Solo se sondea lo que el oráculo pregunta: cada sonda es FreeCAD.
     pedidos = {a.ficha for a in encargo.oraculo if isinstance(a, Componente)}
     encaje = any(isinstance(a, Encaje) for a in encargo.oraculo)
@@ -824,11 +852,68 @@ def juzgar_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
         elif isinstance(a, Articulaciones):
             salida.append(_articulaciones(a, [j for v in verificaciones
                                               for j in v.get("articulaciones", [])]))
+        elif isinstance(a, SeOrienta):
+            pieza, r = _mide_si_orienta(a, proyecto, freecadcmd, material)
+            salida.append(r if pieza is None else Resultado(
+                estado=r.estado, detalle=f"«{piezas[pieza].nombre}»: {r.detalle}"))
         else:
             salida.append(_junta([(piezas[i].nombre, juzgar(a, h))
                                   for i, (h, _, _) in medidas.items()],
                                  f"en las {len(medidas)} piezas"))
     return salida
+
+
+def la_que_gira(proyecto: Path, cual: str) -> tuple[str, list[float]] | None:
+    """(pieza, eje en su marco) de la pieza del backlog que gira sobre un
+    eje «vertical» u «horizontal» en el mundo, en reposo; la última si hay
+    varias, que es la que lleva la carga. None si ninguna."""
+    from orchestrator.conjunto import _mv, _tr, articulaciones_de, leer_piezas, poses
+
+    piezas = leer_piezas(Path(proyecto), solo_construidas=True)
+    arts = {a.pieza: a for a in articulaciones_de(Path(proyecto), piezas)}
+    reposo = poses(piezas, arts, {})
+    hallada = None
+    for a in arts.values():
+        eje = _mv(reposo[a.padre][0], a.eje)
+        z = abs(eje[2]) / math.sqrt(sum(x * x for x in eje))
+        if ("vertical" if z > 0.99 else "horizontal" if z < 0.01 else "") == cual:
+            hallada = (a.pieza, [float(x) for x in _mv(_tr(reposo[a.pieza][0]), eje)])
+    return hallada
+
+
+def _mide_si_orienta(a: "SeOrienta", proyecto: Path, freecadcmd: str,
+                     material: dict | None) -> tuple[str | None, "Resultado"]:
+    """(pieza que gira sobre el eje que pide `a`, lo que mide en ella)."""
+    from orchestrator.conjunto import leer_piezas
+    cual = la_que_gira(proyecto, a.eje)
+    if cual is None:
+        return None, Resultado(estado="no_cumple", detalle=(
+            f"ninguna pieza gira sobre un eje {a.eje}: no hay qué orientar"))
+    pieza, eje = cual
+    step = leer_piezas(Path(proyecto), solo_construidas=True)[pieza].step
+    [r] = medir_sondas(step, [CaraQueSeOrienta(
+        tipo="cara_que_se_orienta", eje=eje, area_min_mm2=a.area_min_mm2,
+        tolerancia_grados=a.tolerancia_grados)], freecadcmd, material or {})
+    return pieza, r
+
+
+def la_que_no_orienta(encargo: Encargo, proyecto: Path, freecadcmd: str,
+                      material: dict | None = None) -> tuple[str | None, str]:
+    """(pieza, qué decirle a su ingeniero) si el encargo pide que algo se
+    oriente y la pieza construida no lo hace; (None, "") si no hay nada que
+    decir. Es lo que le diría la persona al verla: no inclina nada."""
+    for a in encargo.oraculo:
+        if not isinstance(a, SeOrienta):
+            continue
+        pieza, r = _mide_si_orienta(a, proyecto, freecadcmd, material)
+        if pieza is not None and r.estado == "no_cumple":
+            return pieza, (
+                f"Esta pieza gira para orientar lo que lleva, y como está no lo orienta: "
+                f"{r.detalle}. Lo que lleva tiene que ir en una cara plana de al menos "
+                f"{a.area_min_mm2:g} mm² que mire de lado respecto al eje sobre el que gira "
+                "(su normal, perpendicular al eje): una repisa o una escuadra que sale del "
+                "acople, no un disco centrado en el eje.")
+    return None, ""
 
 
 def rejuzgar(encargos: list[Encargo], corrida: Path, freecadcmd: str,
@@ -942,11 +1027,21 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
         carpeta = carpeta_del_encargo(Path(corrida), i, e.nombre)
         hecho = next(carpeta.glob(f"projects/*/{obra.OBRA}"), None) if e.obra else None
         nodo = nodo_a_rehacer(hecho.parent) if hecho is not None else None
+        de_concepto = ""
+        if nodo is None and hecho is not None:
+            # Todo construido y sin chocar, y aun así la pieza no sirve para
+            # lo que se pidió (F9.14 (orienta)).
+            nodo, de_concepto = la_que_no_orienta(e, hecho.parent, freecadcmd, material)
         if nodo is None:
             continue
         proyecto = hecho.parent
         correcciones = correcciones_del_conjunto(proyecto)
-        if nodo in correcciones and obra.programa_construido(proyecto, nodo):
+        if de_concepto:
+            # No se retoca la que hay: un disco en el eje no se arregla
+            # moviendo una cota. Se rehace desde su concepto, con lo medido
+            # apuntado para el ingeniero.
+            obra.rehacer(proyecto, nodo, de_concepto)
+        elif nodo in correcciones and obra.programa_construido(proyecto, nodo):
             # Se corrige la pieza que hay, como la corrigió la persona en la
             # web el 9 de noviembre. Las otras que chocan se diseñaron contra
             # ella y se rehacen: su corrección va apuntada para el ingeniero.

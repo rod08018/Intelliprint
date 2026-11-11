@@ -21,6 +21,7 @@ No dibujas. Decides **cómo se resuelve el problema**, y otro agente dibuja exac
    - Redondeo en las esquinas interiores que trabajan.
    - Paredes de al menos `walls.structural_mm` donde hay carga.
    - Que se entienda cómo se monta y cómo se aprieta.
+7. **Si la pieza gira para orientar algo, ese algo va donde el giro lo cambie de orientación.** Una cámara, un sensor o una herramienta apuntan hacia donde mira la cara en la que van montados. Si esa cara es perpendicular al eje de giro —un plato o un disco centrado en el eje—, al girar da vueltas sobre sí misma y lo montado no cambia hacia dónde apunta: solo rueda. La cara donde va lo que se orienta tiene que mirar **de lado respecto al eje** (su normal, perpendicular a él): una repisa o una escuadra que sale del acople. Así salió una plataforma «de inclinación» que era un disco en el eje del servo: se movía sin chocar y no inclinaba nada. Di en la idea qué cara lleva lo que se orienta, cuánto mide y hacia dónde mira; si la petición no da el tamaño de lo que lleva, pregúntalo o toma el de un modelo corriente y dilo.
 
 ## Componentes: cómo entra y qué hay que dejar libre
 

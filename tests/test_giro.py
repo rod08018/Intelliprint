@@ -321,3 +321,71 @@ def test_un_pan_tilt_hecho_a_mano_se_mide_pieza_a_pieza_y_luego_se_mueve_entero(
     ejes = sorted(abs(round(a["eje_mundo"][2])) for a in v["articulaciones"])
     assert ejes == [0, 1], "un giro horizontal y uno vertical"
     assert [a["recorrido"] for a in v["articulaciones"]] == [[-90, 90], [-90, 90]]
+
+
+# --- lo que inclina cambia de orientación (F9.14 (orienta)) -------------------------------------
+
+DISCO = "def construir(kit):\n    return kit.cilindro(46, 9, en=(4, 0, 0), eje='x')\n"
+"""La plataforma de la corrida 1111-1342: un disco de Ø46 centrado en el eje
+de inclinación (+x). Sus dos caras planas miden π·23² = 1662 mm² y miran a
+lo largo del eje: al girar, giran sobre sí mismas."""
+
+ESCUADRA = """
+def construir(kit):
+    return (kit.caja(4, {ancho}, {ancho}, en=(4, -{ancho} / 2, 0))
+            + kit.caja({largo}, {ancho}, 4, en=(6, -{ancho} / 2, 0)))
+"""
+"""Una placa contra el cuerno (x de 4 a 8) y una repisa que sale de su pie
+(x de 6 a 6 + largo). La cara de abajo es un rectángulo de (largo + 2) ×
+ancho, y mira hacia −z: perpendicular al eje, así que al inclinar cambia de
+orientación."""
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="sin freecadcmd")
+@pytest.mark.parametrize("codigo, cumple, cifra", [
+    (DISCO, False, "1662 mm²"),
+    # (30 + 2) × 30 = 960 mm²: cabe una cámara de 25 × 24.
+    (ESCUADRA.format(ancho=30, largo=30), True, "960 mm²"),
+    # (18 + 2) × 20 = 400 mm²: orientada, pero no cabe.
+    (ESCUADRA.format(ancho=20, largo=18), False, "400 mm²"),
+])
+def test_la_pieza_que_inclina_tiene_donde_llevar_algo_que_cambie_de_orientacion(
+        tmp_path, codigo, cumple, cifra):
+    """«Inclina una plataforma para una cámara pequeña» (el encargo 11). Una
+    cámara pequeña de verdad mide 25 × 24 mm (el módulo de Raspberry Pi:
+    «Around 25 × 24 × 9 mm», raspberrypi.com/documentation/accessories/
+    camera.html): hacen falta 600 mm² de cara plana cuya normal sea
+    perpendicular al eje. El pan-tilt de la corrida 1111-1342 pasó las cinco
+    comprobaciones del banco con un disco coaxial: una cámara montada en él
+    rodaría sobre su eje óptico en vez de cabecear."""
+    from orchestrator.banco import CaraQueSeOrienta
+    build_part(Programa(part="p", codigo=codigo), None, tmp_path, _freecadcmd(), perfil=PERFIL)
+    sonda = CaraQueSeOrienta(tipo="cara_que_se_orienta", eje=[1, 0, 0], area_min_mm2=600)
+    [r] = medir_sondas(tmp_path / "p.step", [sonda], _freecadcmd(), MATERIAL)
+    assert r.estado == ("cumple" if cumple else "no_cumple"), r.detalle
+    assert cifra in r.detalle, r.detalle
+
+
+def test_la_pieza_que_inclina_es_la_que_gira_sobre_el_eje_horizontal(tmp_path):
+    """En el pan-tilt de la corrida 1110-0313 la plataforma gira sobre el eje
+    del SG90 del soporte, que en su marco sale hacia +x; el soporte gira
+    sobre el de la base, vertical."""
+    from orchestrator.banco import la_que_gira
+    carpeta = _pan_tilt(tmp_path, PLATAFORMA)
+    pieza, eje = la_que_gira(carpeta, "horizontal")
+    assert pieza == "plataforma" and eje == pytest.approx([1, 0, 0])
+    pieza, eje = la_que_gira(carpeta, "vertical")
+    assert pieza == "soporte" and eje == pytest.approx([0, 0, 1])
+    # Sin la plataforma construida no hay giro horizontal que mirar.
+    (tmp_path / "otro").mkdir()
+    assert la_que_gira(_pan_tilt(tmp_path / "otro"), "horizontal") is None
+
+
+def test_el_encargo_del_pan_tilt_pide_que_la_plataforma_incline_de_verdad():
+    from pathlib import Path
+
+    from orchestrator.banco import SeOrienta, cargar_encargos
+    [pan_tilt] = [e for e in cargar_encargos(Path("tests/banco/encargos"))
+                  if e.nombre == "pan_tilt_sg90"]
+    [pide] = [a for a in pan_tilt.oraculo if isinstance(a, SeOrienta)]
+    assert pide.eje == "horizontal" and pide.area_min_mm2 == 25 * 24

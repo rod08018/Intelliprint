@@ -574,6 +574,44 @@ def zona_libre(forma, nombre, punto, eje, radio_mm):
                        f"lo que estorba llega a {cerca:.1f} mm del eje"}
 
 
+def cara_que_se_orienta(forma, eje, area_min_mm2, tolerancia_grados=20.0):
+    """Hay `area_min_mm2` de cara plana cuya normal es perpendicular a `eje`:
+    lo que se monte ahí cambia de orientación cuando la pieza gira sobre ese
+    eje (F9.14 (orienta)). Las caras del mismo plano se suman: una unión de
+    dos cuerpos deja la cara partida, y es la misma superficie."""
+    import math
+
+    e = FreeCAD.Vector(*eje)
+    e.normalize()
+    limite = math.sin(math.radians(tolerancia_grados))
+    planos: dict[tuple, float] = {}
+    for cara in forma.Faces:
+        if cara.Surface.__class__.__name__ != "Plane":
+            continue
+        u0, u1, v0, v1 = cara.ParameterRange
+        n = cara.normalAt((u0 + u1) / 2, (v0 + v1) / 2)
+        d = n.dot(cara.CenterOfMass)
+        clave = (round(n.x, 3), round(n.y, 3), round(n.z, 3), round(d, 2))
+        planos[clave] = planos.get(clave, 0.0) + cara.Area
+    orientadas = [a for (x, y, z, _), a in planos.items()
+                  if abs(x * e.x + y * e.y + z * e.z) <= limite]
+    mejor = max(orientadas, default=0.0)
+    if mejor >= area_min_mm2 - 0.5:
+        return {"cumple": True,
+                "detalle": f"tiene una cara plana de {mejor:.0f} mm² que cambia de orientación "
+                           f"al girar (hacen falta {area_min_mm2:g})"}
+    if mejor > 0:
+        return {"cumple": False,
+                "detalle": f"la mayor cara plana que cambia de orientación al girar mide "
+                           f"{mejor:.0f} mm² y hacen falta {area_min_mm2:g}: lo que tiene que "
+                           "llevar no cabe"}
+    mayor = max(planos.values(), default=0.0)
+    return {"cumple": False,
+            "detalle": f"ninguna cara plana cambia de orientación al girar: la mayor "
+                       f"({mayor:.0f} mm²) mira a lo largo del eje y gira sobre sí misma. "
+                       f"Hacen falta {area_min_mm2:g} mm² con la normal perpendicular al eje"}
+
+
 def carga_en_camino(forma, desde, hasta, gravedad, material, secciones=30):
     """La fuerza que aguanta una pieza que cuelga de `desde` (el eje de su
     servo) con la carga en `hasta` (donde se monta lo de fuera), hacia
@@ -640,7 +678,7 @@ SONDAS = {"aristas_vivas": aristas_vivas, "resistencia": resistencia, "ventana":
           "coaxiales": coaxiales, "paso_libre": paso_libre, "pared_minima": pared_minima,
           "ranura": ranura, "retencion": retencion, "componente_cabe": componente_cabe,
           "componente_entra": componente_entra, "acceso_tornillo": acceso_tornillo,
-          "zona_libre": zona_libre}
+          "zona_libre": zona_libre, "cara_que_se_orienta": cara_que_se_orienta}
 
 
 def medir(forma, especificaciones: list[dict], material: dict) -> list[dict]:
