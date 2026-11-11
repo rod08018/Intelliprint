@@ -92,14 +92,24 @@ diseñar robots: que el desglose decida antes de dibujar qué gira sobre qué y 
 cuánto sitio, qué va atornillado y con qué, y poder añadir funciones a un
 invento. El plan aprobado está en `PLAN_PROYECTO.md`, Fase 9, con su orden.
 
-- **Los backlogs están desaparcados con tope.** El pan-tilt `1110-0313` chocaba
-  porque el soporte deja 12.7 mm entre el eje de inclinación y el servo de
-  abajo; la culpa era del soporte y se corregía la plataforma. Tras F9.1 a F9.5:
-  **una corrida nueva y como mucho dos reanudaciones**, y solo cuenta pasar las
-  cinco comprobaciones que el encargo tiene hoy. Si no sale, se para y decide él.
-- **El flujo `mecanismo` se quita entero si el pan-tilt sube** (F9.13
-  (limpieza)); si no sube, se le pregunta antes. Queda en git, en la etiqueta
+- **El pan-tilt pasa sus cinco comprobaciones** (2026-11-11, corrida
+  `1111-1342`, a la primera, 45 min y 0,53 USD). El de `1110-0313` chocaba
+  porque el soporte dejaba 12.7 mm entre el eje de inclinación y el servo de
+  abajo; ahora el plan reserva el sitio de cada giro y cada pieza lo mide en su
+  propio bucle (F9.1 a F9.5). **Es una sola corrida**, y su plataforma es un
+  disco coaxial con el eje, que el banco no sabe ver que no sirve para
+  inclinar una cámara: está escrito en la Fase 9 del plan.
+- **Los backlogs están desaparcados**, con la regla de siempre: no relanzar
+  corridas enteras para probar un arreglo (`banco --reanudar`).
+- **El flujo `mecanismo` se quita entero** (F9.13 (limpieza)): lo decidió él
+  para cuando el pan-tilt subiera. Queda en git, en la etiqueta
   `antes-de-fase-9`. Con él se van los pendientes 2 y 4 de abajo.
+- **El banco se corre con el código de hoy desde el servicio `suite`**, que lo
+  monta en vivo; `orchestrator` y `web` llevan el de su imagen hasta
+  reconstruirla (`docker compose build`):
+  `docker compose run --rm --entrypoint python3 suite -m orchestrator.cli banco --solo pan_tilt_sg90`
+  (en Git Bash, con `MSYS_NO_PATHCONV=1` si se pasa una ruta `/workspace/...`).
+  El puente de PrusaSlicer tiene que estar arriba o «sin soportes» sale sin medir.
 - **Decidido por él:** el agarre de cada tornillo lo propone el plan en cada
   unión; un componente sin ficha entra como borrador que él aprueba viendo la
   huella; `AGENTS.md` se borra.
