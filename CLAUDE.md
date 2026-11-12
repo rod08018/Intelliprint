@@ -117,11 +117,19 @@ Fase 10.
   backlog se le añade una función sin pedirlo entero otra vez: la
   propuesta espera en `ampliacion.json` sin tocar el plan, y al aprobarla
   solo se corrige la pieza que la función toca. Desde la web («Añadir una
-  función»), Crafty (`ampliar_proyecto`) y `obra --ampliar`. **Con modelo
-  no se ha ejercitado**: el encargo «pan-tilt con pinza» está escrito
-  (`11b_…yaml`) y no se ha corrido; se corre partiendo del pan-tilt 7 de 7
-  con `banco --solo pan_tilt_con_pinza --partir-de /workspace/banco/1111-1342`.
-  Ese gasto está por acordar.
+  función»), Crafty (`ampliar_proyecto`) y `obra --ampliar`.
+- **La ampliación, medida, se queda en 7 de 9** (corrida `1112-1359`,
+  «pan-tilt con pinza» partiendo de la `1111-1342`; 0,84 USD de los 2
+  acordados, y las dos reanudaciones sin usar). El mecanismo funcionó: la
+  propuesta valió a la primera, solo se corrigió la plataforma, y la base
+  y el soporte siguen idénticos. Falla el diseño: la plataforma puso los
+  M3 de la pinza en la cara que da al servo de inclinación, y el soporte
+  de la pinza quedó construido encima de él. **Reanudar no lo arregla**
+  (corregiría el soporte de la pinza, no la plataforma). Falta que al
+  corregir una pieza hecha se le diga, y se mida, dónde hay sitio para lo
+  nuevo. **Esperan su visto bueno**, porque cambian lo que el banco da por
+  choque: que dos piezas atornilladas puedan tocarse, y que un giro se
+  barra solo lo que pide el plan (el dedo se barrió 180° pidiendo 60°).
 - **Lo que sigue, en orden:** F10.2 (transmisión) → F10.3 (correa) → medir
   el encargo 14. El gasto de cada medición se acuerda cuando toque.
 
