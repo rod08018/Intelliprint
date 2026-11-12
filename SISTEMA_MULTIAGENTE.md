@@ -241,7 +241,7 @@ El QA de tres capas —aserciones derivadas de interfaces, chequeos sobre el STL
 - La nota global la da el **banco** (`orchestrator/banco.py`, F6.1 (evaluación)): trece encargos con lo esperado escrito a mano desde la petición y medido en la pieza construida. A un backlog se le puede pedir además hasta dónde llega y cuánto levanta (`alcance` y `carga`, F10.1 (serie)): salen del estudio de movimientos, con el material medido en FreeCAD; si no se sabe el par de lo que mueve un giro, o el material no se midió, queda sin medir. Lo que el banco aún no sabe medir cuenta como no aprobado.
 - «Lista» lo decide la persona. «Impresa y probada» es otra marca, que solo puede poner ella.
 
-Límites: nadie mira la pieza con visión, y pasar todas las medidas no significa que la pieza sea lo que la persona imaginaba. El barrido no ve un choque que ocurra entre dos puntos de la rejilla de 10°.
+Límites: nadie mira la pieza con visión, y pasar todas las medidas no significa que la pieza sea lo que la persona imaginaba. El barrido no ve un choque que ocurra entre dos puntos de la rejilla de 10°. No mide los pares cuyas cajas están más separadas que la holgura, que no pueden rozarse; prueba todas las combinaciones, así que con cuatro giros o más no acaba.
 
 ---
 
@@ -437,4 +437,4 @@ Intelliprint/
 | Carpeta `ui/` y adaptador web del `HumanPort` | La web es `orchestrator/web/` y llama a los trabajos directamente | § 8.5 |
 | Hoja de ruta y tabla de riesgos de este documento | Viven en `PLAN_PROYECTO.md`, que es el que se mantiene | `PLAN_PROYECTO.md` |
 
-Lo que está planeado y todavía por hacer no va en esta tabla: está en `PLAN_PROYECTO.md`. De la Fase 9 faltan F9.10 a F9.12 (ampliar un invento, el borrador de ficha y las pantallas). La Fase 10 (brazos con transmisión, ADR-021) está aprobada y empezada: de ella solo existe lo que mide el banco en F10.1 (serie); no hay transmisiones, ni generador de dientes, ni reductoras.
+Lo que está planeado y todavía por hacer no va en esta tabla: está en `PLAN_PROYECTO.md`. De la Fase 9 faltan F9.10 a F9.12 (ampliar un invento, el borrador de ficha y las pantallas). La Fase 10 (brazos con transmisión, ADR-021) está aprobada y empezada: de ella existe lo que mide el banco en F10.1 (serie), con un brazo de tres ejes con servos que pasa sus ocho comprobaciones; no hay transmisiones, ni generador de dientes, ni reductoras.

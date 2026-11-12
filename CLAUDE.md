@@ -96,15 +96,23 @@ clase Arctos es otra fase. El avión irá con **OpenVSP y AeroSandbox**, sin
 AVL ni PX4, y no tiene fase. El plan y su orden están en `PLAN_PROYECTO.md`,
 Fase 10.
 
-- **Hecho: lo que mide el banco en F10.1 (serie).** Dos exigencias nuevas de
-  backlog, `alcance` y `carga`, que salen del estudio de movimientos, y el
-  encargo 13: un brazo de 3 ejes con SG90 que llega a 120 mm y levanta 30 g.
-- **El encargo 13 no se ha corrido.** Tiene aprobados una corrida y hasta
-  dos reanudaciones (1 a 2,5 USD estimados); antes de lanzarla se le
-  enseñan las cifras de la petición. Si no pasa, se para y decide él.
-- **Lo que sigue, en orden:** medir el encargo 13 → F9.10 (ampliar) →
-  F10.2 (transmisión) → F10.3 (correa) → medir el encargo 14. El gasto de
-  cada medición se acuerda cuando toque.
+- **Hecho: F10.1 (serie).** Dos exigencias nuevas de backlog, `alcance` y
+  `carga`, que salen del estudio de movimientos, y el encargo 13: un brazo
+  de 3 ejes con SG90 que llega a 120 mm y levanta 30 g.
+- **El encargo 13 pasa 8 de 8** (corrida `1112-0318`, 1,22 USD: la corrida
+  y una reanudación de pago; quedó otra sin usar). Antes hubo que arreglar
+  dos cosas del sistema: FreeCAD se caía al crecer el hueco de una pieza
+  vecina y el diseñador gastaba sus intentos a ciegas (ahora la
+  construcción se repite por otro camino), y mover tres giros con piezas
+  de verdad pasaba de 600 s (ahora no se miden los pares que no pueden
+  tocarse). **Lo que no dice:** el alcance (233 mm) sale de un desvío
+  lateral, no de un brazo largo: del hombro a la punta hay 120 mm. Cambiar
+  la exigencia `alcance` lo decide él.
+- **«Banco» en la web enseña una corrida mientras corre**, con «En marcha»
+  y recargándose sola; lo pidió él para ver cómo iba el brazo.
+- **Lo que sigue, en orden:** F9.10 (ampliar) → F10.2 (transmisión) →
+  F10.3 (correa) → medir el encargo 14. El gasto de cada medición se
+  acuerda cuando toque.
 
 **2026-11-10: Fase 9, robots con plan mecánico (ADR-020).** El usuario quiere
 diseñar robots: que el desglose decida antes de dibujar qué gira sobre qué y con
