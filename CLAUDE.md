@@ -134,6 +134,18 @@ Fase 10.
   medio pueden tocarse, y un giro se barre lo que pide el plan, la mitad
   a cada lado de como se dibuja (el dedo se barrió 180° pidiendo 60°).
   Rejuzgados con ellos, el pan-tilt sigue en 7 de 7 y el brazo en 8 de 8.
+- **Reanudada una vez con ellos, la pinza sube a 8 de 9 y ahí se paró**
+  (`banco_rejuzgado-2.md`; 0,83 USD más: 1,67 de los 2 acordados, no
+  queda para otra). El banco corrigió la plataforma y no la pinza, y la
+  plataforma movió los M3 a la primera. Pero los puso en su cara de
+  abajo, y ahí la pinza no cabe: el dedo choca con la base al inclinar.
+  La medida del sitio pide 6 mm en 20 de fondo y lo que viene mide
+  85 × 73 mm y su dedo necesita 40 mm libres, que solo hay saliendo por
+  la cara de fuera. Además, a la pinza nadie le dice de qué lado de los
+  agujeros va, y se puso del de la cabeza. **Lo que el 8 de 9 no dice:**
+  el encargo no pide los dos M3 de la pinza, y ni ella ni el dedo
+  pasaron su propio bucle. Seguir con la pinza es otro gasto, por
+  acordar.
 - **Lo que sigue, en orden:** F10.2 (transmisión) → F10.3 (correa) → medir
   el encargo 14. El gasto de cada medición se acuerda cuando toque.
 
