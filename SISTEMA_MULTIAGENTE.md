@@ -39,7 +39,7 @@ Las órdenes de `intelliprint` (`orchestrator/cli.py`):
 |---|---|
 | `pieza` | Una pieza suelta: propone el concepto y para; con el visto bueno, la modela |
 | `obra` | Un backlog: lo desglosa y diseña una pieza cada vez |
-| `banco` | Pide los doce encargos de `tests/banco/encargos/`, mide lo que sale y da la nota. Cuesta dinero |
+| `banco` | Pide los trece encargos de `tests/banco/encargos/`, mide lo que sale y da la nota. Cuesta dinero |
 | `calibrar` | Construye las piezas de prueba de holguras y las barras de flexión, o apunta lo medido |
 | `animar`, `estudio` | Rehacen la animación o el estudio de movimientos de un backlog ya verificado, sin modelo |
 | `proyectos` | Lista los proyectos y, con `--archivar`, mueve lo no aprobado a `workspace/archivo/` |
@@ -238,7 +238,7 @@ El QA de tres capas —aserciones derivadas de interfaces, chequeos sobre el STL
 
 - Una pieza queda «resuelta» solo si las medidas de § 3.3 no encuentran defectos. Son comparaciones numéricas.
 - Un conjunto queda «verificado» si al moverlo por todo el recorrido de sus articulaciones, en pasos de 10°, no hay choques (`orchestrator/conjunto.py`). La holgura que se exige al moverse es la mitad de la holgura deslizante del perfil.
-- La nota global la da el **banco** (`orchestrator/banco.py`, F6.1 (evaluación)): doce encargos con lo esperado escrito a mano desde la petición y medido en la pieza construida. Lo que el banco aún no sabe medir cuenta como no aprobado.
+- La nota global la da el **banco** (`orchestrator/banco.py`, F6.1 (evaluación)): trece encargos con lo esperado escrito a mano desde la petición y medido en la pieza construida. A un backlog se le puede pedir además hasta dónde llega y cuánto levanta (`alcance` y `carga`, F10.1 (serie)): salen del estudio de movimientos, con el material medido en FreeCAD; si no se sabe el par de lo que mueve un giro, o el material no se midió, queda sin medir. Lo que el banco aún no sabe medir cuenta como no aprobado.
 - «Lista» lo decide la persona. «Impresa y probada» es otra marca, que solo puede poner ella.
 
 Límites: nadie mira la pieza con visión, y pasar todas las medidas no significa que la pieza sea lo que la persona imaginaba. El barrido no ve un choque que ocurra entre dos puntos de la rejilla de 10°.
@@ -437,4 +437,4 @@ Intelliprint/
 | Carpeta `ui/` y adaptador web del `HumanPort` | La web es `orchestrator/web/` y llama a los trabajos directamente | § 8.5 |
 | Hoja de ruta y tabla de riesgos de este documento | Viven en `PLAN_PROYECTO.md`, que es el que se mantiene | `PLAN_PROYECTO.md` |
 
-Lo que está planeado y todavía por hacer no va en esta tabla: está en `PLAN_PROYECTO.md`. De la Fase 9 faltan F9.10 a F9.12 (ampliar un invento, el borrador de ficha y las pantallas).
+Lo que está planeado y todavía por hacer no va en esta tabla: está en `PLAN_PROYECTO.md`. De la Fase 9 faltan F9.10 a F9.12 (ampliar un invento, el borrador de ficha y las pantallas). La Fase 10 (brazos con transmisión, ADR-021) está aprobada y empezada: de ella solo existe lo que mide el banco en F10.1 (serie); no hay transmisiones, ni generador de dientes, ni reductoras.

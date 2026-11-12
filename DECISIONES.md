@@ -720,3 +720,38 @@ Y lo que sí faltaba de tornillería:
 - **`radio_libre()` mide con cajas**, así que es prudente de más: puede rechazar lo que no chocaría. La medida exacta sigue siendo el barrido.
 - **Las métricas que el perfil no tabula** (M2, M2.5) no se pueden proponer hasta que el usuario las mida, F9.8 (métricas).
 - **Si el pan-tilt no pasa sus cinco comprobaciones** con una corrida y dos reanudaciones, se para: es la regla que puso el usuario.
+
+---
+
+## ADR-021 · La transmisión es un dato del giro; los dientes y las reductoras los genera el código
+
+**Estado:** aceptada (2026-11-11) · **Afecta a:** Fase 10 (F10.1–F10.9), ADR-020, F7.10, F9.10, F9.11
+
+**Problema.** El usuario quiere diseñar brazos como Arctos: 6 ejes, NEMA 17 y 23, correas y reductoras. Leído en su documentación ese día: la base va con correa a 13,5:1, el hombro y el codo con cicloidal de 150:1, la muñeca con planetaria compuesta, y son 168 piezas impresas. Lo que el sistema tiene:
+
+- **Un giro va directo sobre lo comprado.** `estudio.py` lee el par de la ficha del componente que hace de eje y lo aplica tal cual; `validar_plan` exige un actuador por pieza. No hay relación de transmisión en ningún sitio.
+- **Nunca hubo un generador de dientes.** Ni poleas ni engranajes, tampoco en la etiqueta `antes-de-fase-9`.
+- **Lo más grande que ha salido son 3 piezas y 2 giros**, con cinco reanudaciones. Tres giros en serie no están medidos, y el barrido de choques crece como 19 elevado al número de giros.
+
+**Decisión.** Decidida con el usuario el 2026-11-11, al aprobar el plan de la Fase 10.
+
+1. **El brazo antes que el avión, y por tamaños.** Primero uno pequeño con servos, que mide la escala sin tocar el modelo de uniones; la meta de la fase es uno mediano solo con NEMA 17; el de clase Arctos es otra fase.
+2. **La transmisión es un dato del giro, no una pieza más del árbol.** El giro sigue siendo sobre la salida de algo comprado (ADR-020), que pasa a ser un rodamiento; la unión dice además qué motor lo mueve, con qué y con qué relación. El brazo sigue siendo un árbol de giros y lo que ya mide el código —sitio libre, choques, tornillos, carga— sirve sin rehacerse.
+3. **Los dientes y las reductoras los genera el código, no el modelo.** Una polea GT2 o un disco cicloidal salen de una fórmula con parámetros y tienen oráculo a mano. El modelo diseña la estructura: tramos, soportes y carcasas, y coloca la transmisión como coloca un servo.
+4. **Una reductora es un módulo impreso**: varias piezas generadas juntas, con una ficha (salida, fijaciones, lo que hay que comprar). Por dentro es una cadena cerrada; como su movimiento se conoce por fórmula, se comprueba aparte y el backlog la ve como un componente.
+5. **La correa primero y la cicloidal después.** La correa es la más simple; la cicloidal da mucha reducción en una etapa, que es lo que piden el hombro y el codo. La planetaria queda para la muñeca, fuera de esta fase.
+6. **El motor se comprueba contra la carga antes de dibujar**, con masas estimadas, y otra vez después con las reales.
+7. **Si los dientes engranan lo dice una pieza impresa**, no el código: el usuario imprime las de prueba y apunta la holgura, como con el M3.
+
+**Alternativas descartadas.**
+- **Ir directo al brazo de clase Arctos.** Un salto de 3 piezas a 168 no dice dónde falla cuando falla.
+- **Que el modelo dibuje los dientes.** Un perfil de diente son decenas de puntos exactos; es lo que peor hace y lo que el código hace sin error.
+- **Meter las poleas y la correa como nodos y uniones del árbol.** Una correa cierra una cadena, y el árbol de giros dejaría de serlo: habría que rehacer el barrido, el estudio y las articulaciones.
+- **PX4, AVL y Gazebo para el avión.** Lo descartó el usuario por el traspaso entre herramientas; irá con OpenVSP y AeroSandbox, y no es de esta fase.
+
+**Lo que no cubre.**
+- **Engranajes rectos, planetarias, muñeca diferencial, correderas y cadenas cerradas en general.**
+- **El rendimiento de una transmisión** es un supuesto declarado; **del paso a paso** se usa el par de retención con margen, sin comprobar velocidad ni pérdida de pasos.
+- **Holgura, rigidez y repetibilidad** no se calculan.
+- **La electrónica, el firmware y exportar a ROS o Gazebo.**
+- **Que el modelo aguante un backlog de diez piezas o más** no está medido.

@@ -962,3 +962,96 @@ def test_reanudar_corrige_todas_las_piezas_a_las_que_les_faltan_tornillos(tmp_pa
         retoque = json.loads((p / "nodos" / i / "retoque.json").read_text(encoding="utf-8"))
         assert retoque["programa"] == f"PROGRAMA DE {i}", i
         assert "Micro servo SG90" in retoque["cambio"] and "faltan 2" in retoque["cambio"], i
+
+
+# --- backlogs: hasta dónde llega y cuánto levanta (F10.1 (serie)) ---------------------------
+
+def _juzgar_brazo(tmp_path, monkeypatch, oraculo, peticion, material=()):
+    """El brazo en voladizo de `tests/test_estudio.py`, hecho a mano y con sus
+    cifras calculadas a mano allí, juzgado como un backlog: la punta a
+    100.1 mm del eje; el SG90 deja colgar 80.0 g y vuelca con 8.4 g."""
+    from orchestrator import banco, estudio
+    from tests.test_estudio import _brazo_en_voladizo
+    p = tmp_path / "projects" / "a"
+    p.mkdir(parents=True)
+    _brazo_en_voladizo(p)
+    # La resistencia del material la mide FreeCAD: aquí llega ya medida.
+    monkeypatch.setattr(estudio, "carga_del_material", lambda *a, **k: list(material))
+    e = Encargo(nombre="brazo", categoria="robots", obra=True, peticion=peticion,
+                oraculo=oraculo)
+    return banco.juzgar_obra(
+        e, tmp_path, "freecadcmd",
+        hechos_de=lambda *a: Hechos(cilindros=[], bbox_mm=[1, 1, 1], volumen_mm3=1))
+
+
+@pytest.mark.parametrize("pide, estado, dice", [
+    (100, "cumple", "100.1 mm"),
+    (120, "no_cumple", "llega a 100.1 mm y se piden 120"),
+])
+def test_el_banco_pide_que_el_brazo_llegue(tmp_path, monkeypatch, pide, estado, dice):
+    """La punta del brazo está a √(100² + 5²) = 100.1 mm del eje del servo
+    (calculado en `test_el_estudio_dice_alcance_y_tiempos`). El pan-tilt pasó
+    todo lo que se le pedía sin que nadie mirara a dónde llega: un brazo de
+    20 mm con tres servos habría pasado igual."""
+    [r] = _juzgar_brazo(tmp_path, monkeypatch, [{"tipo": "alcance", "minimo_mm": pide}],
+                        f"un brazo que llegue a {pide} mm")
+    assert r.estado == estado, r.detalle
+    assert dice in r.detalle
+
+
+@pytest.mark.parametrize("pide, estado, dice", [
+    (8, "cumple", "8.4 g"),
+    (20, "no_cumple", "levanta 8.4 g y se piden 20"),
+])
+def test_el_banco_pide_que_el_brazo_levante_la_carga(tmp_path, monkeypatch, pide, estado, dice):
+    """Sin atornillar, el brazo en voladizo vuelca con 8.36 g en la punta
+    antes de que el servo ceda, que aguantaría 80.0
+    (`test_el_estudio_de_un_brazo_en_voladizo`, a mano). Lo que levanta es lo
+    menor, y el banco dice qué lo limita."""
+    [r] = _juzgar_brazo(tmp_path, monkeypatch, [{"tipo": "carga", "minimo_g": pide}],
+                        f"un brazo que levante {pide} g")
+    assert r.estado == estado, r.detalle
+    assert dice in r.detalle and "vuelco" in r.detalle
+
+
+def test_la_carga_cuenta_lo_que_aguanta_el_material(tmp_path, monkeypatch):
+    """Si el plástico del brazo rompe con 5 g, eso es lo que levanta, aunque
+    el servo y el vuelco den para más."""
+    material = [{"pieza": "brazo", "nombre": "Pieza brazo", "largo_mm": 100.0,
+                 "detalle": "flexa", "carga_max_g": 5.0}]
+    [r] = _juzgar_brazo(tmp_path, monkeypatch, [{"tipo": "carga", "minimo_g": 8}],
+                        "un brazo que levante 8 g", material)
+    assert r.estado == "no_cumple"
+    assert "levanta 5 g y se piden 8" in r.detalle and "material" in r.detalle
+
+
+def test_sin_medir_el_material_la_carga_queda_sin_medir(tmp_path, monkeypatch):
+    """Si FreeCAD no corrió, no se sabe si el brazo aguanta: decir «cumple»
+    con el servo solo sería aprobar por medir menos."""
+    material = [{"pieza": "brazo", "nombre": "Pieza brazo", "largo_mm": 100.0,
+                 "detalle": "no corrió: sin salida", "carga_max_g": None}]
+    [r] = _juzgar_brazo(tmp_path, monkeypatch, [{"tipo": "carga", "minimo_g": 8}],
+                        "un brazo que levante 8 g", material)
+    assert r.estado == "sin_medir"
+    assert "no corrió" in r.detalle
+
+
+def test_sin_saber_el_par_de_lo_que_mueve_la_carga_queda_sin_medir(tmp_path, monkeypatch):
+    """Un giro sobre algo cuya ficha no da el par (un rodamiento, el NEMA 17
+    de hoy): el vuelco solo no dice que el brazo levante la carga."""
+    from orchestrator import componentes
+    de_verdad = componentes.cargar
+    monkeypatch.setattr(componentes, "cargar", lambda i, extra=():
+                        de_verdad(i, extra).model_copy(update={"par_kgf_cm": {}}))
+    [r] = _juzgar_brazo(tmp_path, monkeypatch, [{"tipo": "carga", "minimo_g": 8}],
+                        "un brazo que levante 8 g")
+    assert r.estado == "sin_medir"
+    assert "par" in r.detalle and "Pieza brazo" in r.detalle
+
+
+def test_tres_giros_de_180_se_estudian_en_todas_sus_combinaciones():
+    """Con la rejilla de 10°, tres giros de 180° son 19³ = 6 859 poses. Con el
+    tope en 5 000 el estudio probaba cada giro por turno con los demás en 0°,
+    y la peor pose de un brazo —estirado en horizontal— puede no estar ahí."""
+    from orchestrator import estudio
+    assert estudio.MAX_POSES >= 19 ** 3

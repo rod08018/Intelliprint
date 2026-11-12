@@ -451,7 +451,40 @@ Lo que esta medición **no** dice:
 
 **Lo que no entra**, por decisión del 2026-11-10: una página de inventario de tornillos, un grafo de piezas, adjuntos en el alta, un esqueleto global con coordenadas (basta un radio libre por giro) y elegir actuadores por la carga, que sigue siendo F7.11 (dimensionado).
 
-**Límite que queda.** Un backlog solo sabe piezas que giran sobre la salida de un servo o de un rodamiento, en árbol. Engranajes y cadenas cerradas (una pinza de dos dedos con un solo servo) quedan fuera.
+**Límite que queda.** Un backlog solo sabe piezas que giran sobre la salida de un servo o de un rodamiento, en árbol. Engranajes y cadenas cerradas (una pinza de dos dedos con un solo servo) quedan fuera. Las transmisiones son la Fase 10.
+
+### Fase 10 — Brazos con transmisión (ADR-021)
+
+**Objetivo:** diseñar un brazo robótico de varios ejes cuyos motores no van en el eje que mueven, sino que lo mueven por una correa o una reductora. Lo pidió el usuario el 2026-11-11: «quiero poder diseñar brazos robóticos como arctos». Ese mismo día decidió el orden y el alcance: **el brazo antes que el avión**; empezar por **uno pequeño con servos**; que la meta de esta fase sea un **brazo mediano solo con NEMA 17** (350–400 mm de alcance, 300–500 g de carga, 4 o 5 ejes); y que la primera reductora impresa sea la **cicloidal**. El de clase Arctos (600 mm, 2 kg, NEMA 23) es la fase siguiente. El avión va después, con OpenVSP y AeroSandbox («así es más sencillo sin meternos a handoff de avl y px4»), y no tiene fase.
+
+**De dónde se parte (comprobado en el código el 2026-11-11).** Un giro va directo sobre lo comprado: el par se lee de la ficha y se aplica tal cual en el eje (`estudio.py`), y `validar_plan` exige un actuador por pieza. No hay relación de transmisión en ningún sitio. Solo el SG90 y el 608ZZ tienen salida; el NEMA 17 tiene ficha, sin salida y sin par. Nunca hubo un generador de dientes, ni antes de la limpieza de F9.13 (limpieza). El barrido de choques prueba todas las combinaciones (`conjunto._barrer`), unas 19 poses por giro: 6 859 con tres giros y 47 millones con seis. La carga ya se calcula (`estudio.estudiar`), pero el banco no la pide. Lo más grande que ha salido es el pan-tilt: 3 piezas y 2 giros, 7 de 7 con cinco reanudaciones.
+
+**Cómo lo hace Arctos** (arctosrobotics.com, su documentación y su lista de materiales, leídas el 2026-11-11): base con correa a 13,5:1 y NEMA 23; hombro y codo con cicloidal de 150:1 (NEMA 23 y NEMA 17); muñeca con planetaria compuesta (48:1 y 67,82:1, NEMA 17); 168 piezas impresas en una cama de 200 × 200; las poleas GT2 de 20 dientes las compra.
+
+**Regla para parar la Etapa 1, aprobada por el usuario con el plan (2026-11-11):** una corrida del encargo 13 y como mucho dos reanudaciones; estimación de 1 a 2,5 USD por lo que costó el pan-tilt. Si no pasa, se para y decide él. El gasto de las demás mediciones se acuerda cuando toquen, con su cifra.
+
+| ID | Tarea | Criterio de aceptación |
+|----|-------|------------------------|
+| F10.1 | **Tres giros en serie** (serie): el encargo 13 del banco, un brazo de 3 ejes con SG90 (base, hombro y codo), y dos exigencias nuevas de backlog, `alcance` y `carga`, leídas del estudio que ya existe (`estudio.estudiar`). Antes de la corrida, sin modelo: cuánto tarda el barrido con tres giros hechos a mano | El alcance y la carga de un brazo de dos tramos escrito a mano dan lo calculado a mano con el par del SG90 (1,8 kgf·cm, margen del 50 %) y las masas de sus fichas. Las cifras de la petición las ve el usuario antes de correr |
+| F10.2 | **La transmisión en el plan** (transmisión): una unión `gira` dice además qué motor la mueve, con qué (correa o reductora) y con qué relación (`movido_por`). El giro sigue siendo sobre la salida de algo comprado, ahora un rodamiento. `validar_plan` lo comprueba; el estudio usa el par del motor por la relación y por un rendimiento declarado, y la velocidad dividida por la relación. La ficha del NEMA 17 gana salida y par de retención | El par del 17HS4401 de su hoja por 4, y la carga a 150 mm, a mano. Un motor que mueve dos giros: error. Los planes de antes, sin `movido_por`, siguen valiendo |
+| F10.3 | **Correa GT2** (correa): `kit.polea_gt2(dientes, ancho)` con el perfil del diente citado; fichas de la polea comprada de 20 dientes y de las correas cerradas; la distancia entre ejes que pide la correa se mide en el bucle de la pieza; se tensa con la colisa que ya tiene el kit. Encargo 14 del banco: una articulación con NEMA 17 y correa 4:1, con la exigencia nueva `reduccion` | Diámetro primitivo = dientes × 2 / π (80 dientes, 50,93 mm). La longitud de la correa, con la fórmula de dos poleas, a mano. La reducción, contada por dientes |
+| F10.4 | **Que el motor alcance antes de dibujar** (dimensionar): de «alcance X y carga Y», el código calcula el par que pide cada giro (la carga más la masa estimada de lo que cuelga) y comprueba que el motor y la relación del plan lo dan. Si no, el error vuelve al desglosador con cifras, antes de gastar en piezas; el estudio lo repite después con las masas reales. No es F7.11 (dimensionado), que es de drones y elige componentes | Un brazo de dos tramos calculado a mano. Un SG90 en el hombro de un brazo de 300 mm: error que cita lo que pide y lo que da |
+| F10.5 | **Un barrido que escala** (muestreo): exhaustivo entre piezas vecinas; entre lejanas, rejilla gruesa y muestreo, y el informe dice cuántas poses probó y cuáles no | Un choque plantado a mano en una pose concreta de cinco giros se encuentra, y el tiempo queda acotado. El pan-tilt `1111-1342` rejuzgado sigue en 7 de 7 |
+| F10.6 | **Un módulo impreso** (módulo): varias piezas generadas por código con parámetros, con ficha propia (salida, fijaciones, lo que hay que comprar). El diseñador lo coloca como un componente; sus piezas entran en el zip y en las compras del invento | Un módulo de prueba de dos piezas sale en las compras y se coloca con `kit.componente` |
+| F10.7 | **Reductora cicloidal** (cicloidal): generador del disco, la excéntrica, la carcasa con pasadores y la salida, para un NEMA 17 y una relación dada. Sin modelo: la relación por conteo y ninguna interferencia al dar una vuelta la excéntrica | El perfil del disco contra la fórmula publicada, punto a punto. La relación, a mano |
+| F10.8 | **Piezas de prueba de transmisión** (calibrar): una polea y una cicloidal pequeña que el usuario imprime; apunta en «Impresora» la holgura con la que giran, como el M3. Hasta entonces, la holgura es la del perfil y el invento lo avisa | El perfil activo devuelve lo apuntado; `config/printers/` no cambia |
+| F10.9 | **El brazo mediano** (mediano): encargo 15 del banco: 4 o 5 ejes, 350–400 mm, 300–500 g, NEMA 17, correa en la base y cicloidal en el hombro. Se construye eje a eje con F9.10 (ampliar) | Alcance, carga, reducciones y tornillos contados a mano. La regla para parar y el tope se acuerdan con el usuario antes |
+
+**Orden:** F10.1 (serie) → **medir el encargo 13** → F9.10 (ampliar) → F10.2 (transmisión) → F10.3 (correa) → **medir el encargo 14** → F10.4 (dimensionar) → F10.5 (muestreo) → F10.6 (módulo) → F10.7 (cicloidal) → F10.8 (calibrar) → F9.11 (borrador) → F10.9 (mediano).
+
+**Lo que esta fase no hace, dicho antes de empezar:**
+- **No dice si los dientes engranan en la impresora del usuario** hasta que imprima las piezas de F10.8 (calibrar). El código comprueba la forma, no el plástico.
+- **El rendimiento de cada transmisión es un supuesto**, no una medida, y va escrito junto a cada carga.
+- **Del paso a paso se usa el par de retención con margen.** No se comprueba la velocidad ni que no pierda pasos.
+- **No se calculan** la holgura, la rigidez de los tramos ni la repetibilidad.
+- **Sigue sin haber** engranajes rectos, planetarias, muñeca diferencial (la de Arctos), correderas ni cadenas cerradas en general: la cicloidal entra como un módulo cerrado.
+- **Fuera:** la electrónica, el firmware, el cableado y exportar a ROS o Gazebo (URDF).
+- **Sin medir:** que el modelo aguante un backlog de diez piezas o más. El encargo 13 es la primera señal.
 
 ---
 

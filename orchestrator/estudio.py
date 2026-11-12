@@ -183,7 +183,12 @@ def tiempo_de_recorrido(grados: float, s_60: float, par: float, par_bloqueo: flo
 MARGEN_SERVO = 0.5
 """Un servo aguanta si no pasa del 50 % de su par de bloqueo: la regla de
 taller para que trabaje sin calentarse (decidido por el usuario, 2026-11-10)."""
-MAX_POSES = 5000
+MAX_POSES = 8000
+"""Hasta cuántas poses se prueban todas las combinaciones. Caben tres giros
+de 180° con la rejilla de 10° (19³ = 6 859): con 5 000 se probaba cada giro
+por turno con los demás en 0°, y la peor pose de un brazo —estirado en
+horizontal— puede no estar ahí (F10.1 (serie)). Con cuatro giros ya no
+caben: es F10.5 (muestreo)."""
 # Las direcciones de la gravedad que se prueban en cada pieza: todas van en
 # una sola llamada a FreeCAD, pero cada una corta la pieza 30 veces.
 MAX_GRAVEDADES = 24
@@ -572,11 +577,11 @@ def carga_del_material(carpeta: Path, conjunto: str, e: dict, freecadcmd: str,
     return filas
 
 
-def escribir_estudio(carpeta: Path, conjunto: str, freecadcmd: str | None,
-                     raiz: Path | None = None) -> dict:
-    """`nodos/<conjunto>/estudio.json`, con la resistencia del material si
-    hay FreeCAD, y la carga máxima del sistema: la menor de todas."""
-    from orchestrator import obra as O
+def estudio_entero(carpeta: Path, conjunto: str, freecadcmd: str | None,
+                   raiz: Path | None = None) -> dict:
+    """El estudio con la resistencia del material si hay FreeCAD, y la carga
+    máxima del sistema: la menor de todas. No escribe nada: el banco lo pide
+    al juzgar una corrida ya hecha, y juzgar no cambia lo juzgado."""
     e = estudiar(carpeta, conjunto, raiz)
     if freecadcmd:
         e["material"] = carga_del_material(carpeta, conjunto, e, freecadcmd, raiz)
@@ -588,6 +593,14 @@ def escribir_estudio(carpeta: Path, conjunto: str, freecadcmd: str | None,
             e["carga_max"] = {"g": g, "limita": limita}
     else:
         e["avisos"].append("Sin FreeCAD no se mide la resistencia del material.")
+    return e
+
+
+def escribir_estudio(carpeta: Path, conjunto: str, freecadcmd: str | None,
+                     raiz: Path | None = None) -> dict:
+    """`nodos/<conjunto>/estudio.json` y su `estudio.md`."""
+    from orchestrator import obra as O
+    e = estudio_entero(carpeta, conjunto, freecadcmd, raiz)
     destino = Path(carpeta) / O.NODOS / conjunto / ESTUDIO
     destino.parent.mkdir(parents=True, exist_ok=True)
     destino.write_text(json.dumps(e, ensure_ascii=False, indent=1), encoding="utf-8")

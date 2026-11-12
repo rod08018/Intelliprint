@@ -274,6 +274,29 @@ class Tornillos(BaseModel):
         return []   # salen de la ficha del componente, no de la petición
 
 
+class Alcance(BaseModel):
+    """Backlogs (F10.1 (serie)): hasta dónde llega la punta, medido del eje
+    del primer giro en todas las poses del estudio (`estudio.estudiar`). El
+    pan-tilt pasó todo lo que se le pedía sin que nadie mirara a dónde
+    llegaba: un brazo de 20 mm con tres servos habría pasado igual."""
+    tipo: Literal["alcance"]
+    minimo_mm: float = Field(gt=0)
+
+    def cotas_de_la_peticion(self) -> list[float]:
+        return [self.minimo_mm]
+
+
+class Carga(BaseModel):
+    """Backlogs (F10.1 (serie)): cuántos gramos levanta en la punta, en la
+    peor pose: lo menor de lo que dejan los actuadores (al 50 % de su par),
+    el vuelco si la base no va atornillada, y el material."""
+    tipo: Literal["carga"]
+    minimo_g: float = Field(gt=0)
+
+    def cotas_de_la_peticion(self) -> list[float]:
+        return [self.minimo_g]
+
+
 class Pendiente(BaseModel):
     """Lo que el banco exige pero aún no sabe medir. Cuenta como sin medir."""
 
@@ -330,7 +353,7 @@ Asercion = Annotated[Agujeros | Cilindro | Envolvente | SinSoportes | Pendiente 
                      | Resistencia | Ventana | Coaxiales | PasoLibre | ParedMinima | Ranura
                      | Retencion | ComponenteCabe | ComponenteEntra | AccesoTornillo | ZonaLibre
                      | CaraQueSeOrienta | SeOrienta | Tornillos | Componente | Encaje
-                     | ConjuntoLibre | Articulaciones,
+                     | ConjuntoLibre | Articulaciones | Alcance | Carga,
                      Field(discriminator="tipo")]
 
 
@@ -822,7 +845,7 @@ def juzgar_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
 
     de_pieza = [a for a in encargo.oraculo
                 if not isinstance(a, (Componente, Encaje, ConjuntoLibre, Articulaciones,
-                                      SeOrienta, Tornillos))]
+                                      SeOrienta, Tornillos, Alcance, Carga))]
     # Solo se sondea lo que el oráculo pregunta: cada sonda es FreeCAD.
     pedidos = {a.ficha for a in encargo.oraculo if isinstance(a, Componente)}
     encaje = any(isinstance(a, Encaje) for a in encargo.oraculo)
@@ -841,6 +864,7 @@ def juzgar_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
     conjuntos = [n for n in ob.nodos if n.tipo == "conjunto"]
     verificaciones = [json.loads(f.read_text(encoding="utf-8")) for n in conjuntos
                       if (f := proyecto / O.NODOS / n.id / VERIFICACION).is_file()]
+    estudios: dict[str, dict] = {}   # cada conjunto se estudia una vez
     salida = []
     for a in encargo.oraculo:
         if sin_construir and not isinstance(a, (ConjuntoLibre, Articulaciones)):
@@ -880,6 +904,9 @@ def juzgar_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
                                               for j in v.get("articulaciones", [])]))
         elif isinstance(a, Tornillos):
             salida.append(_tornillos(a, proyecto, piezas))
+        elif isinstance(a, (Alcance, Carga)):
+            salida.append(_del_estudio(a, proyecto, [n.id for n in conjuntos], freecadcmd,
+                                       estudios))
         elif isinstance(a, SeOrienta):
             pieza, r = _mide_si_orienta(a, proyecto, freecadcmd, material)
             salida.append(r if pieza is None else Resultado(
@@ -889,6 +916,60 @@ def juzgar_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
                                   for i, (h, _, _) in medidas.items()],
                                  f"en las {len(medidas)} piezas"))
     return salida
+
+
+def _del_estudio(a: "Alcance | Carga", proyecto: Path, conjuntos: list[str],
+                 freecadcmd: str, estudios: dict[str, dict]) -> Resultado:
+    """Lo que el estudio de movimientos (F7.10 (estudio)) dice del alcance o
+    de la carga. Se estudia aquí, con las piezas construidas, y no se lee el
+    `estudio.json` de la corrida: así rejuzgar mide con el código de hoy."""
+    from orchestrator import estudio
+
+    if not conjuntos:
+        return Resultado(estado="no_cumple", detalle="el backlog no tiene conjunto")
+    for c in conjuntos:
+        if c not in estudios:
+            try:
+                estudios[c] = estudio.estudio_entero(proyecto, c, freecadcmd)
+            except (OSError, StopIteration, ValueError, KeyError) as error:
+                return Resultado(estado="sin_medir",
+                                 detalle=f"no se pudo estudiar el conjunto: {error!r}")
+    hechos = [estudios[c] for c in conjuntos]
+    if not any(e["servos"] for e in hechos):
+        return Resultado(estado="no_cumple", detalle="ninguna pieza gira: no hay brazo que medir")
+    if isinstance(a, Alcance):
+        llega = max(e["alcance"]["radio_mm"] for e in hechos)
+        if llega >= a.minimo_mm:
+            return Resultado(estado="cumple", valor=llega, detalle=(
+                f"la punta llega a {llega:.1f} mm del eje del primer giro"))
+        return Resultado(estado="no_cumple", valor=llega, detalle=(
+            f"la punta llega a {llega:.1f} mm y se piden {a.minimo_mm:g}, "
+            "medido del eje del primer giro"))
+    # Lo que no se pudo medir no se da por bueno: ni un giro que carga peso
+    # sin que se sepa el par de lo que lo mueve, ni el material sin FreeCAD.
+    for e in hechos:
+        sin_par = [s["nombre"] for s in e["servos"]
+                   if "par_bloqueo_Nm" not in s and s["par_max_Nm"] > 1e-9]
+        if sin_par:
+            return Resultado(estado="sin_medir", detalle=(
+                "no se sabe el par de lo que mueve «" + "», «".join(sin_par) + "»"))
+        sin_material = [f"«{m['nombre']}»: {m['detalle']}" for m in e.get("material", [])
+                        if str(m["detalle"]).startswith("no corrió")]
+        if sin_material or "material" not in e:
+            return Resultado(estado="sin_medir", detalle=(
+                "no se midió lo que aguanta el material: "
+                + ("; ".join(sin_material) or "sin FreeCAD")))
+    peor = min(hechos, key=lambda e: math.inf if e["carga_max"]["g"] is None
+               else e["carga_max"]["g"])
+    g, limita, donde = peor["carga_max"]["g"], peor["carga_max"]["limita"], peor["carga"]["donde"]
+    if g is None:
+        return Resultado(estado="cumple", detalle=f"nada limita la carga {donde}")
+    levanta = f"{round(g, 1):g} g"
+    if g >= a.minimo_g:
+        return Resultado(estado="cumple", valor=g,
+                         detalle=f"levanta {levanta} {donde}; lo limita el {limita}")
+    return Resultado(estado="no_cumple", valor=g, detalle=(
+        f"levanta {levanta} y se piden {a.minimo_g:g}, {donde}; lo limita el {limita}"))
 
 
 def _tornillos(a: Tornillos, proyecto: Path, piezas: dict) -> Resultado:

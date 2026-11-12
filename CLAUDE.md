@@ -88,6 +88,24 @@ test lo comprueba: si la cita no cuadra con el plan, la suite se pone roja.
 
 ## Por dónde iba esto
 
+**2026-11-11 (noche): Fase 10, brazos con transmisión (ADR-021).** Decidido
+por él: **el brazo antes que el avión**; empezar por uno pequeño con servos;
+la meta de la fase es un brazo mediano solo con NEMA 17 (350–400 mm,
+300–500 g, 4–5 ejes); la primera reductora impresa, la cicloidal. El de
+clase Arctos es otra fase. El avión irá con **OpenVSP y AeroSandbox**, sin
+AVL ni PX4, y no tiene fase. El plan y su orden están en `PLAN_PROYECTO.md`,
+Fase 10.
+
+- **Hecho: lo que mide el banco en F10.1 (serie).** Dos exigencias nuevas de
+  backlog, `alcance` y `carga`, que salen del estudio de movimientos, y el
+  encargo 13: un brazo de 3 ejes con SG90 que llega a 120 mm y levanta 30 g.
+- **El encargo 13 no se ha corrido.** Tiene aprobados una corrida y hasta
+  dos reanudaciones (1 a 2,5 USD estimados); antes de lanzarla se le
+  enseñan las cifras de la petición. Si no pasa, se para y decide él.
+- **Lo que sigue, en orden:** medir el encargo 13 → F9.10 (ampliar) →
+  F10.2 (transmisión) → F10.3 (correa) → medir el encargo 14. El gasto de
+  cada medición se acuerda cuando toque.
+
 **2026-11-10: Fase 9, robots con plan mecánico (ADR-020).** El usuario quiere
 diseñar robots: que el desglose decida antes de dibujar qué gira sobre qué y con
 cuánto sitio, qué va atornillado y con qué, y poder añadir funciones a un
@@ -132,10 +150,9 @@ invento. El plan aprobado está en `PLAN_PROYECTO.md`, Fase 9, con su orden.
   en 7 de 7 corrigió la plataforma, que no tiene piezas encima.
 - **A dónde quiere llegar** (2026-11-11): a diseñar brazos como Arctos
   (6 ejes, NEMA 17 y 23, reductoras y correas) y aeronaves como las de
-  Flightory (ala fija y VTOL en LW-PLA). No hay fase aprobada para ninguna de
-  las dos. Para el brazo faltan transmisiones, elegir motor por la carga
-  (F7.11) y fichas; para el avión, superficies y que el laminado sea parte
-  del diseño.
+  Flightory (ala fija y VTOL en LW-PLA). El brazo es la Fase 10 (arriba),
+  que llega hasta uno mediano; el de clase Arctos y el avión no tienen fase.
+  Para el avión faltan superficies y que el laminado sea parte del diseño.
 - **Los backlogs están desaparcados**, con la regla de siempre: no relanzar
   corridas enteras para probar un arreglo (`banco --reanudar`).
 - **El flujo `mecanismo` ya no existe** (F9.13 (limpieza), 2026-11-11): lo

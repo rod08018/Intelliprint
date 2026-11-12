@@ -1,0 +1,40 @@
+nombre: brazo_3_ejes_sg90
+categoria: robots
+obra: true
+peticion: >
+  Un brazo de tres ejes con servos SG90: el de la base gira el brazo, y los del
+  hombro y el codo lo levantan. Cada uno recorre 180° (90° a cada lado) sin que
+  nada choque. La base se atornilla a un tablero con cuatro tornillos M3. Con
+  el brazo estirado, la punta llega a 120 mm del eje de la base y levanta 30 g.
+oraculo:
+  - tipo: componente
+    ficha: sg90
+    cuantos: 3
+  - tipo: encaje
+  - tipo: conjunto_libre
+  # «el de la base gira» (eje vertical) y «los del hombro y el codo lo
+  # levantan» (dos ejes horizontales). Son tres giros en serie: lo más que
+  # había salido eran dos, los del pan-tilt (F10.1 (serie)).
+  - tipo: articulaciones
+    ejes: [vertical, horizontal, horizontal]
+    recorrido_grados: 180
+  - tipo: sin_soportes
+  # «la punta llega a 120 mm del eje de la base»: literal de la petición.
+  - tipo: alcance
+    minimo_mm: 120
+  # «y levanta 30 g»: literal de la petición. Que se puede, calculado a mano
+  # antes de pedirlo: el SG90 da 1,8 kgf·cm a 4,8 V (`sg90.yaml`) y se le
+  # pide como mucho la mitad, 0,9 kgf·cm = 9 000 g·mm. En el hombro, con el
+  # brazo estirado en horizontal, 30 g a 120 mm piden 3 600; quedan 5 400
+  # para lo que cuelga, que con el servo del codo (9 g a unos 60 mm, 540) y
+  # dos tramos impresos de unos 10 g (a 30 y 90 mm, 1 200) no llega a 2 000.
+  # En el codo, 30 g a 60 mm piden 1 800 de 9 000. La base va atornillada,
+  # así que el vuelco no limita.
+  - tipo: carga
+    minimo_g: 30
+  # Cada SG90 se sujeta con los dos tornillos que trae, uno por oreja
+  # (`library/components/sg90.yaml`): 3 servos × 2 = 6.
+  - tipo: tornillos
+    sujetan: sg90
+    metrica: M2
+    cuantos: 6
