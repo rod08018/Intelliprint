@@ -104,7 +104,8 @@ invento. El plan aprobado está en `PLAN_PROYECTO.md`, Fase 9, con su orden.
   tercera, aprobada aparte por el usuario) **pasa 6 de 6**: 0,93 USD en
   total. Es un solo backlog, una sola corrida y tres correcciones dadas por
   el banco; no dice que acierte a la primera.
-- **Con la tornillería contada, ese mismo pan-tilt queda en 6 de 7**
+- **Con la tornillería contada, ese mismo pan-tilt pasa 7 de 7**, tras
+  dos reanudaciones más. Al empezar a contarla quedaba en 6 de 7
   (2026-11-11, F9.6 a F9.8, rejuzgado sin modelo): de los cuatro tornillos
   de sus dos SG90 no agarra ninguno. La base no taladró nada bajo las orejas
   y el soporte taladró Ø2.2 para tornillos de 2. Ahora el plan los prevé (los
@@ -113,8 +114,12 @@ invento. El plan aprobado está en `PLAN_PROYECTO.md`, Fase 9, con su orden.
   0,53 USD; 1,46 la corrida entera): ahora los cuatro agarran, pero **sigue
   en 6 de 7**. Corregir la base rehízo el soporte y la plataforma de cero, y
   en la plataforma nueva (30 × 28.5) ya no cabe la cámara de 25 × 24; la
-  buena, de 32 × 27, quedó archivada.
-  El tope era una reanudación: otra se acuerda antes. **Falta un dato
+  buena, de 32 × 27, quedó archivada. **Reanudado otra vez, con su visto
+  bueno** (15 min, 0,18 USD; 1,64 la corrida entera): la plataforma se
+  rehízo desde su concepto, sin el rebaje que partía la cara, y **pasa
+  7 de 7** (`banco_reanudado-5.md`). Es un solo backlog y una sola corrida,
+  con cinco reanudaciones dadas por el banco; no dice que acierte a la
+  primera. Cada reanudación se acuerda antes. **Falta un dato
   suyo:** el agujero de un M2 de rosca, que se apunta en «Impresora» →
   «Apuntar otro tornillo»; el Ø1.7 de ahora lo eligió el diseñador.
 - **Corregir una pieza ya no tira lo de encima: lo revalida**
@@ -123,9 +128,8 @@ invento. El plan aprobado está en `PLAN_PROYECTO.md`, Fase 9, con su orden.
   modelo contra la ficha nueva; solo se corrige lo que deja de valer.
   Repetida sin modelo la corrección de la base (en una copia, con el soporte
   y la plataforma del archivo), los dos siguen valiendo y la cámara cabe.
-  **El banco no se ha vuelto a correr**: el pan-tilt de `1111-1342` sigue
-  en 6 de 7 con su plataforma de 30 × 28.5. Corregirla es otra reanudación,
-  que se acuerda antes.
+  **Con modelo no se ha ejercitado**: la reanudación que dejó el pan-tilt
+  en 7 de 7 corrigió la plataforma, que no tiene piezas encima.
 - **A dónde quiere llegar** (2026-11-11): a diseñar brazos como Arctos
   (6 ejes, NEMA 17 y 23, reductoras y correas) y aeronaves como las de
   Flightory (ala fija y VTOL en LW-PLA). No hay fase aprobada para ninguna de
