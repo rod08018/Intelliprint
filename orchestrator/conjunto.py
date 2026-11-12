@@ -746,7 +746,12 @@ def _esquinas(envolvente, t) -> list:
             for x in (a[0], b[0]) for y in (a[1], b[1]) for z in (a[2], b[2])]
 
 
+SUELO, LEJISIMOS = "suelo", 1e5
+
+
 def _que(piezas, solido: str) -> str:
+    if solido == SUELO:
+        return "aquello en lo que se apoya el invento"
     if solido in piezas:
         return f"«{piezas[solido].nombre}»"
     dueno = solido.removesuffix(": montado")
@@ -834,7 +839,7 @@ def _semirrecta_a_la_caja(caja, punto, eje, largo: float | None = None) -> float
 
 def radio_libre(piezas: dict[str, Pieza], arts: dict[str, Articulacion], pieza: str,
                 salida: dict, paso: float = PASO,
-                largo: float | None = None) -> tuple[float, str | None]:
+                largo: float | None = None, suelo: bool = False) -> tuple[float, str | None]:
     """Cuánto sitio tiene lo que gire alrededor de `salida`, una salida de lo
     que monta `pieza`: la distancia del eje a lo más cercano de lo que hay
     DEBAJO —las piezas sobre las que va y lo comprado que montan—, y qué es.
@@ -857,7 +862,12 @@ def radio_libre(piezas: dict[str, Pieza], arts: dict[str, Articulacion], pieza: 
 
     Con `largo`, el sitio alrededor de un tramo y no de la semirrecta
     entera: lo que se atornilla después ocupa un fondo, no llega al infinito
-    (`medida.sin_sitio_para_lo_nuevo`)."""
+    (`medida.sin_sitio_para_lo_nuevo`).
+
+    Con `suelo`, cuenta también lo que hay bajo la pieza de abajo del todo:
+    se apoya en algo (es lo que supone el estudio al mirar si vuelca), y
+    quien busca dónde cabe un eje no puede encontrarlo bajo la mesa. Sin
+    él, 80 mm por debajo de una plataforma «había» 46 mm libres."""
     debajo, j = [], piezas[pieza].padre
     while j is not None:
         debajo.append(j)
@@ -872,6 +882,9 @@ def radio_libre(piezas: dict[str, Pieza], arts: dict[str, Articulacion], pieza: 
             eje = _mv(r, salida["eje"])
             cajas = [(a, piezas[a].envolvente)]
             cajas += [(f"{a}: montado", _caja_del_montado(m)) for m in piezas[a].montados]
+            if suelo and piezas[a].padre is None:
+                cajas.append((SUELO, ([-LEJISIMOS] * 3,
+                                      [LEJISIMOS, LEJISIMOS, piezas[a].envolvente[0][2]])))
             for solido, caja in cajas:
                 d = _semirrecta_a_la_caja(caja, punto, eje, largo)
                 if d < mejor[0] - 1e-9:

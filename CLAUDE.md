@@ -144,8 +144,13 @@ Fase 10.
   la cara de fuera. Además, a la pinza nadie le dice de qué lado de los
   agujeros va, y se puso del de la cabeza. **Lo que el 8 de 9 no dice:**
   el encargo no pide los dos M3 de la pinza, y ni ella ni el dedo
-  pasaron su propio bucle. Seguir con la pinza es otro gasto, por
-  acordar.
+  pasaron su propio bucle.
+- **Dos arreglos más, aprobados por él el 2026-11-12 con 1 USD más**
+  (3 de ampliación en total). Si lo que viene monta un giro, a la que
+  taladra primero se le mide que quepa ese eje saliendo de los
+  agujeros, y se le dice por qué caras cabe; bajo la base cuenta la
+  mesa. Y a la pieza que agarra se le dice de qué lado va: donde sale
+  el tornillo, no donde entra la cabeza.
 - **Lo que sigue, en orden:** F10.2 (transmisión) → F10.3 (correa) → medir
   el encargo 14. El gasto de cada medición se acuerda cuando toque.
 

@@ -533,6 +533,77 @@ no una medida: lo nuevo aún no existe y no se sabe cuánto ocupará. Bastan
 para ver que un tornillo da de lleno a lo que hay debajo."""
 DIAMETROS_ALREDEDOR = 2.0
 
+LEJOS = 2.0
+"""Hasta cuántas veces su radio libre se busca sitio para el eje de un giro
+que monta la pieza que viene, saliendo de los agujeros. Otro criterio: la
+pinza del banco 1112-1359 medía 73 mm para un dedo que pedía 40."""
+CADA_MM = 10.0
+CADA_GRADOS = 30.0
+"""El paso de esa búsqueda. Son muchas medidas (cada punto, cinco ejes), y
+con el paso del barrido un brazo de tres giros tardaría minutos; lo que se
+encuentra se confirma con el paso de siempre."""
+
+
+def _de_traves(e) -> tuple[list[float], list[float]]:
+    """Dos direcciones perpendiculares a `e` y entre sí."""
+    e = _unitario(e)
+    otro = [1.0, 0.0, 0.0] if abs(e[0]) < 0.9 else [0.0, 1.0, 0.0]
+    u = _unitario([otro[i] - sum(a * b for a, b in zip(otro, e)) * e[i] for i in range(3)])
+    v = [e[1] * u[2] - e[2] * u[1], e[2] * u[0] - e[0] * u[2], e[0] * u[1] - e[1] * u[0]]
+    return u, v
+
+
+def _sitio_para_un_giro(piezas, arts, nodo: str, punto, hacia, radio: float,
+                        pasillo: float) -> float:
+    """El mayor radio libre que encuentra un eje puesto saliendo de `punto`
+    hacia `hacia`, a menos de `LEJOS` radios: el del primer sitio donde
+    caben los `radio`, o el mejor que haya si no cabe en ninguno.
+
+    Lo que viene se atornilla en `punto` y monta el actuador más allá: se
+    prueba cada `CADA_MM`, con el eje hacia fuera y de través. No se sigue
+    más allá de donde el camino se estrecha por debajo de `pasillo`: la
+    pieza tiene que llegar hasta ahí. Bajo la base no hay sitio: está
+    aquello en lo que se apoya (`radio_libre(..., suelo=True)`)."""
+    from orchestrator.conjunto import radio_libre
+
+    hacia = _unitario(hacia)
+    u, v = _de_traves(hacia)
+    ejes = [hacia, u, [-c for c in u], v, [-c for c in v]]
+    mejor, t = 0.0, 0.0
+    while t <= LEJOS * radio + 1e-6:
+        if t and radio_libre(piezas, arts, nodo, {"punto": punto, "eje": hacia},
+                             paso=CADA_GRADOS, largo=t, suelo=True)[0] < pasillo - 0.05:
+            break
+        p = [c + e * t for c, e in zip(punto, hacia)]
+        for eje in ejes:
+            libre = radio_libre(piezas, arts, nodo, {"punto": p, "eje": eje},
+                                paso=CADA_GRADOS, suelo=True)[0]
+            if libre >= radio - 0.05:
+                libre = radio_libre(piezas, arts, nodo, {"punto": p, "eje": eje},
+                                    suelo=True)[0]
+                if libre >= radio - 0.05:
+                    return libre
+            mejor = max(mejor, libre)
+        t += CADA_MM
+    return mejor
+
+
+def _caras_con_sitio(piezas, arts, nodo: str, radio: float, pasillo: float) -> list[str]:
+    """Las caras de la caja de `nodo` por las que sí cabe ese eje, saliendo
+    de su centro: «+x», «-z»… en el marco de la pieza, que es el de quien
+    la dibuja."""
+    lo, hi = piezas[nodo].envolvente
+    centro = [(a + b) / 2 for a, b in zip(lo, hi)]
+    caras = []
+    for k, nombre in enumerate("xyz"):
+        for signo, borde in ((1, hi), (-1, lo)):
+            punto = [borde[i] if i == k else centro[i] for i in range(3)]
+            hacia = [float(signo) if i == k else 0.0 for i in range(3)]
+            if _sitio_para_un_giro(piezas, arts, nodo, punto, hacia, radio,
+                                   pasillo) >= radio - 0.05:
+                caras.append(f"{'+' if signo > 0 else '-'}{nombre}")
+    return caras
+
 
 def sin_sitio_para_lo_nuevo(carpeta: Path, nodo: str, como_si_faltara=()) -> list[str]:
     """Las uniones de la pieza construida de `nodo` con una pieza que aún no
@@ -550,11 +621,19 @@ def sin_sitio_para_lo_nuevo(carpeta: Path, nodo: str, como_si_faltara=()) -> lis
     cajas de lo que hay debajo y de lo comprado que monta, con los giros de
     debajo en todos sus ángulos, pero solo en `FONDO_MM` de fondo.
 
+    Si lo nuevo monta un actuador sobre el que girará otra pieza, eso no
+    basta. Reanudada esa corrida, la plataforma pasó los M3 a su cara de
+    abajo, con 12 mm libres; el dedo de la pinza pedía 40 alrededor de su
+    eje y ahí quedaban 0.9. El soporte de la pinza gastó cinco intentos sin
+    poder cumplir. Con un giro en lo que viene, saliendo de los agujeros
+    tiene que haber dónde poner ese eje (`_sitio_para_un_giro`), y si no lo
+    hay se dice por qué caras de la pieza sí.
+
     `como_si_faltara`: piezas construidas que se dejan fuera, para preguntar
     si a una que salió mal le habían dejado sitio (`banco.reanudar`)."""
     from orchestrator import obra as O
     from orchestrator.conjunto import _que, articulaciones_de, leer_piezas, radio_libre
-    from orchestrator.schemas.obra import EXTERIOR, Fija
+    from orchestrator.schemas.obra import EXTERIOR, Fija, Gira
     from orchestrator.tornilleria import _diametro, tornillos
 
     carpeta = Path(carpeta)
@@ -598,10 +677,43 @@ def sin_sitio_para_lo_nuevo(carpeta: Path, nodo: str, como_si_faltara=()) -> lis
         # Con pasantes de sobra (los de fijarse a una mesa son iguales)
         # basta con que tengan sitio tantos como pide el plan.
         hacen_falta = min(sum(u.cantidad for u in uniones), len(medidos))
+        nuevas = " y ".join(dict.fromkeys(f"«{obra.nodo(otra(u)).nombre}»" for u in uniones))
         if sum(libre >= radio - 0.05 for libre, _, _ in medidos) >= hacen_falta:
+            # Caben los tornillos. Si lo que viene monta un giro, además
+            # tiene que caber su eje: se busca saliendo del agujero con más
+            # sitio, que es donde irá.
+            giros = [g for g in obra.uniones if isinstance(g, Gira) and g.radio_libre_mm
+                     and g.sobre in {otra(u) for u in uniones}]
+            if not giros or not medidos:
+                continue
+            giro = max(giros, key=lambda g: g.radio_libre_mm)
+            _, _, t = max(medidos, key=lambda m: m[0])
+            if lleva_la_cabeza:
+                punto = [c + e * t.largo_mm for c, e in zip(t.cabeza, t.eje)]
+                hacia = list(t.eje)
+            else:
+                punto, hacia = list(t.cabeza), [-e for e in t.eje]
+            hay = _sitio_para_un_giro(piezas, arts, nodo, punto, hacia, giro.radio_libre_mm,
+                                      radio)
+            if hay >= giro.radio_libre_mm - 0.05:
+                continue
+            caras = _caras_con_sitio(piezas, arts, nodo, giro.radio_libre_mm, radio)
+            agujero = t.agujeros[0].split(": ", 1)[-1]
+            fallos.append(
+                f"sitio para {nuevas} (unión {', '.join(u.id for u in uniones)}): sobre "
+                f"{nuevas} girará «{obra.nodo(giro.gira).nombre}» (unión {giro.id}), que "
+                f"necesita {giro.radio_libre_mm:g} mm libres alrededor de su eje, con los "
+                f"giros de debajo en cualquier ángulo. {nuevas} va al otro lado de «{agujero}» "
+                f"y, saliendo de ahí hasta {LEJOS * giro.radio_libre_mm:g} mm, no hay dónde "
+                f"poner ese eje: lo más que queda libre son {hay:.1f} mm. "
+                + (f"Sí lo hay saliendo por la cara {' o la '.join(caras)} de esta pieza: "
+                   "lleva ahí esos agujeros, con el tornillo saliendo hacia fuera por esa cara"
+                   if caras else
+                   "Tal como es esta pieza no lo hay por ninguna de sus caras: alárgala hacia "
+                   "donde no haya nada de las piezas sobre las que va ni de lo comprado que "
+                   "montan, y pon ahí esos agujeros"))
             continue
         libre, que, t = min(medidos, key=lambda m: m[0])
-        nuevas = " y ".join(dict.fromkeys(f"«{obra.nodo(otra(u)).nombre}»" for u in uniones))
         agujero = t.agujeros[0].split(": ", 1)[-1]
         fallos.append(
             f"sitio para {nuevas} (unión {', '.join(u.id for u in uniones)}): {nuevas} se "

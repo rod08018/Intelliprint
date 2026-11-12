@@ -562,18 +562,58 @@ def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
                 "en mitad de su recorrido, y es en esos ángulos donde no puede chocar con "
                 "nada.")
 
-    def cuando(otro):
+    def donde_sale(u, otro) -> str:
+        """De qué lado de los agujeros de `otro`, que lleva la cabeza, va
+        esta pieza. El soporte de la pinza del banco 1112-1359 se puso
+        donde `punto()` da el agujero, que es por donde entra la cabeza: el
+        recuento leyó los dos M3 al revés y los dio por sueltos, y cinco
+        intentos no lo sacaron de ahí porque nadie le dijo de qué lado iba."""
+        if u.cabeza != otro:
+            return ""
+        try:
+            from orchestrator.tornilleria import tornillos
+            # Sin esta pieza ni lo que lleva encima: si ya está construida
+            # (se está corrigiendo), sus agujeros comparten recta con esos.
+            fuera = (nodo, *obra.dependientes(nodo))
+            largos = {round(t.largo_mm, 1) for t in tornillos(carpeta, sin=fuera)
+                      if t.piezas == [otro] and not t.componente
+                      and t.metrica == u.metrica and t.termina == "superficie"}
+        except Exception:  # noqa: BLE001  (sin medida se dice igual, sin la cifra)
+            largos = set()
+        cuanto = f", {largos.pop():g} mm más allá" if len(largos) == 1 else ""
+        return (f" En {nombre(otro)} va la cabeza: entra por donde `punto()` da cada "
+                "agujero, avanza hacia su `eje` (`agujeros()` lo da) y sale por el otro "
+                f"lado{cuanto}. Esta pieza va donde sale el tornillo; del lado de `punto()` "
+                "no, que ahí va la cabeza.")
+
+    def lleva_un_giro(otro) -> str:
+        """Lo que girará sobre `otro`, que aún no existe: quien taladra
+        ahora decide dónde cabrá ese eje (`medida.sin_sitio_para_lo_nuevo`)."""
+        from orchestrator.schemas.obra import Gira
+        giros = [g for g in obra.uniones
+                 if isinstance(g, Gira) and g.sobre == otro and g.radio_libre_mm]
+        if not giros:
+            return ""
+        g = max(giros, key=lambda g: g.radio_libre_mm)
+        return (f" Sobre {nombre(otro)} girará {nombre(g.gira)}, que necesita "
+                f"{g.radio_libre_mm:g} mm libres alrededor de su eje en cualquier ángulo de "
+                "los giros de debajo: tiene que caber saliendo de esos agujeros. Lo normal es "
+                "la cara que mira hacia fuera del invento, lejos de la base.")
+
+    def cuando(otro, u=None):
         """El otro ya está hecho (dependo de él) o se hará después."""
         if otro in yo.depende_de:
             return (f" {nombre(otro)} ya está hecha: colócala con `kit.componente("
                     f"\"{id_de_ficha(otro)}\", ...)` y pon tus agujeros en línea con los "
-                    "suyos, que tienen nombre en su ficha (`punto()`).")
+                    "suyos, que tienen nombre en su ficha (`punto()`)."
+                    + (donde_sale(u, otro) if u is not None else ""))
         # A la plataforma del banco 1112-1359 no se le dijo, y puso los de
         # la pinza en la cara que da al servo. Sin nada debajo no hay a qué
         # dar, y el texto de una base no cambia.
         sitio = (f" {nombre(otro)} irá al otro lado de esos agujeros: ponlos en una cara que "
                  "dé a un sitio libre, sin nada de las piezas sobre las que va esta ni de lo "
-                 "comprado que montan. Al construir se mide." if yo.depende_de else "")
+                 "comprado que montan." + lleva_un_giro(otro) + " Al construir se mide."
+                 if yo.depende_de else "")
         return (f" {nombre(otro)} se diseñará después, contra esta: da a cada agujero un "
                 f"nombre que diga para qué es.{sitio}")
 
@@ -599,7 +639,7 @@ def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
                 dato.update(papel="agarra", otro=u.cabeza, texto=(
                     f"{nombre(u.cabeza)} se atornilla a esta pieza con {tornillos}, que "
                     f"aquí agarran {_COMO_AGARRA[u.agarre].format(m=u.metrica)}."
-                    + cuando(u.cabeza)))
+                    + cuando(u.cabeza, u)))
         else:
             ficha = cargar(u.componente)
             eje = salida_de(u, ficha)

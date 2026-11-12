@@ -238,6 +238,9 @@ class Falta:
     no_roscan: list = field(default_factory=list)
     """Los agujeros tan anchos como su tornillo, o más."""
     ancho_mm: float = 0.0
+    al_reves: int = 0
+    """Los que acaban «sin agarrar» porque la pieza que agarra se puso del
+    lado de la cabeza: la cabeza cae en ella y la punta en el pasante."""
 
     def texto(self, obra: Obra, extra: Sequence[Path] = ()) -> str:
         """Para quien diseña la pieza: qué falta y cómo se hace."""
@@ -280,6 +283,16 @@ class Falta:
                 "superficie": "sin agarrar en nada"}
         otros = "".join(f" Hay {n} que acaba{'n' if n != 1 else ''} {como.get(t, t)}: no es lo "
                         "aprobado." for t, n in self.de_otra_manera.items())
+        if self.al_reves:
+            # Con «acaban sin agarrar en nada» el soporte de la pinza del
+            # banco 1112-1359 gastó cinco intentos: los agujeros estaban en
+            # línea y bien hechos; lo que estaba mal era el lado.
+            otros += (f" {'Está' if self.al_reves == 1 else 'Están'} al revés: "
+                      f"{nombre(self.piezas[1])} quedó del lado de {nombre(self.piezas[0])} "
+                      "por donde entra la cabeza (donde `punto()` da el agujero), y así la "
+                      "cabeza cae en el fondo de su agujero y la punta en el pasante. Pásala "
+                      f"al otro lado de {nombre(self.piezas[0])}, donde sale el tornillo "
+                      "(en el sentido del `eje` del agujero), con el agujero mirando a él.")
         return (f"{cual}: el plan pide {tornillos} entre {nombre(self.piezas[0])} y "
                 f"{nombre(self.piezas[1])}, {_AGARRE_EN_PALABRAS[self.termina]}, y {hay}: "
                 f"{falta}.{otros}{flojos} Cada uno pasa por un agujero de cada pieza, en la "
@@ -342,5 +355,7 @@ def sin_hacer(obra: Obra, tornillos: Sequence, construidas,
             tuple(p.union for p in ps), piezas, metrica, termina, previstos, hechos, mitad=mitad,
             de=tuple(i for p in ps for i in p.piezas if i not in construidas),
             de_otra_manera=otra, no_roscan=[t.agarra_en for t in flojos],
-            ancho_mm=max((t.agarra_mm for t in flojos), default=0.0)))
+            ancho_mm=max((t.agarra_mm for t in flojos), default=0.0),
+            al_reves=(sum(t.termina == "superficie" and t.pieza == piezas[1] for t in hay)
+                      if len(piezas) == 2 and termina != "superficie" else 0)))
     return faltas
