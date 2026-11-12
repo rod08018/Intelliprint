@@ -550,14 +550,32 @@ def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
     def nombre(i):
         return f"«{obra.nodo(i).nombre}»"
 
+    def a_cada_lado(u, ficha) -> str:
+        """Qué grados son, si el plan pide menos de lo que da el actuador:
+        el conjunto se barre así (`conjunto._lo_pedido`), y quien dibuja
+        tiene que saber desde dónde se cuenta. Con el recorrido entero no
+        hay nada que aclarar."""
+        lo, hi = salida_de(u, ficha).recorrido
+        if u.recorrido_grados >= hi - lo - 1e-6:
+            return ""
+        return (f" Son {u.recorrido_grados / 2:g}° a cada lado de como se dibuje: se dibuja "
+                "en mitad de su recorrido, y es en esos ángulos donde no puede chocar con "
+                "nada.")
+
     def cuando(otro):
         """El otro ya está hecho (dependo de él) o se hará después."""
         if otro in yo.depende_de:
             return (f" {nombre(otro)} ya está hecha: colócala con `kit.componente("
                     f"\"{id_de_ficha(otro)}\", ...)` y pon tus agujeros en línea con los "
                     "suyos, que tienen nombre en su ficha (`punto()`).")
+        # A la plataforma del banco 1112-1359 no se le dijo, y puso los de
+        # la pinza en la cara que da al servo. Sin nada debajo no hay a qué
+        # dar, y el texto de una base no cambia.
+        sitio = (f" {nombre(otro)} irá al otro lado de esos agujeros: ponlos en una cara que "
+                 "dé a un sitio libre, sin nada de las piezas sobre las que va esta ni de lo "
+                 "comprado que montan. Al construir se mide." if yo.depende_de else "")
         return (f" {nombre(otro)} se diseñará después, contra esta: da a cada agujero un "
-                "nombre que diga para qué es.")
+                f"nombre que diga para qué es.{sitio}")
 
     salida = []
     for u in obra.uniones_de(nodo):
@@ -592,7 +610,7 @@ def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
                         else "`componente.salidas()`")
                 dato.update(papel="gira", otro=u.sobre, salidas=en_ficha, texto=(
                     f"Esta pieza gira {u.recorrido_grados:g}° sobre el {ficha.nombre} que "
-                    f"monta {nombre(u.sobre)}. Coloca {nombre(u.sobre)} con `kit.componente("
+                    f"monta {nombre(u.sobre)}.{a_cada_lado(u, ficha)} Coloca {nombre(u.sobre)} con `kit.componente("
                     f"\"{id_de_ficha(u.sobre)}\", ...)`: {como} te da el punto por donde sale "
                     "el eje y hacia dónde. Acóplate a él por delante de esa cara. Toda la "
                     "pieza va por delante de ella: detrás están el actuador y lo que lo "
@@ -608,7 +626,7 @@ def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
             else:
                 dato.update(papel="sobre", otro=u.gira, texto=(
                     f"{nombre(u.gira)} girará {u.recorrido_grados:g}° sobre el {ficha.nombre} "
-                    "que monta esta pieza."
+                    f"que monta esta pieza.{a_cada_lado(u, ficha)}"
                     + (f" Necesita sitio: alrededor del eje de salida, desde la cara por "
                        f"donde sale hacia fuera, tiene que quedar libre un cilindro de radio "
                        f"{radio:g} mm. Ahí no puede haber nada de esta pieza, ni de las "

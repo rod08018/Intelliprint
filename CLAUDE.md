@@ -124,12 +124,16 @@ Fase 10.
   propuesta valió a la primera, solo se corrigió la plataforma, y la base
   y el soporte siguen idénticos. Falla el diseño: la plataforma puso los
   M3 de la pinza en la cara que da al servo de inclinación, y el soporte
-  de la pinza quedó construido encima de él. **Reanudar no lo arregla**
-  (corregiría el soporte de la pinza, no la plataforma). Falta que al
-  corregir una pieza hecha se le diga, y se mida, dónde hay sitio para lo
-  nuevo. **Esperan su visto bueno**, porque cambian lo que el banco da por
-  choque: que dos piezas atornilladas puedan tocarse, y que un giro se
-  barra solo lo que pide el plan (el dedo se barrió 180° pidiendo 60°).
+  de la pinza quedó construido encima de él.
+- **Tres arreglos que salieron de ahí, aprobados por él el 2026-11-12.**
+  A la pieza que taladra primero se le dice que lo que se atornilla
+  después necesita sitio al otro lado, y se mide en su bucle
+  (`medida.sin_sitio_para_lo_nuevo`); al reanudar, el banco corrige la
+  pieza que no dejó el sitio y no la que cayó encima. Y dos del barrido,
+  que cambian lo que el banco da por choque: dos piezas sin giro por
+  medio pueden tocarse, y un giro se barre lo que pide el plan, la mitad
+  a cada lado de como se dibuja (el dedo se barrió 180° pidiendo 60°).
+  Rejuzgados con ellos, el pan-tilt sigue en 7 de 7 y el brazo en 8 de 8.
 - **Lo que sigue, en orden:** F10.2 (transmisión) → F10.3 (correa) → medir
   el encargo 14. El gasto de cada medición se acuerda cuando toque.
 

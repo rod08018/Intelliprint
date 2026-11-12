@@ -526,6 +526,94 @@ def uniones_sin_hacer(carpeta: Path, nodo: str) -> list[str]:
             if max(f.piezas, key=orden.index) == nodo]
 
 
+FONDO_MM = 20.0
+"""El fondo que se le pide libre a lo que se atornillará después, y
+`DIAMETROS_ALREDEDOR` diámetros del tornillo a cada lado. Son un criterio,
+no una medida: lo nuevo aún no existe y no se sabe cuánto ocupará. Bastan
+para ver que un tornillo da de lleno a lo que hay debajo."""
+DIAMETROS_ALREDEDOR = 2.0
+
+
+def sin_sitio_para_lo_nuevo(carpeta: Path, nodo: str, como_si_faltara=()) -> list[str]:
+    """Las uniones de la pieza construida de `nodo` con una pieza que aún no
+    existe y cuyos tornillos dan a un sitio ocupado, sin FreeCAD.
+
+    En el banco 1112-1359 la plataforma del pan-tilt ganó dos M3 para la
+    pinza y los puso en la cara que da al servo que la inclina. El soporte
+    de la pinza se alineó con ellos y quedó construido encima de ese servo:
+    ya no tenía arreglo, porque los agujeros no eran suyos. Dónde va lo
+    nuevo lo decide quien taladra primero, y se puede medir ahí.
+
+    Lo nuevo va al otro lado del tornillo: por donde sale, si esta pieza
+    lleva la cabeza; delante de la boca del agujero, si es donde agarra. Se
+    mide como el sitio de un giro (`conjunto.radio_libre`): contra las
+    cajas de lo que hay debajo y de lo comprado que monta, con los giros de
+    debajo en todos sus ángulos, pero solo en `FONDO_MM` de fondo.
+
+    `como_si_faltara`: piezas construidas que se dejan fuera, para preguntar
+    si a una que salió mal le habían dejado sitio (`banco.reanudar`)."""
+    from orchestrator import obra as O
+    from orchestrator.conjunto import _que, articulaciones_de, leer_piezas, radio_libre
+    from orchestrator.schemas.obra import EXTERIOR, Fija
+    from orchestrator.tornilleria import _diametro, tornillos
+
+    carpeta = Path(carpeta)
+    obra = O.cargar_obra(carpeta)
+    todas = leer_piezas(carpeta, solo_construidas=True)
+    piezas = {i: p for i, p in todas.items() if i not in set(como_si_faltara)}
+    # Y lo que va sobre lo que falta: sin su padre no tiene dónde estar.
+    while any(p.padre is not None and p.padre not in piezas for p in piezas.values()):
+        piezas = {i: p for i, p in piezas.items() if p.padre is None or p.padre in piezas}
+    if nodo not in piezas or piezas[nodo].padre is None:
+        return []   # sin nada debajo no hay a qué dar
+
+    def otra(u):
+        return u.agarra if u.cabeza == nodo else u.cabeza
+
+    por_firma: dict[tuple, list] = {}
+    for u in obra.uniones_de(nodo):
+        if isinstance(u, Fija) and u.agarra != EXTERIOR and otra(u) not in piezas:
+            por_firma.setdefault((u.metrica, u.cabeza == nodo, u.agarre), []).append(u)
+    if not por_firma:
+        return []
+    arts = {a.pieza: a for a in articulaciones_de(carpeta, piezas)}
+    libres = [t for t in tornillos(carpeta, sin=set(todas) - set(piezas))
+              if t.piezas == [nodo] and not t.componente]
+    fallos = []
+    for (metrica, lleva_la_cabeza, agarre), uniones in por_firma.items():
+        radio = DIAMETROS_ALREDEDOR * _diametro(metrica)
+        medidos = []
+        for t in libres:
+            if t.metrica != metrica or (t.termina == "superficie") != lleva_la_cabeza \
+                    or not (lleva_la_cabeza or t.termina == agarre):
+                continue
+            if lleva_la_cabeza:
+                punto = [c + e * t.largo_mm for c, e in zip(t.cabeza, t.eje)]
+                hacia = list(t.eje)
+            else:
+                punto, hacia = list(t.cabeza), [-e for e in t.eje]
+            libre, que = radio_libre(piezas, arts, nodo, {"punto": punto, "eje": hacia},
+                                     largo=FONDO_MM)
+            medidos.append((libre, que, t))
+        # Con pasantes de sobra (los de fijarse a una mesa son iguales)
+        # basta con que tengan sitio tantos como pide el plan.
+        hacen_falta = min(sum(u.cantidad for u in uniones), len(medidos))
+        if sum(libre >= radio - 0.05 for libre, _, _ in medidos) >= hacen_falta:
+            continue
+        libre, que, t = min(medidos, key=lambda m: m[0])
+        nuevas = " y ".join(dict.fromkeys(f"«{obra.nodo(otra(u)).nombre}»" for u in uniones))
+        agujero = t.agujeros[0].split(": ", 1)[-1]
+        fallos.append(
+            f"sitio para {nuevas} (unión {', '.join(u.id for u in uniones)}): {nuevas} se "
+            "diseñará después, contra esta pieza, y va al otro lado de sus tornillos "
+            f"{metrica}; ahí no cabe. «{agujero}» da a {_que(piezas, que)}, que queda a "
+            f"{libre:.1f} mm por ese lado, y hacen falta al menos {radio:g} mm libres "
+            f"alrededor en {FONDO_MM:g} mm de fondo, con los giros de debajo en cualquier "
+            "ángulo. Pon esos agujeros en otra cara de esta pieza: una que dé a un sitio "
+            "sin nada de las piezas sobre las que va ni de lo comprado que montan")
+    return fallos
+
+
 def defectos_del_plan() -> list[str]:
     """`uniones_sin_hacer` de la pieza que se está diseñando, si es de un
     backlog."""
@@ -575,6 +663,11 @@ def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
         except Exception as fallo:  # noqa: BLE001
             print(f"  sin contar los tornillos del plan: {type(fallo).__name__}: {fallo}",
                   flush=True)
+        try:
+            fallos += sin_sitio_para_lo_nuevo(*backlog)
+        except Exception as fallo:  # noqa: BLE001
+            print(f"  sin medir el sitio para lo que se atornilla después: "
+                  f"{type(fallo).__name__}: {fallo}", flush=True)
     for sonda, medida in zip(sondas, medir_sondas(step, sondas, freecadcmd, material)):
         if medida.estado != "no_cumple":
             continue   # «sin medir» (una sonda rota) no es culpa del diseñador

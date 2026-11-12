@@ -33,6 +33,11 @@ ALCANCE_MM = 5.0
 sobresale 3.6 de la carcasa (TA0233), y lo que se acopla a él está ahí."""
 PASO = 10.0
 IGNORAR = (-1e9, None)
+SE_TOCAN = (0.0, None)
+"""Entre dos piezas sin ningún giro por medio —atornilladas una a otra—:
+tocarse sí, atravesarse no. La holgura del perfil es para lo que se mueve.
+La pinza del banco 1112-1359 «chocaba en reposo» con la plataforma a la que
+va atornillada, por quedar a 0.00 mm de ella."""
 
 
 # --- giros, sin numpy ------------------------------------------------------------------------
@@ -230,14 +235,40 @@ def giros_del_plan(obra) -> dict[str, tuple[str, str]] | None:
             for u in obra.uniones if isinstance(u, Gira)}
 
 
+def recorridos_del_plan(obra) -> dict[str, float] | None:
+    """{pieza que gira: los grados que el plan le pide}, o None si el
+    backlog es de antes de tener uniones."""
+    from orchestrator.schemas.obra import Gira
+    if not obra.uniones:
+        return None
+    return {u.gira: u.recorrido_grados for u in obra.uniones if isinstance(u, Gira)}
+
+
+def _lo_pedido(de_la_ficha: tuple, grados: float | None) -> tuple:
+    """El recorrido que se barre: lo que pide el plan, la mitad a cada lado
+    de como se dibujó la pieza, sin salirse de lo que da la ficha.
+
+    El dedo de la pinza del banco 1112-1359 tenía que cerrar 60° y se barrió
+    los 180° del SG90: «chocaba» en ángulos a los que nunca va a ir, y una
+    pinza no puede dar media vuelta junto a su dedo fijo."""
+    lo, hi = de_la_ficha
+    if not grados or grados >= hi - lo - 1e-6:
+        return tuple(de_la_ficha)
+    # Centrado en el reposo; si la ficha no llega por un lado, se corre.
+    a = min(max(-grados / 2, lo), hi - grados)
+    return (a, a + grados)
+
+
 def articulaciones(piezas: dict[str, Pieza],
-                   giros: dict[str, tuple[str, str]] | None = None) -> list[Articulacion]:
+                   giros: dict[str, tuple[str, str]] | None = None,
+                   recorridos: dict[str, float] | None = None) -> list[Articulacion]:
     """La pieza que llega a una salida de lo que monta la de abajo gira con
     ella; si hay varias, con la más cercana. La que no llega va fija.
 
     Con `giros` (`giros_del_plan`) solo gira lo que el plan dice, y sobre la
     salida que dice (F9.5 (parcial)). Por cercanía, una tapa atornillada a
-    menos de 5 mm de un eje habría girado con él."""
+    menos de 5 mm de un eje habría girado con él. Con `recorridos`
+    (`recorridos_del_plan`), cada una gira lo que el plan le pide."""
     salida = []
     for p in piezas.values():
         if p.padre is None or not piezas[p.padre].salidas:
@@ -257,7 +288,7 @@ def articulaciones(piezas: dict[str, Pieza],
                    key=lambda x: x[0])
         if d <= ALCANCE_MM:
             salida.append(Articulacion(p.id, p.padre, s["de"], s["punto"], s["eje"],
-                                       s["recorrido"]))
+                                       _lo_pedido(s["recorrido"], (recorridos or {}).get(p.id))))
     return salida
 
 
@@ -266,7 +297,8 @@ def articulaciones_de(carpeta: Path, piezas: dict[str, Pieza]) -> list[Articulac
     mueve un conjunto pasa por aquí: el barrido, el visor y el estudio tienen
     que girar las mismas piezas."""
     from orchestrator import obra as O
-    return articulaciones(piezas, giros_del_plan(O.cargar_obra(Path(carpeta))))
+    obra = O.cargar_obra(Path(carpeta))
+    return articulaciones(piezas, giros_del_plan(obra), recorridos_del_plan(obra))
 
 
 def poses(piezas: dict[str, Pieza], arts: dict[str, Articulacion],
@@ -481,6 +513,8 @@ def _barrer(piezas: dict[str, Pieza], arts: dict[str, Articulacion], duenos: dic
             cuadros[float(k)] = {s: _placement(mundo[duenos[s]]) for s in usados}
         reglas = {(x, y): IGNORAR for x, y in itertools.combinations(usados, 2)
                   if (x, y) not in pares and (y, x) not in pares}
+        if not juntas:
+            reglas.update({par: SE_TOCAN for par in pares})
         for c in sweep_collisions({s: steps[s] for s in usados if s in steps}, {}, cuadros,
                                   min_gap_mm, freecadcmd, reglas,
                                   {s: solidos[s] for s in usados if s in solidos}):
@@ -771,16 +805,20 @@ def _caja_del_montado(m: dict):
             [max(p[k] for p in puntos) for k in range(3)])
 
 
-def _semirrecta_a_la_caja(caja, punto, eje) -> float:
+def _semirrecta_a_la_caja(caja, punto, eje, largo: float | None = None) -> float:
     """De la semirrecta que sale de `punto` hacia `eje` a la caja, en el
     marco de la caja. La distancia a un convexo es convexa a lo largo de la
     semirrecta, así que se busca el mínimo partiendo el tramo en tercios;
-    más allá de la esquina que más lejos se proyecta solo puede crecer."""
+    más allá de la esquina que más lejos se proyecta solo puede crecer.
+
+    Con `largo`, solo el tramo que mide eso desde `punto`."""
     lo, hi = caja
     n = math.sqrt(sum(c * c for c in eje))
     e = [c / n for c in eje]
     esquinas = [[x, y, z] for x in (lo[0], hi[0]) for y in (lo[1], hi[1]) for z in (lo[2], hi[2])]
     a, b = 0.0, max(0.0, max(sum((q - p) * d for q, p, d in zip(c, punto, e)) for c in esquinas))
+    if largo is not None:
+        b = min(b, largo)
 
     def lejos(s):
         return _a_la_caja([p + d * s for p, d in zip(punto, e)], caja)
@@ -795,7 +833,8 @@ def _semirrecta_a_la_caja(caja, punto, eje) -> float:
 
 
 def radio_libre(piezas: dict[str, Pieza], arts: dict[str, Articulacion], pieza: str,
-                salida: dict, paso: float = PASO) -> tuple[float, str | None]:
+                salida: dict, paso: float = PASO,
+                largo: float | None = None) -> tuple[float, str | None]:
     """Cuánto sitio tiene lo que gire alrededor de `salida`, una salida de lo
     que monta `pieza`: la distancia del eje a lo más cercano de lo que hay
     DEBAJO —las piezas sobre las que va y lo comprado que montan—, y qué es.
@@ -814,7 +853,11 @@ def radio_libre(piezas: dict[str, Pieza], arts: dict[str, Articulacion], pieza: 
 
     Con cajas, así que es prudente de más: la medida exacta sigue siendo el
     barrido. Lo de la propia `pieza` no entra —el actuador está dentro de su
-    caja y daría siempre 0—: eso lo mide la sonda con su forma real."""
+    caja y daría siempre 0—: eso lo mide la sonda con su forma real.
+
+    Con `largo`, el sitio alrededor de un tramo y no de la semirrecta
+    entera: lo que se atornilla después ocupa un fondo, no llega al infinito
+    (`medida.sin_sitio_para_lo_nuevo`)."""
     debajo, j = [], piezas[pieza].padre
     while j is not None:
         debajo.append(j)
@@ -830,7 +873,7 @@ def radio_libre(piezas: dict[str, Pieza], arts: dict[str, Articulacion], pieza: 
             cajas = [(a, piezas[a].envolvente)]
             cajas += [(f"{a}: montado", _caja_del_montado(m)) for m in piezas[a].montados]
             for solido, caja in cajas:
-                d = _semirrecta_a_la_caja(caja, punto, eje)
+                d = _semirrecta_a_la_caja(caja, punto, eje, largo)
                 if d < mejor[0] - 1e-9:
                     mejor = (d, solido)
     return mejor

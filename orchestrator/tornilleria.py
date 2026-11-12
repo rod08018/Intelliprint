@@ -455,11 +455,13 @@ def _tornillo(g: list[_Tramo], piezas: dict[str, _Pieza]) -> Tornillo | None:
         agarra_mm=punta.diametro if punta.tipo == "agujero" else None)
 
 
-def tornillos(carpeta: Path, conjunto: str | None = None) -> list[Tornillo]:
+def tornillos(carpeta: Path, conjunto: str | None = None, sin=()) -> list[Tornillo]:
     """Cada tornillo del invento (de un conjunto, si se dice), con las
-    articulaciones en reposo."""
+    articulaciones en reposo. `sin`: piezas que se dejan fuera de la cuenta,
+    como si no estuvieran construidas."""
     carpeta = Path(carpeta)
     piezas, fichas = _piezas(carpeta, conjunto)
+    piezas = [p for p in piezas if p.id not in set(sin)]
     por_id = {p.id: p for p in piezas}
     tramos = [t for p in piezas for t in _tramos(p, fichas)]
     salida = [t for g in _agrupar(tramos) if (t := _tornillo(g, por_id))]

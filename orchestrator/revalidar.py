@@ -155,8 +155,10 @@ def _colocadas(parte: Path) -> list[dict]:
 def _del_plan(carpeta: Path, nodo: str) -> list[str]:
     """Lo que la pieza construida no cumple del plan, sin FreeCAD: el sitio
     de cada giro (F9.1 (barrido)) y sus tornillos (F9.6 (previsto))."""
-    from orchestrator.medida import defectos_de_giro, uniones_sin_hacer
-    return [*defectos_de_giro(carpeta, nodo), *uniones_sin_hacer(carpeta, nodo)]
+    from orchestrator.medida import (defectos_de_giro, sin_sitio_para_lo_nuevo,
+                                     uniones_sin_hacer)
+    return [*defectos_de_giro(carpeta, nodo), *uniones_sin_hacer(carpeta, nodo),
+            *sin_sitio_para_lo_nuevo(carpeta, nodo)]
 
 
 def _marca(dir_nodo: Path) -> dict | None:

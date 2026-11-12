@@ -464,3 +464,41 @@ def test_el_soporte_del_pan_tilt_dejaba_12_7_mm_para_inclinar(tmp_path):
     [salida] = piezas["soporte"].salidas
     assert salida["punto"] == pytest.approx([13.55, -5.6, 12.2])
     assert radio_libre(piezas, arts, "soporte", salida) == (pytest.approx(12.7), "base: montado")
+
+
+# --- Lo que va atornillado puede tocarse (banco 1112-1359) ----------------------------------
+
+PLACA = "def construir(kit):\n    return kit.caja(40, 40, 5)\n"
+TACO = "def construir(kit):\n    return kit.caja(20, 20, 4, en=(10, 10, 0))\n"
+
+
+def _placa_y_taco(tmp_path, z):
+    """Una placa de 40 × 40 × 5 y, atornillado encima, un taco de 20 × 20 × 4
+    que colocó la placa en z = `z`: sin servo, no hay giro entre los dos."""
+    _obra(tmp_path, {"placa": ([], [], ([0, 0, 0], [1, 1, 1])),
+                     "taco": (["placa"], [], ([0, 0, 0], [1, 1, 1]))})
+    _construida(tmp_path, "placa", PLACA)
+    _construida(tmp_path, "taco", TACO, [_sobre("placa", (0, 0, z))])
+    return tmp_path
+
+
+def test_dos_piezas_atornilladas_una_a_otra_pueden_tocarse(tmp_path):
+    """La pinza del banco 1112-1359 «chocaba en reposo» con la plataforma a
+    la que va atornillada: quedaban a 0.00 mm, apoyada una en la otra, y la
+    holgura que se pide entre lo que se mueve es de 0.1. Entre dos piezas
+    sin ningún giro por medio no hay nada que pueda rozar al moverse. Aquí
+    el taco apoya en la cara de arriba de la placa (z = 5): 0 mm."""
+    v = verificar_conjunto(_placa_y_taco(tmp_path, z=-5), "conjunto", _freecadcmd(),
+                           min_gap_mm=0.2, animar=False)
+    assert v["ok"], v["resumen"]
+
+
+def test_dos_piezas_atornilladas_no_pueden_atravesarse(tmp_path):
+    """Tocarse sí, meterse una en otra no. Con la placa colocada 1 mm más
+    arriba, el taco se hunde 1 mm en ella: 20 · 20 · 1 = 400 mm³."""
+    v = verificar_conjunto(_placa_y_taco(tmp_path, z=-4), "conjunto", _freecadcmd(),
+                           min_gap_mm=0.2, animar=False)
+    assert not v["ok"]
+    [c] = v["choques"]
+    assert c["hueco_mm"] == pytest.approx(-400, abs=1)
+    assert "en reposo" in v["resumen"][0] and "400.0 mm³" in v["resumen"][0]

@@ -409,3 +409,76 @@ def test_el_encargo_del_pan_tilt_pide_que_la_plataforma_incline_de_verdad():
                   if e.nombre == "pan_tilt_sg90"]
     [pide] = [a for a in pan_tilt.oraculo if isinstance(a, SeOrienta)]
     assert pide.eje == "horizontal" and list(pide.cabe_mm) == [25, 24]
+
+
+# --- un giro se barre lo que el plan pide, no lo que da el servo (banco 1112-1359) ------------
+
+def _base_y_tapa(tmp_path):
+    return leer_piezas(_obra(tmp_path, {
+        "base": ([], [_sg90((23.6, 6, 0))], ([0, 0, 0], [70, 34, 18.5])),
+        "tapa": (["base"], [_sobre("base", (-29.4, -12.2, -27.6))],
+                 ([-28, -17, 0], [28, 17, 31]))}), "conjunto")
+
+
+@pytest.mark.parametrize("pedido, recorrido", [(60, (-30, 30)), (180, (-90, 90)),
+                                               (None, (-90, 90))])
+def test_un_giro_se_barre_lo_que_pide_el_plan(tmp_path, pedido, recorrido):
+    """El dedo de la pinza del banco 1112-1359 tenía que girar 60° y se
+    barrió los 180° del SG90: una pinza no puede dar media vuelta junto a su
+    dedo fijo. Lo que el plan pide va repartido a los dos lados de como se
+    dibujó la pieza: 60° son de -30° a 30°. Sin cifra del plan (un backlog
+    de antes), lo que dé la ficha."""
+    recorridos = {"tapa": pedido} if pedido else None
+    [a] = articulaciones(_base_y_tapa(tmp_path), giros={"tapa": ("sg90", "eje")},
+                         recorridos=recorridos)
+    assert a.recorrido == pytest.approx(recorrido)
+
+
+def test_el_plan_no_puede_pedir_mas_de_lo_que_da_el_servo(tmp_path):
+    """Eso lo rechaza `validar_plan`; si aun así llega, manda la ficha."""
+    [a] = articulaciones(_base_y_tapa(tmp_path), giros={"tapa": ("sg90", "eje")},
+                         recorridos={"tapa": 270})
+    assert a.recorrido == pytest.approx((-90, 90))
+
+
+def test_los_recorridos_salen_del_plan_y_un_backlog_de_antes_no_tiene():
+    from orchestrator.conjunto import recorridos_del_plan
+    assert recorridos_del_plan(Obra(**_plan())) == {"soporte": 180, "plataforma": 180}
+    sin = {k: v for k, v in _plan().items() if k != "uniones"}
+    assert recorridos_del_plan(Obra(**sin)) is None
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="sin freecadcmd")
+def test_lo_que_estorba_fuera_del_recorrido_pedido_no_es_un_choque(tmp_path):
+    """El brazo de `test_conjunto` choca con el poste a 80° y a 90°. Si el
+    plan solo le pide 60° (de -30° a 30°), nunca llega hasta ahí."""
+    from orchestrator.conjunto import verificar_conjunto
+    carpeta = _brazo_y_poste(tmp_path, x0=-5, y0=30)
+    (carpeta / "obra.json").write_text(json.dumps({"titulo": "t", "nodos": [
+        {"id": "base", "nombre": "Base", "que_hace": "x", "compra": ["sg90"]},
+        {"id": "brazo", "nombre": "Brazo", "que_hace": "x", "depende_de": ["base"]},
+        {"id": "conjunto", "nombre": "El conjunto", "tipo": "conjunto", "que_hace": "x",
+         "depende_de": ["base", "brazo"]}],
+        "uniones": [{"tipo": "gira", "id": "u1", "gira": "brazo", "sobre": "base",
+                     "componente": "sg90", "recorrido_grados": 60, "radio_libre_mm": 60}]}),
+        encoding="utf-8")
+    v = verificar_conjunto(carpeta, "conjunto", _freecadcmd(), min_gap_mm=0.2, animar=False)
+    assert v["ok"], v["resumen"]
+    assert [a["recorrido"] for a in v["articulaciones"]] == [[-30, 30]]
+
+
+def test_a_quien_disena_un_giro_corto_se_le_dice_desde_donde_se_cuenta(tmp_path):
+    """Con 60° de un servo de 180°, hay que saber qué 60° son: la mitad a
+    cada lado de como se dibuja. Con los 180° enteros no hay nada que
+    aclarar, y el texto que ya se midió en el banco no cambia."""
+    from orchestrator import obra as O
+    carpeta = _pan_tilt(tmp_path, PLATAFORMA)
+    textos = {u["papel"]: u["texto"] for u in O.uniones_del_nodo(carpeta, "soporte")}
+    assert "a cada lado" not in textos["gira"] + textos["sobre"]
+    plan = _plan()
+    plan["uniones"][1]["recorrido_grados"] = 60
+    (carpeta / "obra.json").write_text(json.dumps(plan), encoding="utf-8")
+    [gira] = O.uniones_del_nodo(carpeta, "plataforma")
+    assert "30° a cada lado" in gira["texto"]
+    sobre = {u["papel"]: u["texto"] for u in O.uniones_del_nodo(carpeta, "soporte")}["sobre"]
+    assert "30° a cada lado" in sobre

@@ -1291,6 +1291,58 @@ def correcciones_del_conjunto(proyecto: Path) -> dict[str, str]:
     return {}
 
 
+def la_que_no_deja_sitio(proyecto: Path, nodo: str) -> tuple[str, str] | None:
+    """Si `nodo`, que no salió bien, va atornillado a una pieza hecha que no
+    le dejó sitio: (esa pieza, lo que se le midió). None si no.
+
+    El soporte de la pinza del banco 1112-1359 salió encima del servo de
+    inclinación porque ahí daban los agujeros de la plataforma. Corregirlo a
+    él no lo saca de ahí."""
+    from orchestrator import obra
+    from orchestrator.medida import sin_sitio_para_lo_nuevo
+    from orchestrator.schemas.obra import Fija
+    proyecto = Path(proyecto)
+    arbol = obra.cargar_obra(proyecto)
+    orden = arbol.orden()
+    fuera = {nodo, *arbol.dependientes(nodo)}
+    for u in arbol.uniones_de(nodo):
+        if not isinstance(u, Fija):
+            continue
+        abajo = u.agarra if u.cabeza == nodo else u.cabeza
+        if abajo not in orden or orden.index(abajo) > orden.index(nodo):
+            continue   # el exterior, o una que se diseña después
+        falta = sin_sitio_para_lo_nuevo(proyecto, abajo, como_si_faltara=fuera)
+        if falta:
+            return abajo, "\n".join(falta)
+    return None
+
+
+def _corregir_la_que_no_deja_sitio(proyecto: Path, nodo: str, abajo: str, falta: str) -> None:
+    """Corrige `abajo` con lo medido y manda hacer de nuevo `nodo` y lo que
+    lleva encima que tampoco salió: se diseñaron contra unos agujeros que
+    van a cambiar de cara, y retocarlos sería partir de una pieza que no
+    puede valer. Lo que sí salió bien se queda, por revalidar."""
+    from orchestrator import obra
+    arbol = obra.cargar_obra(proyecto)
+    estados = obra.estados(proyecto)
+
+    def salio_bien(i):
+        informe = Path(proyecto) / obra.NODOS / i / "pieza_report.json"
+        return estados[i] == "lista" and informe.is_file() and bool(
+            json.loads(informe.read_text(encoding="utf-8")).get("resuelto"))
+
+    a_rehacer = [i for i in (nodo, *arbol.dependientes(nodo))
+                 if arbol.nodo(i).tipo == "pieza" and not salio_bien(i)]
+    obra.corregir(proyecto, abajo, falta)
+    motivo = (f"«{arbol.nodo(abajo).nombre}», a la que se atornilla esta pieza, se ha "
+              "corregido: sus agujeros para esta daban a un sitio ocupado y ahora están en "
+              "otra cara. Esta pieza se hace de nuevo contra ella, donde ahora hay sitio.")
+    # De arriba abajo: rehacer una deja por revalidar lo construido encima,
+    # y eso de encima es justo lo que también se rehace.
+    for i in reversed(a_rehacer):
+        obra.rehacer(proyecto, i, motivo if i == nodo else "")
+
+
 def nodo_a_rehacer(proyecto: Path) -> str | None:
     """La primera pieza, en orden, que no salió bien: sin construir, o dada
     por lista por el banco con defectos. Si todas salieron y el conjunto
@@ -1353,8 +1405,11 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
             continue
         proyecto = hecho.parent
         correcciones = correcciones_del_conjunto(proyecto)
+        sin_sitio = None if solo_seguir else la_que_no_deja_sitio(proyecto, nodo)
         if solo_seguir:
             pass
+        elif sin_sitio:
+            _corregir_la_que_no_deja_sitio(proyecto, nodo, *sin_sitio)
         elif de_concepto:
             apuntado = proyecto / obra.NODOS / nodo / CAMBIOS
             ya_rehecha = apuntado.is_file() and NO_ORIENTA in apuntado.read_text(encoding="utf-8")
