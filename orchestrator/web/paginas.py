@@ -1145,26 +1145,42 @@ def banco(corridas: list[dict], hay_puente: bool) -> str:
     """Cada corrida del banco con su nota y la de cada encargo, enlazado a su
     proyecto. La ronda de arreglos del 2026-11-10 no se veía en ninguna
     parte de la web: el banco escribe en `workspace/banco/`."""
+    def pastilla(nota: str) -> str:
+        return (f' <span class="pastilla {_clase_de_nota(nota)}">{e(nota)}</span>'
+                if nota else "")
+
     filas = []
     for c in corridas:
         encargos = "".join(
-            f'<li><a href="/p/{e(x["proyecto"])}">{e(x["nombre"])}</a> '
-            f'<span class="pastilla {_clase_de_nota(x["nota"])}">{e(x["nota"])}</span></li>'
+            f'<li><a href="/p/{e(x["proyecto"])}">{e(x["nombre"])}</a>{pastilla(x["nota"])}</li>'
             if x["proyecto"] else
-            f'<li>{e(x["nombre"])} <span class="pastilla {_clase_de_nota(x["nota"])}">'
-            f'{e(x["nota"])}</span></li>'
+            f'<li>{e(x["nombre"])}{pastilla(x["nota"])}</li>'
             for x in c["encargos"])
-        filas.append(f'<section class="corrida"><h2>{e(c["id"])} <span class="pastilla '
-                     f'{_clase_de_nota(c["nota"])}">{e(c["nota"])}</span></h2>'
-                     f'<p class="suave">{e(c["informe"])}</p>'
+        # Lo que se ve de una corrida que corre: que corre, y que la nota que
+        # hay (si hay alguna) no es la de esta vuelta.
+        vivo = ' <span class="pastilla vivo">En marcha</span>' if c.get("en_marcha") else ""
+        if c["informe"] is None:
+            pie = ("Diseñando: la nota sale al terminar. Abre el encargo para ver por "
+                   "dónde va." if c.get("en_marcha") else
+                   "Sin informe: la corrida se paró antes de dar su nota.")
+        elif c.get("en_marcha"):
+            pie = f'{c["informe"]} · reanudándose: la nota es la de la vuelta anterior.'
+        else:
+            pie = c["informe"]
+        filas.append(f'<section class="corrida"><h2>{e(c["id"])}{pastilla(c["nota"])}{vivo}</h2>'
+                     f'<p class="suave">{e(pie)}</p>'
                      f'<ul class="encargos">{encargos}</ul></section>')
     vacio = "" if corridas else '<p class="vacio">Todavía no hay ninguna corrida del banco.</p>'
+    # Con algo en marcha la página se pone al día sola: no tiene nada que se
+    # pueda estar escribiendo, así que recargarla entera no pisa nada.
+    cabeza = ('<meta http-equiv="refresh" content="20">'
+              if any(c.get("en_marcha") for c in corridas) else "")
     return _documento("Banco · Intelliprint", f"""
   <header class="barra"><a class="volver" href="/">← Inventos</a><span class="estado-puente">{_puente(hay_puente)}</span></header>
   <main class="banco"><h1>El banco</h1>
     <p class="lead">Lo que mide si el sistema mejora: encargos fijos, juzgados sin el propio
     sistema. Cada encargo abre su proyecto para verlo.</p>
-    {"".join(filas)}{vacio}</main>""", "")
+    {"".join(filas)}{vacio}</main>""", "", cabeza=cabeza)
 
 
 def _puente(hay_puente: bool) -> str:
@@ -1173,10 +1189,10 @@ def _puente(hay_puente: bool) -> str:
             '● PrusaSlicer no conectado</span>')
 
 
-def _documento(titulo: str, cuerpo: str, guion: str) -> str:
+def _documento(titulo: str, cuerpo: str, guion: str, cabeza: str = "") -> str:
     return ('<!doctype html>\n<html lang="es"><head><meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-            f"<title>{e(titulo)}</title>\n<style>{ESTILO}</style></head>\n"
+            f"{cabeza}<title>{e(titulo)}</title>\n<style>{ESTILO}</style></head>\n"
             f'<body>{cuerpo}\n<div id="aviso" role="status"></div>\n'
             f"<script>{GUION_COMUN}{guion}</script>\n</body></html>")
 

@@ -1,0 +1,48 @@
+GIRO_HOMBRO = 180  # R1: gira 180° en el hombro sobre el SG90 del plato
+CARGA_G = 30       # R3: soporta el antebrazo con 30 g en la punta
+DIST_BASE = 120    # R4: a 120 mm del eje de la base con el brazo estirado
+CODO_DIST = 55     # Concepto: codo a 55 mm del eje del hombro
+ESPESOR = 6        # Concepto: 6 mm de espesor
+CANTO = 20         # Concepto: 20 mm de canto
+LIBRE_PLATO = 1.0  # Unión u3: 1 mm libre a la cara del plato
+
+def construir(kit):
+    clearance = kit.holgura("clearance")
+
+    # Plato base del brazo: tumbado, con la cara posterior (la que mira al plato) sobre la cama.
+    # Eje del hombro en (0, 10). Se extiende +x hasta 80.
+    pieza = kit.caja(100, CANTO, ESPESOR, en=(-20, 0, 0))
+
+    # SG90 del codo: eje de salida +z, entra desde arriba (+z) en una ventana pasante.
+    sg90_codo = kit.componente("sg90", en=(CODO_DIST - 5.8, 10 - 6.2, 0), entra_por="+z")
+    pieza = pieza.quitar("alojamiento_sg90_codo", sg90_codo.hueco(holgura="clearance"))
+
+    # Plato giratorio con servo del hombro: su eje de salida +y local se alinea con +z global.
+    # El punto de salida queda en (0,10,-1), dejando LIBRE_PLATO=1 mm hasta la cara del plato.
+    plato = kit.componente("obra-plato-giratorio", en=(0, 120, -81),
+                           girar=[("x", 90)], entra_por="-z")
+    pieza = pieza.quitar("alojamiento_plato", plato.hueco(holgura="clearance"))
+
+    # Rebajes posteriores para el cuerno del hombro (cara z=0).
+    # Brazos usados en ±y: profundidad 0.5 mm.
+    y_groove = kit.caja(4.0, CANTO + 2.0, 1.5, en=(-2.0, -1.0, -1.0))
+    pieza = pieza.quitar("rebaje_brazos_y", y_groove)
+    # Brazos no usados en ±x: profundidad 1.0 mm para que no apoyen.
+    x_groove = kit.caja(24.0, 4.0, 2.0, en=(-12.0, 10 - 2.0, -1.0))
+    pieza = pieza.quitar("rebaje_brazos_x", x_groove)
+
+    # Torretas para las orejas del SG90 del codo, justo detrás de cada fijación.
+    for i, ag in enumerate(sg90_codo.agujeros()):
+        x, y, z = ag["en"]
+        torreta = kit.cilindro(5.0, 9.8, en=(x, y, 5.5), eje="z")
+        pieza = pieza + torreta
+        # Agujero ciego autorroscante M2 (1.8 mm) en la torreta.
+        pieza = pieza.taladrar(f"rosca_codo_{i+1}", 1.8,
+                               en=(x, y, 15.6), eje="-z", profundidad=3.1)
+
+    # Tornillos M2 de unión al cuerno de cruz del hombro, en dos brazos opuestos (±y a R6.3).
+    for i, y in enumerate([10 - 6.3, 10 + 6.3]):
+        pieza = pieza.taladrar(f"tornillo_cuerno_hombro_{i+1}", 2.0 + clearance,
+                               en=(0, y, ESPESOR), eje="-z", lagrima=False)
+
+    return pieza.acabar(radio=0.5)

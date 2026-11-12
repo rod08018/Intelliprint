@@ -182,10 +182,43 @@ _NOTA_GLOBAL = re.compile(r"\*\*Nota global:\*\*\s*(.+?)\s*$", re.M)
 _FILA = re.compile(r"^\| (\S+) \| (\d+ %) \|", re.M)
 
 
+def _late(corrida: Path) -> bool:
+    """Si algún proyecto de la corrida tiene el latido reciente: hay un
+    proceso diseñando en ella ahora mismo."""
+    import time
+
+    from orchestrator.registry import LATIDO, LATIDO_VALE_S
+    ahora = time.time()
+    for latido in (*corrida.glob(f"*/projects/*/{LATIDO}"),
+                   *corrida.glob(f"*/projects/*/nodos/*/{LATIDO}")):
+        try:
+            if ahora - latido.stat().st_mtime < LATIDO_VALE_S:
+                return True
+        except OSError:   # se quitó entre el glob y el stat
+            pass
+    return False
+
+
+def _encargos_por_su_marca(corrida: Path) -> list[dict]:
+    """Los encargos de una corrida que aún no tiene informe, por la marca
+    que deja el banco en cada carpeta al empezarla (`banco.marcar_carpeta`)."""
+    encargos = []
+    for marca in sorted(corrida.glob("*/encargo.txt")):
+        hecho = sorted((marca.parent / "projects").glob("*"))
+        encargos.append({"nombre": marca.read_text(encoding="utf-8").strip(), "nota": "",
+                         "proyecto": hecho[-1].name if hecho else None})
+    return encargos
+
+
 def corridas_del_banco(workspace: Path) -> list[dict]:
     """Cada corrida del banco, de la última a la primera, con su nota y la
     de cada encargo según su último informe (el de la última reanudación,
-    si la hubo: es la última palabra), y el proyecto de cada encargo."""
+    si la hubo: es la última palabra), y el proyecto de cada encargo.
+
+    Una corrida sin informe también sale, con sus encargos y sin nota: el
+    informe se escribe al final, y durante la hora que tarda un backlog no
+    había por dónde entrar a mirarlo (2026-11-11, el primer brazo).
+    `en_marcha` dice si hay un proceso diseñando en ella ahora."""
     raiz = Path(workspace) / BANCO
     if not raiz.is_dir():
         return []
@@ -203,7 +236,12 @@ def corridas_del_banco(workspace: Path) -> list[dict]:
                           + list(corrida.glob("banco_rejuzgado*.md")),
                           key=lambda p: p.stat().st_mtime)
         informe = informes[-1] if informes else corrida / "banco.md"
+        en_marcha = _late(corrida)
         if not informe.is_file():
+            encargos = _encargos_por_su_marca(corrida)
+            if encargos:   # una carpeta sin encargos no es una corrida
+                corridas.append({"id": corrida.name, "informe": None, "nota": "",
+                                 "encargos": encargos, "en_marcha": en_marcha})
             continue
         texto = informe.read_text(encoding="utf-8", errors="ignore")
         nota = _NOTA_GLOBAL.search(texto)
@@ -215,7 +253,8 @@ def corridas_del_banco(workspace: Path) -> list[dict]:
             encargos.append({"nombre": nombre, "nota": su_nota,
                              "proyecto": hecho[-1].name if hecho else None})
         corridas.append({"id": corrida.name, "informe": informe.name,
-                         "nota": nota.group(1) if nota else "", "encargos": encargos})
+                         "nota": nota.group(1) if nota else "", "encargos": encargos,
+                         "en_marcha": en_marcha})
     return corridas
 
 

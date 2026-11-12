@@ -1,0 +1,120 @@
+id: obra-plato-giratorio
+nombre: Plato giratorio con servo del hombro
+origen: impreso
+proyecto: 2026-11-12-031851-un_brazo_de_tres_ejes_con_servos_sg90_el
+verificado: false
+fuentes:
+- url: proyecto 2026-11-12-031851-un_brazo_de_tres_ejes_con_servos_sg90_el
+  cita: construida por Intelliprint (plato_giratorio_con_servo_del)
+marco: 'El de la pieza construida: el mismo origen y los mismos ejes que su programa.'
+mira: +z
+cuerpos:
+- nombre: Plato giratorio con servo del hombro
+  en:
+  - 0
+  - 0
+  - 0
+  step:
+    ruta: obra-plato-giratorio.step
+    min:
+    - -25.0
+    - -30.0
+    - -5.2735593669694936e-15
+    max:
+    - 25.5
+    - 70.0
+    - 116.2
+- nombre: 'servo_hombro: cuerpo'
+  en:
+  - -5.8
+  - 52.9
+  - 103.8
+  caja:
+  - 22.8
+  - 27.1
+  - 12.4
+  porque: envolvente de los planos; de alto, hasta la carcasa del eje (27.1, TA0233)
+  monta: sg90
+- nombre: 'servo_hombro: orejas'
+  en:
+  - -10.5
+  - 68.5
+  - 103.8
+  caja:
+  - 32.2
+  - 2.9
+  - 12.4
+  porque: 'las orejas empiezan a 15.6 (Luxorparts) o a 16 (TowerPro): se cubren las
+    dos; el grosor no viene acotado (unos 2.5 a escala)'
+  monta: sg90
+despejar:
+- nombre: 'servo_hombro: eje_y_cubo_del_cuerno'
+  en:
+  - 0.0
+  - 80.0
+  - 110.0
+  cilindro:
+    diametro: 6.9
+    alto: 3.6
+    eje: +y
+  porque: 'el eje de salida (TA0233: a 8.75 de la muesca, 5.8 del extremo del cuerpo)
+    sale de 27.1 a 30.7, y en él encaja el cubo del cuerno, de Ø6.9: lo que se acople
+    al eje deja este sitio al cuerno'
+  monta: sg90
+fijacion:
+- nombre: rosca_hombro_1
+  diametro: 1.8
+  en:
+  - -8.75
+  - 71.4
+  - 110.0
+  eje: -y
+- nombre: rosca_hombro_2
+  diametro: 1.8
+  en:
+  - 19.95
+  - 71.4
+  - 110.0
+  eje: -y
+- nombre: cuerno_base_1
+  diametro: 1.5499999999999998
+  en:
+  - 6.3
+  - 0.0
+  - 8.0
+  eje: -z
+- nombre: cuerno_base_2
+  diametro: 1.5499999999999998
+  en:
+  - -6.3
+  - 0.0
+  - 8.0
+  eje: -z
+salidas:
+- nombre: 'servo_hombro: eje'
+  en:
+  - 0.0
+  - 80.0
+  - 110.0
+  eje: +y
+  recorrido:
+  - -90.0
+  - 90.0
+  largo: 0.0
+  acople:
+    nombre: cuerno de cruz (#2)
+    cubo_diametro: 6.9
+    cubo_alto: 2.5
+    grosor: 1.5
+    brazos: 4
+    de_punta_a_punta: 20.3
+    agujeros:
+    - radio: 4.3
+      diametro: 1.0
+    - radio: 6.3
+      diametro: 1.0
+    - radio: 8.3
+      diametro: 1.0
+    porque: 'TA0233: cubo de Ø6.9 × 2.5 y brazos de 1.5; el de cruz (#2) mide 20.3
+      de punta a punta en los dos sentidos, con agujeros de Ø1.0 a R4.3, R6.3 y R8.3'
+  porque: la salida «eje» del sg90 que monta esta pieza

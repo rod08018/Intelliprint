@@ -7,6 +7,7 @@ degenerado— devuelve el motivo al Part Designer para que la corrija.
 """
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -14,7 +15,9 @@ from pathlib import Path
 from typing import Callable
 
 from orchestrator.fcstd import mostrar_solo
-from orchestrator.recipes.compose import compose_build_script, compose_program_script
+from mech_toolkit.componentes import SIN_DESPLAZAMIENTO
+from orchestrator.recipes.compose import (
+    RESULT_PREFIX, compose_build_script, compose_program_script)
 from orchestrator.schemas.part_result import BuildOutputError, PartResult
 from orchestrator.schemas.recipe import GeneratorCatalog, Recipe
 from orchestrator.traceability import untraced
@@ -45,8 +48,44 @@ def motivo_del_fallo(salida: str) -> str:
     marcado = re.search(r"INTELLIPRINT_FALLO: (.+)", salida)
     if marcado:
         return marcado.group(1).strip()
+    if se_cayo(salida):
+        return motivo_de_la_caida(salida)
     lineas = [linea for linea in salida.strip().splitlines() if linea.strip()]
     return "\n".join(lineas[-6:]) or "build.py terminó sin resultado y sin error"
+
+
+_CAIDA = re.compile(r"Program received signal|Segmentation fault|SIGSEGV|SIGABRT"
+                    r"|Access violation|EXCEPTION_ACCESS_VIOLATION")
+# Los códigos con los que Windows dice que un proceso murió: violación de
+# acceso y desbordamiento de pila, con signo y sin él.
+_MUERTE_EN_WINDOWS = {0xC0000005, 0xC00000FD, 0xC0000005 - 2 ** 32, 0xC00000FD - 2 ** 32}
+
+
+def se_cayo(salida: str, codigo: int | None = None) -> bool:
+    """FreeCAD murió en vez de fallar: lo mató una señal (código negativo en
+    Linux), Windows lo cerró, o su propia traza lo dice."""
+    if codigo is not None and (codigo < 0 or codigo in _MUERTE_EN_WINDOWS):
+        return True
+    return bool(_CAIDA.search(salida))
+
+
+def motivo_de_la_caida(salida: str) -> str:
+    """Qué decirle al diseñador cuando FreeCAD se cae. El final de la traza
+    son las tripas del arranque de FreeCAD, iguales en todas las caídas; lo
+    que dice qué se estaba haciendo son las primeras operaciones de OCC. En
+    la 1112-0318 le llegó cinco veces «#39 /opt/freecad/usr/bin/freecadcmd…»
+    y gastó sus cinco intentos sin saber qué cambiar."""
+    operaciones = []
+    for clase in re.findall(r"#\d+\s+0x[0-9a-f]+ in ([A-Za-z_][\w]*)::", salida):
+        if clase.startswith(("BRep", "BOP", "ShapeUpgrade", "ChFi", "Geom")) \
+                and clase not in operaciones:
+            operaciones.append(clase)
+    donde = f" en {', '.join(operaciones[:3])} de OCC" if operaciones else ""
+    return (f"FreeCAD se cayó al construir la pieza (fallo de segmentación{donde}). No es un "
+            "error de tu programa que se pueda leer: el motor de geometría no pudo con una "
+            "operación. Hazla más simple: el hueco de un componente o de una pieza vecina "
+            "solo donde la toca, menos booleanas encadenadas y `acabar` solo en las aristas "
+            "que se ven.")
 
 
 def _texto(diseno) -> str:
@@ -111,6 +150,16 @@ def build_part(
         proceso = subprocess.run(
             [freecadcmd, str(build)], capture_output=True, text=True, timeout=TIEMPO_MAX_S
         )
+        if (not isinstance(receta, Recipe) and RESULT_PREFIX not in proceso.stdout
+                and se_cayo(proceso.stdout + "\n" + proceso.stderr, proceso.returncode)):
+            # Se cayó FreeCAD, no el programa. Lo que más lo tumba es el
+            # desplazamiento de OCC al crecer la forma de una pieza vecina
+            # para su hueco (`mech_toolkit.componentes.crecida`), que tiene
+            # otra manera de hacerlo: se repite una vez sin él, sin modelo.
+            # Si se cae igual, el motivo le llega al diseñador.
+            proceso = subprocess.run(
+                [freecadcmd, str(build)], capture_output=True, text=True,
+                timeout=TIEMPO_MAX_S, env={**os.environ, SIN_DESPLAZAMIENTO: "1"})
     except subprocess.TimeoutExpired:
         # Vuelve al agente como cualquier fallo. Antes tumbaba el proyecto
         # entero: la escuadra de repisa del banco murió así (2026-11-04).

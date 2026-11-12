@@ -94,6 +94,7 @@ def primitivas(ficha, en=(0, 0, 0), giros=(), de="cuerpos") -> list[dict]:
 
 _LEIDOS: dict = {}
 _CRECIDOS: dict = {}
+SIN_DESPLAZAMIENTO = "INTELLIPRINT_SIN_DESPLAZAMIENTO"
 
 
 def crecida(forma, d):
@@ -103,12 +104,21 @@ def crecida(forma, d):
 
     Hay que darle la forma SIN colocar: OCC no sabe crecer una forma leída
     de un STEP con aristas redondeadas una vez movida o girada, ni con una
-    traslación (banco 1109-2349, la base del pan-tilt)."""
+    traslación (banco 1109-2349, la base del pan-tilt).
+
+    Con `INTELLIPRINT_SIN_DESPLAZAMIENTO` en el entorno no se prueba el
+    desplazamiento: con el plato giratorio del brazo (banco 1112-0318) OCC no
+    lanza un error, se cae con un fallo de segmentación y se lleva a FreeCAD
+    entero, así que el `except` no llega a verlo. `build_part` repite la
+    construcción con esa variable cuando FreeCAD se cae."""
+    import os
+
     import FreeCAD
 
     if d <= 0:
         return forma
-    for union in (2, 0):   # aristas vivas, como las cajas; si no sale, redondas
+    uniones = () if os.environ.get(SIN_DESPLAZAMIENTO) else (2, 0)
+    for union in uniones:   # aristas vivas, como las cajas; si no sale, redondas
         try:
             grande = forma.makeOffsetShape(d, 0.01, join=union)
             if grande.isValid() and grande.Volume > forma.Volume:

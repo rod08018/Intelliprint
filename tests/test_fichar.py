@@ -304,3 +304,49 @@ def test_el_hueco_largo_de_una_pieza_vecina_se_resta_sin_romper_freecad(tmp_path
     r = build_part(Programa(part="plataforma", codigo=(origen / "programa.txt").read_text(
         encoding="utf-8")), None, tmp_path / "plataforma", _freecadcmd(), perfil=PERFIL)
     assert r.solids == 1
+
+
+def test_el_brazo_se_construye_aunque_occ_se_caiga_al_crecer_el_plato(tmp_path, monkeypatch):
+    """Banco 1112-0318, el primer brazo de tres ejes: el brazo superior no
+    se construyó en cinco intentos y la corrida quedó en 0 de 8. Los cinco
+    murieron igual, con FreeCAD caído por un fallo de segmentación de OCC
+    en `BRepOffset_MakeOffset`, al crecer la forma del plato giratorio para
+    darle holgura a su hueco. Una caída no es una excepción: el `except`
+    de `crecida` no la ve, y su otra manera de crecer la forma no llegaba
+    a probarse. Es el programa tal cual lo escribió el diseñador, con la
+    ficha del plato de esa corrida."""
+    import shutil
+    origen = Path("tests/kit_regresiones/brazo_superior_plato")
+    fichas = tmp_path / "fichas"
+    shutil.copytree(origen, fichas)
+    monkeypatch.setenv("INTELLIPRINT_FICHAS", str(fichas))
+    r = build_part(Programa(part="brazo", codigo=(origen / "programa.txt").read_text(
+        encoding="utf-8")), None, tmp_path / "brazo", _freecadcmd(), perfil=PERFIL)
+    assert r.solids == 1
+
+
+CAIDA = """\
+FreeCAD 1.1.3, Libs: 1.1.3R20260725 (Git shallow)
+Program received signal SIGSEGV, Segmentation fault.
+#0  /lib/x86_64-linux-gnu/libc.so.6(+0x3fd70) [0x7fe69dfd7d70]
+#1  0x7fe6998f2b94 in BRep_Tool::CurveOnSurface(TopoDS_Edge const&) from /opt/freecad/usr/lib/libTKBRep.so.7.8+0x174
+#8  0x7fe698861cee in BRepOffset_MakeOffset::BuildOffsetByInter(Message_ProgressRange const&) from /opt/freecad/usr/lib/libTKOffset.so.7.8+0x76e
+#34  0x7efee2f94d1f in App::Application::processCmdLineFiles() from /opt/freecad/usr/bin/../lib/libFreeCADApp.so+0x3f
+#35  0x7efee2f9582d in App::Application::runApplication() from /opt/freecad/usr/bin/../lib/libFreeCADApp.so+0x1d
+#36  /opt/freecad/usr/bin/freecadcmd(+0x7c99) [0x55db6bd04c99]
+#37  /lib/x86_64-linux-gnu/libc.so.6(+0x29ca8) [0x7efee0b48ca8]
+#38  /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x85) [0x7efee0b48d65]
+#39  /opt/freecad/usr/bin/freecadcmd(+0x78c9) [0x55db6bd048c9]
+"""
+
+
+def test_si_freecad_se_cae_el_motivo_lo_dice_y_no_es_el_final_de_la_traza():
+    """En la 1112-0318 al diseñador le llegó cinco veces, como motivo, el
+    final de la traza de la caída («#39 /opt/freecad/usr/bin/freecadcmd…»):
+    no dice qué falló, y gastó sus cinco intentos a ciegas (0,40 USD). Lo
+    que sirve es que se cayó y en qué operación de OCC, que está arriba."""
+    from orchestrator.build import motivo_del_fallo
+    motivo = motivo_del_fallo(CAIDA)
+    assert "se cayó" in motivo
+    assert "BRepOffset_MakeOffset" in motivo
+    assert "#39" not in motivo and "libc.so" not in motivo

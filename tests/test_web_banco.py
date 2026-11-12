@@ -95,3 +95,66 @@ def test_la_ultima_palabra_es_el_informe_mas_reciente_aunque_sea_un_rejuicio(tmp
         os.utime(informe, (cuando, cuando))
     [c] = corridas_del_banco(tmp_path)
     assert c["informe"] == "banco_rejuzgado.md" and c["nota"].startswith("90 %")
+
+
+# --- una corrida en marcha ------------------------------------------------------------------
+
+def _corrida_sin_informe(ws, late=True):
+    """Como la 1112-0318 mientras corría: su carpeta, la marca del encargo y
+    el proyecto a medias, sin `banco.md`, que se escribe al final."""
+    import os
+    import time
+    corrida = ws / "banco" / "1112-0318"
+    carpeta = corrida / "01" / "projects" / PID
+    carpeta.mkdir(parents=True)
+    (corrida / "01" / "encargo.txt").write_text("brazo_3_ejes_sg90", encoding="utf-8")
+    (carpeta / "request.md").write_text("un brazo de tres ejes", encoding="utf-8")
+    O.guardar(carpeta, _obra(), por="banco")
+    O.aprobar(carpeta, por="banco")
+    (carpeta / "latido").write_text("", encoding="utf-8")
+    if not late:
+        hace_mucho = time.time() - 3600
+        os.utime(carpeta / "latido", (hace_mucho, hace_mucho))
+    return carpeta
+
+
+def test_una_corrida_en_marcha_se_ve_antes_de_tener_nota(tmp_path):
+    """«Revisa que todo se vea en la app para yo ver cómo va» (el usuario,
+    2026-11-11, con el primer brazo corriendo): la corrida no salía en
+    «Banco» hasta escribir su informe, al final. Durante la hora que tarda
+    no había por dónde entrar a mirarla."""
+    from orchestrator.web.versiones import corridas_del_banco
+    _corrida_sin_informe(tmp_path)
+    [c] = corridas_del_banco(tmp_path)
+    assert c["en_marcha"] is True and c["informe"] is None
+    assert c["encargos"] == [{"nombre": "brazo_3_ejes_sg90", "nota": "", "proyecto": PID}]
+    r = _ws_con_trabajos(tmp_path).get("/banco")
+    texto = _visible(r.text)
+    for parte in ("1112-0318", "En marcha", "brazo_3_ejes_sg90", "la nota sale al terminar"):
+        assert parte in texto, parte
+    assert f'href="/p/{PID}"' in r.text
+    # Y se pone al día sola: si no, hay que recargar a mano para ver la nota.
+    assert 'http-equiv="refresh"' in r.text
+
+
+def test_una_corrida_que_murio_sin_informe_no_dice_que_esta_en_marcha(tmp_path):
+    """Sin latido reciente no hay proceso: decir «En marcha» sería dejar a
+    la persona esperando algo que no va a llegar."""
+    from orchestrator.web.versiones import corridas_del_banco
+    _corrida_sin_informe(tmp_path, late=False)
+    [c] = corridas_del_banco(tmp_path)
+    assert c["en_marcha"] is False
+    r = _ws_con_trabajos(tmp_path).get("/banco")
+    texto = _visible(r.text)
+    assert "En marcha" not in texto and "Sin informe" in texto
+    assert 'http-equiv="refresh"' not in r.text
+
+
+def test_una_corrida_que_se_reanuda_dice_que_su_nota_es_la_de_antes(tmp_path):
+    """Al reanudar, el informe que hay es el de la vuelta anterior: se ve su
+    nota, pero diciendo que se está rehaciendo."""
+    carpeta = _corrida(tmp_path)
+    (carpeta / "latido").write_text("", encoding="utf-8")
+    texto = _visible(_ws_con_trabajos(tmp_path).get("/banco").text)
+    assert "En marcha" in texto and "80 %" in texto
+    assert "la nota es la de la vuelta anterior" in texto
