@@ -668,6 +668,25 @@ def _arbol(carpeta: Path, vid: str, bloqueo: str, hay_puente: bool) -> tuple[str
         boton = f' <button class="btn pri" data-seguir="{vid}"{bloqueo}>{que}</button>'
     arriba = (f'<div class="aviso ambar"><b>Siguiente: {e(ob.nodo(siguiente).nombre)}</b>{boton}</div>'
               if siguiente else '<div class="aviso"><b>Todas las piezas están listas.</b></div>')
+    # F9.10 (ampliar): una función que se añade espera antes que nada, y
+    # hasta que se apruebe el plan de abajo es el de siempre.
+    from orchestrator import ampliar
+    a_medias = ampliar.pendiente(carpeta)
+    if a_medias == "propuesta":
+        texto = (carpeta / ampliar.PRESENTACION).read_text(encoding="utf-8", errors="ignore")
+        arriba = ('<div class="revision"><p class="lead">Así añadiría la función. <b>El invento '
+                  'no cambia hasta que la apruebes.</b></p>'
+                  + a_html(re.sub(r"\A#[^\n]*\n", "", texto))
+                  + _visto_bueno(vid, bloqueo, "Aprobar la ampliación",
+                                 ejemplo="que la pinza se atornille con M2, no con M3")
+                  + f'<p><button class="btn" data-descartar-ampliacion="{vid}"{bloqueo}>'
+                  'Descartarla</button></p></div>')
+    elif a_medias == "pedida":
+        arriba = (f'<div class="aviso ambar"><b>Falta proponer la ampliación</b>'
+                  f'<p>«{e(ampliar.pedida(carpeta))}»</p>'
+                  f'<button class="btn pri" data-seguir="{vid}"{bloqueo}>Proponerla</button> '
+                  f'<button class="btn" data-descartar-ampliacion="{vid}"{bloqueo}>'
+                  'Descartarla</button></div>')
     tarjetas = []
     for i in ob.orden():
         n, estado = ob.nodo(i), estados[i]
@@ -769,8 +788,22 @@ def _arbol(carpeta: Path, vid: str, bloqueo: str, hay_puente: bool) -> tuple[str
             partes.extend(extra)
         actual = ' aria-current="step"' if i == siguiente else ""
         tarjetas.append(f'<div class="pieza nodo"{actual}>{"".join(partes)}</div>')
+    # «Añadir función», al final: no es lo que toca ahora, es lo que se hace
+    # cuando el invento ya está. Con una ampliación a medias no se pide otra.
+    # El título y la explicación van fuera del formulario: `.cambiar-pieza`
+    # pone a sus hijos en fila, y con ellos dentro la caja de texto se
+    # quedaba en una rendija (visto en el navegador, 2026-11-12).
+    anadir = "" if a_medias else (
+        '<div class="ampliar"><h3>Añadir una función</h3>'
+        '<p class="nota-grupo">Algo que el invento no hace todavía: una pinza, otro eje, un '
+        'soporte para un sensor. Propondrá qué piezas nuevas hacen falta y cuáles de las ya '
+        'hechas habría que corregir; nada cambia hasta que lo apruebes.</p>'
+        f'<form class="cambiar-pieza" data-ampliar="{vid}">'
+        '<textarea name="funcion" rows="3" placeholder="Por ejemplo: «añádele una pinza que '
+        f'abra 30 mm»" aria-label="Qué función añadir"{bloqueo}></textarea>'
+        f'<button class="btn"{bloqueo}>Proponer</button></form></div>')
     return arriba, (f'<section><h2>Las piezas, una a una</h2>'
-                    f'<div class="piezas arbol">{"".join(tarjetas)}</div></section>')
+                    f'<div class="piezas arbol">{"".join(tarjetas)}</div>{anadir}</section>')
 
 
 def _primera_frase(texto: str) -> tuple[str, str]:
@@ -1389,6 +1422,8 @@ ESTILO = """
   .cambiar-pieza:has(textarea) { align-items:flex-end; }
   .corregida { font-size:14px; padding:8px 10px; border-radius:9px; background:var(--fondo-suave); }
   .cambiar-pieza .btn { padding:8px 12px; }
+  .ampliar { margin-top:22px; max-width:640px; } .ampliar h3 { font-size:16px; margin:0 0 6px; }
+  .ampliar .cambiar-pieza { padding:0; }
   .cambiar { max-width:760px; }
   .documento { background:var(--tarjeta); border:1px solid var(--linea); border-radius:14px; padding:6px 18px 14px; font-size:14px; }
   .documento table { border-collapse:collapse; } .documento td, .documento th { padding:4px 10px; border-bottom:1px solid var(--linea); }
@@ -1735,6 +1770,25 @@ GUION_PROYECTO = r"""
                                  {peticion: caja.value});
     if (ok) { location.href = "/p/" + encodeURIComponent(f.dataset.modificar); return; }
     avisar(detalle(d) || "No se pudo lanzar."); b.disabled = false; b.textContent = antes;
+  }));
+  // Añadir una función a un backlog (F9.10 (ampliar)): solo lanza la propuesta.
+  document.querySelectorAll("form[data-ampliar]").forEach(f => f.addEventListener("submit", async ev => {
+    ev.preventDefault();
+    const caja = f.querySelector("[name=funcion]"), b = f.querySelector("button");
+    if (!caja.value.trim()) { avisar("Escribe primero qué función quieres añadir."); caja.focus(); return; }
+    b.disabled = true; const antes = b.textContent; b.textContent = "Lanzando…";
+    const [ok, d] = await enviar("/api/proyectos/" + encodeURIComponent(f.dataset.ampliar) + "/ampliar",
+                                 {peticion: caja.value});
+    if (ok) { location.reload(); return; }
+    avisar(detalle(d) || "No se pudo lanzar."); b.disabled = false; b.textContent = antes;
+  }));
+  document.querySelectorAll("[data-descartar-ampliacion]").forEach(b => b.addEventListener("click", async ev => {
+    ev.preventDefault();
+    if (!confirm("Se descarta la ampliación propuesta; el invento sigue como está. ¿Descartarla?")) return;
+    b.disabled = true;
+    const [ok, d] = await enviar("/api/proyectos/" + encodeURIComponent(b.dataset.descartarAmpliacion) + "/ampliacion/descartar");
+    if (ok) { location.reload(); return; }
+    avisar(detalle(d) || "No se pudo descartar."); b.disabled = false;
   }));
   document.querySelectorAll("form[data-aprobar]").forEach(f => f.addEventListener("submit", async ev => {
     ev.preventDefault();

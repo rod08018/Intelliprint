@@ -369,6 +369,18 @@ def _obra(args, raiz: Path, env: dict, nombre: str) -> None:
     peticion = Path(texto).read_text(encoding="utf-8") if args.archivo else texto
     carpeta = (Path(args.carpeta) if args.carpeta else _workspace(raiz, env) / "projects"
                / f"{dt.datetime.now():%Y-%m-%d-%H%M%S}-{nombre_corto(peticion.splitlines()[0], 40)}")
+    if getattr(args, "ampliar", False):
+        # F9.10 (ampliar): la petición es la función que se añade a un
+        # backlog que ya existe. Solo se apunta; el paso de abajo la propone
+        # y para. Antes de crear nada: una carpeta equivocada no deja rastro.
+        from orchestrator import ampliar
+        if not args.carpeta:
+            sys.exit(f"[{nombre}] ✗ --ampliar necesita --carpeta: el backlog al que se le "
+                     "añade la función")
+        try:
+            ampliar.pedir(carpeta, peticion)
+        except ValueError as e:
+            sys.exit(f"[{nombre}] ✗ {e}")
     carpeta.mkdir(parents=True, exist_ok=True)
     if not (carpeta / "request.md").exists():
         (carpeta / "request.md").write_text(peticion.strip() + "\n", encoding="utf-8")
@@ -393,7 +405,8 @@ def _obra(args, raiz: Path, env: dict, nombre: str) -> None:
                 raise
         if not obra.es_obra(carpeta):
             return
-        if not obra.aprobada(carpeta):
+        from orchestrator import ampliar
+        if not obra.aprobada(carpeta) or ampliar.pendiente(carpeta) == "propuesta":
             obra.aprobar(carpeta, por="banco")
             continue
         i = obra.siguiente(carpeta)
@@ -442,6 +455,28 @@ def _paso_de_obra(carpeta: Path, peticion: str, raiz: Path, env: dict, nombre: s
         print(obra.presentar(desglose, avisos), flush=True)
     if not obra.aprobada(carpeta):
         print(f"[{nombre}] ✋ desglose listo: espera tu visto bueno ({carpeta / 'obra.md'})")
+        return
+
+    # F9.10 (ampliar): una función pedida se propone y para, como el
+    # desglose; mientras espera el visto bueno no se sigue con las piezas,
+    # porque el plan contra el que se diseñan está a punto de cambiar.
+    from orchestrator import ampliar
+    if ampliar.pendiente(carpeta) == "pedida":
+        router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
+        cliente = _cliente(router, env)
+        agujeros = _perfil(raiz, env).datos.get("holes", {})
+        print(f"[{nombre}] ampliación: «{ampliar.pedida(carpeta)}»", flush=True)
+        with latir(carpeta), _apuntar_gasto(raiz, carpeta, "ampliación", backlog=True):
+            try:
+                ampliar.proponer(carpeta, DesglosadorAgent(_cliente(router, env, "reason"),
+                                                           reserva=cliente), agujeros)
+            except ValueError as e:
+                # Sigue pedida: se puede volver a lanzar, o descartarla.
+                sys.exit(f"[{nombre}] ✗ la ampliación no salió: {e}")
+        print((carpeta / ampliar.PRESENTACION).read_text(encoding="utf-8"), flush=True)
+    if ampliar.pendiente(carpeta) == "propuesta":
+        print(f"[{nombre}] ✋ ampliación propuesta: espera tu visto bueno "
+              f"({carpeta / ampliar.PRESENTACION})")
         return
 
     nodo = obra.siguiente(carpeta)
@@ -559,8 +594,8 @@ def _banco(args, raiz: Path, env: dict, nombre: str) -> None:
     from orchestrator.banco import cargar_encargos, correr, informe, rejuzgar
     from orchestrator.build import carpeta_libre
 
-    encargos = [e for e in cargar_encargos(raiz / "tests" / "banco" / "encargos")
-                if not args.solo or e.nombre in args.solo]
+    todos = cargar_encargos(raiz / "tests" / "banco" / "encargos")
+    encargos = [e for e in todos if not args.solo or e.nombre in args.solo]
     if not encargos:
         sys.exit(f"ningún encargo se llama {', '.join(args.solo)}")
     material = _perfil(raiz, env).datos["resistencia"]
@@ -594,12 +629,21 @@ def _banco(args, raiz: Path, env: dict, nombre: str) -> None:
     # nombre del encargo, dos piezas de la primera corrida no se construyeron.
     salida = _workspace(raiz, env) / "banco" / f"{dt.datetime.now():%m%d-%H%M}"
     resultados, fallos = {}, {}
+    por_nombre = {e.nombre: e for e in todos}
     for i, e in enumerate(encargos, 1):
         print(f"[{nombre}] banco: {e.nombre} (carpeta {i:02d})…", flush=True)
+        # F9.10 (ampliar): un encargo que amplía otro parte del invento de
+        # la corrida que se diga; si no, del de esta misma si ya se corrió.
+        # Solo si no hay ninguno lo pide entero antes, y eso se paga.
+        partir_de = None
+        if e.amplia:
+            partir_de = (Path(args.partir_de) if getattr(args, "partir_de", None)
+                         else salida if e.amplia in resultados else None)
         resultados[e.nombre], fallo = correr(e, salida / f"{i:02d}", orden_del_banco(e.obra),
                                              _freecadcmd(env),
                                              dict(os.environ), material,
-                                             elegir_laminador(raiz, env))
+                                             elegir_laminador(raiz, env),
+                                             base=por_nombre.get(e.amplia), partir_de=partir_de)
         if fallo:
             fallos[e.nombre] = fallo
     modelo = env.get("DEEPSEEK_MODEL", "deepseek")
@@ -651,6 +695,9 @@ def _parser() -> argparse.ArgumentParser:
                     help="la petición es la ruta de un archivo de texto")
     ob.add_argument("--carpeta", help="carpeta del proyecto (por defecto, una nueva)")
     ob.add_argument("--continuar", action="store_true", help=argparse.SUPPRESS)
+    ob.add_argument("--ampliar", action="store_true",
+                    help="la petición es una función que se añade al backlog de --carpeta "
+                         "(F9.10 (ampliar)): la propone y espera el visto bueno")
     ob.add_argument("--banco", action="store_true",
                     help="solo el banco: la obra entera, con el visto bueno dado por él")
     banco = sub.add_parser("banco", help="pedir las piezas del banco y medir si salen usables "
@@ -663,6 +710,10 @@ def _parser() -> argparse.ArgumentParser:
     banco.add_argument("--reanudar", metavar="CORRIDA",
                        help="seguir los backlogs de una corrida desde la pieza que falló "
                             "(con los mismos --solo que entonces) y juzgarla otra vez")
+    banco.add_argument("--partir-de", metavar="CORRIDA",
+                       help="para un encargo que amplía otro (F9.10 (ampliar)): copiar el "
+                            "invento de esa corrida y pedir solo la función, sin pagar el "
+                            "invento otra vez")
     perf = sub.add_parser("perfil", help="importar una calibración de laminado de eufyMake Studio")
     perf.add_argument("accion", choices=["importar"])
     perf.add_argument("resto", nargs=argparse.REMAINDER,

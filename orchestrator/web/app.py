@@ -274,6 +274,28 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
             raise HTTPException(409, str(e))
         return {"id": carpeta.name}
 
+    @app.post("/api/proyectos/{id}/ampliar")
+    def ampliar(id: str, pedido: Modificacion) -> dict:
+        """«Añadir función» (F9.10 (ampliar)): apunta lo que se pide y lanza
+        la propuesta. El plan no cambia hasta que se apruebe, con el mismo
+        visto bueno que el desglose o un concepto."""
+        carpeta = _obra_en_curso(id)
+        try:
+            trabajos.ampliar(carpeta.name, pedido.peticion)
+        except (ValueError, RuntimeError) as e:
+            raise HTTPException(409, str(e))
+        return {"id": carpeta.name}
+
+    @app.post("/api/proyectos/{id}/ampliacion/descartar")
+    def descartar_ampliacion(id: str) -> dict:
+        """La propuesta no convence: se archiva y el invento sigue como estaba."""
+        carpeta = _obra_en_curso(id)
+        try:
+            trabajos.descartar_ampliacion(carpeta.name)
+        except (ValueError, RuntimeError) as e:
+            raise HTTPException(409, str(e))
+        return {"id": carpeta.name}
+
     @app.post("/api/proyectos/{id}/nodos/{nodo}/impresa")
     def marcar_impresa(id: str, nodo: str, pedido: Lista) -> dict:
         """La prueba física: se apunta y no relanza nada."""

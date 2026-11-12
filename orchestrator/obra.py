@@ -383,6 +383,13 @@ def resumen_de_estado(carpeta: Path) -> tuple[str, str]:
     if not aprobada(carpeta):
         return "por aprobar", (f"el desglose en {len(obra.nodos)} piezas espera tu visto "
                                "bueno")
+    from orchestrator import ampliar
+    a_medias = ampliar.pendiente(carpeta)
+    if a_medias == "propuesta":
+        return "por aprobar", ("la ampliación espera tu visto bueno: "
+                               f"«{ampliar.pedida(carpeta)}»")
+    if a_medias == "pedida":
+        return "incompleto", f"falta proponer la ampliación «{ampliar.pedida(carpeta)}»"
     todos = estados(carpeta)
     i = siguiente(carpeta)
     if i is None:
@@ -418,6 +425,12 @@ def aprobar(carpeta: Path, respuestas: str = "", por: str = "") -> str:
         else:
             _marca(carpeta / APROBADA, por=por)
         return "desglose"
+    # F9.10 (ampliar): una función que se añade espera antes que nada más;
+    # mientras, el plan no cambia y no se sigue con las piezas.
+    from orchestrator import ampliar
+    if ampliar.pendiente(carpeta) == "propuesta":
+        ampliar.aprobar(carpeta, respuestas=respuestas, por=por)
+        return "ampliación"
     i = siguiente(carpeta)
     if i is None or estados(carpeta)[i] != "concepto por aprobar":
         raise ValueError("no hay ningún desglose ni concepto esperando el visto bueno")

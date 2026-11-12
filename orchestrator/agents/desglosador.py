@@ -67,12 +67,17 @@ class DesglosadorAgent:
         self._instrucciones = prompt_path.read_text(encoding="utf-8")
 
     def desglosar(self, peticion: str, agujeros: dict | None = None,
-                  anterior: str | None = None) -> Obra:
+                  anterior: str | None = None, ampliar: Obra | None = None) -> Obra:
         """El plan mecánico (F9.3 (planificador)): las piezas y cómo se unen.
 
         `agujeros` es `holes` del perfil activo: lo que la impresora sabe
         taladrar. `anterior` es el plan que la persona vio y contestó (sus
-        respuestas ya van al final de la petición): se parte de él."""
+        respuestas ya van al final de la petición): se parte de él.
+
+        `ampliar` (F9.10 (ampliar)): el plan aprobado de un invento que ya
+        tiene piezas diseñadas, al que se le añade una función. Lo que
+        devuelve es ese plan entero más lo nuevo; quitar o cambiar algo de
+        lo que había es un error que vuelve al modelo."""
         disponibles = ids()
         prompt = (f"{self._instrucciones}\n\n## Componentes con ficha\n\n"
                   f"{', '.join(disponibles)}\n")
@@ -85,7 +90,24 @@ class DesglosadorAgent:
                        "usar estas métricas, y de cada una solo estos agarres:\n\n"
                        + "\n".join(f"- {linea}" for linea in tabulado(agujeros)) + "\n")
         prompt += f"\n## Petición\n\n> {peticion.strip()}\n"
-        if anterior:
+        if ampliar is not None:
+            # Las reglas, con los ids de lo que ya hay: cuando `anterior` es
+            # una propuesta contestada, el JSON solo no dice qué es de antes.
+            prompt += (
+                "\n## Esto es una ampliación\n\nEl invento ya está aprobado y tiene piezas "
+                "diseñadas. La persona pide añadirle una función: está al final de la "
+                "petición. Devuelve el plan ENTERO, con todo lo que ya hay y lo nuevo:\n\n"
+                f"- Ya existen estos nodos: {', '.join(n.id for n in ampliar.nodos)}; y estas "
+                f"uniones: {', '.join(u.id for u in ampliar.uniones) or 'ninguna'}. No quites "
+                "ni cambies ninguno, ni su id: las piezas se hicieron con ellos.\n"
+                "- Una pieza que ya existe no puede pasar a depender de una nueva: lo nuevo se "
+                "diseña contra lo que hay (va en `depende_de` de lo nuevo), nunca al revés.\n"
+                "- A una pieza que ya existe solo puedes añadirle algo en `compra` o meterla en "
+                "una unión nueva, y eso obliga a corregirla: toca las menos posibles.\n"
+                "- El conjunto lleva también las piezas nuevas en `depende_de`.\n\n"
+                "Parte de este plan:\n\n"
+                f"```json\n{(anterior or ampliar.model_dump_json(indent=2)).strip()}\n```\n")
+        elif anterior:
             # Sin esto, contestar al desglose lo tiraba y se desglosaba de
             # cero: corregir una unión podía rebarajar todas las piezas.
             prompt += ("\n## Tu plan anterior\n\nLa persona vio este plan y contestó; sus "
@@ -110,6 +132,9 @@ class DesglosadorAgent:
             if len(piezas) > 1 and not obra.uniones:
                 errores.append("faltan las `uniones`: con varias piezas hay que decir cómo "
                                "se une cada una a las demás (`gira` o `fija`)")
+            if ampliar is not None:
+                from orchestrator.ampliar import diferencia
+                errores += diferencia(ampliar, obra).errores
             # Con un componente sin ficha no hay salidas que mirar.
             if not errores:
                 errores += validar_plan(obra, agujeros or {})[0]

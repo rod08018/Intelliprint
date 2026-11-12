@@ -243,11 +243,14 @@ def test_los_encargos_del_banco_son_validos_y_cubren_robots_y_casa():
 
 def test_cada_cota_del_oraculo_sale_de_la_peticion_literal():
     """El oráculo no puede inventar cotas: tiene que poder leerse en lo que
-    pidió la persona. Si no, el banco mediría contra otra petición."""
+    pidió la persona. Si no, el banco mediría contra otra petición. Para un
+    encargo que amplía otro (F9.10 (ampliar)), lo que pidió son las dos
+    peticiones: la del invento y la de la función."""
     for e in cargar_encargos(ENCARGOS):
         for a in e.oraculo:
             for cota in a.cotas_de_la_peticion():
-                assert f"{cota:g}" in e.peticion, f"{e.nombre}: {cota:g} no está en la petición"
+                assert f"{cota:g}" in e.peticion_entera, \
+                    f"{e.nombre}: {cota:g} no está en la petición"
 
 
 def test_rejuzgar_no_puntua_una_pieza_que_no_se_construyo(tmp_path):

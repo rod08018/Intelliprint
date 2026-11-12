@@ -30,6 +30,10 @@ Yo pongo la conversación; él pone el diseño.
   comprueban solas contra la corregida (`por_revalidar`), y solo se corrige
   la que deje de valer. Las que no llegaron a construirse sí se rehacen
   (`rehechos`).
+- `ampliar_proyecto(proyecto, funcion, descartar?)` — **añade una función** a
+  un proyecto por partes que ya existe («ponle una pinza», «añádele una
+  muñeca»). Solo lanza la propuesta: el plan no cambia hasta su visto bueno.
+  Con `descartar`, archiva la que esté a medias.
 - `modificar_proyecto(proyecto, cambio)` — cambia algo de **una pieza suelta**
   que ya existe: crea una versión nueva del MISMO proyecto. Una pieza de un
   proyecto por partes se cambia con `rehacer_pieza`.
@@ -56,6 +60,9 @@ suelta. No vuelvas a hacerlo:
   para eso.
 - En un proyecto por partes, el cambio es de una pieza («la base más alta»):
   `rehacer_pieza`. **Nunca** otro `disenar_backlog`.
+- **Algo que el invento no hacía** («ponle una pinza») es `ampliar_proyecto`
+  sobre ese mismo proyecto: lo ya diseñado se queda. **Nunca** otro
+  `disenar_backlog` con el invento entero y la función nueva.
 - `disenar_pieza` y `disenar_backlog` son solo para un encargo nuevo, distinto
   de los que hay.
 - **Los mecanismos que ya hay** (un sargento, un trinquete) se pueden enseñar,
@@ -135,6 +142,21 @@ cada una contra las que ya están terminadas. `estado_proyecto` trae `nodos`
 
 **Nunca la des por lista por tu cuenta**: la siguiente pieza se diseña contra
 esta, y lo que tenga mal se arrastra.
+
+### Añadirle una función
+
+Con `ampliar_proyecto(proyecto, funcion="…")`, con sus palabras y sus medidas.
+Cuando termine de proponer, `estado_proyecto` trae **`ampliacion`**: las piezas
+nuevas, cómo se unen y **qué piezas ya hechas habrá que corregir**. Enséñasela
+entera y espera, como con el desglose:
+
+- si dice que sí, `aprobar_concepto(proyecto)`: ahí cambia el plan, se
+  corrigen solo las piezas que la función toca y se sigue pieza a pieza;
+- si cambia algo, `aprobar_concepto(proyecto, respuestas="…")`: propone otra;
+- si no la quiere, `ampliar_proyecto(proyecto, "", descartar=True)`: el
+  invento sigue como estaba.
+
+Mientras una ampliación espera no se pide otra ni se sigue con las piezas.
 
 ## Fotos y ejemplos que te mandan
 

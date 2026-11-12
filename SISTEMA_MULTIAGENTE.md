@@ -39,7 +39,7 @@ Las órdenes de `intelliprint` (`orchestrator/cli.py`):
 |---|---|
 | `pieza` | Una pieza suelta: propone el concepto y para; con el visto bueno, la modela |
 | `obra` | Un backlog: lo desglosa y diseña una pieza cada vez |
-| `banco` | Pide los trece encargos de `tests/banco/encargos/`, mide lo que sale y da la nota. Cuesta dinero |
+| `banco` | Pide los catorce encargos de `tests/banco/encargos/`, mide lo que sale y da la nota. Cuesta dinero |
 | `calibrar` | Construye las piezas de prueba de holguras y las barras de flexión, o apunta lo medido |
 | `animar`, `estudio` | Rehacen la animación o el estudio de movimientos de un backlog ya verificado, sin modelo |
 | `proyectos` | Lista los proyectos y, con `--archivar`, mueve lo no aprobado a `workspace/archivo/` |
@@ -123,7 +123,7 @@ Las reglas del plan original, con su número —el código y las ADR las citan a
 5. **Si se agotan los intentos no se escala a otro modelo.** Se entrega la construcción que menos falla (F6.8 (mejor)), `blocked.md` dice qué no cumple, y decide la persona.
 6. **No hay diseño en paralelo.** Las piezas se diseñan de una en una. Cada construcción es un proceso `freecadcmd` propio.
 7. **Esperar a la persona no cuesta nada.** El proceso termina en cada parada, así que un proyecto puede esperar días y sobrevive a un reinicio. Como va una pieza cada vez, una parada sí detiene el backlog entero.
-8. **Un cambio pedido por la persona entra por el mismo camino.** En una pieza suelta crea una versión nueva del proyecto; en un backlog corrige el programa de la pieza ya construida, o la rehace desde cero si se pide.
+8. **Un cambio pedido por la persona entra por el mismo camino.** En una pieza suelta crea una versión nueva del proyecto; en un backlog corrige el programa de la pieza ya construida, o la rehace desde cero si se pide. **Añadirle una función a un backlog** (F9.10 (ampliar), `orchestrator/ampliar.py`) es otra parada: el desglosador propone el plan con lo nuevo, el código comprueba que no quita ni cambia nada de lo aprobado, y la propuesta espera en `ampliacion.json` sin tocar `obra.json`. Al aprobarla se archivan el plan anterior y la verificación del conjunto, y de las piezas hechas solo se corrige la que la función toca; lo demás sigue listo.
 9. **Un trabajo a la vez** (`orchestrator/jobs.py`). No hay cola: una segunda petición se rechaza diciendo cuál está en marcha.
 
 ### 4.1 Antes de dibujar: investigación, requisitos y concepto
@@ -181,7 +181,7 @@ Una pieza suelta:
 └── design_cost.md, design_cost.json el gasto desglosado
 ```
 
-Un backlog añade `obra.json` y `obra.md` (el plan), la marca `obra_aprobada`, `fichas/` (una ficha por pieza dada por buena) y `nodos/<id>/`. El nodo de una pieza es una carpeta de pieza completa más `uniones.json` (lo que el plan decidió de ella) y `lista.json`. El nodo de un conjunto guarda `verificacion.json`, `assembly.FCStd`, `ensamble.json`, `animation.gif`, `estudio.json` y `estudio.md`.
+Un backlog añade `obra.json` y `obra.md` (el plan), la marca `obra_aprobada`, `fichas/` (una ficha por pieza dada por buena) y `nodos/<id>/`. El nodo de una pieza es una carpeta de pieza completa más `uniones.json` (lo que el plan decidió de ella) y `lista.json`. Una ampliación a medias deja `ampliacion_pedida.json` o `ampliacion.json` y `ampliacion.md`; las aprobadas quedan en `ampliaciones.json`, con la huella de cada pieza justo antes. El nodo de un conjunto guarda `verificacion.json`, `assembly.FCStd`, `ensamble.json`, `animation.gif`, `estudio.json` y `estudio.md`.
 
 No hay un repositorio git por proyecto: el commit por etapa lo hacía el grafo y se fue con él (F1.15).
 
@@ -238,7 +238,7 @@ El QA de tres capas —aserciones derivadas de interfaces, chequeos sobre el STL
 
 - Una pieza queda «resuelta» solo si las medidas de § 3.3 no encuentran defectos. Son comparaciones numéricas.
 - Un conjunto queda «verificado» si al moverlo por todo el recorrido de sus articulaciones, en pasos de 10°, no hay choques (`orchestrator/conjunto.py`). La holgura que se exige al moverse es la mitad de la holgura deslizante del perfil.
-- La nota global la da el **banco** (`orchestrator/banco.py`, F6.1 (evaluación)): trece encargos con lo esperado escrito a mano desde la petición y medido en la pieza construida. A un backlog se le puede pedir además hasta dónde llega y cuánto levanta (`alcance` y `carga`, F10.1 (serie)): salen del estudio de movimientos, con el material medido en FreeCAD. El alcance se mide del hombro —el primer giro que levanta— a la punta, en perpendicular a su eje, para que un desvío a lo largo de ese eje no cuente como brazo; si no se sabe el par de lo que mueve un giro, o el material no se midió, queda sin medir. Lo que el banco aún no sabe medir cuenta como no aprobado.
+- La nota global la da el **banco** (`orchestrator/banco.py`, F6.1 (evaluación)): catorce encargos con lo esperado escrito a mano desde la petición y medido en la pieza construida. A un backlog se le puede pedir además hasta dónde llega y cuánto levanta (`alcance` y `carga`, F10.1 (serie)): salen del estudio de movimientos, con el material medido en FreeCAD. El alcance se mide del hombro —el primer giro que levanta— a la punta, en perpendicular a su eje, para que un desvío a lo largo de ese eje no cuente como brazo; si no se sabe el par de lo que mueve un giro, o el material no se midió, queda sin medir. Lo que el banco aún no sabe medir cuenta como no aprobado.
 - «Lista» lo decide la persona. «Impresa y probada» es otra marca, que solo puede poner ella.
 
 Límites: nadie mira la pieza con visión, y pasar todas las medidas no significa que la pieza sea lo que la persona imaginaba. El barrido no ve un choque que ocurra entre dos puntos de la rejilla de 10°. No mide los pares cuyas cajas están más separadas que la holgura, que no pueden rozarse; prueba todas las combinaciones, así que con cuatro giros o más no acaba.
@@ -302,7 +302,7 @@ Tres cosas que conviene saber antes de tocarlo: `web` publica el puerto solo en 
 El `HumanPort` con sus tres adaptadores se retiró en F9.13 (limpieza) (ADR-006, enmienda). De aquella decisión queda el fondo: **el canal no es un agente y no diseña**. Hay dos canales, y los dos lanzan los mismos trabajos con `orchestrator/jobs.py`:
 
 - **La web** (`orchestrator/web/`, FastAPI, con el HTML generado en Python). Permite pedir una pieza o un backlog, cancelar el diseño en marcha (solo si lo lanzó la propia web: el de Crafty corre en otro contenedor y se cancela desde Crafty), aprobar o contestar el concepto y el plan, dar por buena cada pieza o pedir rehacerla, ver el conjunto en 3D moviendo sus articulaciones, leer el estudio de movimientos y la lista de materiales, bajar el proyecto en zip, abrirlo en PrusaSlicer, ver las corridas del banco y apuntar las medidas de la impresora.
-- **Crafty** (`config/openclaw/`), un agente de OpenClaw en su propio contenedor que conversa por Telegram con su propio modelo y llama a las catorce herramientas de `orchestrator/mcp_server.py`. Su configuración la genera `orchestrator/crafty.py` desde el `.env`, sin secretos en el archivo.
+- **Crafty** (`config/openclaw/`), un agente de OpenClaw en su propio contenedor que conversa por Telegram con su propio modelo y llama a las quince herramientas de `orchestrator/mcp_server.py`. Su configuración la genera `orchestrator/crafty.py` desde el `.env`, sin secretos en el archivo.
 
 Las reglas de seguridad del canal, con su número original (ADR-012 las cita) y su estado:
 
@@ -398,6 +398,7 @@ Intelliprint/
 ├── orchestrator/
 │   ├── cli.py                   las órdenes (§ 1)
 │   ├── pieza.py, obra.py        los dos flujos (§ 4)
+│   ├── ampliar.py, revalidar.py añadir una función y comprobar lo que había (§ 4)
 │   ├── agents/, investigar.py   los agentes (§ 2)
 │   ├── plan.py, medida.py, conjunto.py, estudio.py   lo que no decide un modelo
 │   ├── componentes.py, tornilleria.py, materiales.py fichas y compras (§ 10)
@@ -437,4 +438,4 @@ Intelliprint/
 | Carpeta `ui/` y adaptador web del `HumanPort` | La web es `orchestrator/web/` y llama a los trabajos directamente | § 8.5 |
 | Hoja de ruta y tabla de riesgos de este documento | Viven en `PLAN_PROYECTO.md`, que es el que se mantiene | `PLAN_PROYECTO.md` |
 
-Lo que está planeado y todavía por hacer no va en esta tabla: está en `PLAN_PROYECTO.md`. De la Fase 9 faltan F9.10 a F9.12 (ampliar un invento, el borrador de ficha y las pantallas). La Fase 10 (brazos con transmisión, ADR-021) está aprobada y empezada: de ella existe lo que mide el banco en F10.1 (serie), con un brazo de tres ejes con servos que pasa sus ocho comprobaciones; no hay transmisiones, ni generador de dientes, ni reductoras.
+Lo que está planeado y todavía por hacer no va en esta tabla: está en `PLAN_PROYECTO.md`. De la Fase 9 faltan F9.11 y F9.12 (el borrador de ficha y las pantallas); ampliar un invento, F9.10, está hecho y sin medir en el banco. La Fase 10 (brazos con transmisión, ADR-021) está aprobada y empezada: de ella existe lo que mide el banco en F10.1 (serie), con un brazo de tres ejes con servos que pasa sus ocho comprobaciones; no hay transmisiones, ni generador de dientes, ni reductoras.

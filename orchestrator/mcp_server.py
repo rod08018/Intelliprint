@@ -208,6 +208,31 @@ def rehacer_pieza(proyecto: str, nodo: str, cambio: str = "", desde_cero: bool =
 
 
 @mcp.tool()
+def ampliar_proyecto(proyecto: str, funcion: str, descartar: bool = False) -> dict:
+    """Añade una función a un invento por partes (un backlog) que ya existe:
+    «ponle una pinza», «añádele una muñeca». NO es para cambiar una pieza
+    (eso es `rehacer_pieza`) ni para un invento nuevo (`disenar_backlog`).
+
+    `funcion`: lo que el usuario quiere añadir, con sus palabras y medidas.
+    Solo lanza la PROPUESTA: el plan no cambia. Cuando `estado_proyecto` la
+    traiga en `ampliacion`, enséñasela entera —qué piezas nuevas lleva y qué
+    piezas ya hechas habrá que corregir— y espera su respuesta: su visto
+    bueno o lo que conteste van por `aprobar_concepto`.
+
+    `descartar`: si el usuario no la quiere, archiva la que esté a medias y
+    el invento sigue como estaba; `funcion` puede ir vacía."""
+    try:
+        if descartar:
+            _store().descartar_ampliacion(proyecto)
+            return {"proyecto": proyecto, "aviso": "Ampliación descartada; nada ha cambiado."}
+        _store().ampliar(proyecto, funcion)
+    except (KeyError, ValueError, RuntimeError) as e:
+        return {"error": str(e)}
+    return {"proyecto": proyecto,
+            "aviso": "Proponiendo la ampliación; el plan no cambia hasta su visto bueno."}
+
+
+@mcp.tool()
 def estado_proyecto(proyecto: str = "") -> dict:
     """Cómo va un proyecto: si sigue trabajando, en qué ronda y lo último
     que hizo. Sin argumento, el más reciente.
@@ -236,8 +261,13 @@ def estado_proyecto(proyecto: str = "") -> dict:
                             "estado": estados.get(n.id, "desglose por aprobar"),
                             "impresa": bool((obra.lista(carpeta, n.id) or {}).get("impresa"))}
                            for n in (ob.nodo(i) for i in ob.orden())]
+        from orchestrator import ampliar
         if not obra.aprobada(carpeta):
             estado["desglose"] = obra.presentar(ob)
+        elif ampliar.pendiente(carpeta) == "propuesta":
+            # F9.10 (ampliar): lo que hay que enseñar antes del visto bueno.
+            estado["ampliacion"] = (carpeta / ampliar.PRESENTACION).read_text(
+                encoding="utf-8", errors="ignore")
         else:
             estado["siguiente"] = obra.siguiente(carpeta)
             concepto = carpeta / obra.NODOS / (estado["siguiente"] or "") / "concepto.md"

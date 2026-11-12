@@ -113,9 +113,17 @@ Fase 10.
   los M3 de la base no se comprueban.
 - **«Banco» en la web enseña una corrida mientras corre**, con «En marcha»
   y recargándose sola; lo pidió él para ver cómo iba el brazo.
-- **Lo que sigue, en orden:** F9.10 (ampliar) → F10.2 (transmisión) →
-  F10.3 (correa) → medir el encargo 14. El gasto de cada medición se
-  acuerda cuando toque.
+- **Hecho: F9.10 (ampliar)** (2026-11-12, `orchestrator/ampliar.py`). A un
+  backlog se le añade una función sin pedirlo entero otra vez: la
+  propuesta espera en `ampliacion.json` sin tocar el plan, y al aprobarla
+  solo se corrige la pieza que la función toca. Desde la web («Añadir una
+  función»), Crafty (`ampliar_proyecto`) y `obra --ampliar`. **Con modelo
+  no se ha ejercitado**: el encargo «pan-tilt con pinza» está escrito
+  (`11b_…yaml`) y no se ha corrido; se corre partiendo del pan-tilt 7 de 7
+  con `banco --solo pan_tilt_con_pinza --partir-de /workspace/banco/1111-1342`.
+  Ese gasto está por acordar.
+- **Lo que sigue, en orden:** F10.2 (transmisión) → F10.3 (correa) → medir
+  el encargo 14. El gasto de cada medición se acuerda cuando toque.
 
 **2026-11-10: Fase 9, robots con plan mecánico (ADR-020).** El usuario quiere
 diseñar robots: que el desglose decida antes de dibujar qué gira sobre qué y con

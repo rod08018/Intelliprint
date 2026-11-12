@@ -236,6 +236,10 @@ class SeOrienta(BaseModel):
     32 × 22 (704 mm²) no cabe una cámara de 25 × 24 (600 mm²)."""
     tolerancia_grados: float = 20.0
     porque: str = ""
+    giro: Literal["último", "primero"] = "último"
+    """Si varias piezas giran sobre un eje así, cuál lleva lo suyo, contando
+    de la base a la punta. En el pan-tilt con pinza la cámara va en la
+    plataforma, el primer giro horizontal; el último es el dedo."""
 
     def cotas_de_la_peticion(self) -> list[float]:
         return []   # lo que cabe sale de una hoja de datos, no de la petición
@@ -302,6 +306,19 @@ class Carga(BaseModel):
         return [self.minimo_g]
 
 
+class Conserva(BaseModel):
+    """Ampliaciones (F9.10 (ampliar)): cuántas de las piezas que el invento
+    ya tenía siguen idénticas después de añadirle la función. Se mide en lo
+    construido: una pieza cuenta si su STEP es byte a byte el de antes de
+    ampliar (`ampliar.HECHAS`). Sin esto, «añádele una pinza» podía rehacer
+    el invento entero y pasar igual."""
+    tipo: Literal["conserva"]
+    minimo: int = Field(ge=1)
+
+    def cotas_de_la_peticion(self) -> list[float]:
+        return []   # es una cuenta de piezas, no una cota
+
+
 class Pendiente(BaseModel):
     """Lo que el banco exige pero aún no sabe medir. Cuenta como sin medir."""
 
@@ -358,7 +375,7 @@ Asercion = Annotated[Agujeros | Cilindro | Envolvente | SinSoportes | Pendiente 
                      | Resistencia | Ventana | Coaxiales | PasoLibre | ParedMinima | Ranura
                      | Retencion | ComponenteCabe | ComponenteEntra | AccesoTornillo | ZonaLibre
                      | CaraQueSeOrienta | SeOrienta | Tornillos | Componente | Encaje
-                     | ConjuntoLibre | Articulaciones | Alcance | Carga,
+                     | ConjuntoLibre | Articulaciones | Alcance | Carga | Conserva,
                      Field(discriminator="tipo")]
 
 
@@ -369,11 +386,31 @@ class Encargo(BaseModel):
     oraculo: list[Asercion]
     obra: bool = False
     """Se pide como obra, por partes (F7.5 (obras)), y se juzga pieza a pieza."""
+    amplia: str = ""
+    """F9.10 (ampliar): el nombre del encargo cuyo invento se amplía. La
+    `peticion` es entonces la función que se le añade, y se pide aparte,
+    sobre el invento ya diseñado."""
+    de_antes: str = ""
+    """La petición del encargo que amplía; la pone `cargar_encargos`."""
+
+    @property
+    def peticion_entera(self) -> str:
+        """Todo lo que la persona pidió: de aquí salen las cotas del oráculo."""
+        return f"{self.de_antes.strip()}\n{self.peticion.strip()}".strip()
 
 
 def cargar_encargos(carpeta: Path) -> list[Encargo]:
-    return [Encargo(**yaml.safe_load(p.read_text(encoding="utf-8")))
-            for p in sorted(Path(carpeta).glob("*.yaml"))]
+    encargos = [Encargo(**yaml.safe_load(p.read_text(encoding="utf-8")))
+                for p in sorted(Path(carpeta).glob("*.yaml"))]
+    por_nombre = {e.nombre: e for e in encargos}
+    for e in encargos:
+        if e.amplia:
+            base = por_nombre.get(e.amplia)
+            if base is None or not (base.obra and e.obra) or base.amplia:
+                raise ValueError(f"{e.nombre}: amplía «{e.amplia}», que tiene que ser otro "
+                                 "encargo de backlog, y este también")
+            e.de_antes = base.peticion
+    return encargos
 
 
 # --- hechos y juicio ----------------------------------------------------------
@@ -691,12 +728,72 @@ def _texto(salida) -> str:
     return salida.decode("utf-8", errors="replace") if isinstance(salida, bytes) else salida
 
 
+def _correr_ampliacion(encargo: Encargo, carpeta: Path, orden: list[str], freecadcmd: str,
+                       env: dict, material: dict | None, laminar, base: Encargo | None,
+                       partir_de: Path | None) -> tuple[list[Resultado], str | None]:
+    """Un encargo que amplía otro (F9.10 (ampliar)): primero tiene que
+    existir el invento, y encima se pide la función con `obra --ampliar`.
+
+    Con `partir_de`, el invento se copia de esa corrida y solo se paga la
+    ampliación; la corrida de la que se parte no se toca. Sin él, se pide
+    antes el invento entero, aquí mismo."""
+    import shutil
+
+    from orchestrator.obra import OBRA
+    if base is None:
+        raise ValueError(f"{encargo.nombre} amplía «{encargo.amplia}» y no se pasó ese encargo")
+    sin = [Resultado(estado="no_cumple", detalle="no hay obra") for _ in encargo.oraculo]
+    salidas: list[str] = []
+
+    def pedir(orden_: list[str]) -> bool:
+        try:
+            proceso = subprocess.run(
+                orden_, input="sí\n", capture_output=True, text=True, timeout=LIMITE_OBRA_S,
+                env={**env, "INTELLIPRINT_WORKSPACE": str(carpeta)})
+        except subprocess.TimeoutExpired as e:
+            salidas.append(_texto(e.output) + "\n--- stderr ---\n" + _texto(e.stderr))
+            return False
+        salidas.append(proceso.stdout + "\n--- stderr ---\n" + proceso.stderr)
+        return True
+
+    def cerrar(fallo: str) -> tuple[list[Resultado], str]:
+        (carpeta / "salida.txt").write_text("\n".join(salidas), encoding="utf-8")
+        return sin, fallo
+
+    if partir_de is not None:
+        # Solo por su marca: por el puesto se podría ampliar el invento de
+        # otro encargo sin que nada lo dijera.
+        marcas = {m.read_text(encoding="utf-8").strip(): m.parent
+                  for m in Path(partir_de).glob(f"*/{ENCARGO}")}
+        origen = marcas.get(base.nombre)
+        if origen is None or next(origen.glob(f"projects/*/{OBRA}"), None) is None:
+            return cerrar(f"en {Path(partir_de).name} no está el invento de «{base.nombre}» "
+                          "del que partir")
+        shutil.copytree(origen / "projects", carpeta / "projects")
+    elif not pedir([*orden, base.peticion]):
+        return cerrar(f"el invento tardó más de {LIMITE_OBRA_S // 60} minutos")
+    plan = next(carpeta.glob(f"projects/*/{OBRA}"), None)
+    if plan is None:
+        return cerrar(motivo_del_fallo("\n".join(salidas)))
+    a_tiempo = pedir([*orden, "--ampliar", "--carpeta", str(plan.parent), encargo.peticion])
+    (carpeta / "salida.txt").write_text("\n".join(salidas), encoding="utf-8")
+    if not a_tiempo:
+        return sin, f"la ampliación tardó más de {LIMITE_OBRA_S // 60} minutos"
+    return _juzgar_si_hay_obra(encargo, carpeta, freecadcmd, material, "\n".join(salidas),
+                               laminar)
+
+
 def correr(encargo: Encargo, carpeta: Path, orden: list[str], freecadcmd: str,
            env: dict, material: dict | None = None,
-           laminar=None) -> tuple[list[Resultado], str | None]:
+           laminar=None, base: Encargo | None = None,
+           partir_de: Path | None = None) -> tuple[list[Resultado], str | None]:
     """Pide la pieza como la pediría una persona y la juzga. Devuelve los
-    resultados y, si no llegó a construirse, el porqué."""
+    resultados y, si no llegó a construirse, el porqué. `base` y
+    `partir_de`, solo para un encargo que amplía otro."""
     marcar_carpeta(carpeta, encargo.nombre)
+    if encargo.amplia:
+        return _correr_ampliacion(encargo, carpeta, orden, freecadcmd, env, material, laminar,
+                                  base, partir_de)
     limite = LIMITE_OBRA_S if encargo.obra else LIMITE_S
     try:
         proceso = subprocess.run(
@@ -850,7 +947,7 @@ def juzgar_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
 
     de_pieza = [a for a in encargo.oraculo
                 if not isinstance(a, (Componente, Encaje, ConjuntoLibre, Articulaciones,
-                                      SeOrienta, Tornillos, Alcance, Carga))]
+                                      SeOrienta, Tornillos, Alcance, Carga, Conserva))]
     # Solo se sondea lo que el oráculo pregunta: cada sonda es FreeCAD.
     pedidos = {a.ficha for a in encargo.oraculo if isinstance(a, Componente)}
     encaje = any(isinstance(a, Encaje) for a in encargo.oraculo)
@@ -909,6 +1006,8 @@ def juzgar_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
                                               for j in v.get("articulaciones", [])]))
         elif isinstance(a, Tornillos):
             salida.append(_tornillos(a, proyecto, piezas))
+        elif isinstance(a, Conserva):
+            salida.append(_conserva(a, proyecto, piezas))
         elif isinstance(a, (Alcance, Carga)):
             salida.append(_del_estudio(a, proyecto, [n.id for n in conjuntos], freecadcmd,
                                        estudios))
@@ -980,6 +1079,32 @@ def _del_estudio(a: "Alcance | Carga", proyecto: Path, conjuntos: list[str],
         f"levanta {levanta} y se piden {a.minimo_g:g}, {donde}; lo limita el {limita}"))
 
 
+def _conserva(a: Conserva, proyecto: Path, piezas: dict) -> Resultado:
+    """Cuántas piezas de antes de ampliar siguen byte a byte como estaban."""
+    from orchestrator import ampliar
+    from orchestrator import obra as O
+
+    hechas = ampliar.hechas(proyecto)
+    if not hechas:
+        return Resultado(estado="no_cumple", detalle=(
+            "el invento no se amplió: no hay piezas de antes que conservar"))
+    # La primera: lo que había antes de añadirle nada.
+    antes = hechas[0]["antes"]
+    iguales = [i for i, h in antes.items()
+               if i in piezas and ampliar.huella(piezas[i].step) == h]
+    # Por el nombre del plan: una pieza que se está corrigiendo no está
+    # construida y no sale en `piezas`.
+    nombres = {n.id: n.nombre for n in O.cargar_obra(proyecto).nodos}
+    rehechas = [nombres.get(i, i) for i in antes if i not in iguales]
+    detalle = f"{len(iguales)} de {len(antes)} piezas que ya había siguen idénticas"
+    if rehechas:
+        detalle += "; cambiaron «" + "», «".join(rehechas) + "»"
+    if len(iguales) >= a.minimo:
+        return Resultado(estado="cumple", valor=len(iguales), detalle=detalle)
+    return Resultado(estado="no_cumple", valor=len(iguales),
+                     detalle=f"{detalle}, y se piden {a.minimo}")
+
+
 def _tornillos(a: Tornillos, proyecto: Path, piezas: dict) -> Resultado:
     """Cuántos de los tornillos que sujetan `a.sujetan` hay y agarran."""
     from orchestrator.tornilleria import tornillos
@@ -1002,10 +1127,14 @@ def _tornillos(a: Tornillos, proyecto: Path, piezas: dict) -> Resultado:
     return Resultado(estado="no_cumple", detalle=detalle)
 
 
-def la_que_gira(proyecto: Path, cual: str) -> tuple[str, list[float]] | None:
+def la_que_gira(proyecto: Path, cual: str,
+                primera: bool = False) -> tuple[str, list[float]] | None:
     """(pieza, eje en su marco) de la pieza del backlog que gira sobre un
     eje «vertical» u «horizontal» en el mundo, en reposo; la última si hay
-    varias, que es la que lleva la carga. None si ninguna."""
+    varias, que es la que lleva la carga. None si ninguna.
+
+    `primera`: la primera, de la base a la punta. Con una pinza encima
+    (F9.10 (ampliar)) la última es el dedo, y la cámara va en la plataforma."""
     from orchestrator.conjunto import _mv, _tr, articulaciones_de, leer_piezas, poses
 
     piezas = leer_piezas(Path(proyecto), solo_construidas=True)
@@ -1017,6 +1146,8 @@ def la_que_gira(proyecto: Path, cual: str) -> tuple[str, list[float]] | None:
         z = abs(eje[2]) / math.sqrt(sum(x * x for x in eje))
         if ("vertical" if z > 0.99 else "horizontal" if z < 0.01 else "") == cual:
             hallada = (a.pieza, [float(x) for x in _mv(_tr(reposo[a.pieza][0]), eje)])
+            if primera:
+                break
     return hallada
 
 
@@ -1024,7 +1155,7 @@ def _mide_si_orienta(a: "SeOrienta", proyecto: Path, freecadcmd: str,
                      material: dict | None) -> tuple[str | None, "Resultado"]:
     """(pieza que gira sobre el eje que pide `a`, lo que mide en ella)."""
     from orchestrator.conjunto import leer_piezas
-    cual = la_que_gira(proyecto, a.eje)
+    cual = la_que_gira(proyecto, a.eje, primera=a.giro == "primero")
     if cual is None:
         return None, Resultado(estado="no_cumple", detalle=(
             f"ninguna pieza gira sobre un eje {a.eje}: no hay qué orientar"))

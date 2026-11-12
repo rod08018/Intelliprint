@@ -248,13 +248,34 @@ class JobStore:
         """Lanza lo siguiente de la obra cuando no espera a nadie: una pieza
         por empezar o un conjunto por mover. Si la orden muere a medias, la
         persona sigue desde la web (pan-tilt, 2026-11-09)."""
-        from orchestrator import obra
+        from orchestrator import ampliar, obra
         self._libre()
         destino = self.carpeta / job_id
+        if ampliar.pendiente(destino) == "pedida":
+            # La propuesta de una ampliación se cayó a medias: se vuelve a pedir.
+            return self._relanzar(job_id)
         nodo = obra.siguiente(destino)
         if nodo is None or obra.estados(destino)[nodo] not in obra.SE_LANZAN:
             raise ValueError("lo siguiente espera tu visto bueno, no un empujón")
         return self._relanzar(job_id)
+
+    def ampliar(self, job_id: str, peticion: str) -> str:
+        """Añade una función a un backlog (F9.10 (ampliar)): la apunta y
+        relanza el backlog en su carpeta, que la propone y para a esperar
+        el visto bueno. El plan no cambia hasta entonces."""
+        from orchestrator import ampliar
+        destino = self.carpeta / job_id
+        if not destino.exists():
+            raise KeyError(f"no existe el proyecto {job_id!r}")
+        self._libre()
+        ampliar.pedir(destino, peticion)
+        return self._relanzar(job_id)
+
+    def descartar_ampliacion(self, job_id: str) -> None:
+        """La ampliación a medias se archiva; el invento sigue como estaba."""
+        from orchestrator import ampliar
+        self._libre()
+        ampliar.descartar(self.carpeta / job_id)
 
     def rehacer(self, job_id: str, nodo: str, cambio: str = "",
                 desde_cero: bool = False) -> list[str]:

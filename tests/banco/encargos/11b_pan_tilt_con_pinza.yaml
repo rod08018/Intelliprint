@@ -1,0 +1,52 @@
+nombre: pan_tilt_con_pinza
+categoria: robots
+obra: true
+# F9.10 (ampliar): no se pide de una vez. Es el pan-tilt del encargo 11, ya
+# diseñado, y encima esta función, pedida aparte con `obra --ampliar`. Lo que
+# mide es si se le puede añadir algo a un invento sin rehacerlo.
+amplia: pan_tilt_sg90
+peticion: >
+  Añádele una pinza para coger una pelota de ping-pong (40 mm): un dedo fijo y
+  otro que cierra un tercer servo SG90, girando 60°. Cerrada, los dos dedos no
+  llegan a tocarse. La pinza va en la plataforma, sin quitarle el sitio a la
+  cámara.
+oraculo:
+  # «dos servos SG90» (la petición del pan-tilt) y «un tercer servo SG90»: 3.
+  - tipo: componente
+    ficha: sg90
+    cuantos: 3
+  - tipo: encaje
+  # «sin que nada choque» (el pan-tilt) y «los dos dedos no llegan a tocarse».
+  - tipo: conjunto_libre
+  # Lo que ya hacía, de la petición del pan-tilt: gira e inclina 180°.
+  - tipo: articulaciones
+    ejes: [vertical, horizontal]
+    recorrido_grados: 180
+  # Y el dedo: un tercer giro de «60°» al menos. La petición no dice hacia
+  # dónde mira su eje.
+  - tipo: articulaciones
+    ejes: [vertical, horizontal, cualquiera]
+    recorrido_grados: 60
+  - tipo: sin_soportes
+  # «sin quitarle el sitio a la cámara»: la misma exigencia del encargo 11
+  # (25 × 24, módulo de cámara de Raspberry Pi), en la plataforma, que es la
+  # primera pieza que gira sobre un eje horizontal: la última es el dedo.
+  # Corregir la plataforma ya le quitó la cámara una vez (1111-1342, cuarta
+  # reanudación): aquí se vuelve a tocar.
+  - tipo: se_orienta
+    eje: horizontal
+    giro: primero
+    cabe_mm: [25, 24]
+  # Cada SG90, los dos tornillos que trae (`library/components/sg90.yaml`):
+  # 3 servos × 2 = 6.
+  - tipo: tornillos
+    sujetan: sg90
+    metrica: M2
+    cuantos: 6
+  # «La pinza va en la plataforma»: de las tres piezas que el pan-tilt tenía,
+  # la función solo toca esa. La base y el soporte de giro tienen que salir
+  # idénticos: 2.
+  - tipo: conserva
+    minimo: 2
+# Lo que NO se mide: que la pinza abra lo bastante para una pelota de 40 mm,
+# ni que la sujete. El banco no sabe medir una apertura.
