@@ -151,6 +151,16 @@ Fase 10.
   agujeros, y se le dice por qué caras cabe; bajo la base cuenta la
   mesa. Y a la pieza que agarra se le dice de qué lado va: donde sale
   el tornillo, no donde entra la cabeza.
+- **Reanudada otra vez con ellos, la pinza baja a 0 de 9 y se paró**
+  (`banco_reanudado.md`; 0,76 USD más: 2,43 de los 3, no queda para
+  otra). La plataforma no cumplió en cinco intentos (taladró la pared
+  del acople hacia +y en vez de ir a la cara de fuera) y el soporte de
+  la pinza, rehecho contra ella, falló sus cinco construcciones; el
+  dedo no se hizo. La pinza y el dedo del 8 de 9 están en el archivo.
+  Los dos arreglos pasan sus tests y en el banco no han ayudado: el
+  «4 mm más allá» que se le dice a la pinza es el grueso de una pared,
+  no la salida de la pieza, y la mandó dentro de la plataforma. **La
+  pinza queda aparcada**; seguir es otro gasto, por acordar.
 - **Lo que sigue, en orden:** F10.2 (transmisión) → F10.3 (correa) → medir
   el encargo 14. El gasto de cada medición se acuerda cuando toque.
 
