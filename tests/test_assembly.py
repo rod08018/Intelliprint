@@ -140,3 +140,28 @@ def test_la_animacion_da_una_vuelta_con_el_brazo_en_movimiento(piezas, tmp_path)
         mitad = img.convert("RGB")
     # A 0° y a 180° el brazo apunta a lados opuestos.
     assert ImageChops.difference(primero, mitad).getbbox() is not None
+
+
+@pytest.mark.skipif(_freecadcmd() is None, reason="freecadcmd no disponible")
+def test_el_barrido_no_mide_los_pares_que_no_pueden_tocarse():
+    """Banco 1112-0318: el primer brazo de tres ejes salió con sus cuatro
+    piezas y no llegó a moverse entero. Tres giros son 19³ = 6 859 poses, y
+    en cada una se medía la distancia exacta entre cada par de sólidos, que
+    con piezas de verdad cuesta décimas de segundo: FreeCAD pasó de los 600 s.
+    Casi todas esas poses tienen las piezas lejos una de otra: si sus cajas
+    están separadas más que la holgura, no pueden rozarse y no hay que medir.
+
+    Dos cubos de 10 mm, uno quieto y el otro con su esquina en x = 100, 50,
+    10.05 y 5. A mano, los huecos son 90, 40 y 0.05 mm, y en el último se
+    meten 5 × 10 × 10 = 500 mm³. Con 0.2 mm de holgura chocan los dos
+    últimos, y solo esos dos hay que medirlos."""
+    from orchestrator.assembly import _datos, _run
+    cubo = [{"tipo": "caja", "min": [0, 0, 0], "max": [10, 10, 10]}]
+    cuadros = {float(k): {"a": Placement(), "b": Placement(origin=(x, 0, 0))}
+               for k, x in enumerate((100, 50, 10.05, 5))}
+    datos = _datos({}, {}, cuadros, {"a": cubo, "b": cubo})
+    datos["min_gap"], datos["rules"] = 0.2, {}
+    r = _run(datos, _freecadcmd())
+    assert [(c["angle"], round(c["gap_mm"], 2)) for c in r["collisions"]] == [(2.0, 0.05),
+                                                                             (3.0, -500.0)]
+    assert (r["medidos"], r["descartados"]) == (2, 2)

@@ -1191,9 +1191,16 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
         nodo = nodo_a_rehacer(hecho.parent) if hecho is not None else None
         # F9.9 (revalidar): si la orden se cortó con una pieza por revalidar
         # no hay nada que corregir ni que archivar; basta con seguirla.
-        solo_seguir = hecho is not None and "por revalidar" in obra.estados(hecho.parent).values()
+        estados = obra.estados(hecho.parent).values() if hecho is not None else ()
+        solo_seguir = "por revalidar" in estados
         if solo_seguir:
             nodo = None
+        # Lo mismo si las piezas salieron todas y la orden se cortó moviendo
+        # el conjunto (el primer brazo, banco 1112-0318: FreeCAD pasó de los
+        # 600 s): no hay pieza que rehacer ni choque que corregir, y reanudar
+        # se lo saltaba. Moverlo no gasta modelo.
+        elif nodo is None and "por verificar" in estados:
+            solo_seguir = True
         de_concepto = ""
         if nodo is None and hecho is not None and not solo_seguir:
             # Todo construido y sin chocar, y aun así la pieza no sirve para

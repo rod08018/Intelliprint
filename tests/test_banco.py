@@ -1055,3 +1055,29 @@ def test_tres_giros_de_180_se_estudian_en_todas_sus_combinaciones():
     y la peor pose de un brazo —estirado en horizontal— puede no estar ahí."""
     from orchestrator import estudio
     assert estudio.MAX_POSES >= 19 ** 3
+
+
+def test_reanudar_sigue_un_backlog_que_se_corto_al_mover_el_conjunto(tmp_path, monkeypatch):
+    """Banco 1112-0318, el primer brazo: las cuatro piezas salieron bien y
+    la orden murió moviendo el conjunto (FreeCAD pasó de los 600 s). Quedó
+    «por verificar», sin verificación: no hay pieza que rehacer ni choque
+    que corregir, y reanudar se la saltaba sin hacer nada. Lo que falta es
+    seguir, que no gasta modelo. Y no se archiva nada de lo hecho."""
+    from orchestrator import banco, obra
+    corrida = tmp_path / "corrida"
+    p = _con_informes(_obra_construida(corrida / "01"), {"base": True, "giro": True})
+    assert obra.estados(p)["pan-tilt"] == "por verificar"
+    lanzado = []
+
+    class Hecho:
+        stdout, stderr, returncode = "", "", 0
+
+    monkeypatch.setattr(banco.subprocess, "run",
+                        lambda orden, **k: lanzado.append(orden) or Hecho())
+    monkeypatch.setattr(banco, "rejuzgar", lambda *a, **k: ({"x": []}, {}))
+    e = banco.Encargo(nombre="x", categoria="robots", peticion="un pan-tilt", obra=True,
+                      oraculo=[{"tipo": "conjunto_libre"}])
+    banco.reanudar([e], corrida, ["intelliprint", "obra", "--banco"], "fc", {})
+    assert len(lanzado) == 1 and "--carpeta" in lanzado[0]
+    assert not (p / "archivo").exists()
+    assert all((p / "nodos" / i / "lista.json").is_file() for i in ("base", "giro"))

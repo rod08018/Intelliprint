@@ -97,14 +97,54 @@ elif datos.get("gaps"):
             salida.append({{"angle": frame["angle"], "a": a, "b": b, "gap_mm": dist}})
     print({prefijo!r} + json.dumps({{"gaps": salida}}))
 else:
-    choques = []
+    # La caja de cada forma en su marco: sus ocho esquinas, colocadas, dan
+    # una caja que la contiene en esa pose sin tocar la geometría.
+    esquinas = {{}}
+    for n, f in formas.items():
+        c = f.BoundBox
+        esquinas[n] = [FreeCAD.Vector(x, y, z) for x in (c.XMin, c.XMax)
+                       for y in (c.YMin, c.YMax) for z in (c.ZMin, c.ZMax)]
+
+    def caja(n, pose):
+        if pose.get("scale_z", 1.0) != 1.0:
+            return None          # se estira: su caja no es la de sus esquinas
+        x, y, z = pose["origin"]
+        rx, ry, rz = pose["rotation"]
+        donde = FreeCAD.Placement(FreeCAD.Vector(x, y, z), FreeCAD.Rotation(rz, ry, rx))
+        puntos = [donde.multVec(v) for v in esquinas[n]]
+        return ([min(p[k] for p in puntos) for k in range(3)],
+                [max(p[k] for p in puntos) for k in range(3)])
+
+    def separadas(ca, cb, mas_de):
+        return any(ca[0][k] - cb[1][k] > mas_de or cb[0][k] - ca[1][k] > mas_de
+                   for k in range(3))
+
+    choques, medidos, descartados = [], 0, 0
     for frame in datos["frames"]:
-        colocadas = {{n: colocar(f, frame["poses"][n]) for n, f in formas.items()}}
-        for a, b in itertools.combinations(sorted(colocadas), 2):
+        cajas = {{n: caja(n, frame["poses"][n]) for n in formas}}
+        colocadas = {{}}
+
+        def colocada(n):
+            # Solo lo que se va a medir: copiar y colocar una pieza de verdad
+            # en cada pose ya cuesta, y la mayoría no se mide.
+            if n not in colocadas:
+                colocadas[n] = colocar(formas[n], frame["poses"][n])
+            return colocadas[n]
+
+        for a, b in itertools.combinations(sorted(formas), 2):
             minimo, maximo = datos["rules"].get(a + "|" + b, (datos["min_gap"], None))
             if minimo < -1e8 and maximo is None:
                 continue   # un par que no se mide: no se gasta en medirlo
-            fa, fb = colocadas[a], colocadas[b]
+            # Si sus cajas están más separadas que la holgura, no pueden
+            # rozarse. Con tres giros en serie son 19³ poses y casi todas son
+            # así: medirlas todas pasó de los 600 s en el banco 1112-0318.
+            # Con un máximo (dos piezas que tienen que tocarse) sí se mide.
+            if (maximo is None and cajas[a] is not None and cajas[b] is not None
+                    and separadas(cajas[a], cajas[b], max(minimo, 0.0) + 1e-3)):
+                descartados += 1
+                continue
+            medidos += 1
+            fa, fb = colocada(a), colocada(b)
             dist = fa.distToShape(fb)[0]
             if dist < 1e-4:
                 # distToShape da 0 tanto si se tocan como si se solapan:
@@ -117,7 +157,8 @@ else:
             elif maximo is not None and dist > maximo + 1e-6:
                 choques.append({{"angle": frame["angle"], "a": a, "b": b, "gap_mm": dist,
                                  "min_gap_mm": maximo, "kind": "separacion"}})
-    print({prefijo!r} + json.dumps({{"collisions": choques}}))
+    print({prefijo!r} + json.dumps({{"collisions": choques, "medidos": medidos,
+                                     "descartados": descartados}}))
 '''
 
 

@@ -82,6 +82,14 @@ def latir(carpeta: Path):
             if parar.wait(LATIDO_CADA_S):
                 return
 
+    # El primer latido, aquí y no en el hilo: con la máquina cargada el hilo
+    # tardaba en arrancar y quien miraba la carpeta nada más entrar al `with`
+    # aún no lo veía («incompleto» en vez de «en marcha»; su test fallaba una
+    # de cada tres veces con el banco corriendo al lado, 2026-11-11).
+    try:
+        archivo.touch()
+    except OSError:
+        pass
     hilo = threading.Thread(target=_latir, name="latido", daemon=True)
     hilo.start()
     try:
