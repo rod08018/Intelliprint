@@ -5,7 +5,7 @@ peticion: >
   Un brazo de tres ejes con servos SG90: el de la base gira el brazo, y los del
   hombro y el codo lo levantan. Cada uno recorre 180° (90° a cada lado) sin que
   nada choque. La base se atornilla a un tablero con cuatro tornillos M3. Con
-  el brazo estirado, la punta llega a 120 mm del eje de la base y levanta 30 g.
+  el brazo estirado, la punta llega a 120 mm del eje del hombro y levanta 30 g.
 oraculo:
   - tipo: componente
     ficha: sg90
@@ -19,7 +19,11 @@ oraculo:
     ejes: [vertical, horizontal, horizontal]
     recorrido_grados: 180
   - tipo: sin_soportes
-  # «la punta llega a 120 mm del eje de la base»: literal de la petición.
+  # «la punta llega a 120 mm del eje del hombro»: literal de la petición. Decía
+  # «del eje de la base» y así se medía; la corrida 1112-0318 lo cumplió con
+  # 233 mm, de los que 120 eran brazo y el resto un desvío a lo largo del eje
+  # del hombro. El usuario lo cambió el 2026-11-12: se mide del hombro, que es
+  # además el brazo de palanca con el que está hecha la cuenta de la carga.
   - tipo: alcance
     minimo_mm: 120
   # «y levanta 30 g»: literal de la petición. Que se puede, calculado a mano

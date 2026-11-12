@@ -1082,8 +1082,13 @@ def _estudio_de_movimientos(carpeta: Path, vid: str, conjunto: str | None) -> st
     tarjetas.append(f'<div class="tarjeta-estudio"><h3>¿Vuelca?</h3>{vuelca}</div>')
 
     a = est["alcance"]
+    # Los estudios de antes del 2026-11-12 no traen el hombro.
+    h = a.get("hombro")
+    del_hombro = (f'<p>Del eje de «{e(h["nombre"])}», el primer giro que lo levanta, está a '
+                  f'<b>{a["del_hombro_mm"]:.0f} mm</b>: eso es lo que mide el brazo.</p>'
+                  if h and h["levanta"] else "")
     tarjetas.append(f"""<div class="tarjeta-estudio"><h3>Alcance</h3>
-      <p>El punto de carga llega a <b>{a["radio_mm"]:.0f} mm</b> del primer eje.</p>
+      <p>El punto de carga llega a <b>{a["radio_mm"]:.0f} mm</b> del primer eje.</p>{del_hombro}
       <img class="alcance" src="/proyectos/{vid}/nodos/{e(conjunto)}/alcance.png" alt="Planta y alzado del recorrido del punto de carga" loading="lazy"></div>""")
 
     tiempos = "".join(

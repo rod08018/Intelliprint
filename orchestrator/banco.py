@@ -276,9 +276,14 @@ class Tornillos(BaseModel):
 
 class Alcance(BaseModel):
     """Backlogs (F10.1 (serie)): hasta dónde llega la punta, medido del eje
-    del primer giro en todas las poses del estudio (`estudio.estudiar`). El
-    pan-tilt pasó todo lo que se le pedía sin que nadie mirara a dónde
-    llegaba: un brazo de 20 mm con tres servos habría pasado igual."""
+    del hombro —el primer giro que la levanta— y en perpendicular a él, en
+    todas las poses del estudio (`estudio.estudiar`). El pan-tilt pasó todo
+    lo que se le pedía sin que nadie mirara a dónde llegaba: un brazo de
+    20 mm con tres servos habría pasado igual.
+
+    Se medía del eje del primer giro, y el primer brazo (1112-0318) cumplió
+    «120 mm» con 233: 120 de brazo y un separador de 105 mm a lo largo del
+    eje del hombro. Lo cambió el usuario el 2026-11-12."""
     tipo: Literal["alcance"]
     minimo_mm: float = Field(gt=0)
 
@@ -938,13 +943,16 @@ def _del_estudio(a: "Alcance | Carga", proyecto: Path, conjuntos: list[str],
     if not any(e["servos"] for e in hechos):
         return Resultado(estado="no_cumple", detalle="ninguna pieza gira: no hay brazo que medir")
     if isinstance(a, Alcance):
-        llega = max(e["alcance"]["radio_mm"] for e in hechos)
+        mejor = max(hechos, key=lambda e: e["alcance"]["del_hombro_mm"])["alcance"]
+        llega, h = mejor["del_hombro_mm"], mejor["hombro"]
+        desde = (f"del eje de «{h['nombre']}», "
+                 + ("el primer giro que la levanta" if h["levanta"]
+                    else "el primer giro: ninguno la levanta")) if h else "sin giros hasta la punta"
         if llega >= a.minimo_mm:
             return Resultado(estado="cumple", valor=llega, detalle=(
-                f"la punta llega a {llega:.1f} mm del eje del primer giro"))
+                f"la punta llega a {llega:.1f} mm {desde}"))
         return Resultado(estado="no_cumple", valor=llega, detalle=(
-            f"la punta llega a {llega:.1f} mm y se piden {a.minimo_mm:g}, "
-            "medido del eje del primer giro"))
+            f"la punta llega a {llega:.1f} mm y se piden {a.minimo_mm:g}, medido {desde}"))
     # Lo que no se pudo medir no se da por bueno: ni un giro que carga peso
     # sin que se sepa el par de lo que lo mueve, ni el material sin FreeCAD.
     for e in hechos:

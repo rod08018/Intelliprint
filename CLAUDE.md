@@ -105,9 +105,12 @@ Fase 10.
   vecina y el diseñador gastaba sus intentos a ciegas (ahora la
   construcción se repite por otro camino), y mover tres giros con piezas
   de verdad pasaba de 600 s (ahora no se miden los pares que no pueden
-  tocarse). **Lo que no dice:** el alcance (233 mm) sale de un desvío
-  lateral, no de un brazo largo: del hombro a la punta hay 120 mm. Cambiar
-  la exigencia `alcance` lo decide él.
+  tocarse). El alcance (233 mm del eje de la base) salía de un desvío
+  lateral, no de un brazo largo. **Decidido por él el 2026-11-12: el
+  alcance se mide del hombro a la punta.** Rejuzgada sin modelo sigue en
+  8 de 8, con 120,0 mm de los 120 pedidos: sin margen. **Lo que no dice:**
+  es un brazo raro (el tramo cuelga a un lado, y sin atornillar vuelca), y
+  los M3 de la base no se comprueban.
 - **«Banco» en la web enseña una corrida mientras corre**, con «En marcha»
   y recargándose sola; lo pidió él para ver cómo iba el brazo.
 - **Lo que sigue, en orden:** F9.10 (ampliar) → F10.2 (transmisión) →

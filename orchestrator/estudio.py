@@ -381,7 +381,8 @@ def estudiar(carpeta: Path, conjunto: str, raiz: Path | None = None) -> dict:
     atornillada = bool(any(t.pieza == raiz_id and t.termina == "superficie" and t.eje[2] < -0.9
                            for t in todos))
 
-    estado = {j: {"par_max": 0.0, "angulo": 0.0, "carga": math.inf, "radio": 0.0} for j in arts}
+    estado = {j: {"par_max": 0.0, "angulo": 0.0, "carga": math.inf, "radio": 0.0,
+                  "vertical": True} for j in arts}
     vuelco_min, vuelco_pose, vuelco_carga = math.inf, {}, math.inf
     radio_max, puntos = 0.0, []
     primera = next(iter(arts), None)
@@ -397,6 +398,8 @@ def estudiar(carpeta: Path, conjunto: str, raiz: Path | None = None) -> dict:
             e = estado[j]
             if abs(tau) > e["par_max"] + 1e-12:
                 e["par_max"], e["angulo"] = abs(tau), angulos[j]
+            # El mismo umbral con el que el banco llama «vertical» a un eje.
+            e["vertical"] = e["vertical"] and abs(eje[2]) > 0.99
             if j in cadena:
                 e["radio"] = max(e["radio"], _distancia_a_la_recta(pc, punto, eje))
                 por_gramo = par_por_gravedad([(1.0, pc)], punto, eje)
@@ -447,6 +450,16 @@ def estudiar(carpeta: Path, conjunto: str, raiz: Path | None = None) -> dict:
         # Atornillada a la mesa no vuelca: el vuelco se dice, pero no limita.
         avisos.append(f"Va atornillada: sin los tornillos volcaría con {vuelco_carga:.0f} g de carga.")
     g, limita = min(limites) if limites else (None, None)
+
+    # El hombro: el primer giro, de la base a la punta, que levanta (su eje no
+    # es vertical). El alcance de un brazo se mide de ahí, en perpendicular a
+    # ese eje. Medido del primer giro, el primer brazo del banco (1112-0318)
+    # «llegaba» a 233 mm con 120 de brazo: el tramo colgaba de un separador
+    # de 105 mm a lo largo del eje del hombro, y lo que contaba era el
+    # desvío. Si ningún giro levanta (un plato), se mide del primero.
+    de_la_base_a_la_punta = [j for j in reversed(_hasta_la_raiz(piezas, hoja)) if j in arts]
+    hombro = next((j for j in de_la_base_a_la_punta if not estado[j]["vertical"]),
+                  de_la_base_a_la_punta[0] if de_la_base_a_la_punta else None)
     return {
         "conjunto": conjunto, "tension_V": tension, "paso": paso, "poses": len(combos),
         "masas": [m.__dict__ for m in masas],
@@ -458,6 +471,10 @@ def estudiar(carpeta: Path, conjunto: str, raiz: Path | None = None) -> dict:
                    "apoyo": apoyo_para_guardar(apoyo),
                    "carga_max_g": None if vuelco_carga == math.inf else round(vuelco_carga, 2)},
         "alcance": {"radio_mm": round(radio_max, 2),
+                    "del_hombro_mm": round(estado[hombro]["radio"], 2) if hombro else 0.0,
+                    "hombro": None if hombro is None else {
+                        "pieza": hombro, "nombre": piezas[hombro].nombre,
+                        "levanta": not estado[hombro]["vertical"]},
                     "caja_mm": [[round(min(p[k] for p in puntos), 1) for k in range(3)],
                                 [round(max(p[k] for p in puntos), 1) for k in range(3)]],
                     "puntos": [[round(x, 1) for x in p] for p in puntos]},
@@ -650,6 +667,10 @@ def texto_del_estudio(e: dict) -> str:
     l += ["", "## Alcance", "",
           f"El punto de carga llega a {a['radio_mm']:.1f} mm del primer eje; barre la caja "
           f"{a['caja_mm'][0]} → {a['caja_mm'][1]} mm."]
+    h = a.get("hombro")
+    if h and h["levanta"]:
+        l.append(f"Del eje de «{h['nombre']}», el primer giro que lo levanta, está a "
+                 f"{a['del_hombro_mm']:.1f} mm: eso es lo que mide el brazo.")
     l += ["", "## Velocidades y tiempos", "",
           "Con la recta par-velocidad del servo, ω = ω₀·(1 − τ/τ_bloqueo), en el peor par.", ""]
     for s in e["servos"]:

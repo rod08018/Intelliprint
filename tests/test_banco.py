@@ -966,7 +966,7 @@ def test_reanudar_corrige_todas_las_piezas_a_las_que_les_faltan_tornillos(tmp_pa
 
 # --- backlogs: hasta dónde llega y cuánto levanta (F10.1 (serie)) ---------------------------
 
-def _juzgar_brazo(tmp_path, monkeypatch, oraculo, peticion, material=()):
+def _juzgar_brazo(tmp_path, monkeypatch, oraculo, peticion, material=(), brazo=None):
     """El brazo en voladizo de `tests/test_estudio.py`, hecho a mano y con sus
     cifras calculadas a mano allí, juzgado como un backlog: la punta a
     100.1 mm del eje; el SG90 deja colgar 80.0 g y vuelca con 8.4 g."""
@@ -974,7 +974,7 @@ def _juzgar_brazo(tmp_path, monkeypatch, oraculo, peticion, material=()):
     from tests.test_estudio import _brazo_en_voladizo
     p = tmp_path / "projects" / "a"
     p.mkdir(parents=True)
-    _brazo_en_voladizo(p)
+    (brazo or _brazo_en_voladizo)(p)
     # La resistencia del material la mide FreeCAD: aquí llega ya medida.
     monkeypatch.setattr(estudio, "carga_del_material", lambda *a, **k: list(material))
     e = Encargo(nombre="brazo", categoria="robots", obra=True, peticion=peticion,
@@ -997,6 +997,27 @@ def test_el_banco_pide_que_el_brazo_llegue(tmp_path, monkeypatch, pide, estado, 
                         f"un brazo que llegue a {pide} mm")
     assert r.estado == estado, r.detalle
     assert dice in r.detalle
+
+
+@pytest.mark.parametrize("pide, estado, dice", [
+    (100, "cumple", "100.1 mm"),
+    (120, "no_cumple", "llega a 100.1 mm y se piden 120"),
+])
+def test_un_desvio_a_lo_largo_del_hombro_no_cuenta_como_alcance(tmp_path, monkeypatch,
+                                                                pide, estado, dice):
+    """El primer brazo del banco (1112-0318) pasó «llega a 120 mm» con 233:
+    su tramo colgaba de un separador a lo largo del eje del hombro, y se
+    medía la distancia al eje de la base. El usuario decidió (2026-11-12)
+    que el alcance se mida del hombro a la punta.
+
+    El mismo brazo de 100.1 mm, girado por una base y desviado 200 mm a lo
+    largo del eje del hombro, está a más de 224 mm del eje de la base
+    (`test_el_alcance_de_un_brazo_se_mide_desde_el_hombro`): no llega a 120."""
+    from tests.test_estudio import _brazo_que_gira_y_se_desvia
+    [r] = _juzgar_brazo(tmp_path, monkeypatch, [{"tipo": "alcance", "minimo_mm": pide}],
+                        f"un brazo que llegue a {pide} mm", brazo=_brazo_que_gira_y_se_desvia)
+    assert r.estado == estado, r.detalle
+    assert dice in r.detalle and "Pieza brazo" in r.detalle
 
 
 @pytest.mark.parametrize("pide, estado, dice", [

@@ -184,6 +184,73 @@ def test_el_estudio_dice_alcance_y_tiempos(tmp_path):
     assert s["tiempo_s"] == pytest.approx(0.3 / (1 - 0.0098067 / 0.17652), rel=1e-3)
 
 
+def _brazo_que_gira_y_se_desvia(tmp_path, con_brazo=True):
+    """El brazo en voladizo, ahora sobre una base que lo gira: un SG90 de pie
+    cuyo eje vertical pasa por el origen del soporte (como en el pan-tilt).
+    Y con el tramo desviado a lo largo del eje del hombro: un separador de
+    200 mm pegado a ese eje y, en su extremo, el mismo tramo de 100 que sale
+    en x. Es la forma del primer brazo del banco (corrida 1112-0318)."""
+    from tests.test_conjunto import _obra, _sg90, _sobre
+    girado = ((-5.8, 27.1, 18.8), [("x", 90)])
+    cajas = {"base": [((0, 0, 0), (70, 34, 18.5))],
+             "soporte": [((-28, -17, 0), (28, 17.5, 31.5))],
+             "brazo": [((0, -201, 20), (10, -1, 30)), ((0, -206, 20), (100, -201, 30))]}
+    piezas = {
+        "base": ([], [_sg90((23.6, 6, 0))], [[0, 0, 0], [70, 34, 18.5]]),
+        "soporte": (["base"], [_sobre("base", (-29.4, -12.2, -27.6))]
+                    + ([_sg90(*girado)] if con_brazo else []), [[-28, -17, 0], [28, 17.5, 31.5]]),
+        "brazo": (["soporte"], [_sobre("soporte", (0, 0, 0))], [[0, -206, 20], [100, -1, 30]]),
+    }
+    if not con_brazo:
+        del piezas["brazo"], cajas["brazo"]
+    carpeta = _obra(tmp_path, piezas)
+    for i, suyas in cajas.items():
+        parte = carpeta / "nodos" / i / "parts" / i
+        (parte / f"{i}.stl").write_text(
+            "solid p\n" + "".join(_caja_stl(a, b) for a, b in suyas) + "endsolid p\n",
+            encoding="utf-8")
+        (carpeta / "nodos" / i / "fabrication").mkdir()
+        (carpeta / "nodos" / i / "fabrication" / "slicing_report.json").write_text(
+            json.dumps({"grams": 20}), encoding="utf-8")
+    return carpeta
+
+
+def test_el_alcance_de_un_brazo_se_mide_desde_el_hombro(tmp_path):
+    """El primer brazo del banco (1112-0318) «llegaba» a 233 mm con 120 de
+    brazo: el tramo colgaba de un separador de 105 mm a lo largo del eje del
+    hombro, y lo que se medía era la distancia al eje de la base.
+
+    Aquí la punta (x = 100, z = 20 o 30) está a √(100² + 5²) = 100.1 mm del
+    eje del hombro, que pasa por (0, 0, 25) hacia −y: lo mismo que sin
+    desvío. Del eje de la base (vertical por el origen) está a más de
+    √(100² + 201²) = 224.5 mm, y eso es desvío, no brazo. El hombro es el
+    primer giro que levanta: el de la base, vertical, no levanta nada."""
+    from orchestrator.estudio import estudiar
+    a = estudiar(_brazo_que_gira_y_se_desvia(tmp_path), "conjunto")["alcance"]
+    assert a["radio_mm"] > 224
+    assert a["del_hombro_mm"] == pytest.approx(100.12, abs=0.01)
+    assert a["hombro"] == {"pieza": "brazo", "nombre": "Pieza brazo", "levanta": True}
+
+
+def test_el_hombro_de_un_brazo_de_un_solo_giro_es_ese_giro(tmp_path):
+    """El brazo en voladizo no tiene base que lo gire: su único giro es
+    horizontal y levanta. La punta sigue a 100.1 mm de él."""
+    from orchestrator.estudio import estudiar
+    a = estudiar(_brazo_en_voladizo(tmp_path), "conjunto")["alcance"]
+    assert a["del_hombro_mm"] == pytest.approx(100.12, abs=0.01)
+    assert a["hombro"]["pieza"] == "brazo" and a["hombro"]["levanta"] is True
+
+
+def test_si_ningun_giro_levanta_el_alcance_se_mide_del_primero(tmp_path):
+    """Un plato que solo gira sobre un eje vertical no tiene hombro. Se mide
+    del primer giro y se dice que no levanta. La esquina más lejana del
+    soporte (28, 17.5) está a √(28² + 17.5²) = 33.0 mm del eje."""
+    from orchestrator.estudio import estudiar
+    a = estudiar(_brazo_que_gira_y_se_desvia(tmp_path, con_brazo=False), "conjunto")["alcance"]
+    assert a["del_hombro_mm"] == pytest.approx(33.02, abs=0.01) == a["radio_mm"]
+    assert a["hombro"] == {"pieza": "soporte", "nombre": "Pieza soporte", "levanta": False}
+
+
 # --- la carga que aguanta el material (FreeCAD) ---------------------------------------------
 
 
@@ -246,6 +313,7 @@ def test_el_estudio_se_lee_en_castellano(tmp_path):
     assert "Sí" in md and "SG90" in md
     assert "## ¿Vuelca?" in md and "8.4 g" in md
     assert "## Alcance" in md and "100.1 mm" in md
+    assert "Del eje de «Pieza brazo», el primer giro que lo levanta, está a 100.1 mm" in md
     assert "## Velocidades y tiempos" in md
     assert "## Carga máxima" in md and "vuelco" in md
     assert "Sin FreeCAD no se mide la resistencia del material." in md
