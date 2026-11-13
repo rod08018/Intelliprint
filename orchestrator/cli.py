@@ -519,6 +519,14 @@ def _paso_de_obra(carpeta: Path, peticion: str, raiz: Path, env: dict, nombre: s
         # orden. Parar aquí dejaría a la persona delante de un «Empezar».
         return _paso_de_obra(carpeta, peticion, raiz, env, nombre)
     if estado == "por verificar":
+        from orchestrator import modulos
+        try:
+            # Las piezas de los módulos impresos, para el zip (F10.6 (módulo)).
+            for stl in modulos.construir(carpeta, _freecadcmd(env),
+                                         _perfil(raiz, env).datos):
+                print(f"[{nombre}] módulo: {stl.parent.parent.name}/{stl.stem}")
+        except Exception as fallo:  # noqa: BLE001 — sin ellas el backlog se mueve igual
+            print(f"[{nombre}] sin construir las piezas de los módulos: {fallo}")
         # F7.4 (conjunto): con sus piezas listas, se mueve entero en FreeCAD.
         from orchestrator.conjunto import verificar_conjunto
         dir_nodo = carpeta / obra.NODOS / nodo

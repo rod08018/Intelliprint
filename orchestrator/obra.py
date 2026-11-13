@@ -714,6 +714,12 @@ def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
                        "con la holgura «slide» del perfil (`kit.holgura(\"slide\")`, en "
                        "diámetro): más justo, al mover el conjunto cuenta como choque."
                        if eje.largo and not eje.acople else "")
+                    # El brazo del banco 1113-0423 se quedó en 149,1 mm de 150
+                    # para no pasarse de su radio: nadie le dijo que llegara.
+                    + (f" La punta de esta pieza tiene que llegar a {u.brazo_mm:g} mm de ese "
+                       "eje: ni menos, ni más de lo que tiene reservado. Al construir se mide."
+                       if u.brazo_mm and not any(isinstance(o, type(u)) and o.sobre == nodo
+                                                 for o in obra.uniones) else "")
                     + (para_quien_gira(u, nombre(u.sobre))
                        if u.movido_por and u.movido_por.tipo == "correa" else "")))
             else:

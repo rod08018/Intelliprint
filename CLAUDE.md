@@ -224,10 +224,16 @@ Fase 10.
   mm de 150. El plan reservó 150 de radio libre para un brazo de 150 y
   el brazo se quedó corto para no pasarse; nadie le mide que llegue.
   No se ha gastado en corregirlo.
-- **Lo que sigue:** dos medidas baratas que salen de ahí (que el radio
-  libre deje sitio al brazo, y medir que la punta llega), y después
-  F10.6 (módulo) y F10.7 (cicloidal), con una sola corrida de pago al
-  final de las dos.
+- **Hechas las dos medidas del alcance, sin corrida:** el plan no puede
+  reservar un radio que no deje sitio al brazo, y a la pieza de la
+  punta se le mide que llega.
+- **Hecho: F10.6 (módulo)** (2026-11-12, `orchestrator/modulos.py`).
+  Un módulo impreso son varias piezas generadas por código más lo que
+  hay que comprar; el backlog lo ve como un componente y la lista de
+  materiales lo abre en lo que es. La biblioteca está vacía hasta la
+  cicloidal.
+- **Lo que sigue:** F10.7 (cicloidal), y una sola corrida de pago al
+  final, con el gasto acordado antes.
 
 **2026-11-10: Fase 9, robots con plan mecánico (ADR-020).** El usuario quiere
 diseñar robots: que el desglose decida antes de dibujar qué gira sobre qué y con

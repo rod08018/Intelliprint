@@ -340,6 +340,7 @@ No hay servidor MCP de FreeCAD ni de simulación.
 | `sondas.py` | Las medidas sobre el STEP construido, que corren dentro de FreeCAD |
 | `componentes.py` | Coloca la forma de una ficha en la pieza y construye sus sólidos |
 | `profile.py` | El perfil de impresora y sus holguras |
+| (fuera de este paquete) `orchestrator/modulos.py` | Los módulos impresos (F10.6 (módulo)): varias piezas generadas por código que el backlog ve como un componente y que al contar se abren en lo que se imprime y lo que se compra |
 | `transmisiones.py` | Las cuentas de una correa GT2: los diámetros de una polea, el largo de la correa y la distancia entre ejes que pide |
 | `measure.py`, `geometry.py` | Extraen las caras cilíndricas de una pieza y buscan agujeros y salientes por su posición; los usa el banco para juzgar. `geometry.py` da además la colocación de una pieza en el ensamble |
 | `generators.py` | El catálogo de ocho generadores de las recetas; hoy construye las piezas de calibración |

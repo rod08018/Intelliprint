@@ -166,9 +166,11 @@ class Ficha(BaseModel):
     verificado: bool = False
     """Solo si alguien lo midió con calibre: una hoja de datos puede no
     coincidir con la unidad que tiene la persona."""
-    origen: Literal["comprado", "impreso"] = "comprado"
+    origen: Literal["comprado", "impreso", "modulo"] = "comprado"
     """«impreso»: una pieza que diseñó este sistema y se congeló para diseñar
-    las siguientes contra ella (F7.1 (fichar))."""
+    las siguientes contra ella (F7.1 (fichar)). «modulo»: varias piezas que
+    genera el código, montadas, con lo que hay que comprar para ellas
+    (F10.6 (módulo)): se coloca como algo comprado y se cuenta como lo que es."""
     proyecto: str = ""
     """De qué proyecto sale una pieza impresa."""
     fuentes: list[Fuente] = Field(min_length=1)
@@ -239,7 +241,8 @@ def _ruta(id_: str, extra=()) -> Path | None:
 
 
 def ids() -> list[str]:
-    return sorted({p.stem for c in bibliotecas() for p in c.glob("*.yaml")})
+    from orchestrator import modulos
+    return sorted({p.stem for c in bibliotecas() for p in c.glob("*.yaml")} | set(modulos.ids()))
 
 
 def cargar(id_: str, extra=()) -> Ficha:
@@ -247,6 +250,10 @@ def cargar(id_: str, extra=()) -> Ficha:
     (la web, que no tiene `INTELLIPRINT_FICHAS`)."""
     ruta = _ruta(id_, extra)
     if ruta is None:
+        from orchestrator import modulos
+        if modulos.es_modulo(id_):
+            # Un módulo impreso no tiene ficha escrita: sale de su generador.
+            return Ficha(**modulos.cargar(id_).ficha)
         raise KeyError(f"no hay ficha de «{id_}»; hay: {', '.join(ids()) or 'ninguna'}")
     return cargar_de(ruta)
 

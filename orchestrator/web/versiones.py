@@ -78,7 +78,9 @@ def piezas_de(carpeta: Path) -> list[Path]:
     que ya hay) las deja en parts/<nombre>/<nombre>.stl; una obra, en la
     carpeta de cada nodo (F7.2 (desglose))."""
     carpeta = Path(carpeta)
-    return sorted([*carpeta.glob("parts/*/*.stl"), *carpeta.glob("nodos/*/parts/*/*.stl")])
+    # Y las de sus módulos impresos (F10.6 (módulo)), que no son de ningún nodo.
+    return sorted([*carpeta.glob("parts/*/*.stl"), *carpeta.glob("nodos/*/parts/*/*.stl"),
+                   *carpeta.glob("modulos/*/*/*.stl")])
 
 
 def ejecuciones(workspace: Path, banco: bool = False, solo=None) -> list[dict]:

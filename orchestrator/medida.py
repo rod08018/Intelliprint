@@ -493,6 +493,36 @@ def defectos_de_giro(carpeta: Path, nodo: str) -> list[str]:
     return fallos
 
 
+def defectos_de_alcance(carpeta: Path, nodo: str) -> list[str]:
+    """Si `nodo` es la pieza de la punta —gira y nada gira sobre ella— y el
+    plan dice a dónde llega (`brazo_mm`): que llegue. Se le medía que no
+    pasara de su radio libre y no que llegara: el brazo del banco 1113-0423
+    se quedó en 149,1 mm de 150 y pasó su bucle."""
+    from orchestrator import obra as O
+    from orchestrator.conjunto import _esquinas, leer_piezas
+    from orchestrator.schemas.obra import Gira
+
+    carpeta = Path(carpeta)
+    giros = [u for u in O.cargar_obra(carpeta).uniones if isinstance(u, Gira)]
+    suyo = next((u for u in giros if u.gira == nodo and u.brazo_mm), None)
+    if suyo is None or any(u.sobre == nodo for u in giros):
+        return []
+    piezas = leer_piezas(carpeta, solo_construidas=True)
+    yo = piezas.get(nodo)
+    if yo is None or yo.padre != suyo.sobre:
+        return []
+    fallos = []
+    for s in _salidas_del_giro(piezas, suyo)[:1]:
+        llega = _lo_que_llega(yo, s["punto"], s["eje"], _esquinas(yo.envolvente, yo.al_padre))
+        if llega < suyo.brazo_mm - 0.05:
+            fallos.append(
+                f"alcance (unión {suyo.id}): esta pieza llega a {llega:.1f} mm del eje sobre "
+                f"el que gira y tiene que llegar a {suyo.brazo_mm:g}: le faltan "
+                f"{suyo.brazo_mm - llega:.1f} mm. Alárgala por la punta, sin mover dónde se "
+                "acopla")
+    return fallos
+
+
 def defectos_de_orientacion(carpeta: Path, nodo: str) -> list[str]:
     """Los giros cuyo eje no mira hacia donde dice el plan, en la pieza que
     lo monta, con el invento en reposo y z hacia arriba.
@@ -838,6 +868,10 @@ def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
         except Exception as fallo:  # noqa: BLE001
             print(f"  sin contar los tornillos del plan: {type(fallo).__name__}: {fallo}",
                   flush=True)
+        try:
+            fallos += defectos_de_alcance(*backlog)
+        except Exception as fallo:  # noqa: BLE001
+            print(f"  sin medir a dónde llega: {type(fallo).__name__}: {fallo}", flush=True)
         try:
             fallos += defectos_de_orientacion(*backlog)
         except Exception as fallo:  # noqa: BLE001

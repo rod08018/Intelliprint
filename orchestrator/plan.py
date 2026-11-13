@@ -20,6 +20,11 @@ from typing import Sequence
 from orchestrator.componentes import Ficha, Salida, cargar
 from orchestrator.schemas.obra import EXTERIOR, Fija, Gira, Obra
 
+SITIO_PARA_LA_PUNTA = 5.0
+"""Lo que el radio libre de un giro tiene que sacarle a lo que mide el brazo.
+Es un criterio: lo justo para que la punta, con su ancho, llegue sin pasarse.
+La articulación del banco 1113-0423 tenía 150 de radio para llegar a 150, y
+se quedó en 149,1."""
 _AGARRE = {"tuerca": "nut_af", "inserto": "insert", "rosca": "selftap"}
 """Del agarre de una unión a la clave del perfil con la que se taladra."""
 
@@ -93,6 +98,13 @@ def validar_plan(obra: Obra, agujeros: dict,
                 f"unión «{u.id}»: falta `radio_libre_mm`: cuánto sitio necesita «{u.gira}» "
                 f"alrededor del eje de «{u.componente}» para girar sin tocar nada. Es lo que "
                 "mide la pieza que gira desde su eje hasta su punta más lejana")
+        if (u.radio_libre_mm is not None and u.brazo_mm is not None
+                and u.radio_libre_mm < u.brazo_mm + SITIO_PARA_LA_PUNTA - 1e-6):
+            errores.append(
+                f"unión «{u.id}»: reservas {u.radio_libre_mm:g} mm de radio libre para una "
+                f"pieza que tiene que llegar a {u.brazo_mm:g} mm del eje: no puede llegar sin "
+                f"pasarse. El radio libre es lo que mide con su ancho: pon al menos "
+                f"{u.brazo_mm + SITIO_PARA_LA_PUNTA:g}")
         en_cada_salida.setdefault((u.sobre, u.componente, salida.nombre), []).append(u.id)
     for (sobre, componente, _), ids in en_cada_salida.items():
         hay = obra.nodo(sobre).compra.count(componente)

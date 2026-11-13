@@ -78,6 +78,21 @@ def materiales(carpeta: Path) -> dict:
                             and not r["ficha"].startswith("obra-"))
             impresas.append({"id": parte.name, "nombre": titulo or parte.name, "impresa": False})
         fichas = []
+    # Un módulo impreso (F10.6 (módulo)) no se compra: se imprimen sus piezas
+    # y se compra lo que lleva dentro.
+    from orchestrator import modulos
+    sueltos: Counter = Counter()
+    for id_ in [i for i in comprado if modulos.es_modulo(i)]:
+        cuantos, modulo = comprado.pop(id_), modulos.cargar(id_)
+        hechas = {p.stem for p in modulos.piezas_construidas(carpeta) if p.parent.parent.name == id_}
+        impresas += [{"id": f"{id_}/{pieza}", "nombre": f"{modulo.ficha['nombre']}: {pieza}"
+                      + (f" (× {cuantos})" if cuantos > 1 else ""),
+                      "impresa": False, "construida": pieza in hechas}
+                     for pieza in modulo.piezas]
+        for c, n in modulo.compras.items():
+            comprado[c] += n * cuantos
+        for c, n in modulo.otros.items():
+            sueltos[c] += n * cuantos
     tornilleria, incluido, con = _tornilleria(carpeta)
     correas: Counter = Counter()
     if O.es_obra(carpeta):
@@ -98,6 +113,8 @@ def materiales(carpeta: Path) -> dict:
         "impresas": impresas,
         "comprado": [{"id": f, "nombre": _nombre_de_ficha(f, fichas), "cuantos": n,
                       "tipo": "componente"} for f, n in sorted(comprado.items())]
+                    + [{"id": nombre, "nombre": nombre, "cuantos": n, "tipo": "modulo"}
+                       for nombre, n in sorted(sueltos.items())]
                     + [{"id": nombre, "nombre": nombre, "cuantos": n, "tipo": "transmision"}
                        for nombre, n in sorted(correas.items())]
                     + [{"id": nombre, "nombre": nombre, "cuantos": n, "tipo": "tornilleria"}

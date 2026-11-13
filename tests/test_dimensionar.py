@@ -132,6 +132,44 @@ def test_la_carga_y_el_largo_son_positivos():
             Obra(**plan)
 
 
+# --- que el brazo llegue, y que le dejen llegar -------------------------------------------------
+
+def test_el_radio_libre_tiene_que_dejar_sitio_al_brazo_que_se_pide():
+    """La articulación del banco 1113-0423 se quedó en 9 de 10 por 0,9 mm:
+    el plan reservó 150 mm de radio libre para un brazo que tenía que llegar
+    a 150, y al brazo solo le valía medir 150,0 justos. Se pide que el radio
+    le saque al menos 5 mm al brazo."""
+    plan = copy.deepcopy(UN_TRAMO)
+    # Un brazo de 100 mm, con el que el SG90 sí puede (3 000 + 1 000 g·mm).
+    plan["uniones"][0].update(brazo_mm=100, radio_libre_mm=100)
+    [error] = _errores(plan)
+    assert "u1" in error and "100 mm" in error and "105" in error
+    plan["uniones"][0]["radio_libre_mm"] = 105
+    assert _errores(plan) == []
+
+
+def test_a_la_pieza_de_la_punta_se_le_mide_que_llega(tmp_path):
+    """El brazo de `test_transmision`: llega a √(150² + 5²) = 150,1 mm de su
+    eje. Si el plan dice 150, vale; si dice 160, le faltan 9,9."""
+    import json
+
+    from orchestrator.medida import defectos_de_alcance
+    from tests.test_transmision import _articulacion
+    carpeta = _articulacion(tmp_path)
+    plan = json.loads((carpeta / "obra.json").read_text(encoding="utf-8"))
+    for pide, defectos in ((150, 0), (160, 1)):
+        plan["uniones"][0]["brazo_mm"] = pide
+        (carpeta / "obra.json").write_text(json.dumps(plan), encoding="utf-8")
+        d = defectos_de_alcance(carpeta, "brazo")
+        assert len(d) == defectos, d
+    assert "150.1 mm" in d[0] and "160" in d[0] and "9.9" in d[0]
+    assert defectos_de_alcance(carpeta, "soporte") == []
+    # Y se le dice antes de que dibuje, no solo después.
+    from orchestrator.obra import uniones_del_nodo
+    [u] = uniones_del_nodo(carpeta, "brazo")
+    assert "llegar a 160 mm" in u["texto"]
+
+
 # --- con el modelo de verdad --------------------------------------------------------------------
 
 @pytest.mark.llm
