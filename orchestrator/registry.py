@@ -158,6 +158,35 @@ def cargar_titulo_de_obra(carpeta: Path) -> str:
     return (_lee_json(carpeta / "obra.json") or {}).get("titulo", "")
 
 
+def _ultimo_cambio(carpeta: Path) -> float:
+    """Cuándo se tocó por última vez un archivo de trabajo del proyecto.
+
+    Con `rglob` cada archivo se miraba dos veces (si es archivo, y su
+    fecha) y se entraba en las carpetas que luego se descartaban. En la
+    carpeta compartida con Windows cada mirada cuesta más de un milisegundo:
+    el pan-tilt del banco, con sus reanudaciones archivadas, tardaba 5 s en
+    decir su estado (2026-11-12)."""
+    import os
+    ultimo, pendientes = 0.0, [(str(carpeta), True)]
+    while pendientes:
+        donde, arriba = pendientes.pop()
+        try:
+            entradas = list(os.scandir(donde))
+        except OSError:
+            continue
+        for e in entradas:
+            if arriba and e.name in NO_ES_TRABAJO:
+                continue
+            try:
+                if e.is_dir():
+                    pendientes.append((e.path, False))
+                elif e.is_file():
+                    ultimo = max(ultimo, e.stat().st_mtime)
+            except OSError:     # lo quitaron mientras se miraba
+                continue
+    return ultimo
+
+
 def estado_de(carpeta: Path) -> dict:
     """Qué es este proyecto, mirando lo que tiene dentro."""
     rondas = _lee_json(carpeta / "rounds.json") or []
@@ -175,9 +204,7 @@ def estado_de(carpeta: Path) -> dict:
     # pero si dejó piezas y ensamble es trabajo bueno: no se archiva.
     tiene_obra = ((carpeta / "assembly.FCStd").exists()
                   or any(carpeta.glob("*.FCStd")) or any(carpeta.glob("parts/*/*.step")))
-    tocado_hace = time.time() - max(
-        (f.stat().st_mtime for f in carpeta.rglob("*")
-         if f.is_file() and f.relative_to(carpeta).parts[0] not in NO_ES_TRABAJO), default=0)
+    tocado_hace = time.time() - _ultimo_cambio(carpeta)
     # Sin rounds.json y tocado hace nada: lo más probable es que siga
     # trabajando. Un proyecto terminado no vuelve a "en marcha" por ser reciente.
     # «Tocado hace poco» es para lo lanzado a mano, que no deja job.json.
@@ -264,11 +291,13 @@ def en_marcha(carpeta: Path) -> str | None:
     return None
 
 
-def indice(carpeta: Path) -> list[dict]:
-    """Todos los proyectos, del más reciente al más antiguo."""
+def indice(carpeta: Path, solo=None) -> list[dict]:
+    """Todos los proyectos, del más reciente al más antiguo. Con `solo`,
+    nada más que los de esos ids: `estado_de` recorre cada carpeta entera."""
     carpeta = Path(carpeta)
     # Por fecha real: los nombres antiguos no llevan hora y quedarían arriba.
-    proyectos = [p for p in carpeta.iterdir() if p.is_dir()]
+    proyectos = [p for p in carpeta.iterdir() if p.is_dir()
+                 and (solo is None or p.name in solo)]
     return [estado_de(p) for p in sorted(
         proyectos, key=lambda p: (p.stat().st_mtime, p.name), reverse=True)]
 

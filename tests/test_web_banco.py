@@ -6,6 +6,8 @@ la web solo miraba `workspace/projects/`. «No veo cambios en la web», dijo
 el usuario. Lo esperado sale de la carpeta que monta cada test.
 """
 
+from pathlib import Path
+
 from orchestrator import obra as O
 from tests.test_interfaz_web import _ws_con_trabajos
 from tests.test_obra import _obra
@@ -158,3 +160,52 @@ def test_una_corrida_que_se_reanuda_dice_que_su_nota_es_la_de_antes(tmp_path):
     texto = _visible(_ws_con_trabajos(tmp_path).get("/banco").text)
     assert "En marcha" in texto and "80 %" in texto
     assert "la nota es la de la vuelta anterior" in texto
+
+
+def test_abrir_un_proyecto_del_banco_no_recorre_las_demas_corridas(tmp_path, monkeypatch):
+    """La página de un proyecto del banco tardaba 27 a 33 s (medido el
+    2026-11-12 con 20 corridas): para pintar UNO se miraba el estado de los
+    112 proyectos de todas las corridas, y cada estado recorre todos los
+    archivos de su carpeta. Solo hace falta la corrida del que se abre; y
+    lo del banco no lleva botones, así que tampoco hay que mirar si hay
+    algo en marcha entre los proyectos de la persona."""
+    from orchestrator import registry
+    _corrida(tmp_path)
+    otra = tmp_path / "banco" / "1109-0101" / "01" / "projects" / "2026-11-09-010101-otro"
+    otra.mkdir(parents=True)
+    (otra / "request.md").write_text("otra cosa", encoding="utf-8")
+    web = _ws_con_trabajos(tmp_path)
+    mirados = []
+    de_verdad = registry.estado_de
+
+    def espia(carpeta):
+        mirados.append(Path(carpeta).relative_to(tmp_path).as_posix())
+        return de_verdad(carpeta)
+
+    monkeypatch.setattr(registry, "estado_de", espia)
+    r = web.get(f"/p/{PID}")
+    assert r.status_code == 200, r.text
+    assert mirados == [f"banco/1110-0313/01/projects/{PID}"], mirados
+
+
+def test_un_backlog_del_banco_ampliado_en_otra_corrida_sigue_siendo_el_mismo(tmp_path,
+                                                                             monkeypatch):
+    """Una corrida que parte de otra (la del pan-tilt con pinza, 1112-1359,
+    partió de la 1111-1342) lleva el mismo backlog con el mismo nombre: los
+    dos se siguen mirando al abrirlo. Lo que no se mira es lo ajeno."""
+    from orchestrator import registry
+    _corrida(tmp_path)
+    repetido = tmp_path / "banco" / "1111-0101" / "01" / "projects" / PID
+    repetido.mkdir(parents=True)
+    (repetido / "request.md").write_text("un pan-tilt con dos SG90 y una pinza", encoding="utf-8")
+    ajeno = tmp_path / "banco" / "1111-0101" / "02" / "projects" / "2026-11-11-020202-otro"
+    ajeno.mkdir(parents=True)
+    (ajeno / "request.md").write_text("otra cosa", encoding="utf-8")
+    web = _ws_con_trabajos(tmp_path)
+    mirados = []
+    de_verdad = registry.estado_de
+    monkeypatch.setattr(registry, "estado_de",
+                        lambda c: (mirados.append(Path(c).name), de_verdad(c))[1])
+    r = web.get(f"/p/{PID}")
+    assert r.status_code == 200, r.text
+    assert mirados == [PID, PID]

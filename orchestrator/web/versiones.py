@@ -81,16 +81,19 @@ def piezas_de(carpeta: Path) -> list[Path]:
     return sorted([*carpeta.glob("parts/*/*.stl"), *carpeta.glob("nodos/*/parts/*/*.stl")])
 
 
-def ejecuciones(workspace: Path, banco: bool = False) -> list[dict]:
+def ejecuciones(workspace: Path, banco: bool = False, solo=None) -> list[dict]:
     """Una fila por EJECUCIÓN. Lo que se enseña son proyectos: `agrupar`.
     Con `banco`, las de las corridas del banco y solo esas: no son proyectos
-    de la persona y no se mezclan con los suyos."""
+    de la persona y no se mezclan con los suyos. Con `solo`, nada más que
+    las carpetas con esos nombres: el estado de cada proyecto recorre todos sus
+    archivos, y para abrir uno del banco se miraban los 112 de las veinte
+    corridas (27 a 33 s, 2026-11-12)."""
     filas = []
     for seccion in (secciones_del_banco(workspace) if banco else SECCIONES):
         carpeta = Path(workspace) / seccion
         if not carpeta.is_dir():
             continue
-        for fila in indice(carpeta):
+        for fila in indice(carpeta, solo):
             fila = {k: v for k, v in fila.items() if k != "carpeta"}
             fila["seccion"] = seccion
             fila["piezas"] = len(piezas_de(carpeta / fila["id"]))

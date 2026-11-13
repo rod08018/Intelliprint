@@ -515,14 +515,19 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
         carpeta = _proyecto(id, banco=True)
         partes = carpeta.relative_to(workspace).parts
         del_banco = partes[1] if partes[0] == "banco" else ""   # la corrida
-        grupos = agrupar(ejecuciones(workspace, banco=bool(del_banco)), workspace)
+        # Del banco, solo él (y el que se llame igual en otra corrida, que es
+        # el mismo backlog ampliado): los del banco no se agrupan por petición.
+        solo = {carpeta.name} if del_banco else None
+        grupos = agrupar(ejecuciones(workspace, banco=bool(del_banco), solo=solo), workspace)
         g = next((g for g in grupos if g["id"] == id or any(x["id"] == id for x in g["versiones"])),
                  None)
         if g is None:
             raise HTTPException(404, f"no hay ningún proyecto llamado {id!r}")
         elegida = v or (id if id != g["id"] else None)
-        ocupado = bool((trabajos.current() if trabajos else None) or en_marcha(workspace / "projects"))
-        # Lo del banco se mira: sin botones que lancen nada.
+        # Lo del banco se mira: sin botones que lancen nada, así que no hace
+        # falta saber si hay algo en marcha (es recorrer todos los proyectos).
+        ocupado = not del_banco and bool((trabajos.current() if trabajos else None)
+                                         or en_marcha(workspace / "projects"))
         return paginas.proyecto(g, elegida, workspace, hay_puente=puente is not None,
                                 puede_pedir=trabajos is not None and not del_banco,
                                 ocupado=ocupado, del_banco=del_banco)
