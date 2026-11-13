@@ -322,8 +322,18 @@ Fase 10.
   laminar, porque cambia lo que mide el banco.
 - **Cada reanudación de pago necesita su «sí»**: el sistema de
   permisos bloqueó lanzar una apoyándose en un visto bueno anterior.
+- **Reanudado por quinta vez, con su visto bueno, pasa 11 de 12**
+  (`banco_reanudado-4.md`; 0,02 USD más: 2,38 de los 5). La punta
+  llega a 350,0 mm y levanta 378 g; no falla nada. Queda sin medir
+  «sin soportes» en la muñeca, que no se lamina como se dibuja.
+  Tumbada, a mano, sí se lamina, con aviso de puentes largos.
+- **«Sin soportes» no mide lo que dice** (visto el 2026-11-13): se
+  apunta el ajuste `support_material` del perfil, que vale 0, y no
+  el aviso de PrusaSlicer. Toda pieza que se lamina sale «sin
+  soportes», desde F1.12 y en todo el banco. **Sin tocar: lo decide
+  él**, con la postura al laminar.
 - **Lo que sigue:** su decisión sobre la postura al laminar y sobre
-  reanudar otra vez para el alcance; y al
+  cómo se mide «sin soportes»; y al
   acabar la fase, proponerle las tres fases (carcasas vistosas, brazo
   Arctos, avión).
 
