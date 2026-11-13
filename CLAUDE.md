@@ -179,8 +179,26 @@ Fase 10.
   las ha visto:** sin colisa (ejes fijos, ±0,2 mm), las correas se
   ofrecen de 5 en 5 dientes sin saber cuáles vende su tienda, y la
   ranura del diente es una aproximación (un semicírculo de 0,76 mm).
-- **Lo que sigue:** medir el encargo 14 (la articulación con NEMA 17 y
-  correa 4:1), con el gasto acordado antes. Después, F10.4
+- **El encargo 14, medido, se queda en 6 de 10 y se paró** (corrida
+  `1113-0216`, 0,90 USD de los 2 acordados; quedan 1,10). Hecha a mano
+  sin modelo pasa lo que se puede medir; con DeepSeek el plan sale
+  igual, pero el soporte se dibujó tumbado, como se imprime: el eje
+  queda vertical (se pedía horizontal), la carga se queda en 134 g de
+  300, y el eje del motor no asoma por delante, así que la polea del
+  brazo no tiene correa posible. Al soporte no se le mide ninguna de
+  las dos cosas. Además el eje del brazo entra justo en el rodamiento
+  y cuenta como choque. **Por decidir con él** antes de gastar más:
+  que el plan diga si un eje va horizontal o vertical, medir que el
+  eje del motor asome, y qué hacer con el encaje en el rodamiento.
+- **La web tardaba 30 s en abrir un proyecto del banco**: recorría las
+  veinte corridas para pintar uno. Arreglado (2026-11-12): 0,7 a 5 s.
+- **Docker se cayó** cuando el PC estuvo a punto de apagarse: se
+  arregla cerrando Docker Desktop, `wsl --shutdown` y abriéndolo.
+- **Pedido por él el 2026-11-12, para cuando acabe la Fase 10:**
+  proponerle (sin escribirlas antes) tres fases: carcasas vistosas con
+  superficies, el brazo de clase Arctos y el avión. La Fase 10 acaba
+  en un brazo mediano funcional, no en uno que se vea como el Arctos.
+- **Lo que sigue:** lo que él decida del encargo 14. Después, F10.4
   (dimensionar).
 
 **2026-11-10: Fase 9, robots con plan mecánico (ADR-020).** El usuario quiere
