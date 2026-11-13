@@ -264,8 +264,9 @@ def union_en_palabras(obra: Obra, u) -> str:
         que = u.componente
     sitio = (f", y necesita {u.radio_libre_mm:g} mm libres alrededor del eje"
              if u.radio_libre_mm else "")
+    eje = f", con el eje {u.eje}" if u.eje else ""
     return (f"{nombre(u.gira)} gira {u.recorrido_grados:g}° sobre el {que} de "
-            f"{nombre(u.sobre)}{sitio}{_movida_por(u)}")
+            f"{nombre(u.sobre)}{eje}{sitio}{_movida_por(u)}")
 
 
 def transmision_en_palabras(t) -> str:
@@ -579,6 +580,17 @@ def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
                 "en mitad de su recorrido, y es en esos ángulos donde no puede chocar con "
                 "nada.")
 
+    def como_va_puesta(u) -> str:
+        """Hacia dónde mira el eje, si el plan lo dice. El soporte del banco
+        1113-0216 tenía «con el eje horizontal» en su encargo y se dibujó
+        como mejor se imprime, con el eje hacia arriba."""
+        if not u.eje:
+            return ""
+        como = ("paralelo a la mesa" if u.eje == "horizontal" else "hacia arriba, en z")
+        return (f" El eje de ese giro va {u.eje}: dibuja esta pieza como va a quedar puesta "
+                f"cuando se use, con z hacia arriba, y con el eje del {u.componente} {como}. "
+                "No la tumbes para imprimirla mejor: se mide como la dibujes.")
+
     def movida(u, ficha) -> str:
         """A la pieza que monta el rodamiento y el motor: que el uno mueve
         lo que gira en el otro (F10.2 (transmisión)). Sin esto llevaría un
@@ -715,6 +727,7 @@ def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
                        f"ángulo. Pon el {u.componente} lo bastante alto o lo bastante afuera "
                        "para que así sea, y sujétalo por detrás de esa cara. Al construir "
                        "se mide." if radio else "")
+                    + como_va_puesta(u)
                     + movida(u, ficha)))
         salida.append(dato)
     return salida

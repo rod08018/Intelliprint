@@ -399,6 +399,23 @@ def _salidas_del_giro(piezas, u) -> list[dict]:
             if s.get("ficha") == u.componente and s["nombre"] == nombre]
 
 
+def _lo_que_llega(yo, punto, eje, esquinas) -> float:
+    """Lo más lejos del eje que llega la pieza, medido en su malla. Con las
+    esquinas de su caja, el brazo del banco 1113-0216 (150 mm del eje a la
+    punta, con 150 de radio reservado) «llegaba» a 152,4 por su ancho y no
+    podía cumplir a la vez su alcance y su radio. Sin malla, la caja."""
+    from orchestrator.conjunto import _a_la_recta
+    stl = next(iter(sorted(yo.step.parent.glob("*.stl"))), None)
+    if stl is None:
+        return max(_a_la_recta(q, punto, eje) for q in esquinas)
+    import numpy as np
+    from orchestrator.tornilleria import _triangulos
+    r, d = yo.al_padre
+    vs = _triangulos(str(stl), stl.stat().st_mtime).reshape(-1, 3) @ np.asarray(r).T + d
+    e = np.asarray(_unitario(eje))
+    return float(np.linalg.norm(np.cross(vs - np.asarray(punto), e), axis=1).max())
+
+
 def defectos_de_giro(carpeta: Path, nodo: str) -> list[str]:
     """Lo que la pieza construida de `nodo` no cumple del sitio que el plan
     reserva a cada giro, sin FreeCAD.
@@ -458,7 +475,7 @@ def defectos_de_giro(carpeta: Path, nodo: str) -> list[str]:
                 f"eje: tiene que empezar a menos de {ALCANCE_MM:g} mm de esa cara")
             continue
         esquinas = _esquinas(yo.envolvente, yo.al_padre)
-        llega = max(_a_la_recta(q, s["punto"], s["eje"]) for q in esquinas)
+        llega = _lo_que_llega(yo, s["punto"], s["eje"], esquinas)
         detras = max(-sum((c - p) * e for c, p, e in zip(q, s["punto"], s["eje"]))
                      for q in esquinas)
         if detras > DETRAS_MM:
@@ -471,8 +488,49 @@ def defectos_de_giro(carpeta: Path, nodo: str) -> list[str]:
             fallos.append(
                 f"giro (unión {u.id}): esta pieza llega a {llega:.1f} mm del eje sobre el que "
                 f"gira y «{sobre}» solo le deja {radio:g} mm libres: al girar chocará. "
-                f"Encógela hasta que ninguna esquina pase de {radio:g} mm del eje, sin mover "
+                f"Encógela hasta que nada de ella pase de {radio:g} mm del eje, sin mover "
                 "dónde se acopla")
+    return fallos
+
+
+def defectos_de_orientacion(carpeta: Path, nodo: str) -> list[str]:
+    """Los giros cuyo eje no mira hacia donde dice el plan, en la pieza que
+    lo monta, con el invento en reposo y z hacia arriba.
+
+    El soporte del banco 1113-0216 se dibujó tumbado: el eje, que la
+    petición pedía horizontal, quedó vertical; el estudio no vio ningún par
+    por gravedad y la carga la limitó el vuelco. Pasó su bucle porque nadie
+    se lo midió."""
+    from orchestrator import obra as O
+    from orchestrator.conjunto import articulaciones_de, leer_piezas, poses
+    from orchestrator.schemas.obra import Gira
+    from orchestrator.tornilleria import _girar
+
+    carpeta = Path(carpeta)
+    giros = [u for u in O.cargar_obra(carpeta).uniones_de(nodo)
+             if isinstance(u, Gira) and u.eje and u.sobre == nodo]
+    if not giros:
+        return []
+    piezas = leer_piezas(carpeta, solo_construidas=True)
+    if nodo not in piezas:
+        return []
+    arts = {a.pieza: a for a in articulaciones_de(carpeta, piezas)}
+    mundo = poses(piezas, arts, {})[nodo]
+    fallos = []
+    for u in giros:
+        for s in _salidas_del_giro(piezas, u):
+            eje = _unitario(_girar(mundo, s["eje"]))
+            # Los umbrales con los que el banco llama a un eje vertical u horizontal.
+            es = "vertical" if abs(eje[2]) > 0.99 else "horizontal" if abs(eje[2]) < 0.01 \
+                else "inclinado"
+            if es != u.eje:
+                como = ("paralelo a la mesa" if u.eje == "horizontal" else "hacia arriba")
+                fallos.append(
+                    f"eje del giro (unión {u.id}): el eje del {s['de']} tiene que ir {u.eje} "
+                    f"con la pieza puesta como se usa (z hacia arriba), y está {es}. Has "
+                    "dibujado la pieza en otra postura, quizá como mejor se imprime: "
+                    f"dibújala como va a quedar puesta, con ese eje {como}, y con lo que la "
+                    "sujeta (la mesa, el tablero o la pieza de debajo) por abajo")
     return fallos
 
 
@@ -491,8 +549,13 @@ def sondas_de_giro(carpeta: Path, nodo: str) -> list:
     _, piezas, _, giros = _giros_de(Path(carpeta), nodo)
     if nodo not in piezas:
         return []
+    # Una salida que ocupa un tramo (el aro de un rodamiento, metido en una
+    # pared) deja libre lo que hay MÁS ALLÁ de ese tramo: contado desde su
+    # cara de atrás, la pared que lo sujeta estorbaba (a mano, 2026-11-12).
     return [ZonaLibre(tipo="zona_libre", nombre=f"{s['de']}: {s['nombre']}",
-                      punto=[float(c) for c in s["punto"]], eje=[float(c) for c in s["eje"]],
+                      punto=[float(c + e * (s.get("largo") or 0.0))
+                             for c, e in zip(s["punto"], s["eje"])],
+                      eje=[float(c) for c in s["eje"]],
                       radio_mm=float(u.radio_libre_mm), porque=f"unión {u.id}")
             for u in giros if u.sobre == nodo for s in _salidas_del_giro(piezas, u)]
 
@@ -774,6 +837,11 @@ def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
             fallos += defectos_del_plan()
         except Exception as fallo:  # noqa: BLE001
             print(f"  sin contar los tornillos del plan: {type(fallo).__name__}: {fallo}",
+                  flush=True)
+        try:
+            fallos += defectos_de_orientacion(*backlog)
+        except Exception as fallo:  # noqa: BLE001
+            print(f"  sin medir hacia dónde mira el eje: {type(fallo).__name__}: {fallo}",
                   flush=True)
         try:
             from orchestrator.transmision import defectos_de_transmision

@@ -96,6 +96,11 @@ class Gira(BaseModel):
     piezas: la que monta el actuador no mete nada ahí, y la que gira no pasa
     de él. El pan-tilt del banco 1110-0313 no lo tenía: su soporte dejó
     12.7 mm para una plataforma de 37.7."""
+    eje: Literal["horizontal", "vertical"] | None = None
+    """Hacia dónde mira el eje con el invento puesto como se usa y en
+    reposo, si la petición lo dice. La articulación del banco 1113-0216
+    pedía «con el eje horizontal» y su soporte se dibujó tumbado, como se
+    imprime, con el eje hacia arriba: pasó su bucle y falló el banco."""
     movido_por: Transmision | None = None
     """Si no la mueve el propio `componente` (un servo), sino un motor que
     está al lado. Los planes de antes del 2026-11-12 no lo tienen."""

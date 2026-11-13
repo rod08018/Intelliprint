@@ -477,15 +477,32 @@ def animar_conjunto(piezas: dict[str, Pieza], arts: dict[str, Articulacion],
                       resaltar=lambda k: chocan_en(cuadros[k], choques), color_resaltado=ROJO)
 
 
-def _solidos(piezas: dict[str, Pieza]) -> tuple[dict, dict, dict]:
+def _abrazados(piezas: dict[str, Pieza], arts: dict[str, Articulacion]) -> set[tuple]:
+    """{(pieza, componente)}: lo comprado en lo que otra pieza gira
+    abrazándolo —un rodamiento, cuya salida ocupa un tramo (`largo`)—.
+
+    La pieza que gira en un rodamiento va encajada en su aro: tocarlo es lo
+    que tiene que hacer. En la articulación del banco 1113-0216 el eje del
+    brazo «chocaba» con el 608ZZ, a 0,00 mm. Un servo no entra aquí: lo que
+    gira con él va en su cuerno, por delante de la carcasa."""
+    return {(a.padre, a.de) for a in arts.values()
+            if any(s["de"] == a.de and s.get("largo") and s["punto"] == a.punto
+                   for s in piezas[a.padre].salidas)}
+
+
+def _solidos(piezas: dict[str, Pieza],
+             arts: dict[str, Articulacion] | None = None) -> tuple[dict, dict, dict]:
     """(dueños, sólidos, steps). Cada sólido es de una pieza: la construida,
-    y lo comprado que monta."""
+    y lo comprado que monta. Con `arts`, sin los rodamientos en los que gira
+    otra pieza (`_abrazados`): no se barren contra nada."""
     duenos = {i: i for i in piezas}
     solidos = {}
+    fuera = _abrazados(piezas, arts) if arts else set()
     for p in piezas.values():
-        if p.montados:
+        suyos = [m for m in p.montados if (p.id, m["de"]) not in fuera]
+        if suyos:
             solidos[f"{p.id}: montado"] = [{k: v for k, v in m.items() if k != "de"}
-                                           for m in p.montados]
+                                           for m in suyos]
             duenos[f"{p.id}: montado"] = p.id
     return duenos, solidos, {p.id: p.step for p in piezas.values()}
 
@@ -547,7 +564,7 @@ def mover_lo_construido(carpeta: Path, nodo: str, freecadcmd: str, min_gap_mm: f
     if nodo not in piezas:
         return {"choques": [], "correccion": ""}
     arts = {a.pieza: a for a in articulaciones_de(carpeta, piezas)}
-    duenos, solidos, steps = _solidos(piezas)
+    duenos, solidos, steps = _solidos(piezas, arts)
     choques = _barrer(piezas, arts, duenos, solidos, steps, freecadcmd, min_gap_mm, paso,
                       solo=nodo)
     textos = correcciones(piezas, arts, choques, paso,
@@ -580,7 +597,7 @@ def verificar_conjunto(carpeta: Path, conjunto: str, freecadcmd: str, min_gap_mm
     carpeta = Path(carpeta)
     piezas = leer_piezas(carpeta, conjunto)
     arts = {a.pieza: a for a in articulaciones_de(carpeta, piezas)}
-    duenos, solidos, steps = _solidos(piezas)
+    duenos, solidos, steps = _solidos(piezas, arts)
     choques = _barrer(piezas, arts, duenos, solidos, steps, freecadcmd, min_gap_mm, paso)
 
     reposo = poses(piezas, arts, {})

@@ -1370,6 +1370,41 @@ def la_que_no_deja_sitio(proyecto: Path, nodo: str) -> tuple[str, str] | None:
     return None
 
 
+def la_de_abajo_que_no_vale(proyecto: Path, nodo: str) -> tuple[str, str] | None:
+    """Si `nodo`, que no salió bien, gira sobre una pieza hecha que hoy no
+    pasa lo que se le mide del giro: (esa pieza, lo que se le midió).
+
+    El brazo de la articulación 1113-0216 gastó sus cinco intentos en un
+    defecto que era del soporte: se había dibujado tumbado, con el eje
+    vertical y el del motor sin asomar. Corregir el brazo no lo arregla."""
+    from orchestrator import obra
+    from orchestrator.medida import defectos_de_orientacion
+    from orchestrator.schemas.obra import Gira
+    from orchestrator.transmision import defectos_de_transmision
+    proyecto = Path(proyecto)
+    for u in obra.cargar_obra(proyecto).uniones_de(nodo):
+        if not isinstance(u, Gira) or u.gira != nodo:
+            continue
+        falta = [*defectos_de_orientacion(proyecto, u.sobre),
+                 *defectos_de_transmision(proyecto, u.sobre)]
+        if falta:
+            return u.sobre, "\n".join(falta)
+    return None
+
+
+def _rehacer_la_de_abajo(proyecto: Path, nodo: str, abajo: str, falta: str) -> None:
+    """Rehace `abajo` desde su concepto, con lo medido, y `nodo` contra ella.
+    No se retoca: una pieza dibujada tumbada no se pone de pie moviendo una
+    cota. De arriba abajo, como `_corregir_la_que_no_deja_sitio`."""
+    from orchestrator import obra
+    arbol = obra.cargar_obra(proyecto)
+    motivo = (f"«{arbol.nodo(abajo).nombre}», sobre la que gira esta pieza, se ha hecho de "
+              "nuevo: estaba dibujada en otra postura o no dejaba sitio a la transmisión. "
+              "Esta pieza se hace de nuevo contra ella.")
+    obra.rehacer(proyecto, nodo, motivo)
+    obra.rehacer(proyecto, abajo, falta)
+
+
 def _corregir_la_que_no_deja_sitio(proyecto: Path, nodo: str, abajo: str, falta: str) -> None:
     """Corrige `abajo` con lo medido y manda hacer de nuevo `nodo` y lo que
     lleva encima que tampoco salió: se diseñaron contra unos agujeros que
@@ -1459,8 +1494,11 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
         proyecto = hecho.parent
         correcciones = correcciones_del_conjunto(proyecto)
         sin_sitio = None if solo_seguir else la_que_no_deja_sitio(proyecto, nodo)
+        abajo_mal = None if solo_seguir or sin_sitio else la_de_abajo_que_no_vale(proyecto, nodo)
         if solo_seguir:
             pass
+        elif abajo_mal:
+            _rehacer_la_de_abajo(proyecto, nodo, *abajo_mal)
         elif sin_sitio:
             _corregir_la_que_no_deja_sitio(proyecto, nodo, *sin_sitio)
         elif de_concepto:

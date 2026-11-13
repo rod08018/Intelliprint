@@ -283,6 +283,27 @@ def test_los_ejes_no_pueden_ir_tan_juntos_que_las_poleas_se_toquen(tmp_path):
     assert "30" in d and "36.7" in d
 
 
+def test_el_eje_del_motor_tiene_que_asomar_por_donde_va_la_polea(tmp_path):
+    """En la corrida 1113-0216 el motor iba por detrás de una placa de 40 mm
+    y su eje, de 24, no llegaba a salir: la polea del brazo, que va por
+    delante del rodamiento, no tenía correa posible, y el defecto se le dio
+    al brazo.
+
+    Aquí el rodamiento va de y = 3,5 a y = −3,5 y el brazo sale por −y. Con
+    el motor en y = 25, su eje acaba en y = 1: se queda 4,5 mm antes de la
+    cara del rodamiento. La polea necesita 8,5 mm de eje por delante de esa
+    cara: 1,5 de su pestaña, los 6 de la correa y 1 de holgura."""
+    from orchestrator.transmision import defectos_de_transmision
+    [d] = defectos_de_transmision(_con_correa(tmp_path, motor_en=(-87.9, 25, 25)), "soporte")
+    assert "asom" in d and "8.5 mm" in d and "4.5 mm" in d
+
+
+def test_a_quien_monta_el_motor_se_le_dice_cuanto_tiene_que_asomar_su_eje(tmp_path):
+    from orchestrator.obra import uniones_del_nodo
+    [soporte] = uniones_del_nodo(_con_correa(tmp_path), "soporte")
+    assert "8.5 mm" in soporte["texto"] and "asom" in soporte["texto"]
+
+
 def test_la_pieza_que_gira_lleva_la_polea(tmp_path):
     from orchestrator.transmision import defectos_de_transmision
     [d] = defectos_de_transmision(_con_correa(tmp_path, polea=None), "brazo")

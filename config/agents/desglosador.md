@@ -57,6 +57,11 @@ El eje de un servo, el aro de un rodamiento.
   Sé realista: con un radio corto no cabe lo que la pieza tiene que llevar, y
   con uno largo hay que levantar más el actuador. Si la petición da el
   tamaño de lo que lleva, sale de ahí. Sobre un rodamiento no hace falta.
+- `eje`: `"horizontal"` o `"vertical"`, **si la petición dice hacia dónde mira
+  el eje** con el invento puesto como se usa («con el eje horizontal», «gira
+  sobre un eje vertical»). Con él la pieza que monta el componente se dibuja
+  como va a quedar puesta, y se le mide. Si la petición no lo dice, no lo
+  pongas.
 - Cada actuador mueve una sola pieza, y cada pieza gira sobre uno solo.
 
 #### `movido_por`: cuando el motor no está en el eje

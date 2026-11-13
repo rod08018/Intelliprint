@@ -35,6 +35,11 @@ DE_CUANTO_EN_CUANTO = 5
 se venden en muchos largos, pero no en todos, y nadie ha comprobado cuáles
 tiene la tienda del usuario. El plan lo avisa."""
 ANCHO_DE_CORREA = 6.0
+ASOMA = 8.5
+"""Lo que el eje del motor tiene que salir por delante de la cara del
+rodamiento por la que sale la pieza que gira: ahí va su polea, y la del
+motor tiene que quedar frente a ella. Es la pestaña de la polea (1,5), el
+ancho de la correa (6) y 1 mm de holgura con la cara."""
 
 
 def con_correa(obra, nodo: str | None = None) -> list[Gira]:
@@ -89,8 +94,11 @@ def para_quien_monta(u: Gira, gira: str, motor: str) -> str:
             f"{z2}, de Ø{T.diametro_exterior(z2) + 2 * T.PESTANA:.1f} mm. Los dos ejes salen "
             "hacia el mismo lado de la pieza, y de eje a eje tiene que haber justo una de "
             f"estas distancias, que son las que dan correas cerradas: {donde}. Vale "
-            f"±{TOLERANCIA_ENTRE_EJES:g} mm. Entre las dos poleas pasa la correa: no pongas "
-            "nada ahí. Al construir se mide.")
+            f"±{TOLERANCIA_ENTRE_EJES:g} mm. Las dos poleas van por delante de la cara del "
+            f"{u.componente} por la que sale {gira}: el eje del motor tiene que asomar al "
+            f"menos {ASOMA:g} mm por delante de esa cara (si el motor va detrás de una pared, "
+            "que sea fina, o su eje no llega). Entre las dos poleas pasa la correa: no "
+            "pongas nada ahí. Al construir se mide.")
 
 
 def para_quien_gira(u: Gira, sobre: str) -> str:
@@ -150,8 +158,26 @@ def medir(carpeta: Path, u: Gira, piezas: dict) -> dict:
     m = {"z1": z1, "z2": z2, "hechos": None, "entre_ejes_mm": None, "correa": None,
          "sobre": [], "gira": []}
     giro, motor = _ejes(piezas, u)
+    alineados = False
     if giro is not None and motor is not None:
         paralelos = _punto(giro["eje"], motor["eje"])
+        alineados = paralelos >= 0.999
+        if alineados:
+            # A lo largo del eje, desde donde empieza el rodamiento: dónde
+            # acaba él y hasta dónde llega el eje del motor.
+            cara = giro.get("largo") or 0.0
+            punta = max(_punto([c + e * t - o for c, e, o in zip(motor["punto"], motor["eje"],
+                                                                 giro["punto"])], giro["eje"])
+                        for t in (0.0, motor.get("largo") or 0.0))
+            if punta - cara < ASOMA - 0.05:
+                cuanto = (f"asoma {punta - cara:.1f} mm" if punta > cara else
+                          f"se queda {cara - punta:.1f} mm antes de ella, sin asomar")
+                m["sobre"].append(
+                    f"correa (unión {u.id}): el eje del {motor['de']} tiene que asomar al "
+                    f"menos {ASOMA:g} mm por delante de la cara del {giro['de']} por la que "
+                    f"sale la pieza que gira, y {cuanto}. Ahí va la polea de la pieza que "
+                    "gira, y la del motor tiene que quedar frente a ella: adelanta el motor, "
+                    "o adelgaza la pared que tiene delante")
         if abs(paralelos) < 0.999:
             m["sobre"].append(
                 f"correa (unión {u.id}): el eje del {motor['de']} no va paralelo al del "
@@ -217,7 +243,7 @@ def medir(carpeta: Path, u: Gira, piezas: dict) -> dict:
             f"correa (unión {u.id}): la polea «{p['nombre']}» tiene {p['dientes']} dientes y "
             f"la relación {u.movido_por.relacion:g}:1 pide {z2} (la del motor tiene {z1}). "
             f"Hazla con {como}")
-    if giro is not None and motor is not None and not m["sobre"]:
+    if giro is not None and motor is not None and alineados:
         # Los dientes de la polea y el eje del motor, a lo largo del eje del giro.
         pie = (p["alto_mm"] - p["ancho_mm"]) / 2
         a = [_punto([c + e * t - o for c, e, o in zip(centro, eje, giro["punto"])], giro["eje"])
