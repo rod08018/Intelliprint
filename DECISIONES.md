@@ -743,6 +743,8 @@ Y lo que sí faltaba de tornillería:
 6. **El motor se comprueba contra la carga antes de dibujar**, con masas estimadas, y otra vez después con las reales.
 7. **Si los dientes engranan lo dice una pieza impresa**, no el código: el usuario imprime las de prueba y apunta la holgura, como con el M3.
 
+**Concretado al hacer F10.2 (transmisión), 2026-11-12.** El motor de una transmisión va en la misma pieza que el rodamiento sobre el que gira lo movido: es la única pieza donde se puede medir la distancia entre los dos ejes. La relación se escribe como vueltas del motor por vuelta de la pieza y no baja de 1. El rendimiento no lo escribe el plan: es una constante del código por tipo (0,9 la correa, 0,7 la reductora), puesta por el asistente como supuesto del lado bajo y pendiente de que el usuario la decida o la mida. Al paso a paso se le pide como mucho el 50 % de su par de retención, la misma regla que él decidió para los servos; tampoco eso lo ha decidido él para un paso a paso.
+
 **Alternativas descartadas.**
 - **Ir directo al brazo de clase Arctos.** Un salto de 3 piezas a 168 no dice dónde falla cuando falla.
 - **Que el modelo dibuje los dientes.** Un perfil de diente son decenas de puntos exactos; es lo que peor hace y lo que el código hace sin error.

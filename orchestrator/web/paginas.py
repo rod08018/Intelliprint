@@ -1066,6 +1066,19 @@ def _gramos(g) -> str:
     return f"{g / 1000:.2f} kg" if g >= 1000 else f"{g:.0f} g"
 
 
+def _de_donde_sale_el_par(s: dict) -> str:
+    """«el 50 % de su par a 4.8 V», o las cuentas de la transmisión. Un paso
+    a paso no tiene tensión de servo, y la tarjeta la daba por hecha en toda
+    fila con par (F10.2 (transmisión))."""
+    from orchestrator.estudio import MARGEN_SERVO
+    a = f' a {s["tension_V"]:g} V' if s.get("tension_V") is not None else ""
+    t = s.get("transmision")
+    if not t:
+        return f"el {MARGEN_SERVO:.0%} de su par{a}"
+    return (f"el {MARGEN_SERVO:.0%} del par del motor{a}, por {t['relacion']:g} y por un "
+            f"rendimiento del {t['rendimiento']:.0%}, que es un supuesto")
+
+
 def _estudio_de_movimientos(carpeta: Path, vid: str, conjunto: str | None) -> str:
     """Las cinco preguntas de F7.10 (estudio), una tarjeta cada una, con la
     cifra, si va holgada (verde), justa (ámbar) o no llega (rojo), y de
@@ -1099,7 +1112,7 @@ def _estudio_de_movimientos(carpeta: Path, vid: str, conjunto: str | None) -> st
         filas.append(f'<li><span class="pastilla {clase}">{"aguanta" if s["aguanta"] else "no aguanta"}</span> '
                      f'{e(s["nombre"])} · {e(s["servo"])}: pide {_kgf_cm(s["par_max_Nm"])} kgf·cm '
                      f'(a {s["angulo_peor"]:g}°) de {_kgf_cm(s["par_disponible_Nm"])} '
-                     f'<span class="suave">(el {MARGEN_SERVO:.0%} de su par a {s["tension_V"]:g} V)</span></li>')
+                     f'<span class="suave">({_de_donde_sale_el_par(s)})</span></li>')
     tarjetas.append(f'<div class="tarjeta-estudio"><h3>¿Aguanta el servo?</h3><ul>{"".join(filas)}</ul></div>')
 
     v = est["vuelco"]

@@ -188,6 +188,11 @@ class Ficha(BaseModel):
     convierte en un solo sitio (`par_Nm`)."""
     velocidad_s_60: dict[float, float] = {}
     """Segundos por 60° en vacío, a cada tensión."""
+    par_retencion_mNm: float | None = Field(default=None, gt=0)
+    """El par de retención de un paso a paso, en mN·m como lo dan sus hojas
+    («Holding torque»): no depende de la tensión, sino de la corriente
+    nominal. Es el par parado; girando da menos, y eso no se calcula
+    (F10.2 (transmisión))."""
 
     def _a_la_tension(self, datos: dict, voltios: float):
         """La tensión de la hoja más alta que no pase de `voltios`: a 5 V
@@ -204,6 +209,18 @@ class Ficha(BaseModel):
 
     def velocidad(self, voltios: float) -> float | None:
         return self._a_la_tension(self.velocidad_s_60, voltios)
+
+    def da_par(self) -> bool:
+        """¿Mueve algo? Un rodamiento o un sensor, no."""
+        return bool(self.par_retencion_mNm or self.par_kgf_cm)
+
+    def par_motor_Nm(self, voltios: float | None = None) -> float | None:
+        """El par con el que cuenta el estudio: el de retención de un paso a
+        paso, o el de bloqueo de un servo a esa tensión. None si la ficha no
+        da ninguno, o si es un servo y no se sabe a qué tensión va."""
+        if self.par_retencion_mNm:
+            return self.par_retencion_mNm / 1000
+        return None if voltios is None else self.par_Nm(voltios)
 
 
 def bibliotecas() -> list[Path]:

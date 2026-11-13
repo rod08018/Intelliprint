@@ -59,6 +59,7 @@ def validar_plan(obra: Obra, agujeros: dict,
     errores: list[str] = []
     avisos: list[str] = []
     en_cada_salida: dict[tuple, list[str]] = {}
+    de_cada_motor: dict[tuple, list[str]] = {}
     for u in obra.uniones:
         if isinstance(u, Fija):
             faltan = [c for c in claves_del_perfil(u) if c not in agujeros]
@@ -70,10 +71,14 @@ def validar_plan(obra: Obra, agujeros: dict,
                     f"{', '.join(sorted(agujeros))}")
             continue
         try:
-            salida = salida_de(u, cargar(u.componente, extra))
+            ficha = cargar(u.componente, extra)
+            salida = salida_de(u, ficha)
         except ValueError as e:
             errores.append(str(e))
             continue
+        errores += _transmision_imposible(u, ficha, extra)
+        de_cada_motor.setdefault((u.sobre, u.movido_por.motor if u.movido_por
+                                  else u.componente), []).append(u.id)
         lo, hi = salida.recorrido
         if u.recorrido_grados > hi - lo + 1e-6:
             errores.append(
@@ -81,7 +86,9 @@ def validar_plan(obra: Obra, agujeros: dict,
                 f"{hi - lo:g}° (de {lo:g}° a {hi:g}°, según su ficha)")
         # Lo que abraza un rodamiento no tiene un cilindro libre delante de
         # una cara: su salida ocupa un tramo (`largo`) y la pieza va en él.
-        if u.radio_libre_mm is None and not salida.largo:
+        # El eje de un motor también ocupa un tramo, pero lo que va en él
+        # queda delante de su cara, como en un servo.
+        if u.radio_libre_mm is None and (not salida.largo or ficha.da_par()):
             errores.append(
                 f"unión «{u.id}»: falta `radio_libre_mm`: cuánto sitio necesita «{u.gira}» "
                 f"alrededor del eje de «{u.componente}» para girar sin tocar nada. Es lo que "
@@ -94,6 +101,16 @@ def validar_plan(obra: Obra, agujeros: dict,
                 f"«{sobre}» lleva {hay} {componente} y sobre él giran {len(ids)} uniones "
                 f"({', '.join(ids)}): cada actuador mueve una sola pieza. Pon otro en "
                 f"`compra` de «{sobre}» o quita una")
+    for (sobre, motor), ids in de_cada_motor.items():
+        hay = obra.nodo(sobre).compra.count(motor)
+        # Un rodamiento con dos piezas ya lo dice el error de arriba.
+        if len(ids) > hay and any(u.movido_por and u.movido_por.motor == motor
+                                  for u in obra.uniones if isinstance(u, Gira)
+                                  and u.sobre == sobre):
+            errores.append(
+                f"«{sobre}» lleva {hay} {motor} y con él se mueven {len(ids)} uniones "
+                f"({', '.join(ids)}): cada motor mueve un solo giro, sea en su eje o por "
+                f"una transmisión. Pon otro en `compra` de «{sobre}» o quita una")
     avisos += _roscas_sin_medir(obra, agujeros, extra)
     conjuntos = [n for n in obra.nodos if n.tipo == "conjunto"]
     for u in obra.uniones:
@@ -110,6 +127,34 @@ def validar_plan(obra: Obra, agujeros: dict,
                 errores.append(f"«{n.id}» no se une a nada: no gira sobre ninguna pieza ni "
                                "va atornillada a ninguna. Di cómo se sujeta")
     return errores, avisos
+
+
+def _transmision_imposible(u: Gira, ficha: Ficha, extra: Sequence[Path]) -> list[str]:
+    """Lo que `movido_por` no puede ser, mirando las fichas
+    (F10.2 (transmisión)): el motor tiene que dar par y tener un eje donde poner la
+    polea, y aquello sobre lo que se gira no puede ser otro actuador."""
+    if u.movido_por is None:
+        return []
+    t = u.movido_por
+    try:
+        motor = cargar(t.motor, extra)
+    except KeyError as e:
+        return [f"unión «{u.id}»: {e.args[0]}"]
+    errores = []
+    if not motor.da_par():
+        errores.append(
+            f"unión «{u.id}»: «{t.motor}» no puede mover nada: su ficha no da ningún par. "
+            "En `movido_por` va un motor o un servo")
+    elif not motor.salidas:
+        errores.append(
+            f"unión «{u.id}»: «{t.motor}» no tiene ninguna salida en su ficha: no hay eje "
+            f"del que sacar la {t.tipo}")
+    if ficha.da_par():
+        errores.append(
+            f"unión «{u.id}»: «{u.gira}» gira sobre «{u.componente}», que ya es un actuador, "
+            f"y además la mueve «{t.motor}». O gira directamente en «{u.componente}», sin "
+            "`movido_por`, o gira sobre un rodamiento y la mueve el motor")
+    return errores
 
 
 def _roscas_sin_medir(obra: Obra, agujeros: dict, extra: Sequence[Path]) -> list[str]:

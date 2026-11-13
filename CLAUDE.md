@@ -161,8 +161,17 @@ Fase 10.
   «4 mm más allá» que se le dice a la pinza es el grueso de una pared,
   no la salida de la pieza, y la mandó dentro de la plataforma. **La
   pinza queda aparcada**; seguir es otro gasto, por acordar.
-- **Lo que sigue, en orden:** F10.2 (transmisión) → F10.3 (correa) → medir
-  el encargo 14. El gasto de cada medición se acuerda cuando toque.
+- **Hecho: F10.2 (transmisión)** (2026-11-12). Un giro dice en
+  `movido_por` qué motor lo mueve, si por correa o reductora y con qué
+  relación; el motor va en la misma pieza que el rodamiento. El
+  estudio lleva el par al eje: el NEMA 17 da 0,400 N·m según su hoja,
+  y con correa 4:1 levanta 479,5 g a 150 mm, a mano y en el test. **Dos
+  supuestos los puso el asistente y él no los ha decidido:** el
+  rendimiento (0,9 la correa, 0,7 la reductora) y pedirle al paso a
+  paso como mucho el 50 % de su par de retención. Nadie dibuja aún la
+  correa ni las poleas, y no se ha corrido en el banco.
+- **Lo que sigue, en orden:** F10.3 (correa) → medir el encargo 14. El
+  gasto de cada medición se acuerda cuando toque.
 
 **2026-11-10: Fase 9, robots con plan mecánico (ADR-020).** El usuario quiere
 diseñar robots: que el desglose decida antes de dibujar qué gira sobre qué y con

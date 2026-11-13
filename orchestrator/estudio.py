@@ -183,6 +183,13 @@ def tiempo_de_recorrido(grados: float, s_60: float, par: float, par_bloqueo: flo
 MARGEN_SERVO = 0.5
 """Un servo aguanta si no pasa del 50 % de su par de bloqueo: la regla de
 taller para que trabaje sin calentarse (decidido por el usuario, 2026-11-10)."""
+RENDIMIENTO = {"correa": 0.9, "reductora": 0.7}
+"""La parte del par del motor que llega al eje por cada transmisión
+(F10.2 (transmisión)). **Son supuestos, no medidas**: nadie ha medido una correa
+ni una reductora impresas en la impresora del usuario. Se toman del lado
+bajo —una correa dentada bien tensada pierde menos— y van escritos junto
+a cada carga que sale de ellos. El de la reductora se revisa cuando exista
+(F10.7 (cicloidal))."""
 MAX_POSES = 8000
 """Hasta cuántas poses se prueban todas las combinaciones. Caben tres giros
 de 180° con la rejilla de 10° (19³ = 6 859): con 5 000 se probaba cada giro
@@ -353,19 +360,41 @@ def estudiar(carpeta: Path, conjunto: str, raiz: Path | None = None) -> dict:
     hoja, carga, donde = _punto_de_carga(piezas, arts, todos, lam, rho)
     cadena = set(_hasta_la_raiz(piezas, hoja))
 
+    # Lo que mueve cada giro: el motor de su transmisión, si el plan la dice
+    # (F10.2 (transmisión)); si no, el propio componente que hace de eje.
+    movidas = {u["gira"]: u["movido_por"] for u in ob.get("uniones") or []
+               if u.get("tipo") == "gira" and u.get("movido_por")}
     servos_de = {}
     for j, a in arts.items():
+        if j in movidas:
+            servos_de[j] = cargar(movidas[j]["motor"], fichas)
+            continue
         for r in piezas[a.padre].propios:
             if r["nombre"] == a.de:
                 servos_de[j] = cargar(r["ficha"], fichas)
     # La tensión: la del invento, o la más baja de las hojas, del lado seguro.
+    # Un paso a paso no la tiene: su par es el de retención.
     tension = ob.get("alimentacion_V")
     if tension is None:
-        tensiones = [v for f in servos_de.values() for v in f.par_kgf_cm]
+        tensiones = [v for f in servos_de.values() if not f.par_retencion_mNm
+                     for v in f.par_kgf_cm]
         tension = min(tensiones) if tensiones else None
         if tension is not None:
             avisos.append(f"El invento no dice con qué tensión van los servos: se toma "
                           f"{tension:g} V, la más baja de sus hojas.")
+    # El par en el eje de cada giro, parado: el del motor por la relación y
+    # por el rendimiento de su transmisión. Sin entrada si no se sabe.
+    bloqueo: dict[str, float] = {}
+    for j, f in servos_de.items():
+        par = f.par_motor_Nm(tension)
+        if par is None:
+            continue
+        t = movidas.get(j)
+        bloqueo[j] = par * t["relacion"] * RENDIMIENTO[t["tipo"]] if t else par
+    for tipo in dict.fromkeys(t["tipo"] for j, t in movidas.items() if j in bloqueo):
+        avisos.append(f"El rendimiento de una {tipo} ({RENDIMIENTO[tipo]:.0%}) es un supuesto, "
+                      "no una medida: de él salen el par disponible y la carga de lo que "
+                      "mueve.")
 
     # Las poses: todas las combinaciones de la rejilla, si no son demasiadas.
     rejillas = {j: _recorrido(a, paso) for j, a in arts.items()}
@@ -403,8 +432,8 @@ def estudiar(carpeta: Path, conjunto: str, raiz: Path | None = None) -> dict:
             if j in cadena:
                 e["radio"] = max(e["radio"], _distancia_a_la_recta(pc, punto, eje))
                 por_gramo = par_por_gravedad([(1.0, pc)], punto, eje)
-                if abs(por_gramo) > 1e-12 and j in servos_de and tension is not None:
-                    disp = MARGEN_SERVO * servos_de[j].par_Nm(tension)
+                if abs(por_gramo) > 1e-12 and j in bloqueo:
+                    disp = MARGEN_SERVO * bloqueo[j]
                     # La carga suma o resta al par propio según de qué lado cuelgue.
                     hacia = 1 if por_gramo > 0 else -1
                     e["carga"] = min(e["carga"], max(0.0, (disp - hacia * tau) / abs(por_gramo)))
@@ -426,20 +455,34 @@ def estudiar(carpeta: Path, conjunto: str, raiz: Path | None = None) -> dict:
         fila = {"pieza": j, "nombre": piezas[j].nombre, "servo": f.nombre if f else a.de,
                 "par_max_Nm": round(e["par_max"], 6), "angulo_peor": e["angulo"],
                 "recorrido": list(a.recorrido)}
-        if f is not None and f.par_kgf_cm and tension is not None:
-            bloqueo, s60 = f.par_Nm(tension), f.velocidad(tension)
+        t = movidas.get(j)
+        if t and f is not None:
+            fila["servo"] = f"{f.nombre} por {t['tipo']} {t['relacion']:g}:1"
+        if j in bloqueo:
+            par = bloqueo[j]
             fila.update(
-                tension_V=tension, par_bloqueo_Nm=round(bloqueo, 6),
-                par_disponible_Nm=round(MARGEN_SERVO * bloqueo, 6),
-                aguanta=bool(e["par_max"] <= MARGEN_SERVO * bloqueo),
-                margen=round(1 - e["par_max"] / (MARGEN_SERVO * bloqueo), 3),
-                carga_max_g=None if e["carga"] == math.inf else round(e["carga"], 2),
-                tiempo_s=round(tiempo_de_recorrido(a.recorrido[1] - a.recorrido[0], s60,
-                                                   e["par_max"], bloqueo), 4),
-                velocidad_punta_mm_s=round(math.radians(60 / s60) * (1 - e["par_max"] / bloqueo)
-                                           * e["radio"], 1))
+                par_bloqueo_Nm=round(par, 6), par_disponible_Nm=round(MARGEN_SERVO * par, 6),
+                aguanta=bool(e["par_max"] <= MARGEN_SERVO * par),
+                margen=round(1 - e["par_max"] / (MARGEN_SERVO * par), 3),
+                carga_max_g=None if e["carga"] == math.inf else round(e["carga"], 2))
+            if t:
+                fila["transmision"] = {**t, "rendimiento": RENDIMIENTO[t["tipo"]],
+                                       "par_motor_Nm": round(f.par_motor_Nm(tension), 6)}
+            if not f.par_retencion_mNm:
+                fila["tension_V"] = tension
+            # La transmisión divide la velocidad por lo mismo que multiplica
+            # el par. De un paso a paso no se da: depende de su controlador.
+            s60 = None if f.par_retencion_mNm else f.velocidad(tension)
+            if s60:
+                s60 *= t["relacion"] if t else 1
+                fila.update(
+                    tiempo_s=round(tiempo_de_recorrido(a.recorrido[1] - a.recorrido[0], s60,
+                                                       e["par_max"], par), 4),
+                    velocidad_punta_mm_s=round(math.radians(60 / s60) * (1 - e["par_max"] / par)
+                                               * e["radio"], 1))
         else:
-            avisos.append(f"«{piezas[j].nombre}»: no se sabe el par de lo que la mueve ({a.de}).")
+            avisos.append(f"«{piezas[j].nombre}»: no se sabe el par de lo que la mueve "
+                          f"({t['motor'] if t else a.de}).")
         servos.append(fila)
 
     limites = [(s["carga_max_g"], f"servo de «{s['nombre']}»") for s in servos
@@ -643,7 +686,8 @@ def texto_del_estudio(e: dict) -> str:
          f"Masa del conjunto: {e['masa_total_g']:.1f} g. La carga útil va "
          f"{e['carga']['donde']}.", ""]
     l += ["## ¿Aguanta el servo?", "",
-          f"Aguanta si el par por gravedad no pasa del {MARGEN_SERVO:.0%} del de bloqueo.", "",
+          f"Aguanta si el par por gravedad no pasa del {MARGEN_SERVO:.0%} del de bloqueo (en un "
+          "paso a paso, del de retención), llevado al eje por su transmisión si la tiene.", "",
           "| Articulación | Servo | Par máximo | Disponible | ¿Aguanta? | Carga que admite |",
           "|---|---|---|---|---|---|"]
     for s in e["servos"]:
@@ -653,6 +697,13 @@ def texto_del_estudio(e: dict) -> str:
         disp = s.get("par_disponible_Nm")
         l.append(f"| {s['nombre']} | {s['servo']} | {s['par_max_Nm']:.4f} N·m a {s['angulo_peor']:g}° "
                  f"| {'—' if disp is None else f'{disp:.4f} N·m'} | {ok} | {admite} |")
+    for s in e["servos"]:
+        t = s.get("transmision")
+        if t:
+            l += ["", f"«{s['nombre']}»: {t['par_motor_Nm']:.3f} N·m del motor × {t['relacion']:g} "
+                      f"de la {t['tipo']} × {t['rendimiento']:.0%} de rendimiento = "
+                      f"{s['par_bloqueo_Nm']:.3f} N·m en el eje. El rendimiento es un supuesto, "
+                      "no una medida."]
     v = e["vuelco"]
     l += ["", "## ¿Vuelca?", ""]
     if v["margen_mm"] is None:

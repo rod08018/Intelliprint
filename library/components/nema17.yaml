@@ -10,6 +10,8 @@ fuentes:
     cita: "conector S6B-PH-K: 16 de ancho, a 9.6 de la cara de atrás, 7 de saliente"
   - url: https://make.epfl.ch/storage/media/1461/Nema17HS4401.pdf
     cita: "42HD4027-01: 9. Motor weight 275g Ref."
+  - url: https://make.epfl.ch/storage/media/1461/Nema17HS4401.pdf
+    cita: "Product Parameters, 42HD4027-01: Height 40 mm, Current 1.5 A, Holding torque 400 mN.m, Weight 275 g"
 marco: >
   Origen en el centro de la cara de montaje (la del eje): el motor queda
   detrás, hacia -z, y el eje sale hacia +z. El conector está en el lado -y.
@@ -34,6 +36,15 @@ despejar:
     caja: [16, 15, 12]
     en: [-8, -43.15, -39.5]
     porque: "la clavija JST PH de 6 pines y el cable que sale de ella"
+# El eje (F10.2 (transmisión)): lo que lleva encima, una polea o la pieza
+# misma, da vueltas enteras con él. Ocupa los 24 mm que sale de la cara.
+salidas:
+  - nombre: eje
+    en: [0, 0, 0]
+    eje: "+z"
+    recorrido: [0, 360]
+    largo: 24
+    porque: "un paso a paso no tiene tope: la vuelta entera"
 # Roscados M3 de 4.5 mm de fondo como mínimo (notas): el tornillo entra
 # hasta 4.5 en el motor, no más.
 fijacion:
@@ -48,3 +59,8 @@ notas: >
 
 # El plano del 42HD4027-01, el de 40 mm de esta ficha: «275g Ref.».
 masa_g: 275
+
+# La tabla «Product Parameters» de la misma hoja, fila 42HD4027-01: «Holding
+# torque 400 mN.m», a su corriente nominal de 1.5 A. Es el par parado: girando
+# da menos, y cuánto menos depende del controlador y de la velocidad.
+par_retencion_mNm: 400

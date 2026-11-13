@@ -265,7 +265,23 @@ def union_en_palabras(obra: Obra, u) -> str:
     sitio = (f", y necesita {u.radio_libre_mm:g} mm libres alrededor del eje"
              if u.radio_libre_mm else "")
     return (f"{nombre(u.gira)} gira {u.recorrido_grados:g}° sobre el {que} de "
-            f"{nombre(u.sobre)}{sitio}")
+            f"{nombre(u.sobre)}{sitio}{_movida_por(u)}")
+
+
+def transmision_en_palabras(t) -> str:
+    """«correa 4:1», «reductora 30:1»."""
+    return f"{t.tipo} {t.relacion:g}:1"
+
+
+def _movida_por(u) -> str:
+    from orchestrator.componentes import cargar
+    if u.movido_por is None:
+        return ""
+    try:
+        motor = cargar(u.movido_por.motor).nombre
+    except Exception:  # noqa: BLE001 — como arriba: se enseña igual
+        motor = u.movido_por.motor
+    return f"; la mueve el {motor} por {transmision_en_palabras(u.movido_por)}"
 
 
 def plan_anterior(carpeta: Path) -> str | None:
@@ -562,6 +578,19 @@ def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
                 "en mitad de su recorrido, y es en esos ángulos donde no puede chocar con "
                 "nada.")
 
+    def movida(u, ficha) -> str:
+        """A la pieza que monta el rodamiento y el motor: que el uno mueve
+        lo que gira en el otro (F10.2 (transmisión)). Sin esto llevaría un
+        motor en `compra` sin saber para qué."""
+        if u.movido_por is None:
+            return ""
+        motor = cargar(u.movido_por.motor)
+        return (f" No la mueve el {ficha.nombre}, que solo la deja girar: la mueve el "
+                f"{motor.nombre} que también monta esta pieza, por "
+                f"{transmision_en_palabras(u.movido_por)}. Pon el eje del motor paralelo al "
+                f"del {u.componente} y a un lado, con sitio entre los dos para la "
+                "transmisión.")
+
     def donde_sale(u, otro) -> str:
         """De qué lado de los agujeros de `otro`, que lleva la cabeza, va
         esta pieza. El soporte de la pinza del banco 1112-1359 se puso
@@ -673,7 +702,8 @@ def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
                        "piezas sobre las que va, ni de lo comprado que montan, en ningún "
                        f"ángulo. Pon el {u.componente} lo bastante alto o lo bastante afuera "
                        "para que así sea, y sujétalo por detrás de esa cara. Al construir "
-                       "se mide." if radio else "")))
+                       "se mide." if radio else "")
+                    + movida(u, ficha)))
         salida.append(dato)
     return salida
 

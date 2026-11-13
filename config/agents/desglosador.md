@@ -59,6 +59,24 @@ El eje de un servo, el aro de un rodamiento.
   tamaño de lo que lleva, sale de ahí. Sobre un rodamiento no hace falta.
 - Cada actuador mueve una sola pieza, y cada pieza gira sobre uno solo.
 
+#### `movido_por`: cuando el motor no está en el eje
+
+Si la pieza gira sobre un **rodamiento** y la mueve un motor que está al lado,
+por una correa o una reductora, dilo en la misma unión `gira`:
+
+- `componente` sigue siendo aquello sobre lo que gira: el rodamiento.
+- `movido_por`: `{"motor": ..., "tipo": ..., "relacion": ...}`.
+  - `motor`: el id de la ficha del motor. Va en `compra` de **la misma pieza**
+    `sobre` que lleva el rodamiento: los dos ejes se montan en una sola pieza.
+  - `tipo`: `"correa"` o `"reductora"`.
+  - `relacion`: las vueltas del motor por cada vuelta de la pieza. «4:1» es
+    `4`. Nunca menos de 1.
+- **La correa y las poleas no son nodos ni van en `compra`**: son parte de la
+  unión. No inventes piezas para ellas.
+- Un motor mueve un solo giro. Si la pieza gira directamente en el eje de un
+  servo, no lleva `movido_por`.
+- Si la petición no habla de correa ni de reductora, no pongas `movido_por`.
+
 ### `fija`: dos piezas atornilladas, o una pieza atornillada a algo de fuera
 
 - `cabeza`: la pieza donde apoya la cabeza del tornillo. `agarra`: la pieza
@@ -110,4 +128,13 @@ Un brazo que gira sobre un servo, con una tapa atornillada:
    "metrica": "M3", "cantidad": 2, "agarre": "tuerca"},
   {"tipo": "gira", "id": "u3", "gira": "brazo", "sobre": "soporte",
    "componente": "sg90", "recorrido_grados": 180, "radio_libre_mm": 65}]}
+```
+
+El mismo brazo sobre un rodamiento, movido por un motor con correa 3:1: el
+soporte lleva `"compra": ["608zz", "nema17"]` y la unión es
+
+```json
+{"tipo": "gira", "id": "u3", "gira": "brazo", "sobre": "soporte",
+ "componente": "608zz", "recorrido_grados": 180,
+ "movido_por": {"motor": "nema17", "tipo": "correa", "relacion": 3}}
 ```

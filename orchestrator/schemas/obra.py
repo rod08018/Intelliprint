@@ -61,6 +61,21 @@ class Fija(BaseModel):
         return tuple(n for n in (self.cabeza, self.agarra) if n != EXTERIOR)
 
 
+class Transmision(BaseModel):
+    """Qué mueve un giro cuando el motor no está en el eje
+    (F10.2 (transmisión), ADR-021). Es un dato del giro y no una pieza más: una
+    correa cierra una cadena, y con ella de nodo el árbol de giros dejaría
+    de serlo."""
+    motor: str
+    """La ficha del motor, que está en `compra` de la pieza `sobre`: el
+    motor y el rodamiento van en la misma pieza, que es donde se puede medir
+    la distancia entre sus ejes."""
+    tipo: Literal["correa", "reductora"]
+    relacion: float = Field(ge=1)
+    """Las vueltas del motor por cada vuelta de la pieza: 4 es 4:1. Por eso
+    no baja de 1: quien escribe 0.25 queriendo decir 4:1 tiene que enterarse."""
+
+
 class Gira(BaseModel):
     """Una pieza que gira sobre la salida de algo comprado que monta otra:
     el eje de un servo, el aro de un rodamiento (F9.2 (uniones))."""
@@ -81,6 +96,9 @@ class Gira(BaseModel):
     piezas: la que monta el actuador no mete nada ahí, y la que gira no pasa
     de él. El pan-tilt del banco 1110-0313 no lo tenía: su soporte dejó
     12.7 mm para una plataforma de 37.7."""
+    movido_por: Transmision | None = None
+    """Si no la mueve el propio `componente` (un servo), sino un motor que
+    está al lado. Los planes de antes del 2026-11-12 no lo tienen."""
 
     def nodos(self) -> tuple[str, ...]:
         return (self.gira, self.sobre)
@@ -172,6 +190,18 @@ class Obra(BaseModel):
             raise ValueError(
                 f"unión «{u.id}»: «{u.sobre}» no lleva «{u.componente}» en `compra`; lleva: "
                 + (", ".join(lleva) or "nada"))
+        if u.movido_por is not None:
+            motor = u.movido_por.motor
+            if motor == u.componente:
+                raise ValueError(
+                    f"unión «{u.id}»: «{motor}» es aquello sobre el que gira «{u.gira}»; "
+                    "en `movido_por` va el motor que la mueve desde un lado. Si gira "
+                    f"directamente en el eje de «{motor}», quita `movido_por`")
+            if motor not in lleva:
+                raise ValueError(
+                    f"unión «{u.id}»: «{u.sobre}» no lleva «{motor}» en `compra`; lleva: "
+                    f"{', '.join(lleva)}. El motor va en la misma pieza que el "
+                    f"«{u.componente}» sobre el que gira «{u.gira}»")
         if u.gira in giran:
             raise ValueError(
                 f"unión «{u.id}»: «{u.gira}» gira sobre dos piezas («{giran[u.gira]}» y "

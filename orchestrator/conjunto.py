@@ -254,6 +254,12 @@ def _lo_pedido(de_la_ficha: tuple, grados: float | None) -> tuple:
     lo, hi = de_la_ficha
     if not grados or grados >= hi - lo - 1e-6:
         return tuple(de_la_ficha)
+    if hi - lo >= 360 - 1e-6:
+        # Lo que da la vuelta entera (un rodamiento, de 0° a 360° en su
+        # ficha) no tiene un lado al que no llegue. Corrido a «de 0° a 180°»,
+        # un brazo dibujado estirado nunca bajaba, y a quien lo dibuja se le
+        # dice «90° a cada lado» (F10.2 (transmisión)).
+        return (-grados / 2, grados / 2)
     # Centrado en el reposo; si la ficha no llega por un lado, se corre.
     a = min(max(-grados / 2, lo), hi - grados)
     return (a, a + grados)
