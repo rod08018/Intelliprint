@@ -232,8 +232,17 @@ Fase 10.
   hay que comprar; el backlog lo ve como un componente y la lista de
   materiales lo abre en lo que es. La biblioteca está vacía hasta la
   cicloidal.
-- **Lo que sigue:** F10.7 (cicloidal), y una sola corrida de pago al
-  final, con el gasto acordado antes.
+- **Hecho, sin banco y sin imprimir: F10.7 (cicloidal)** (2026-11-12).
+  El módulo `cicloidal-nema17-10` (y `-20`): carcasa con pernos,
+  excéntrica, disco, plato de salida y tapa, generados por código. El
+  perfil se compara con la fórmula publicada; construidas y giradas,
+  las cinco piezas no se atraviesan (0,14 mm de holgura la de 10:1).
+  Un hombro hecho a mano con ella pasa todo y levanta 866 g a 150 mm
+  según el estudio. **Nada está impreso**: plástico contra plástico,
+  holguras sin medir. El encargo 14b la pide y está sin correr.
+- **Lo que sigue:** acordar con él la corrida del encargo 14b. Después,
+  F10.8 (calibrar, que necesita que imprima), F9.11 (borrador) y
+  F10.9 (el brazo mediano).
 
 **2026-11-10: Fase 9, robots con plan mecánico (ADR-020).** El usuario quiere
 diseñar robots: que el desglose decida antes de dibujar qué gira sobre qué y con

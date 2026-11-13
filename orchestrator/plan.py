@@ -172,6 +172,10 @@ def _transmision_imposible(u: Gira, ficha: Ficha, extra: Sequence[Path]) -> list
         errores.append(
             f"unión «{u.id}»: «{t.motor}» no tiene ninguna salida en su ficha: no hay eje "
             f"del que sacar la {t.tipo}")
+    if t.tipo == "reductora" and ficha.reduccion and abs(ficha.reduccion - t.relacion) > 1e-6:
+        errores.append(
+            f"unión «{u.id}»: «{u.componente}» reduce {ficha.reduccion:g}:1 y el plan dice "
+            f"{t.relacion:g}:1. Pon en `relacion` la de la reductora, o elige otra")
     if ficha.da_par():
         errores.append(
             f"unión «{u.id}»: «{u.gira}» gira sobre «{u.componente}», que ya es un actuador, "

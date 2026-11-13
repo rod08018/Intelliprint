@@ -1,0 +1,36 @@
+nombre: hombro_cicloidal_nema17
+categoria: robots
+obra: true
+peticion: >
+  Un hombro para un brazo: el brazo gira 180° (90° a cada lado) sobre una
+  reductora cicloidal 10:1 movida por un motor NEMA 17, con el eje horizontal,
+  sin que nada choque. La punta del brazo queda a 150 mm del eje y levanta
+  500 g. El soporte se atornilla a un tablero con cuatro tornillos M3.
+oraculo:
+  - tipo: componente
+    ficha: nema17
+    cuantos: 1
+  - tipo: encaje
+  - tipo: conjunto_libre
+  - tipo: articulaciones
+    ejes: [horizontal]
+    recorrido_grados: 180
+  - tipo: sin_soportes
+  # «una reductora cicloidal 10:1»: literal. La reductora es un módulo
+  # impreso (F10.7 (cicloidal)); se cuenta que el brazo gira sobre su salida
+  # y que es la de 10.
+  - tipo: reduccion
+    relacion: 10
+  # «La punta del brazo queda a 150 mm del eje».
+  - tipo: alcance
+    minimo_mm: 150
+  # «y levanta 500 g». Que se puede, a mano: el 17HS4401 da 0,400 N·m; por
+  # 10 y por 0,65 de rendimiento (el que midió howtomechatronics en una
+  # cicloidal impresa), 2,6 N·m, y se le pide la mitad: 1,3. 500 g a 150 mm
+  # piden 0,500 × 9,80665 × 0,150 = 0,736; quedan 0,56 para el brazo.
+  - tipo: carga
+    minimo_g: 500
+  - tipo: tornillos
+    sujetan: nema17
+    metrica: M3
+    cuantos: 4

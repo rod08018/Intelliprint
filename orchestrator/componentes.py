@@ -132,6 +132,12 @@ class Acople(BaseModel):
     agujeros: list[AgujeroDeAcople] = Field(min_length=1)
     """Los de cada brazo. En qué dirección quedan los brazos no lo dice la
     ficha: el cuerno entra en el estriado en la posición que se quiera."""
+    tornillo: str = ""
+    """La métrica que rosca en esos agujeros («M3»), si son para un tornillo
+    de métrica: el plato de salida de una reductora. Los del cuerno de un
+    servo no lo son, y un tornillo que dé en ellos no se cuenta como suyo."""
+    fondo_mm: float = 0.0
+    """Cuánto entra ese tornillo."""
     porque: str = ""
 
 
@@ -211,6 +217,10 @@ class Ficha(BaseModel):
 
     def velocidad(self, voltios: float) -> float | None:
         return self._a_la_tension(self.velocidad_s_60, voltios)
+
+    reduccion: float | None = Field(default=None, ge=1)
+    """Si es una reductora: las vueltas de su entrada por cada vuelta de su
+    salida (F10.7 (cicloidal)). El plan que la monta tiene que decir la misma."""
 
     def da_par(self) -> bool:
         """¿Mueve algo? Un rodamiento o un sensor, no."""

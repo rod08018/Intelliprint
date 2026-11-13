@@ -71,11 +71,21 @@ def cargar(id_: str) -> Modulo:
     if ruta is None:
         raise KeyError(f"no hay módulo «{id_}»; hay: {', '.join(ids()) or 'ninguno'}")
     datos = yaml.safe_load(ruta.read_text(encoding="utf-8"))
-    generador = GENERADORES.get(datos.get("generador"))
+    generador = _generador(datos.get("generador"))
     if generador is None:
         raise KeyError(f"el módulo «{id_}» pide el generador «{datos.get('generador')}», que "
-                       f"no existe; hay: {', '.join(sorted(GENERADORES)) or 'ninguno'}")
+                       f"no existe; hay: {', '.join(sorted({*GENERADORES, 'cicloidal'}))}")
     return generador(**(datos.get("parametros") or {}))
+
+
+def _generador(nombre: str) -> Callable[..., Modulo] | None:
+    """Los de casa se importan al pedirlos: `cicloidal` importa este módulo."""
+    if nombre in GENERADORES:
+        return GENERADORES[nombre]
+    if nombre == "cicloidal":
+        from orchestrator import cicloidal
+        return cicloidal.generar
+    return None
 
 
 def de_un_proyecto(carpeta: Path) -> list[str]:

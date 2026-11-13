@@ -84,6 +84,13 @@ por una correa o una reductora, dilo en la misma unión `gira`:
     `4`. Nunca menos de 1.
 - **La correa y las poleas no son nodos ni van en `compra`**: son parte de la
   unión. No inventes piezas para ellas.
+- **Una reductora sí va en `compra`**: es un módulo con ficha (por ejemplo
+  `cicloidal-nema17-10`), y va en la misma pieza `sobre` que el motor. La
+  pieza gira sobre la salida de la reductora, así que `componente` es **la
+  reductora**, y `movido_por` dice el motor que hay detrás:
+  `{"motor": "nema17", "tipo": "reductora", "relacion": 10}`. La `relacion`
+  es la de la reductora que has elegido. Una reductora sola no mueve nada:
+  sin `movido_por` no hay motor.
 - Un motor mueve un solo giro. Si la pieza gira directamente en el eje de un
   servo, no lleva `movido_por`.
 - Si la petición no habla de correa ni de reductora, no pongas `movido_por`.

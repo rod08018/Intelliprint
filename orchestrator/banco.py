@@ -1127,17 +1127,58 @@ def _conserva(a: Conserva, proyecto: Path, piezas: dict) -> Resultado:
                      detalle=f"{detalle}, y se piden {a.minimo}")
 
 
+def _por_reductora(a: Reduccion, proyecto: Path, piezas: dict) -> Resultado | None:
+    """La reducción de un giro que va por una reductora (F10.7 (cicloidal)):
+    la de la reductora sobre cuya salida gira la pieza, EN LO CONSTRUIDO, no
+    la que dice el plan. None si ningún giro va por una."""
+    from orchestrator import obra as O
+    from orchestrator.componentes import cargar
+    from orchestrator.conjunto import articulaciones_de
+    from orchestrator.schemas.obra import Gira
+
+    uniones = [u for u in O.cargar_obra(proyecto).uniones if isinstance(u, Gira)
+               and u.movido_por and u.movido_por.tipo == "reductora"]
+    if not uniones:
+        return None
+    fichas = [O.carpeta_de_fichas(proyecto)]
+    arts = {x.pieza: x for x in articulaciones_de(proyecto, piezas)}
+    peor = None
+    for u in uniones:
+        gira = piezas[u.gira].nombre if u.gira in piezas else u.gira
+        art = arts.get(u.gira)
+        # Lo que hace de eje, en lo construido: el componente de la salida
+        # sobre la que la pieza gira de verdad.
+        suyo = next((r["ficha"] for r in piezas[art.padre].propios if r["nombre"] == art.de),
+                    None) if art else None
+        reduce = cargar(suyo, fichas).reduccion if suyo else None
+        if not reduce:
+            r = Resultado(estado="no_cumple", detalle=(
+                f"«{gira}» no gira sobre la salida de ninguna reductora"))
+        elif abs(reduce - a.relacion) > 1e-6:
+            r = Resultado(estado="no_cumple", valor=reduce, detalle=(
+                f"«{gira}» gira sobre la salida de {cargar(suyo, fichas).nombre}: "
+                f"{reduce:g}:1, y se pide {a.relacion:g}:1"))
+        else:
+            return Resultado(estado="cumple", valor=reduce, detalle=(
+                f"«{gira}» gira sobre la salida de {cargar(suyo, fichas).nombre}: {reduce:g}:1"))
+        peor = peor or r
+    return peor
+
+
 def _reduccion(a: Reduccion, proyecto: Path, piezas: dict) -> Resultado:
     """La relación de cada correa del plan, contada en las piezas."""
     from orchestrator import transmision
 
     try:
         medidas = transmision.medidas(proyecto)
+        de_reductora = _por_reductora(a, proyecto, piezas)
     except (OSError, ValueError, KeyError) as error:
         return Resultado(estado="sin_medir", detalle=f"no se pudo medir la correa: {error!r}")
+    if de_reductora is not None:
+        return de_reductora
     if not medidas:
-        return Resultado(estado="no_cumple",
-                         detalle="el plan no mueve ningún giro por una correa")
+        return Resultado(estado="no_cumple", detalle=(
+            "el plan no mueve ningún giro por una correa ni por una reductora"))
     peor = None
     for u, m in medidas:
         gira = piezas[u.gira].nombre if u.gira in piezas else u.gira

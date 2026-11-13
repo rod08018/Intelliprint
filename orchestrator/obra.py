@@ -598,6 +598,15 @@ def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
         if u.movido_por is None:
             return ""
         motor = cargar(u.movido_por.motor)
+        if u.movido_por.tipo == "reductora":
+            # Lo de «paralelo y a un lado» es de una correa (F10.7 (cicloidal)).
+            return (f" La mueve el {motor.nombre} que también monta esta pieza, a través de "
+                    f"esa reductora: los dos van en el mismo eje, con una pared de esta pieza "
+                    "entre ellos. El motor por un lado de la pared, con su cara contra ella; "
+                    "la reductora por el otro, con su cara de abajo contra ella y la salida "
+                    "hacia fuera. Los cuatro tornillos del motor atraviesan la reductora y la "
+                    "pared: la pared lleva sus cuatro pasantes y el paso del eje, y tiene que "
+                    "ser fina (el eje del motor ha de entrar en la reductora).")
         return (f" No la mueve el {ficha.nombre}, que solo la deja girar: la mueve el "
                 f"{motor.nombre} que también monta esta pieza, por "
                 f"{transmision_en_palabras(u.movido_por)}. Pon el eje del motor paralelo al "

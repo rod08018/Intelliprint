@@ -1,0 +1,6 @@
+# Reductora cicloidal 10:1 para un NEMA 17 (F10.7 (cicloidal)). Sus cinco piezas
+# las genera `orchestrator/cicloidal.py`; aquí solo va con qué parámetros.
+id: cicloidal-nema17-10
+generador: cicloidal
+parametros:
+  relacion: 10

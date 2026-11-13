@@ -335,6 +335,56 @@ def _tramos(p: _Pieza, fichas: list[Path]) -> list[_Tramo]:
     return tramos
 
 
+def _en_los_acoples(piezas: list[_Pieza], fichas: list[Path],
+                    tramos: list[_Tramo]) -> list[_Tramo]:
+    """Los agujeros del acople de una salida en los que da un tornillo de
+    otra pieza: el plato de salida de una reductora, con sus roscas de M3.
+
+    La ficha dice a qué distancia del eje están, no en qué ángulo (el plato
+    gira), así que no se pueden poner de antemano como las fijaciones: se
+    pone uno donde un agujero de otra pieza, paralelo al eje y a esa
+    distancia de él, cruza la cara del acople. Hecho a mano el 2026-11-12,
+    los cuatro tornillos de un brazo en el plato de la cicloidal salían como
+    tornillos «al exterior», y el estudio ponía la carga en ellos, en el eje."""
+    from orchestrator.componentes import cargar
+    from mech_toolkit.componentes import colocar, orientar
+
+    nuevos = []
+    for p in piezas:
+        for c in p.componentes:
+            try:
+                ficha = cargar(c["ficha"], fichas)
+            except Exception:
+                continue
+            giros = [tuple(g) for g in c.get("giros") or []]
+            for s in ficha.salidas:
+                if s.acople is None or not s.acople.tornillo:
+                    continue
+                cara = _aplicar(p.mundo, colocar(s.en, c["en"], giros))
+                eje = _unit(_girar(p.mundo, orientar(s.eje, giros)))
+                for t in tramos:
+                    if (t.tipo != "agujero" or t.pieza == p.id or t.metrica != s.acople.tornillo
+                            or _norma(_cruz(t.eje, eje)) > 0.05):
+                        continue
+                    w = _resta(t.en, cara)
+                    a_lo_largo = _punto(w, eje)
+                    del_eje = _norma([x - a_lo_largo * y for x, y in zip(w, eje)])
+                    if not any(abs(del_eje - h.radio) < 0.3 for h in s.acople.agujeros):
+                        continue
+                    # Donde la recta del agujero cruza la cara del acople, y
+                    # que el agujero llegue hasta ahí.
+                    en_la_cara = [x - a_lo_largo * y for x, y in zip(t.en, eje)]
+                    hasta = _punto(_resta(en_la_cara, t.en), t.eje)
+                    if not -1.0 <= hasta <= t.largo + 1.5:
+                        continue
+                    nuevos.append(_Tramo(
+                        p.id, "fijacion", f"{ficha.id}: {s.acople.nombre}", en_la_cara,
+                        [-x for x in eje], s.acople.fondo_mm or s.acople.grosor,
+                        diametro=s.acople.agujeros[0].diametro, metrica=s.acople.tornillo,
+                        ficha=ficha.id))
+    return nuevos
+
+
 def _en_la_recta(a: _Tramo, b: _Tramo, libre=None) -> bool:
     if _norma(_cruz(a.eje, b.eje)) > 0.05:
         return False
@@ -464,5 +514,6 @@ def tornillos(carpeta: Path, conjunto: str | None = None, sin=()) -> list[Tornil
     piezas = [p for p in piezas if p.id not in set(sin)]
     por_id = {p.id: p for p in piezas}
     tramos = [t for p in piezas for t in _tramos(p, fichas)]
+    tramos += _en_los_acoples(piezas, fichas, tramos)
     salida = [t for g in _agrupar(tramos) if (t := _tornillo(g, por_id))]
     return sorted(salida, key=lambda t: (t.pieza, t.cabeza))

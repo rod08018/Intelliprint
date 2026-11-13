@@ -183,12 +183,14 @@ def tiempo_de_recorrido(grados: float, s_60: float, par: float, par_bloqueo: flo
 MARGEN_SERVO = 0.5
 """Un servo aguanta si no pasa del 50 % de su par de bloqueo: la regla de
 taller para que trabaje sin calentarse (decidido por el usuario, 2026-11-10)."""
-RENDIMIENTO = {"correa": 0.9, "reductora": 0.7}
+RENDIMIENTO = {"correa": 0.9, "reductora": 0.65}
 """La parte del par del motor que llega al eje por cada transmisión
 (F10.2 (transmisión)). **Son supuestos, no medidas**: nadie ha medido una correa
 ni una reductora impresas en la impresora del usuario. Se toman del lado
 bajo —una correa dentada bien tensada pierde menos— y van escritos junto
-a cada carga que sale de ellos. El de la reductora se revisa cuando exista
+a cada carga que sale de ellos. El de la reductora es el que midió
+howtomechatronics.com en una cicloidal impresa de 15:1 («efficiency of
+around 66%»: 26 N a 10 cm con un motor de 26 N·cm), no en una de aquí
 (F10.7 (cicloidal))."""
 from orchestrator.conjunto import MAX_POSES  # noqa: E402
 # Hasta cuántas poses se prueban todas las combinaciones. Caben tres giros
