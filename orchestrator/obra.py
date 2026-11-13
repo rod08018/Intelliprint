@@ -740,6 +740,10 @@ def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
                     # para no pasarse de su radio: nadie le dijo que llegara.
                     + (f" La punta de esta pieza tiene que llegar a {u.brazo_mm:g} mm de ese "
                        "eje: ni menos, ni más de lo que tiene reservado. Al construir se mide."
+                       # Banco 1113-1330: la muñeca llegaba a 80 mm y los
+                       # tornillos de la herramienta estaban a 70; 340 de 350.
+                       " Si lleva tornillos para montar algo, son ellos los que tienen que "
+                       "quedar a esa distancia: ahí va la carga."
                        if u.brazo_mm and not any(isinstance(o, type(u)) and o.sobre == nodo
                                                  for o in obra.uniones) else "")
                     # La muñeca del brazo mediano (banco 1113-1330) se dibujó

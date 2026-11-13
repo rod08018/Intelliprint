@@ -557,8 +557,30 @@ def defectos_de_alcance(carpeta: Path, nodo: str) -> list[str]:
         return []
     fallos = []
     for s in _salidas_del_giro(piezas, suyo)[:1]:
-        llega = _lo_que_llega(yo, s["punto"], s["eje"], _esquinas(yo.envolvente, yo.al_padre))
-        if llega < suyo.brazo_mm - 0.05:
+        # Donde se monta lo de fuera va la carga, y hasta ahí mide el banco
+        # lo que llega el brazo (`estudio._punto_de_carga`). La muñeca del
+        # brazo mediano (banco 1113-1330) llegaba a 80 mm y sus tornillos de
+        # la herramienta estaban a 70: 340 mm de alcance de los 350 pedidos.
+        from orchestrator import tornilleria
+        from orchestrator.conjunto import _a_la_recta, _mv
+        libres = [t for t in tornilleria.tornillos(carpeta)
+                  if t.pieza == nodo and t.termina == "superficie"]
+        if libres:
+            r, d = yo.al_padre
+            medio = [sum(t.cabeza[k] for t in libres) / len(libres) for k in range(3)]
+            llega = _a_la_recta([a + b for a, b in zip(_mv(r, medio), d)], s["punto"], s["eje"])
+            if llega < suyo.brazo_mm - 0.05:
+                fallos.append(
+                    f"alcance (unión {suyo.id}): los {len(libres)} tornillos donde se monta lo "
+                    f"de fuera quedan a {llega:.1f} mm del eje sobre el que gira esta pieza y "
+                    f"tienen que quedar a {suyo.brazo_mm:g}: les faltan "
+                    f"{suyo.brazo_mm - llega:.1f} mm. Ahí va la carga, y hasta ahí se mide lo "
+                    "que llega el brazo. Llévalos a la punta, alargando la pieza lo que haga "
+                    "falta, sin mover dónde se acopla")
+        else:
+            llega = _lo_que_llega(yo, s["punto"], s["eje"],
+                                  _esquinas(yo.envolvente, yo.al_padre))
+        if not libres and llega < suyo.brazo_mm - 0.05:
             fallos.append(
                 f"alcance (unión {suyo.id}): esta pieza llega a {llega:.1f} mm del eje sobre "
                 f"el que gira y tiene que llegar a {suyo.brazo_mm:g}: le faltan "

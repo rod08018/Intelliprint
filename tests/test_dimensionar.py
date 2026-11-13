@@ -229,6 +229,32 @@ def test_la_punta_que_apunta_hacia_el_eje_de_atras_no_deja_estirar_el_brazo(tmp_
                for u in uniones_del_nodo(tmp_path / "recta", "mano"))
 
 
+def test_el_alcance_de_la_punta_se_mide_donde_va_la_carga(tmp_path, monkeypatch):
+    """Brazo mediano, banco 1113-1330, cuarta reanudación: 340 mm de 350. La
+    muñeca llegaba a 80 mm de su eje, como se pedía, pero los dos tornillos
+    donde se monta la herramienta estaban a 70, y el banco mide el alcance
+    hasta ahí, que es donde va la carga (`estudio._punto_de_carga`). Su
+    bucle le medía la punta del plástico y pasó.
+
+    A mano: el eje de la mano está en x = 100 y sus tornillos en x = 170."""
+    from types import SimpleNamespace
+
+    from orchestrator import tornilleria
+    from orchestrator.medida import defectos_de_alcance
+    carpeta = _dos_tramos_en_fila(tmp_path, ((95, -40, 20), (180, -31, 30)))
+    assert defectos_de_alcance(carpeta, "mano") == []      # la pieza sí llega a 80
+    libres = [SimpleNamespace(pieza="mano", termina="superficie", cabeza=(170, -31, z))
+              for z in (22, 28)]
+    monkeypatch.setattr(tornilleria, "tornillos", lambda carpeta, *a, **k: libres)
+    [d] = defectos_de_alcance(carpeta, "mano")
+    assert "u2" in d and "70.0 mm" in d and "80" in d and "10.0 mm" in d
+    assert "tornillos" in d
+    # Los que sujetan algo no son donde va la carga.
+    for t in libres:
+        t.termina = "rosca"
+    assert defectos_de_alcance(carpeta, "mano") == []
+
+
 # --- con el modelo de verdad --------------------------------------------------------------------
 
 @pytest.mark.llm

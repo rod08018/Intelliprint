@@ -965,6 +965,42 @@ def test_reanudar_corrige_la_primera_pieza_que_no_sujeta_su_servo(tmp_path, monk
     assert lanzado == []
 
 
+def test_reanudar_corrige_la_punta_que_no_llega(tmp_path, monkeypatch):
+    """Brazo mediano, banco 1113-1330, cuarta reanudación: todas las piezas
+    resueltas, el conjunto sin chocar y el alcance en 340 mm de 350. Al
+    reanudar no había nada que hacer: nadie buscaba qué pieza no llega. Se
+    le mide otra vez a cada una, sin modelo, y se corrige la que no llega
+    con lo medido."""
+    import json
+    from orchestrator import banco, medida
+    bien = {"ok": True, "choques": [], "resumen": [], "articulaciones": [], "correcciones": {}}
+    e = banco.Encargo(nombre="x", categoria="robots", peticion="un brazo", obra=True,
+                      oraculo=[{"tipo": "conjunto_libre"}])
+
+    class Hecho:
+        stdout, stderr, returncode = "", "", 0
+
+    lanzado = []
+    monkeypatch.setattr(banco.subprocess, "run", lambda orden, **k: lanzado.append(orden) or Hecho())
+    monkeypatch.setattr(banco, "rejuzgar", lambda *a, **k: ({"x": []}, {}))
+    corrida = tmp_path / "corrida"
+    p = _con_informes(_obra_construida(corrida / "01", verificacion=bien),
+                      {"base": True, "giro": True})
+    (p / "nodos" / "giro" / "concepto_aprobado").write_text("{}", encoding="utf-8")
+    (p / "nodos" / "giro" / "parts" / "giro" / "programa.py").write_text("PROGRAMA",
+                                                                        encoding="utf-8")
+    banco.reanudar([e], corrida, ["intelliprint", "obra", "--banco"], "fc", {})
+    assert lanzado == [], "si todas llegan no hay nada que reanudar"
+
+    falta = "alcance (unión u2): los tornillos quedan a 70.0 mm y tienen que quedar a 80"
+    monkeypatch.setattr(medida, "defectos_de_alcance",
+                        lambda carpeta, nodo: [falta] if nodo == "giro" else [])
+    banco.reanudar([e], corrida, ["intelliprint", "obra", "--banco"], "fc", {})
+    assert lanzado, "había algo que reanudar"
+    assert json.loads((p / "nodos" / "giro" / "retoque.json").read_text(encoding="utf-8")) \
+        == {"programa": "PROGRAMA", "cambio": falta}
+
+
 def test_reanudar_corrige_todas_las_piezas_a_las_que_les_faltan_tornillos(tmp_path, monkeypatch):
     """F9.9 (revalidar). Antes bastaba corregir la primera: las de encima se
     rehacían de cero y contaban sus tornillos al dibujarse. Ahora se quedan

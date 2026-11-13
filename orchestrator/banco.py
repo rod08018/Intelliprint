@@ -1491,6 +1491,20 @@ def _corregir_la_que_no_deja_sitio(proyecto: Path, nodo: str, abajo: str, falta:
         obra.rehacer(proyecto, i, motivo if i == nodo else "")
 
 
+def la_que_no_llega(proyecto: Path) -> tuple[str | None, str]:
+    """(pieza, lo que se le mide) si la pieza de la punta, medida ahora y sin
+    modelo, no llega a donde dice el plan; (None, "") si llega. El brazo
+    mediano (banco 1113-1330) quedó con todas sus piezas resueltas, sin
+    chocar y a 340 mm de 350, y al reanudar no había nada que hacer: nadie
+    buscaba qué pieza no llegaba."""
+    from orchestrator import medida, obra
+    for n in obra.cargar_obra(proyecto).nodos:
+        fallos = medida.defectos_de_alcance(proyecto, n.id) if n.tipo == "pieza" else []
+        if fallos:
+            return n.id, "\n".join(fallos)
+    return None, ""
+
+
 def _corregir_las_de_encima_que_no_salieron(proyecto: Path, nodo: str) -> None:
     """Las piezas diseñadas sobre `nodo` que el banco dio por listas con
     defectos llevan su corrección en esta misma vuelta, con lo que se les
@@ -1568,6 +1582,9 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
             # Todo construido y sin chocar, y aun así la pieza no sirve para
             # lo que se pidió (F9.14 (orienta)).
             nodo, de_concepto = la_que_no_orienta(e, hecho.parent, freecadcmd, material)
+        no_llega = ""
+        if nodo is None and hecho is not None and not solo_seguir:
+            nodo, no_llega = la_que_no_llega(hecho.parent)
         sin_tornillos: dict[str, str] = {}
         if nodo is None and hecho is not None and not solo_seguir:
             sin_tornillos = las_que_no_sujetan(e, hecho.parent)
@@ -1599,6 +1616,11 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
                 # moviendo una cota. Se rehace desde su concepto, con lo
                 # medido apuntado para el ingeniero.
                 obra.rehacer(proyecto, nodo, de_concepto)
+        elif no_llega:
+            if obra.programa_construido(proyecto, nodo):
+                obra.corregir(proyecto, nodo, no_llega)
+            else:
+                obra.rehacer(proyecto, nodo, no_llega)
         elif sin_tornillos:
             # Les faltan agujeros: se corrige la que hay, que por lo demás
             # está bien (pasó todo lo otro), con lo que falta en cifras. En

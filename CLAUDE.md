@@ -310,7 +310,20 @@ Fase 10.
   punta se le mide que pueda ponerse recta con el tramo anterior
   (**medida del asistente, él no la ha visto**; no cambia lo que
   juzga el banco).
-- **Lo que sigue:** el resultado de reanudar la muñeca; y al
+- **Reanudado por cuarta vez, con su visto bueno, pasa 10 de 12**
+  (`banco_reanudado-3.md`; 0,20 USD más: 2,36 de los 5). La muñeca
+  salió al quinto intento y el brazo se mueve sin chocar. Quedan
+  dos. El alcance, 340 mm de 350: el banco mide hasta los tornillos
+  de la herramienta, que están a 70 mm del eje de la muñeca, y a la
+  pieza se le medía la punta del plástico. Arreglado, sin correr: se
+  le mide donde va la carga, y al reanudar se busca la pieza que no
+  llega. Y la muñeca no se lamina como se dibuja (apoya en el canto
+  de la polea): **por decidir con él** quién elige la postura al
+  laminar, porque cambia lo que mide el banco.
+- **Cada reanudación de pago necesita su «sí»**: el sistema de
+  permisos bloqueó lanzar una apoyándose en un visto bueno anterior.
+- **Lo que sigue:** su decisión sobre la postura al laminar y sobre
+  reanudar otra vez para el alcance; y al
   acabar la fase, proponerle las tres fases (carcasas vistosas, brazo
   Arctos, avión).
 
