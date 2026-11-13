@@ -100,11 +100,12 @@ imprimir; lo que dejó abierto está abajo.
   dibuja secciones (`seccion`, `rectangulo`, `elipse`), las une
   (`transicion`), las lleva por un camino (`barrer`) y deja un cuerpo
   en una pared (`vaciar`). A mano, sin modelo, sale una carcasa curva
-  hueca con orejas, tornillos y acabado. **Sin resolver:** su STL pesa
-  216 MB, y tras unir un barrido curvo FreeCAD mide mal el volumen
-  (el informe lo contrasta con la malla; lo de dentro del kit que
-  compara volúmenes no está revisado). Ningún modelo las ha usado
-  todavía: eso es F11.5 (diseñador).
+  hueca con orejas, tornillos y acabado. Su STL pesaba 216 MB: ahora
+  toda pieza se malla a 0,01 mm y en binario. **Sin resolver:** tras
+  unir un barrido curvo FreeCAD mide mal el volumen (el informe lo
+  contrasta con la malla; lo de dentro del kit que compara volúmenes
+  no está revisado). Ningún modelo las ha usado todavía: eso es
+  F11.5 (diseñador).
 - **Lo que sigue en la Fase 11:** F11.3 (tramos), partir en trozos
   que quepan en la cama.
 

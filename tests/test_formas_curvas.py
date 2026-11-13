@@ -291,6 +291,33 @@ def construir(kit):
     assert 0.95 * sin.volume_mm3 < con.volume_mm3 < sin.volume_mm3
 
 
+def test_el_stl_de_una_carcasa_curva_no_pesa_cientos_de_megas(tmp_path):
+    """La carcasa de la prueba a mano (2026-11-13) dejó un STL de 216 MB:
+    medio millón de triángulos escritos como texto. Cada sonda, cada vista y
+    cada laminado lo leen entero. Mallada a 0,01 mm y en binario son unos
+    pocos megas, y la malla sigue siendo la pieza: mide lo mismo por fuera y
+    encierra el mismo volumen, a menos de un 0,1 %."""
+    import numpy as np
+
+    from orchestrator.tornilleria import _triangulos
+    r = _construir("""
+def construir(kit):
+    base, medio = kit.rectangulo(70, 56, radio=10), kit.rectangulo(62, 50, radio=14)
+    c = kit.transicion([(base, 0), (medio, 28), (kit.elipse(44, 34), 46)])
+    c = c.vaciar(2, abierta="-z")
+    for x, y in ((-39, -22), (39, -22), (-39, 22), (39, 22)):
+        c = c + kit.cilindro(12, 4, en=(x, y, 0))
+    return c.acabar()
+""", tmp_path)
+    stl = tmp_path / "p.stl"
+    assert stl.stat().st_size < 10e6
+    t = _triangulos(str(stl), stl.stat().st_mtime)
+    lados = t.reshape(-1, 3).max(axis=0) - t.reshape(-1, 3).min(axis=0)
+    assert list(lados) == pytest.approx(r.bbox_mm, abs=0.02)
+    volumen = float(np.einsum("ij,ij->i", t[:, 0], np.cross(t[:, 1], t[:, 2])).sum() / 6)
+    assert volumen == pytest.approx(r.volume_mm3, rel=1e-3)
+
+
 def test_una_transicion_solo_se_abre_por_una_de_sus_dos_puntas(tmp_path):
     with pytest.raises(ConstruccionFallida, match="cara plana"):
         _construir("""

@@ -100,7 +100,14 @@ for _o in doc.Objects:
     _o.Visibility = _o is _pieza
 _pieza.Label = {part!r}
 
-Part.export([_pieza], {stl!r})
+# El STL, mallado aquí y en binario. `Part.export` lo escribía como texto y con
+# la malla que le pareciera: la primera carcasa curva (F11.2 (cáscara),
+# 2026-11-13) salió con medio millón de triángulos y 216 MB, que cada sonda,
+# cada vista y cada laminado leían enteros. A 0,01 mm de la superficie son
+# unos megas, y lo que se mide en la malla sigue valiendo.
+import MeshPart
+MeshPart.meshFromShape(Shape=_forma, LinearDeflection=0.01, AngularDeflection=0.1,
+                       Relative=False).write({stl!r})
 Part.export([_pieza], {step!r})
 doc.saveAs({fcstd!r})
 
