@@ -513,12 +513,85 @@ def _laminador_falso(pide_soportes=()):
     from orchestrator.schemas.slicing_report import SlicingReport
     laminados = []
 
-    def laminar(stl, gcode):
-        laminados.append(stl.stem)
+    def laminar(stl, gcode, postura="-z"):
+        if postura == "-z":
+            laminados.append(stl.stem)
         return SlicingReport(plate=1, filament_mm=10, grams=1, time_s=60,
-                             needs_supports=stl.stem in pide_soportes)
+                             needs_supports=stl.stem in pide_soportes, postura=postura)
     laminar.laminados = laminados
     return laminar
+
+
+def _laminador_por_postura(sin_soportes=(), no_lamina=()):
+    """PrusaSlicer de mentira que mira cómo se apoya la pieza: pide soportes
+    salvo en las posturas de `sin_soportes`, y en las de `no_lamina` falla."""
+    from orchestrator.schemas.slicing_report import SlicingReport
+    from orchestrator.slicing import LaminadoFallido
+    probadas = []
+
+    def laminar(stl, gcode, postura="-z"):
+        probadas.append(postura)
+        if postura in no_lamina:
+            raise LaminadoFallido("There is an object with no extrusions in the first layer.")
+        pide = postura not in sin_soportes
+        return SlicingReport(plate=1, filament_mm=10, grams=1, time_s=60, needs_supports=pide,
+                             postura=postura, avisos=["Long bridging extrusions"] * pide)
+    laminar.probadas = probadas
+    return laminar
+
+
+def _juzga_sin_soportes(tmp_path, laminar):
+    import json
+    from orchestrator import banco
+    carpeta = _obra_construida(tmp_path)
+    _sin_laminado_del_diseno(carpeta)
+    # Una sola pieza, para leer en qué posturas se probó.
+    plan = json.loads((carpeta / "projects" / "a" / "obra.json").read_text(encoding="utf-8"))
+    plan["nodos"] = [n for n in plan["nodos"] if n["id"] != "giro"]
+    plan["nodos"][-1]["depende_de"] = ["base"]
+    (carpeta / "projects" / "a" / "obra.json").write_text(json.dumps(plan), encoding="utf-8")
+
+    def hechos_de(step, freecadcmd, laminado, aserciones, material):
+        return Hechos(cilindros=[], bbox_mm=[1, 1, 1], volumen_mm3=1,
+                      **banco.del_laminado(laminado))
+
+    e = Encargo(nombre="pan-tilt", categoria="robots", obra=True, peticion="p",
+                oraculo=[{"tipo": "sin_soportes"}])
+    [r] = banco.juzgar_obra(e, carpeta, "freecadcmd", hechos_de=hechos_de, laminar=laminar)
+    return r
+
+
+def test_el_juez_prueba_la_pieza_apoyada_en_cada_cara(tmp_path):
+    """Decidido por el usuario el 2026-11-13. La muñeca del brazo mediano
+    (banco 1113-1330) se quedó sin medir: el juez la laminaba como se
+    dibuja, montada en el brazo, y así apoya en el canto de una polea. La
+    postura se elige al laminar, como hace la persona en PrusaSlicer: se
+    prueba como se dibuja y, si no vale, apoyada en cada una de sus otras
+    caras, y se para en la primera que no pide soportes."""
+    laminar = _laminador_por_postura(sin_soportes=("-x",), no_lamina=("-z",))
+    r = _juzga_sin_soportes(tmp_path, laminar)
+    assert r.estado == "cumple" and "cara -x" in r.detalle
+    assert laminar.probadas == ["-z", "+z", "-x"]
+
+
+def test_como_se_dibuja_va_primero_y_si_vale_no_se_prueba_mas(tmp_path):
+    laminar = _laminador_por_postura(sin_soportes=("-z", "+y"))
+    r = _juzga_sin_soportes(tmp_path, laminar)
+    assert r.estado == "cumple" and laminar.probadas == ["-z"]
+    assert "cara" not in r.detalle       # como se dibuja no hace falta decirlo
+
+
+def test_si_pide_soportes_en_las_seis_posturas_no_cumple_y_dice_por_que(tmp_path):
+    laminar = _laminador_por_postura()
+    r = _juzga_sin_soportes(tmp_path, laminar)
+    assert r.estado == "no_cumple" and "Long bridging extrusions" in r.detalle
+    assert sorted(laminar.probadas) == ["+x", "+y", "+z", "-x", "-y", "-z"]
+
+
+def test_si_no_se_lamina_en_ninguna_postura_queda_sin_medir(tmp_path):
+    laminar = _laminador_por_postura(no_lamina=("+x", "+y", "+z", "-x", "-y", "-z"))
+    r = _juzga_sin_soportes(tmp_path, laminar)
+    assert r.estado == "sin_medir"
 
 
 def _sin_laminado_del_diseno(carpeta):

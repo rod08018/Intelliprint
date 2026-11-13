@@ -135,7 +135,8 @@ mcp = MCPServer(
 
 
 @mcp.tool()
-def laminar(stl: str, salida: str, perfil: str = "", uso: str = "general") -> dict:
+def laminar(stl: str, salida: str, perfil: str = "", uso: str = "general",
+            postura: str = "-z") -> dict:
     """Lamina un STL con el PrusaSlicer del escritorio y devuelve gramos,
     tiempo y si necesita soportes.
 
@@ -144,7 +145,8 @@ def laminar(stl: str, salida: str, perfil: str = "", uso: str = "general") -> di
     (config/impresion.yaml). `uso` es el NOMBRE de un uso de
     config/slicing/usos.yaml (F3.16 (usos)): sus ajustes los lee el host en
     su tabla. No hay forma de mandar ajustes sueltos: serían opciones
-    arbitrarias en la orden de PrusaSlicer de este PC.
+    arbitrarias en la orden de PrusaSlicer de este PC. `postura` es la cara
+    de la pieza que va a la cama, una de `slicing.POSTURAS`.
     """
     workspace = _workspace()
     entrada = comprobar_dentro(stl, workspace)
@@ -158,7 +160,7 @@ def laminar(stl: str, salida: str, perfil: str = "", uso: str = "general") -> di
     except UsoDesconocido as e:
         return {"ok": False, "error": str(e)}
     try:
-        informe = slice_stl(entrada, ini, destino, ajustes=ajustes)
+        informe = slice_stl(entrada, ini, destino, ajustes=ajustes, postura=postura)
     except LaminadoFallido as e:
         return {"ok": False, "error": str(e)}
     return {"ok": True, "gcode": str(destino), **informe.model_dump()}

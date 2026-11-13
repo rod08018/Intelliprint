@@ -437,6 +437,10 @@ class Hechos(BaseModel):
     volumen_mm3: float
     soportes: bool | None = None
     """Lo que dijo PrusaSlicer; None si no se laminó."""
+    postura: str = "-z"
+    """La cara que va a la cama en el laminado que se juzga (`slicing.POSTURAS`)."""
+    avisos: list[str] = []
+    """Por qué pide soportes, con las palabras de PrusaSlicer."""
     sondas: dict[str, "Resultado"] = {}
     """Lo que midió cada sonda (F6.12 (techo)), por la clave de su aserción."""
 
@@ -566,8 +570,11 @@ def juzgar(a, h: Hechos) -> Resultado:
     if isinstance(a, SinSoportes):
         if h.soportes is None:
             return Resultado(estado="sin_medir", detalle="no se laminó")
-        return (Resultado(estado="no_cumple", detalle="PrusaSlicer pide soportes")
-                if h.soportes else Resultado(estado="cumple", detalle="se lamina sin soportes"))
+        if h.soportes:
+            return Resultado(estado="no_cumple", detalle="PrusaSlicer pide soportes" + (
+                f", apoyada en la cara que sea ({', '.join(h.avisos)})" if h.avisos else ""))
+        return Resultado(estado="cumple", detalle="se lamina sin soportes" + (
+            f" apoyada en su cara {h.postura}" if h.postura != "-z" else ""))
     return Resultado(estado="sin_medir", detalle=f"{a.que} — se medirá con {a.fase}")
 
 
@@ -712,7 +719,7 @@ def extraer_hechos(step: Path, freecadcmd: str, laminado: Path | None,
     sondas = [a for a in aserciones or [] if isinstance(a, _Sonda)]
     medidas = medir_sondas(step, sondas, freecadcmd, material or {}) if sondas else []
     return Hechos(cilindros=extract_cylinders(step, freecadcmd), bbox_mm=bbox,
-                  volumen_mm3=volumen, soportes=soportes,
+                  volumen_mm3=volumen, **del_laminado(laminado),
                   sondas={a.clave(): r for a, r in zip(sondas, medidas)})
 
 
@@ -871,22 +878,53 @@ def laminado_del_juez(encargo: Encargo, step: Path, del_diseno: Path, carpeta: P
     """El laminado con el que se juzga «sin soportes». El diseño ya no lamina
     (2026-11-09: no se sabe en qué impresora se imprimirá), así que lo hace
     el juez, y solo si se pide «sin soportes»: lo sigue diciendo PrusaSlicer,
-    no el propio sistema. Las corridas viejas traen el del diseño: se usa."""
-    from orchestrator.slicing import LaminadoFallido
+    no el propio sistema.
 
-    if del_diseno.is_file():
-        return del_diseno
-    if laminar is None or not any(isinstance(a, SinSoportes) for a in encargo.oraculo):
-        return None
+    Decidido por el usuario el 2026-11-13: se prueba como se dibuja y, si
+    así no se lamina o pide soportes, apoyada en cada una de sus otras caras,
+    hasta la primera que no los pida. La muñeca del brazo mediano (banco
+    1113-1330) se quedó sin medir porque, dibujada montada en el brazo,
+    apoya en el canto de una polea; la postura la elige quien lamina.
+
+    Las corridas viejas traen el laminado del diseño, hecho cuando «pide
+    soportes» era el ajuste del perfil y no el aviso de PrusaSlicer: solo
+    se usa si aquí no hay con qué laminar."""
+    from orchestrator.slicing import POSTURAS, LaminadoFallido
+
+    if not any(isinstance(a, SinSoportes) for a in encargo.oraculo):
+        return del_diseno if del_diseno.is_file() else None
+    if laminar is None:
+        return del_diseno if del_diseno.is_file() else None
     destino = Path(carpeta) / "juez"
     destino.mkdir(parents=True, exist_ok=True)
-    try:
-        informe = laminar(step.with_suffix(".stl"), destino / f"{step.stem}.gcode")
-    except LaminadoFallido:
+    stl, gcode = step.with_suffix(".stl"), destino / f"{step.stem}.gcode"
+    elegido = None
+    for postura in POSTURAS:
+        try:
+            # Como se dibuja, con la llamada de siempre: un puente del host
+            # sin reiniciar no sabe de posturas.
+            informe = laminar(stl, gcode) if postura == "-z" else laminar(
+                stl, gcode, postura=postura)
+        except LaminadoFallido:
+            continue
+        elegido = elegido or informe
+        if not informe.needs_supports:
+            elegido = informe
+            break
+    if elegido is None:
         return None
     salida = destino / f"{step.stem}.json"
-    salida.write_text(json.dumps(informe.model_dump()), encoding="utf-8")
+    salida.write_text(json.dumps(elegido.model_dump()), encoding="utf-8")
     return salida
+
+
+def del_laminado(laminado: Path | None) -> dict:
+    """Lo que el informe de laminado dice de los soportes, para `Hechos`."""
+    if laminado is None or not Path(laminado).exists():
+        return {"soportes": None}
+    informe = json.loads(Path(laminado).read_text(encoding="utf-8"))
+    return {"soportes": informe["needs_supports"], "postura": informe.get("postura", "-z"),
+            "avisos": informe.get("avisos", [])}
 
 
 def juzgar_pieza(encargo: Encargo, carpeta: Path, freecadcmd: str,
@@ -1038,9 +1076,16 @@ def juzgar_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
             salida.append(r if pieza is None else Resultado(
                 estado=r.estado, detalle=f"«{piezas[pieza].nombre}»: {r.detalle}"))
         else:
+            # Las que se laminan apoyadas en otra cara se dicen: es como hay
+            # que ponerlas en la cama para imprimirlas sin soportes.
+            tumbadas = [f"«{piezas[i].nombre}» apoyada en su cara {h.postura}"
+                        for i, (h, _, _) in medidas.items()
+                        if isinstance(a, SinSoportes) and h.soportes is False
+                        and h.postura != "-z"]
             salida.append(_junta([(piezas[i].nombre, juzgar(a, h))
                                   for i, (h, _, _) in medidas.items()],
-                                 f"en las {len(medidas)} piezas"))
+                                 f"en las {len(medidas)} piezas"
+                                 + (f" ({', '.join(tumbadas)})" if tumbadas else "")))
     return salida
 
 

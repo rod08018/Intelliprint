@@ -10,6 +10,11 @@ class SlicingReport(BaseModel):
     time_s: int
     needs_supports: bool
     parts: list[str] = []
+    postura: str = "-z"
+    """La cara de la pieza que va a la cama (`slicing.POSTURAS`); «-z» es
+    como se dibuja."""
+    avisos: list[str] = []
+    """Por qué pide soportes, con las palabras de PrusaSlicer."""
 
     @model_validator(mode="after")
     def _gramos_coherentes_con_filamento(self) -> "SlicingReport":

@@ -327,13 +327,20 @@ Fase 10.
   llega a 350,0 mm y levanta 378 g; no falla nada. Queda sin medir
   «sin soportes» en la muñeca, que no se lamina como se dibuja.
   Tumbada, a mano, sí se lamina, con aviso de puentes largos.
-- **«Sin soportes» no mide lo que dice** (visto el 2026-11-13): se
-  apunta el ajuste `support_material` del perfil, que vale 0, y no
-  el aviso de PrusaSlicer. Toda pieza que se lamina sale «sin
-  soportes», desde F1.12 y en todo el banco. **Sin tocar: lo decide
-  él**, con la postura al laminar.
-- **Lo que sigue:** su decisión sobre la postura al laminar y sobre
-  cómo se mide «sin soportes»; y al
+- **«Sin soportes» no medía lo que decía** (visto el 2026-11-13): se
+  apuntaba el ajuste `support_material` del perfil, que vale 0, y
+  toda pieza que se laminaba salía «sin soportes», desde F1.12.
+  **Decidido por él ese día:** lo dice el aviso de PrusaSlicer, y el
+  juez prueba la pieza como se dibuja y apoyada en cada una de sus
+  otras caras. Rejuzgado sin modelo: los diez encargos de pieza
+  bajan a 51 de 52 (el soporte del HC-SR04) y el brazo mediano
+  sigue en 11 de 12, ahora con un «no cumple»: la base y la muñeca
+  piden soportes en todas las posturas. Lo demás no cambia.
+- **El puente de PrusaSlicer hay que reiniciarlo** cuando cambia
+  `scripts/host_bridge.py`: parar el `python -m scripts.host_bridge`
+  y volver a lanzar `scripts\start-host-mcps.ps1`.
+- **Lo que sigue:** qué hacer con las tres piezas que piden soportes
+  (corregirlas es gasto, por acordar); y al
   acabar la fase, proponerle las tres fases (carcasas vistosas, brazo
   Arctos, avión).
 
