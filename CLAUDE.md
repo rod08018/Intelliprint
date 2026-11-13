@@ -170,8 +170,18 @@ Fase 10.
   rendimiento (0,9 la correa, 0,7 la reductora) y pedirle al paso a
   paso como mucho el 50 % de su par de retención. Nadie dibuja aún la
   correa ni las poleas, y no se ha corrido en el banco.
-- **Lo que sigue, en orden:** F10.3 (correa) → medir el encargo 14. El
-  gasto de cada medición se acuerda cuando toque.
+- **Hecho, sin medir en el banco: F10.3 (correa)** (2026-11-12). El kit
+  dibuja la polea GT2 (`kit.polea_gt2`); del `movido_por` sale que el
+  motor lleva una polea comprada de 20 dientes, la pieza que gira una
+  de 20 × relación, y que los ejes van a la distancia de una correa
+  cerrada. Cada pieza mide su parte y el banco cuenta la reducción por
+  dientes (`reduccion`). **Tres cosas las decidió el asistente y él no
+  las ha visto:** sin colisa (ejes fijos, ±0,2 mm), las correas se
+  ofrecen de 5 en 5 dientes sin saber cuáles vende su tienda, y la
+  ranura del diente es una aproximación (un semicírculo de 0,76 mm).
+- **Lo que sigue:** medir el encargo 14 (la articulación con NEMA 17 y
+  correa 4:1), con el gasto acordado antes. Después, F10.4
+  (dimensionar).
 
 **2026-11-10: Fase 9, robots con plan mecánico (ADR-020).** El usuario quiere
 diseñar robots: que el desglose decida antes de dibujar qué gira sobre qué y con

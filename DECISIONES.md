@@ -745,6 +745,8 @@ Y lo que sí faltaba de tornillería:
 
 **Concretado al hacer F10.2 (transmisión), 2026-11-12.** El motor de una transmisión va en la misma pieza que el rodamiento sobre el que gira lo movido: es la única pieza donde se puede medir la distancia entre los dos ejes. La relación se escribe como vueltas del motor por vuelta de la pieza y no baja de 1. El rendimiento no lo escribe el plan: es una constante del código por tipo (0,9 la correa, 0,7 la reductora), puesta por el asistente como supuesto del lado bajo y pendiente de que el usuario la decida o la mida. Al paso a paso se le pide como mucho el 50 % de su par de retención, la misma regla que él decidió para los servos; tampoco eso lo ha decidido él para un paso a paso.
 
+**Concretado al hacer F10.3 (correa), 2026-11-12.** De «correa» y la relación sale todo sin que lo decida un modelo: la polea del motor es la comprada de 20 dientes y la otra tiene 20 × relación. **Los ejes van fijos, sin tensor**, a la distancia justa de una correa cerrada (±0,2 mm, la tolerancia del manual de SDP/SI para un montaje mecanizado): el plan decía tensar con una colisa, y se dejó porque un motor sobre colisas es mucho más difícil de dibujar bien. Lo decidió el asistente; si una pieza impresa da esa tolerancia no se sabe hasta imprimirla. La ranura del diente es un semicírculo del alto del diente de la correa: una aproximación, porque las fuentes consultadas no publican los radios del perfil GT2.
+
 **Alternativas descartadas.**
 - **Ir directo al brazo de clase Arctos.** Un salto de 3 piezas a 168 no dice dónde falla cuando falla.
 - **Que el modelo dibuje los dientes.** Un perfil de diente son decenas de puntos exactos; es lo que peor hace y lo que el código hace sin error.

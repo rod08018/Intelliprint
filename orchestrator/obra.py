@@ -558,6 +558,7 @@ def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
     from orchestrator.componentes import acople_en_palabras, cargar
     from orchestrator.plan import salida_de
     from orchestrator.schemas.obra import EXTERIOR, Fija
+    from orchestrator.transmision import para_quien_gira, para_quien_monta
 
     carpeta = Path(carpeta)
     obra = cargar_obra(carpeta)
@@ -589,7 +590,8 @@ def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
                 f"{motor.nombre} que también monta esta pieza, por "
                 f"{transmision_en_palabras(u.movido_por)}. Pon el eje del motor paralelo al "
                 f"del {u.componente} y a un lado, con sitio entre los dos para la "
-                "transmisión.")
+                "transmisión." + (para_quien_monta(u, nombre(u.gira), motor.nombre)
+                                  if u.movido_por.tipo == "correa" else ""))
 
     def donde_sale(u, otro) -> str:
         """De qué lado de los agujeros de `otro`, que lleva la cabeza, va
@@ -691,7 +693,9 @@ def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
                        "con los brazos en la dirección que te convenga; no a presión."
                        if eje.acople else "")
                     + (f" Nada de esta pieza puede quedar a más de {radio:g} mm de ese eje: "
-                       f"es el sitio que {nombre(u.sobre)} deja libre." if radio else "")))
+                       f"es el sitio que {nombre(u.sobre)} deja libre." if radio else "")
+                    + (para_quien_gira(u, nombre(u.sobre))
+                       if u.movido_por and u.movido_por.tipo == "correa" else "")))
             else:
                 dato.update(papel="sobre", otro=u.gira, texto=(
                     f"{nombre(u.gira)} girará {u.recorrido_grados:g}° sobre el {ficha.nombre} "

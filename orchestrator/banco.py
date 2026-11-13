@@ -306,6 +306,20 @@ class Carga(BaseModel):
         return [self.minimo_g]
 
 
+class Reduccion(BaseModel):
+    """Backlogs (F10.3 (correa)): la relación con la que un motor mueve un
+    giro, contada por dientes en lo construido: los de la polea que la pieza
+    que gira lleva en su eje entre los de la polea del motor. Y con la
+    correa puesta: los dos ejes paralelos y a la distancia de una correa
+    cerrada. Sin esto, «con una correa 4:1» pasaba con un motor al lado y
+    nada entre los dos."""
+    tipo: Literal["reduccion"]
+    relacion: float = Field(ge=1)
+
+    def cotas_de_la_peticion(self) -> list[float]:
+        return [self.relacion]
+
+
 class Conserva(BaseModel):
     """Ampliaciones (F9.10 (ampliar)): cuántas de las piezas que el invento
     ya tenía siguen idénticas después de añadirle la función. Se mide en lo
@@ -375,7 +389,7 @@ Asercion = Annotated[Agujeros | Cilindro | Envolvente | SinSoportes | Pendiente 
                      | Resistencia | Ventana | Coaxiales | PasoLibre | ParedMinima | Ranura
                      | Retencion | ComponenteCabe | ComponenteEntra | AccesoTornillo | ZonaLibre
                      | CaraQueSeOrienta | SeOrienta | Tornillos | Componente | Encaje
-                     | ConjuntoLibre | Articulaciones | Alcance | Carga | Conserva,
+                     | ConjuntoLibre | Articulaciones | Alcance | Carga | Conserva | Reduccion,
                      Field(discriminator="tipo")]
 
 
@@ -947,7 +961,8 @@ def juzgar_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
 
     de_pieza = [a for a in encargo.oraculo
                 if not isinstance(a, (Componente, Encaje, ConjuntoLibre, Articulaciones,
-                                      SeOrienta, Tornillos, Alcance, Carga, Conserva))]
+                                      SeOrienta, Tornillos, Alcance, Carga, Conserva,
+                                      Reduccion))]
     # Solo se sondea lo que el oráculo pregunta: cada sonda es FreeCAD.
     pedidos = {a.ficha for a in encargo.oraculo if isinstance(a, Componente)}
     encaje = any(isinstance(a, Encaje) for a in encargo.oraculo)
@@ -1008,6 +1023,8 @@ def juzgar_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
             salida.append(_tornillos(a, proyecto, piezas))
         elif isinstance(a, Conserva):
             salida.append(_conserva(a, proyecto, piezas))
+        elif isinstance(a, Reduccion):
+            salida.append(_reduccion(a, proyecto, piezas))
         elif isinstance(a, (Alcance, Carga)):
             salida.append(_del_estudio(a, proyecto, [n.id for n in conjuntos], freecadcmd,
                                        estudios))
@@ -1103,6 +1120,42 @@ def _conserva(a: Conserva, proyecto: Path, piezas: dict) -> Resultado:
         return Resultado(estado="cumple", valor=len(iguales), detalle=detalle)
     return Resultado(estado="no_cumple", valor=len(iguales),
                      detalle=f"{detalle}, y se piden {a.minimo}")
+
+
+def _reduccion(a: Reduccion, proyecto: Path, piezas: dict) -> Resultado:
+    """La relación de cada correa del plan, contada en las piezas."""
+    from orchestrator import transmision
+
+    try:
+        medidas = transmision.medidas(proyecto)
+    except (OSError, ValueError, KeyError) as error:
+        return Resultado(estado="sin_medir", detalle=f"no se pudo medir la correa: {error!r}")
+    if not medidas:
+        return Resultado(estado="no_cumple",
+                         detalle="el plan no mueve ningún giro por una correa")
+    peor = None
+    for u, m in medidas:
+        gira = piezas[u.gira].nombre if u.gira in piezas else u.gira
+        defectos = m["sobre"] + m["gira"]
+        if m["hechos"] is None:
+            r = Resultado(estado="no_cumple", detalle=(
+                f"«{gira}»: " + (defectos[0] if defectos else "no lleva una polea en su eje")))
+        elif abs(m["hechos"] / m["z1"] - a.relacion) > 1e-6:
+            r = Resultado(estado="no_cumple", valor=m["hechos"] / m["z1"], detalle=(
+                f"«{gira}» lleva una polea de {m['hechos']} dientes y la del motor tiene "
+                f"{m['z1']}: {m['hechos'] / m['z1']:g}:1, y se pide {a.relacion:g}:1"))
+        elif defectos or m["correa"] is None:
+            r = Resultado(estado="no_cumple", valor=a.relacion, detalle=(
+                f"«{gira}»: " + (defectos[0] if defectos else
+                                 "no se pudo medir la distancia entre los dos ejes")))
+        else:
+            r = Resultado(estado="cumple", valor=a.relacion, detalle=(
+                f"«{gira}» lleva una polea de {m['hechos']} dientes y la del motor tiene "
+                f"{m['z1']}: {a.relacion:g}:1, con los ejes a {m['entre_ejes_mm']:.1f} mm, que "
+                f"es una correa de {m['correa']['dientes']} dientes"))
+            return r
+        peor = peor or r
+    return peor
 
 
 def _tornillos(a: Tornillos, proyecto: Path, piezas: dict) -> Resultado:

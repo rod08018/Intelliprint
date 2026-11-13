@@ -79,10 +79,27 @@ def materiales(carpeta: Path) -> dict:
             impresas.append({"id": parte.name, "nombre": titulo or parte.name, "impresa": False})
         fichas = []
     tornilleria, incluido, con = _tornilleria(carpeta)
+    correas: Counter = Counter()
+    if O.es_obra(carpeta):
+        # Lo que pide cada correa del plan (F10.3 (correa)): la polea del
+        # motor, que nadie coloca en el dibujo, y la correa que da la
+        # distancia a la que quedaron los ejes. Sin esa distancia no se sabe
+        # cuál es, y no se inventa.
+        from orchestrator import transmision as TR
+        medidas = TR.medidas(carpeta)
+        comprado[TR.POLEA_DEL_MOTOR] = max(comprado[TR.POLEA_DEL_MOTOR], len(medidas))
+        if not medidas:
+            del comprado[TR.POLEA_DEL_MOTOR]
+        for _, m in medidas:
+            if m["correa"]:
+                correas[f"Correa GT2 cerrada de {TR.ANCHO_DE_CORREA:g} mm de ancho, "
+                        f"{m['correa']['dientes']} dientes ({m['correa']['largo_mm']:g} mm)"] += 1
     return {
         "impresas": impresas,
         "comprado": [{"id": f, "nombre": _nombre_de_ficha(f, fichas), "cuantos": n,
                       "tipo": "componente"} for f, n in sorted(comprado.items())]
+                    + [{"id": nombre, "nombre": nombre, "cuantos": n, "tipo": "transmision"}
+                       for nombre, n in sorted(correas.items())]
                     + [{"id": nombre, "nombre": nombre, "cuantos": n, "tipo": "tornilleria"}
                        for nombre, n in sorted(tornilleria.items())],
         "incluido": [{"nombre": nombre, "cuantos": n, "viene_con": con[nombre]}

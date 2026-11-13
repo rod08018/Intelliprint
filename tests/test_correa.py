@@ -193,3 +193,169 @@ def test_la_polea_del_motor_tiene_ficha_con_lo_que_dice_su_tienda():
     assert envolvente(f) == ([-8, -8, 0], [8, 8, 16])
     assert f.cuerpos[0].cilindro.interior == 5 == cargar("nema17").cuerpos[2].cilindro.diametro
     assert f.masa_g == 6 and not f.da_par()
+
+
+# --- la correa en un backlog: lo que se dice, lo que se mide y lo que se compra ---------------
+
+def _con_correa(tmp_path, motor_en=(-87.9, 10, 25), motor_giros=(("x", 90),), polea=80,
+                polea_en=(0, -1, 25)):
+    """La articulación de `test_transmision`: el 608ZZ tumbado, con su eje
+    por (0, ·, 25) hacia −y, y el brazo saliendo en x. Aquí el motor va
+    también tumbado, con el eje hacia −y, a 87,9 mm del rodamiento; y el
+    brazo lleva una polea de 80 dientes en el eje, cuya banda dentada (de
+    1,5 a 8,5 mm de su base) queda entre y = −2,5 e y = −9,5. El eje del
+    motor, de 24 mm, va de y = 10 a y = −14: la correa tiene sus 6 mm."""
+    import json
+    from tests.test_transmision import _articulacion
+    carpeta = _articulacion(tmp_path)
+    rasgos = carpeta / "nodos" / "soporte" / "parts" / "soporte" / "rasgos.json"
+    suyos = json.loads(rasgos.read_text(encoding="utf-8"))
+    suyos[1].update(en=list(motor_en), giros=[list(g) for g in motor_giros])
+    rasgos.write_text(json.dumps(suyos), encoding="utf-8")
+    if polea:
+        rasgos = carpeta / "nodos" / "brazo" / "parts" / "brazo" / "rasgos.json"
+        suyos = json.loads(rasgos.read_text(encoding="utf-8"))
+        suyos.append({"nombre": "polea", "tipo": "polea_gt2", "dientes": polea,
+                      "centro": list(polea_en), "eje": [0, -1, 0], "ancho_mm": 7, "alto_mm": 10,
+                      "primitivo_mm": polea * 2 / math.pi, "correa_mm": 6})
+        rasgos.write_text(json.dumps(suyos), encoding="utf-8")
+    return carpeta
+
+
+def test_las_distancias_entre_ejes_que_se_ofrecen_dan_correas_enteras():
+    """Con poleas de 20 y 80. Lo menos que pueden separarse los ejes: el
+    radio de la grande con sus pestañas (50,42 + 3)/2, el de la comprada
+    (16/2) y 2 mm entre las dos: 36,7 mm. La primera correa que lo pasa, de
+    las que van de 5 en 5 dientes, es la de 95 (190 mm), con los ejes a
+    40,39; la siguiente, la de 100, a 45,97. (La de 90 pide 34,58: las
+    poleas se tocarían.)"""
+    from orchestrator.transmision import distancias_posibles
+    primera, segunda, *resto = distancias_posibles(20, 80)
+    assert (primera["dientes"], segunda["dientes"]) == (95, 100)
+    assert primera["entre_ejes_mm"] == pytest.approx(40.39, abs=0.01)
+    assert segunda["entre_ejes_mm"] == pytest.approx(45.97, abs=0.01)
+    assert len(resto) == 2
+
+
+def test_una_relacion_que_no_da_dientes_enteros_no_pasa_el_plan():
+    from orchestrator.plan import validar_plan
+    from orchestrator.schemas.obra import Obra
+    from tests.test_plan_mecanico import AGUJEROS
+    from tests.test_transmision import _plan
+    errores, _ = validar_plan(Obra(**_plan(movido_por={"relacion": 2.33})), AGUJEROS)
+    assert len(errores) == 1 and "46.6" in errores[0] and "u2" in errores[0]
+
+
+def test_la_articulacion_bien_hecha_no_tiene_defectos_de_correa(tmp_path):
+    from orchestrator.transmision import defectos_de_transmision
+    carpeta = _con_correa(tmp_path)
+    assert defectos_de_transmision(carpeta, "soporte") == []
+    assert defectos_de_transmision(carpeta, "brazo") == []
+
+
+def test_el_motor_tiene_que_ir_paralelo_al_rodamiento(tmp_path):
+    """De pie, con el eje hacia +z, cuando el del rodamiento va hacia −y:
+    una correa no tuerce."""
+    from orchestrator.transmision import defectos_de_transmision
+    [d] = defectos_de_transmision(_con_correa(tmp_path, motor_giros=()), "soporte")
+    assert "paralelo" in d and "u1" in d
+
+
+def test_el_motor_tiene_que_salir_hacia_el_mismo_lado(tmp_path):
+    """Tumbado al revés, con el eje hacia +y: las poleas quedarían una a
+    cada lado del soporte."""
+    from orchestrator.transmision import defectos_de_transmision
+    [d] = defectos_de_transmision(_con_correa(tmp_path, motor_giros=(("x", -90),)), "soporte")
+    assert "mismo lado" in d
+
+
+def test_los_ejes_van_a_la_distancia_de_una_correa_que_exista(tmp_path):
+    """A 84,3 mm no hay correa: la de 136 dientes pide 83,81 y la de 137,
+    84,84; las dos quedan a más de 0,2 mm, que es lo que el manual admite."""
+    from orchestrator.transmision import defectos_de_transmision
+    [d] = defectos_de_transmision(_con_correa(tmp_path, motor_en=(-84.3, 10, 25)), "soporte")
+    assert "84.3" in d and "83.8" in d and "84.8" in d
+
+
+def test_los_ejes_no_pueden_ir_tan_juntos_que_las_poleas_se_toquen(tmp_path):
+    from orchestrator.transmision import defectos_de_transmision
+    [d] = defectos_de_transmision(_con_correa(tmp_path, motor_en=(-30, 10, 25)), "soporte")
+    assert "30" in d and "36.7" in d
+
+
+def test_la_pieza_que_gira_lleva_la_polea(tmp_path):
+    from orchestrator.transmision import defectos_de_transmision
+    [d] = defectos_de_transmision(_con_correa(tmp_path, polea=None), "brazo")
+    assert "polea_gt2" in d and "80" in d
+
+
+def test_la_polea_tiene_los_dientes_de_la_relacion(tmp_path):
+    """4:1 con la de 20 del motor son 80: una de 60 da 3:1."""
+    from orchestrator.transmision import defectos_de_transmision
+    [d] = defectos_de_transmision(_con_correa(tmp_path, polea=60), "brazo")
+    assert "60" in d and "80" in d
+
+
+def test_la_polea_va_en_el_eje_del_giro(tmp_path):
+    """Con el centro 3 mm por encima del eje del rodamiento, la polea
+    cabecearía al girar."""
+    from orchestrator.transmision import defectos_de_transmision
+    [d] = defectos_de_transmision(_con_correa(tmp_path, polea_en=(0, -1, 28)), "brazo")
+    assert "3.0 mm" in d and "eje" in d
+
+
+def test_la_polea_queda_a_la_altura_del_eje_del_motor(tmp_path):
+    """Con el motor 30 mm más atrás, su eje va de y = 40 a y = 16 y los
+    dientes de la polea siguen entre −2,5 y −9,5: la correa no llega."""
+    from orchestrator.transmision import defectos_de_transmision
+    [d] = defectos_de_transmision(_con_correa(tmp_path, motor_en=(-87.9, 40, 25)), "brazo")
+    assert "correa" in d and "6 mm" in d
+
+
+def test_a_cada_pieza_se_le_dice_su_parte_de_la_correa(tmp_path):
+    from orchestrator.obra import uniones_del_nodo
+    carpeta = _con_correa(tmp_path)
+    [soporte] = uniones_del_nodo(carpeta, "soporte")
+    assert "20 dientes" in soporte["texto"] and "80" in soporte["texto"]
+    assert "40.4 mm" in soporte["texto"] and "95 dientes" in soporte["texto"]
+    assert "mismo lado" in soporte["texto"]
+    [brazo] = uniones_del_nodo(carpeta, "brazo")
+    assert 'kit.polea_gt2("polea", 80' in brazo["texto"] and "nema17" in brazo["texto"]
+
+
+def test_la_correa_y_la_polea_del_motor_salen_en_las_compras(tmp_path):
+    """Los ejes a 87,9 mm: la correa de 140 dientes (280 mm), que pide
+    87,92. Y la polea de 20 del motor, que nadie coloca en el dibujo."""
+    from orchestrator.materiales import materiales
+    comprado = {c["id"]: c for c in materiales(_con_correa(tmp_path))["comprado"]}
+    assert comprado["polea-gt2-20"]["cuantos"] == 1
+    [correa] = [c for c in comprado.values() if c["tipo"] == "transmision"]
+    assert "140 dientes" in correa["nombre"] and "280 mm" in correa["nombre"]
+    assert "6 mm" in correa["nombre"] and correa["cuantos"] == 1
+
+
+@pytest.mark.parametrize("polea, estado, dice", [
+    (80, "cumple", "80 dientes"),
+    (60, "no_cumple", "60"),
+    (None, "no_cumple", "polea"),
+])
+def test_el_banco_cuenta_la_reduccion_por_dientes(tmp_path, monkeypatch, polea, estado, dice):
+    """80 dientes en la pieza que gira y 20 en el motor: 4:1. Con 60, 3:1."""
+    from tests.test_banco import _juzgar_brazo
+    [r] = _juzgar_brazo(tmp_path, monkeypatch, [{"tipo": "reduccion", "relacion": 4}],
+                        "una articulación con correa 4:1",
+                        brazo=lambda p: _con_correa(p, polea=polea))
+    assert r.estado == estado, r.detalle
+    assert dice in r.detalle
+
+
+def test_el_encargo_14_pide_lo_que_dice_su_peticion():
+    """«un motor NEMA 17 por una correa 4:1», «gira 180°», «levanta 300 g a
+    150 mm del eje»."""
+    from orchestrator.banco import cargar_encargos
+    [e] = [e for e in cargar_encargos(Path("tests/banco/encargos"))
+           if e.nombre == "articulacion_correa_nema17"]
+    por_tipo = {a.tipo: a for a in e.oraculo}
+    assert por_tipo["reduccion"].relacion == 4
+    assert por_tipo["carga"].minimo_g == 300 and por_tipo["alcance"].minimo_mm == 150
+    assert "4:1" in e.peticion and "300 g" in e.peticion and "150 mm" in e.peticion

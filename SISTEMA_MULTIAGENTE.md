@@ -84,7 +84,7 @@ El desglosador propone en una sola llamada los nodos del backlog (piezas y conju
 
 El plan no lleva coordenadas. `orchestrator/plan.py` lo comprueba sin modelo: que la salida exista en la ficha del componente, que el recorrido pedido quepa en el de la ficha, que cada actuador mueva una sola pieza (sea en su eje o por una transmisión), que el motor de una transmisión dé par según su ficha, que todo giro esté dentro de un nodo conjunto y que ninguna pieza quede sin unir. Un plan que no se puede construir vuelve al desglosador con el error. Una métrica que el perfil de la impresora no tiene tabulada es un aviso que la persona ve antes de aprobar.
 
-Límite conocido: solo se describen **árboles de giros** sobre la salida de algo comprado. No hay correderas, engranajes ni cadenas cerradas; una pinza de dos dedos con un solo servo no sale (ADR-020). Hoy tres fichas tienen salidas: el SG90, el 608ZZ y el NEMA 17. Y de una transmisión solo existe el dato: nadie dibuja todavía la correa ni las poleas, y su rendimiento (0,9 la correa, 0,7 la reductora) es un supuesto, no una medida.
+Límite conocido: solo se describen **árboles de giros** sobre la salida de algo comprado. No hay correderas, engranajes ni cadenas cerradas; una pinza de dos dedos con un solo servo no sale (ADR-020). Hoy tres fichas tienen salidas: el SG90, el 608ZZ y el NEMA 17. De una correa sale lo demás sin que lo decida un modelo (`orchestrator/transmision.py`, F10.3 (correa)): la polea del motor es una comprada de 20 dientes, la pieza que gira lleva una de 20 × relación hecha por `kit.polea_gt2`, y los dos ejes van a la distancia de una correa cerrada, sin tensor; las tres cosas se miden en el bucle de cada pieza. El rendimiento (0,9 la correa, 0,7 la reductora) es un supuesto, la ranura del diente es una aproximación, y ningún invento con correa ha pasado por el banco. De una reductora solo existe el dato.
 
 ### 3.2 Dónde queda cada pieza
 
@@ -340,6 +340,7 @@ No hay servidor MCP de FreeCAD ni de simulación.
 | `sondas.py` | Las medidas sobre el STEP construido, que corren dentro de FreeCAD |
 | `componentes.py` | Coloca la forma de una ficha en la pieza y construye sus sólidos |
 | `profile.py` | El perfil de impresora y sus holguras |
+| `transmisiones.py` | Las cuentas de una correa GT2: los diámetros de una polea, el largo de la correa y la distancia entre ejes que pide |
 | `measure.py`, `geometry.py` | Extraen las caras cilíndricas de una pieza y buscan agujeros y salientes por su posición; los usa el banco para juzgar. `geometry.py` da además la colocación de una pieza en el ensamble |
 | `generators.py` | El catálogo de ocho generadores de las recetas; hoy construye las piezas de calibración |
 | `library_models.py` | Importa los modelos de referencia de `library/models/reference/` |
@@ -352,7 +353,7 @@ Solo sin interfaz. Cada construcción, cada tanda de sondas y cada barrido de ch
 
 ## 10. Fichas de componentes
 
-Ningún modelo debe sacar de memoria las medidas de un servo. Un componente comprado es **geometría con ficha y fuente** (ADR-016): `library/components/*.yaml`, leídas por `orchestrator/componentes.py`. Hay siete: `608zz`, `hc-sr04`, `mg996r`, `nema17`, `perfil-2020`, `raspberry-pi-4` y `sg90`.
+Ningún modelo debe sacar de memoria las medidas de un servo. Un componente comprado es **geometría con ficha y fuente** (ADR-016): `library/components/*.yaml`, leídas por `orchestrator/componentes.py`. Hay ocho: `608zz`, `hc-sr04`, `mg996r`, `nema17`, `perfil-2020`, `polea-gt2-20`, `raspberry-pi-4` y `sg90`.
 
 Una ficha dice qué es sólido (`cuerpos`), qué hay que dejar libre y por qué (`despejar`: un cable, el haz de un sensor), dónde se atornilla y con qué (`fijacion`), qué mueve (`salidas`: el eje de un servo con su recorrido y su `acople`, el cuerno al que se atornilla lo que gira, F9.7 (acople)) y, en los servos, su par y su masa; en el paso a paso, su par de retención. Cada fijación dice qué tornillo lleva, si viene con el componente y si rosca en la pieza impresa o en el propio componente. Las fuentes van citadas en la propia ficha.
 
@@ -360,7 +361,7 @@ Qué componentes nombra una petición lo decide el código, por los alias de la 
 
 Límites conocidos:
 
-- **Ninguna ficha está medida con calibre**: las siete llevan `verificado: false`.
+- **Ninguna ficha está medida con calibre**: las ocho llevan `verificado: false`.
 - Las formas son cajas y cilindros alineados con los ejes, y un componente solo se gira de 90 en 90°.
 - Un componente sin ficha sigue adelante con las cifras sueltas que encuentre el investigador. El borrador de ficha que la persona aprueba es F9.11 (borrador), pendiente.
 - El estudio de movimientos estima la masa de lo impreso sin laminar.
@@ -439,4 +440,4 @@ Intelliprint/
 | Carpeta `ui/` y adaptador web del `HumanPort` | La web es `orchestrator/web/` y llama a los trabajos directamente | § 8.5 |
 | Hoja de ruta y tabla de riesgos de este documento | Viven en `PLAN_PROYECTO.md`, que es el que se mantiene | `PLAN_PROYECTO.md` |
 
-Lo que está planeado y todavía por hacer no va en esta tabla: está en `PLAN_PROYECTO.md`. De la Fase 9 faltan F9.11 y F9.12 (el borrador de ficha y las pantallas); ampliar un invento, F9.10, está hecho y en el banco no pasa: 7 de 9, 8 de 9 con una reanudación y 0 de 9 con la segunda (el pan-tilt con pinza: el plan se amplía bien, pero la plataforma no acierta a poner los tornillos de la pinza donde hay sitio, y el soporte de la pinza, rehecho, no llegó a construirse). La Fase 10 (brazos con transmisión, ADR-021) está aprobada y empezada: de ella existe lo que mide el banco en F10.1 (serie), con un brazo de tres ejes con servos que pasa sus ocho comprobaciones, y F10.2 (transmisión): el plan dice qué motor mueve un giro y con qué relación, y el estudio hace la cuenta. No hay generador de dientes ni reductoras, nadie dibuja la correa, y ningún invento con transmisión ha pasado por el banco.
+Lo que está planeado y todavía por hacer no va en esta tabla: está en `PLAN_PROYECTO.md`. De la Fase 9 faltan F9.11 y F9.12 (el borrador de ficha y las pantallas); ampliar un invento, F9.10, está hecho y en el banco no pasa: 7 de 9, 8 de 9 con una reanudación y 0 de 9 con la segunda (el pan-tilt con pinza: el plan se amplía bien, pero la plataforma no acierta a poner los tornillos de la pinza donde hay sitio, y el soporte de la pinza, rehecho, no llegó a construirse). La Fase 10 (brazos con transmisión, ADR-021) está aprobada y empezada: de ella existe lo que mide el banco en F10.1 (serie), con un brazo de tres ejes con servos que pasa sus ocho comprobaciones, y F10.2 (transmisión): el plan dice qué motor mueve un giro y con qué relación, y el estudio hace la cuenta. Y F10.3 (correa): el kit dibuja la polea GT2 y cada pieza mide su parte de la correa. No hay reductoras, y ningún invento con transmisión ha pasado por el banco: el encargo 14 está escrito y sin medir.

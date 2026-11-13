@@ -1,0 +1,43 @@
+nombre: articulacion_correa_nema17
+categoria: robots
+obra: true
+peticion: >
+  Una articulación para un brazo: el brazo gira 180° (90° a cada lado) sobre un
+  rodamiento 608ZZ, con el eje horizontal, y lo mueve un motor NEMA 17 por una
+  correa 4:1, sin que nada choque. La punta del brazo queda a 150 mm del eje y
+  levanta 300 g. El soporte se atornilla a un tablero con cuatro tornillos M3.
+oraculo:
+  - tipo: componente
+    ficha: nema17
+    cuantos: 1
+  - tipo: componente
+    ficha: 608zz
+    cuantos: 1
+  - tipo: encaje
+  - tipo: conjunto_libre
+  # «gira 180°» y «con el eje horizontal»: un solo giro, que levanta.
+  - tipo: articulaciones
+    ejes: [horizontal]
+    recorrido_grados: 180
+  - tipo: sin_soportes
+  # «una correa 4:1»: literal. Se cuenta por dientes en lo construido: los
+  # de la polea que lleva el brazo entre los 20 de la del motor
+  # (F10.3 (correa)).
+  - tipo: reduccion
+    relacion: 4
+  # «La punta del brazo queda a 150 mm del eje».
+  - tipo: alcance
+    minimo_mm: 150
+  # «y levanta 300 g». Que se puede, a mano y antes de pedirlo: el
+  # 17HS4401 da 0,400 N·m según su hoja; por 4 y por 0,9 de rendimiento
+  # (supuesto), 1,44 N·m en el eje, y se le pide la mitad: 0,72. 300 g a
+  # 150 mm piden 0,300 × 9,80665 × 0,150 = 0,441; quedan 0,279 para el
+  # brazo, que con 60 g a 75 mm pide 0,044.
+  - tipo: carga
+    minimo_g: 300
+  # El NEMA 17 se sujeta con cuatro M3 que roscan en el motor
+  # (`library/components/nema17.yaml`).
+  - tipo: tornillos
+    sujetan: nema17
+    metrica: M3
+    cuantos: 4

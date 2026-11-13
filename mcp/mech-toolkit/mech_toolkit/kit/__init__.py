@@ -949,9 +949,10 @@ class Kit:
         el kit: nunca los dibujes tú. `dientes`: los de la polea (12 o más);
         `correa`: el ancho de la correa. Con `pestanas` lleva a cada lado un
         cono que guía la correa y se imprime sin soportes con el eje en
-        vertical: mide 10 mm de alto para una correa de 6. Súmala a tu pieza
-        con `+` y taladra después el eje que haga falta. No le pases
-        `redondear` ni `acabar` a los dientes."""
+        vertical: mide 10 mm de alto para una correa de 6. Acaba antes tu
+        pieza (`acabar()`) y súmale después la polea con `+`: acabarla con
+        los dientes puestos tarda un minuto y no les hace nada. Taladra al
+        final el eje que haga falta."""
         from mech_toolkit import transmisiones as T
 
         if int(dientes) != dientes or dientes < T.MINIMO_DE_DIENTES:

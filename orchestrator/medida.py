@@ -776,6 +776,11 @@ def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
             print(f"  sin contar los tornillos del plan: {type(fallo).__name__}: {fallo}",
                   flush=True)
         try:
+            from orchestrator.transmision import defectos_de_transmision
+            fallos += defectos_de_transmision(*backlog)
+        except Exception as fallo:  # noqa: BLE001
+            print(f"  sin medir la correa: {type(fallo).__name__}: {fallo}", flush=True)
+        try:
             fallos += sin_sitio_para_lo_nuevo(*backlog)
         except Exception as fallo:  # noqa: BLE001
             print(f"  sin medir el sitio para lo que se atornilla después: "

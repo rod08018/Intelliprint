@@ -141,6 +141,12 @@ def _transmision_imposible(u: Gira, ficha: Ficha, extra: Sequence[Path]) -> list
     except KeyError as e:
         return [f"unión «{u.id}»: {e.args[0]}"]
     errores = []
+    if t.tipo == "correa":
+        from orchestrator.transmision import dientes
+        try:
+            dientes(u)
+        except ValueError as e:
+            errores.append(f"unión «{u.id}»: {e}")
     if not motor.da_par():
         errores.append(
             f"unión «{u.id}»: «{t.motor}» no puede mover nada: su ficha no da ningún par. "
