@@ -219,9 +219,15 @@ Fase 10.
   cinco giros: 3 125 poses de 2,5 millones) y se dice lo que no se
   probó. Una cadena de cinco giros a mano se barre en 6 s. Un choque
   que caiga entre dos puntos de esa rejilla se escapa.
-- **Lo que sigue:** el resultado de la corrida nueva del encargo 14
-  (`1113-0423`, tope 1,10 USD). Después, F10.6 (módulo) y F10.7
-  (cicloidal), con una sola corrida de pago al final de las dos.
+- **Medido otra vez, el encargo 14 pasa 9 de 10** (corrida `1113-0423`,
+  0,48 USD; 1,38 de los 2 del encargo). Solo falla el alcance: 149,1
+  mm de 150. El plan reservó 150 de radio libre para un brazo de 150 y
+  el brazo se quedó corto para no pasarse; nadie le mide que llegue.
+  No se ha gastado en corregirlo.
+- **Lo que sigue:** dos medidas baratas que salen de ahí (que el radio
+  libre deje sitio al brazo, y medir que la punta llega), y después
+  F10.6 (módulo) y F10.7 (cicloidal), con una sola corrida de pago al
+  final de las dos.
 
 **2026-11-10: Fase 9, robots con plan mecánico (ADR-020).** El usuario quiere
 diseñar robots: que el desglose decida antes de dibujar qué gira sobre qué y con
