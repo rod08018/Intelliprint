@@ -245,9 +245,16 @@ Fase 10.
   una polea. **Falta un dato suyo:** imprimirlas y apuntar en
   «Impresora» → «Holgura de las transmisiones» con cuál gira bien;
   hasta entonces las reductoras van con 0,15 mm y el plan lo avisa.
+- **Preparado, sin correr: F10.9 (el brazo mediano)** (2026-11-13). El
+  encargo 15 está escrito: cuatro ejes con NEMA 17 (base por correa,
+  hombro con cicloidal 28:1, codo con 10:1, muñeca por correa), 350 mm
+  y 300 g. A mano, los tres motores que levantan pueden con lo suyo
+  (el hombro pide 2,4 N·m de 3,6). Son cinco piezas y cuatro giros:
+  **el tope y la regla para parar están por acordar con él.** F9.11
+  (borrador) no se ha hecho; el encargo usa lo que ya tiene ficha.
 - **Lo que sigue:** el resultado de la corrida del encargo 14b
-  (`1113-0605`, tope 1 USD). Después, F9.11 (borrador) y F10.9 (el
-  brazo mediano), y al acabar la fase, proponerle las tres fases.
+  (`1113-0605`, tope 1 USD); acordar con él la del encargo 15; y al
+  acabar la fase, proponerle las tres fases.
 
 **2026-11-10: Fase 9, robots con plan mecánico (ADR-020).** El usuario quiere
 diseñar robots: que el desglose decida antes de dibujar qué gira sobre qué y con

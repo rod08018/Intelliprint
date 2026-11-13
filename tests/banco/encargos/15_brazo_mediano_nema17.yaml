@@ -1,0 +1,56 @@
+nombre: brazo_mediano_nema17
+categoria: robots
+obra: true
+peticion: >
+  Un brazo de cuatro ejes con motores NEMA 17. La base gira el brazo sobre un
+  rodamiento 608ZZ, con el eje vertical, movida por una correa 4:1. El hombro y
+  el codo lo levantan, con el eje horizontal: el hombro sobre una reductora
+  cicloidal 28:1 y el codo sobre una reductora cicloidal 10:1. La muñeca
+  cabecea, con el eje horizontal, sobre otro rodamiento 608ZZ movida por una
+  correa 4:1. Cada eje recorre 180° (90° a cada lado) sin que nada choque. Del
+  hombro al codo hay 150 mm, del codo a la muñeca 120 mm y de la muñeca a la
+  punta 80 mm: con el brazo estirado la punta llega a 350 mm del eje del
+  hombro y levanta 300 g. La base se atornilla a un tablero con cuatro
+  tornillos M3.
+oraculo:
+  - tipo: componente
+    ficha: nema17
+    cuantos: 4
+  - tipo: componente
+    ficha: 608zz
+    cuantos: 2
+  - tipo: encaje
+  - tipo: conjunto_libre
+  # «La base gira… con el eje vertical»; hombro, codo y muñeca, «con el eje
+  # horizontal». Cuatro giros en serie: lo más que había salido eran tres.
+  - tipo: articulaciones
+    ejes: [vertical, horizontal, horizontal, horizontal]
+    recorrido_grados: 180
+  - tipo: sin_soportes
+  # Las tres transmisiones que nombra la petición, cada una contada en lo
+  # construido: «una correa 4:1», «cicloidal 28:1» y «cicloidal 10:1».
+  - tipo: reduccion
+    relacion: 4
+  - tipo: reduccion
+    relacion: 28
+  - tipo: reduccion
+    relacion: 10
+  # «la punta llega a 350 mm del eje del hombro»: 150 + 120 + 80.
+  - tipo: alcance
+    minimo_mm: 350
+  # «y levanta 300 g». Que se puede, a mano (`tests/test_dimensionar.py`), con
+  # el 17HS4401 a 0,400 N·m, del que se pide la mitad, y lo impreso estimado
+  # en 0,2 g/mm:
+  #   muñeca, correa 4:1 (0,72 N·m): 300 g a 80 mm y su tramo, 0,242.
+  #   codo, cicloidal 10:1 (1,30 N·m): 300 g a 200 mm, el motor y el
+  #     rodamiento de la muñeca (288 g a 120) y los tramos, 0,967.
+  #   hombro, cicloidal 28:1 (3,64 N·m): 300 g a 350 mm, el motor y la
+  #     reductora del codo (335 g a 150), lo de la muñeca (288 g a 270) y
+  #     los tramos, 2,405. Con la de 20:1 quedaba un 7 % de margen.
+  - tipo: carga
+    minimo_g: 300
+  # Cuatro NEMA 17, cada uno con sus cuatro M3.
+  - tipo: tornillos
+    sujetan: nema17
+    metrica: M3
+    cuantos: 16

@@ -1,0 +1,7 @@
+# Reductora cicloidal 28:1 para un NEMA 17 (F10.7 (cicloidal)): la mayor que da
+# una sola etapa de este módulo. La pide el hombro del brazo mediano
+# (F10.9 (mediano)): con la de 20:1 le quedaba un 7 % de margen.
+id: cicloidal-nema17-28
+generador: cicloidal
+parametros:
+  relacion: 28

@@ -1174,7 +1174,10 @@ def _reduccion(a: Reduccion, proyecto: Path, piezas: dict) -> Resultado:
         de_reductora = _por_reductora(a, proyecto, piezas)
     except (OSError, ValueError, KeyError) as error:
         return Resultado(estado="sin_medir", detalle=f"no se pudo medir la correa: {error!r}")
-    if de_reductora is not None:
+    # Un invento puede llevar las dos cosas (el brazo mediano: correas de 4:1
+    # y cicloidales de 28:1 y 10:1): que ninguna reductora sea la pedida no
+    # es un fallo si lo es una correa, y al revés.
+    if de_reductora is not None and (de_reductora.estado == "cumple" or not medidas):
         return de_reductora
     if not medidas:
         return Resultado(estado="no_cumple", detalle=(
