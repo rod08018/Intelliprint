@@ -323,6 +323,18 @@ def test_a_cada_pieza_se_le_dice_su_parte_de_la_correa(tmp_path):
     assert 'kit.polea_gt2("polea", 80' in brazo["texto"] and "nema17" in brazo["texto"]
 
 
+def test_a_lo_que_gira_en_un_rodamiento_se_le_dice_como_entra_en_el(tmp_path):
+    """El texto del giro está escrito para un servo: «toda la pieza va por
+    delante de la cara». En un rodamiento la pieza lo atraviesa con un eje,
+    y ese eje no puede entrar justo: hecha a mano (2026-11-12), con un eje
+    de Ø7,9 en el agujero de 8 el barrido la dio por choque (0,05 mm), y con
+    la holgura deslizante del perfil (Ø7,8, 0,1 mm) pasó."""
+    from orchestrator.obra import uniones_del_nodo
+    [brazo] = uniones_del_nodo(_con_correa(tmp_path), "brazo")
+    assert "atraviesa" in brazo["texto"] and "«slide»" in brazo["texto"]
+    assert "7 mm" in brazo["texto"]
+
+
 def test_la_correa_y_la_polea_del_motor_salen_en_las_compras(tmp_path):
     """Los ejes a 87,9 mm: la correa de 140 dientes (280 mm), que pide
     87,92. Y la polea de 20 del motor, que nadie coloca en el dibujo."""

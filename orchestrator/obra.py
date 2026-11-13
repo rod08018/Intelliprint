@@ -694,6 +694,14 @@ def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
                        if eje.acople else "")
                     + (f" Nada de esta pieza puede quedar a más de {radio:g} mm de ese eje: "
                        f"es el sitio que {nombre(u.sobre)} deja libre." if radio else "")
+                    # Lo de «por delante de la cara» es de un servo. En un
+                    # rodamiento, hecha a mano (2026-11-12), un eje justo
+                    # (0,05 mm) se dio por choque al mover el conjunto.
+                    + (f" Aquí la salida es un aro de {eje.largo:g} mm de ancho que gira: lo "
+                       "único de esta pieza que entra en él es un eje que lo atraviesa, y "
+                       "con la holgura «slide» del perfil (`kit.holgura(\"slide\")`, en "
+                       "diámetro): más justo, al mover el conjunto cuenta como choque."
+                       if eje.largo and not eje.acople else "")
                     + (para_quien_gira(u, nombre(u.sobre))
                        if u.movido_por and u.movido_por.tipo == "correa" else "")))
             else:
