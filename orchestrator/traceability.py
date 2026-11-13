@@ -27,11 +27,21 @@ la pieza lleva es el agujero para él (4.5). Falso positivo real del banco
 (2026-11-03): la escuadra de repisa suspendía por no tener ningún 4."""
 
 
+CONTEXTO = "Lo que sigue es de dónde va esta pieza, no medidas suyas:"
+"""En la petición de una pieza de un backlog, lo que va detrás de esta línea
+lo escribe el sistema: qué lleva comprado y a qué piezas se une. Sus cifras
+no son cotas de la pieza. En la primera corrida del brazo mediano (banco
+1113-1330) el antebrazo no pasó de los requisitos por los 150 mm del brazo
+superior, que era su vecino, y al brazo superior se le fue un intento en
+los «40 mm» del nombre de la ficha del NEMA 17."""
+
+
 def _numero(texto: str) -> float:
     return float(texto.replace(",", "."))
 
 
 def requested_dimensions(peticion: str) -> list[float]:
+    peticion = peticion.split(CONTEXTO)[0]
     cotas: list[float] = []
     ocupado: list[tuple[int, int]] = []
     for m in _MATRIZ.finditer(peticion):

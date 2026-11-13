@@ -265,8 +265,23 @@ Fase 10.
 - **Acordado con él el 2026-11-13: el encargo 15 (el brazo mediano) se
   corre con 5 USD de tope**: una corrida y dos reanudaciones, y parar
   ahí aunque no pase.
-- **Lo que sigue:** el resultado de esa corrida; y al acabar la fase,
-  proponerle las tres fases (carcasas vistosas, brazo Arctos, avión).
+- **El encargo 15, medido, se queda en 0 de 12 y se paró sola**
+  (corrida `1113-1330`, 0,95 USD de los 5; sin reanudar). El plan
+  salió bien y la base y la torreta también; el brazo superior no
+  cumplió en cinco intentos y el antebrazo no pasó de los requisitos.
+  Lo de fondo: el sitio de un giro se reserva como un círculo entero
+  (`conjunto.radio_libre`), y con tramos largos da una torreta de
+  430 mm (no cabe en la impresora, y nadie lo mide) y un codo que no
+  puede tener 205 mm libres con el hombro a 150. Además el diseñador
+  tumbó la pieza al centro de la cama en el último intento.
+- **Arreglado de ahí:** las cifras que el sistema escribe en la
+  petición de una pieza (el nombre de una ficha, lo que hace la
+  vecina) ya no se le exigen como cotas (`traceability.CONTEXTO`).
+- **Por decidir con él** antes de reanudar: cómo se reserva el sitio
+  de un giro en un brazo, medir que una pieza quepa en la impresora,
+  y que el diseñador no tumbe la pieza. Quedan 4,05 USD de los 5.
+- **Lo que sigue:** esas decisiones; y al acabar la fase, proponerle
+  las tres fases (carcasas vistosas, brazo Arctos, avión).
 
 **2026-11-10: Fase 9, robots con plan mecánico (ADR-020).** El usuario quiere
 diseñar robots: que el desglose decida antes de dibujar qué gira sobre qué y con

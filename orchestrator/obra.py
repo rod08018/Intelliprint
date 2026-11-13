@@ -481,16 +481,21 @@ def peticion_del_nodo(carpeta: Path, nodo: str) -> str:
     # y cada cifra de una respuesta acababa de requisito.
     if len(obra.nodos) == 1:
         return (carpeta / "request.md").read_text(encoding="utf-8").strip()
-    lineas = [f"{n.nombre}: {n.que_hace}.", "",
-              f"Es una de las piezas de «{obra.titulo}», que se diseñan una a una: aquí solo "
-              "se diseña esta."]
-    if n.compra:
-        lineas += ["", "Lleva estos componentes comprados: "
-                   + ", ".join(f"{cargar(c).nombre} ({c})" for c in n.compra) + "."]
+    from orchestrator.traceability import CONTEXTO
+    lineas = [f"{n.nombre}: {n.que_hace}."]
     if n.ofrece:
         lineas += ["", "Lo que da a las demás piezas:", *(f"- {x}" for x in n.ofrece)]
     if n.necesita:
         lineas += ["", "Lo que necesita de las demás:", *(f"- {x}" for x in n.necesita)]
+    # De aquí abajo lo escribe el sistema, y sus cifras no son cotas de la
+    # pieza: el nombre de una ficha («NEMA 17 (17HS4401, 40 mm)») o lo que
+    # hace la pieza vecina («150 mm entre ejes»). Ver `traceability.CONTEXTO`.
+    lineas += ["", CONTEXTO, "",
+               f"Es una de las piezas de «{obra.titulo}», que se diseñan una a una: aquí solo "
+               "se diseña esta."]
+    if n.compra:
+        lineas += ["", "Lleva estos componentes comprados: "
+                   + ", ".join(f"{cargar(c).nombre} ({c})" for c in n.compra) + "."]
     if n.depende_de:
         lineas += ["", "Se une a estas piezas, ya terminadas. Tienen ficha con su forma "
                    "construida y sus agujeros con nombre: colócalas con `kit.componente` "

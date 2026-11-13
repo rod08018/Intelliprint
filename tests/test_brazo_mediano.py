@@ -107,6 +107,25 @@ def test_el_encargo_15_pide_lo_que_dice_su_peticion():
     assert "cicloidal-nema17-20" not in mencionados(e.peticion)
 
 
+def test_las_cifras_de_la_pieza_vecina_y_de_lo_comprado_no_son_cotas_del_antebrazo(tmp_path):
+    """Banco 1113-1330, la primera corrida del brazo mediano: el antebrazo
+    (120 mm entre ejes) no pasó de los requisitos, tres veces: «la petición
+    dice 150 mm y ningún requisito lleva ese valor». Los 150 son del brazo
+    superior, que su petición nombra como pieza a la que se une. Y al brazo
+    superior se le fue un intento en «40 mm», que es parte del nombre de la
+    ficha del motor: «NEMA 17 (17HS4401, 40 mm)».
+
+    De su petición, la única cota del antebrazo es la suya: 120."""
+    from orchestrator import obra as O
+    from orchestrator.traceability import requested_dimensions
+    (tmp_path / "request.md").write_text("un brazo de cuatro ejes\n", encoding="utf-8")
+    O.guardar(tmp_path, Obra(**PLAN), por="prueba")
+    texto = O.peticion_del_nodo(tmp_path, "antebrazo")
+    # Se le sigue contando a qué se une y qué lleva: lo lee el diseñador.
+    assert "150 mm" in texto and "40 mm" in texto and "8 × 22 × 7" in texto
+    assert requested_dimensions(texto) == [120]
+
+
 def test_con_correas_y_reductoras_cada_reduccion_se_busca_donde_toca(tmp_path, monkeypatch):
     """El brazo mediano lleva correas de 4:1 y cicloidales de 28:1 y 10:1.
     Al pedir «4:1», que ninguna reductora sea de 4 no es un fallo: la correa
