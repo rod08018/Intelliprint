@@ -742,6 +742,15 @@ def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
                        "eje: ni menos, ni más de lo que tiene reservado. Al construir se mide."
                        if u.brazo_mm and not any(isinstance(o, type(u)) and o.sobre == nodo
                                                  for o in obra.uniones) else "")
+                    # La muñeca del brazo mediano (banco 1113-1330) se dibujó
+                    # doblada hacia el codo y el brazo no podía estirarse.
+                    + (f" Dibújala siguiendo recto: con la punta alejándose del eje sobre el "
+                       f"que gira {nombre(u.sobre)}. Un giro se mueve la mitad a cada lado de "
+                       "como se dibuja, así que doblada hacia atrás el brazo no se estira."
+                       if u.brazo_mm and any(isinstance(o, type(u)) and o.gira == u.sobre
+                                             for o in obra.uniones)
+                       and not any(isinstance(o, type(u)) and o.sobre == nodo
+                                   for o in obra.uniones) else "")
                     + (para_quien_gira(u, nombre(u.sobre))
                        if u.movido_por and u.movido_por.tipo == "correa" else "")))
             else:

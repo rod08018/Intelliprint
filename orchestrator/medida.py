@@ -417,6 +417,47 @@ def _lo_que_llega(yo, punto, eje, esquinas) -> float:
     return float(np.linalg.norm(np.cross(vs - np.asarray(punto), e), axis=1).max())
 
 
+SIGUE_RECTO_MM = 5.0
+"""Lo que tiene que separar dos ejes seguidos para que «seguir recto» de uno
+al otro diga algo: con los dos en línea no hay hacia dónde."""
+
+
+def _fuera_de_recto(piezas, arts, yo, punto, eje, esquinas):
+    """(grados, hacia dónde) entre la punta de `yo` —lo suyo más lejos del eje
+    sobre el que gira— y seguir recto desde el eje sobre el que gira la pieza
+    que la lleva. `hacia dónde` va en el marco de `yo`. None si la de abajo
+    no gira o sus dos ejes están en línea."""
+    import numpy as np
+    padre = piezas[yo.padre]
+    a = arts.get(padre.id)
+    if a is None or padre.al_padre is None:
+        return None
+    r, d = (np.asarray(x, dtype=float) for x in padre.al_padre)
+    e = np.asarray(_unitario(eje), dtype=float)
+    atras, su_eje = r.T @ (np.asarray(a.punto, dtype=float) - d), r.T @ np.asarray(
+        _unitario(a.eje), dtype=float)
+    recto = np.asarray(punto, dtype=float) - atras
+    for v in (su_eje, e):
+        recto = recto - (recto @ v) * v
+    if np.linalg.norm(recto) < SIGUE_RECTO_MM:
+        return None
+    r_yo, d_yo = (np.asarray(x, dtype=float) for x in yo.al_padre)
+    stl = next(iter(sorted(yo.step.parent.glob("*.stl"))), None)
+    if stl is None:
+        vs = np.asarray(esquinas, dtype=float)
+    else:
+        from orchestrator.tornilleria import _triangulos
+        vs = _triangulos(str(stl), stl.stat().st_mtime).reshape(-1, 3) @ r_yo.T + d_yo
+    radial = vs - np.asarray(punto, dtype=float)
+    radial = radial - np.outer(radial @ e, e)
+    punta = radial[np.linalg.norm(radial, axis=1).argmax()]
+    coseno = punta @ recto / (np.linalg.norm(punta) * np.linalg.norm(recto))
+    en_lo_mio = r_yo.T @ recto
+    k = int(np.abs(en_lo_mio).argmax())
+    return (math.degrees(math.acos(max(-1.0, min(1.0, float(coseno))))),
+            ("+" if en_lo_mio[k] > 0 else "-") + "xyz"[k])
+
+
 def defectos_de_giro(carpeta: Path, nodo: str) -> list[str]:
     """Lo que la pieza construida de `nodo` no cumple del sitio que el plan
     reserva a cada giro, sin FreeCAD.
@@ -523,6 +564,23 @@ def defectos_de_alcance(carpeta: Path, nodo: str) -> list[str]:
                 f"el que gira y tiene que llegar a {suyo.brazo_mm:g}: le faltan "
                 f"{suyo.brazo_mm - llega:.1f} mm. Alárgala por la punta, sin mover dónde se "
                 "acopla")
+        # La muñeca del brazo mediano (banco 1113-1330) llegaba a 84 mm de su
+        # eje, pero doblada hacia el codo, y solo gira 90° a cada lado de
+        # como se dibuja: el brazo se quedó en 288 mm de 350 sin poder
+        # estirarse. Un giro se barre la mitad a cada lado del dibujo.
+        from orchestrator.conjunto import articulaciones_de
+        arts = {a.pieza: a for a in articulaciones_de(carpeta, piezas)}
+        fuera = _fuera_de_recto(piezas, arts, yo, s["punto"], s["eje"],
+                                _esquinas(yo.envolvente, yo.al_padre))
+        medio = suyo.recorrido_grados / 2
+        if fuera and fuera[0] > medio + 1:
+            sobre = O.cargar_obra(carpeta).nodo(suyo.sobre).nombre
+            fallos.append(
+                f"alcance (unión {suyo.id}): la punta de esta pieza queda a {fuera[0]:.0f}° de "
+                f"seguir recto desde «{sobre}» y solo gira {medio:g}° a cada lado de como se "
+                "dibuja: el brazo nunca llega a estirarse. Dibújala con la punta hacia "
+                f"{fuera[1]} de tu marco, alejándose del eje sobre el que gira «{sobre}», sin "
+                "mover dónde se acopla")
     return fallos
 
 

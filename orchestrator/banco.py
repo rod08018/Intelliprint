@@ -1491,6 +1491,28 @@ def _corregir_la_que_no_deja_sitio(proyecto: Path, nodo: str, abajo: str, falta:
         obra.rehacer(proyecto, i, motivo if i == nodo else "")
 
 
+def _corregir_las_de_encima_que_no_salieron(proyecto: Path, nodo: str) -> None:
+    """Las piezas diseñadas sobre `nodo` que el banco dio por listas con
+    defectos llevan su corrección en esta misma vuelta, con lo que se les
+    midió. Revalidarlas solo pregunta si corregir la de abajo las estropeó:
+    la muñeca del brazo mediano (banco 1113-1330), que nunca cumplió, salió
+    de ahí con un «sigue valiendo: no se toca», y hubo que esperar una
+    vuelta entera para volver a saber que no valía. De abajo arriba:
+    corregir una le quita la marca de «por revalidar»."""
+    from orchestrator import obra
+    arbol = obra.cargar_obra(proyecto)
+    for otro in arbol.dependientes(nodo):
+        informe = Path(proyecto) / obra.NODOS / otro / "pieza_report.json"
+        medido = _lo_medido(proyecto, otro)
+        if (arbol.nodo(otro).tipo != "pieza" or not medido
+                or json.loads(informe.read_text(encoding="utf-8")).get("resuelto")):
+            continue
+        if obra.programa_construido(proyecto, otro):
+            obra.corregir(proyecto, otro, medido)
+        else:
+            obra.rehacer(proyecto, otro, medido)
+
+
 def nodo_a_rehacer(proyecto: Path) -> str | None:
     """La primera pieza, en orden, que no salió bien: sin construir, o dada
     por lista por el banco con defectos. Si todas salieron y el conjunto
@@ -1606,8 +1628,10 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
             # que hay con lo que se le midió, que trae las cifras: rehacerla
             # pedía otro concepto y salía otra pieza, sin saber por qué falló.
             obra.corregir(proyecto, nodo, _lo_medido(proyecto, nodo))
+            _corregir_las_de_encima_que_no_salieron(proyecto, nodo)
         else:
             obra.rehacer(proyecto, nodo)
+            _corregir_las_de_encima_que_no_salieron(proyecto, nodo)
         salida = carpeta / "salida.txt"
         if salida.exists():
             salida.rename(carpeta_libre(carpeta / "salida-anterior.txt"))

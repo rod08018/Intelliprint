@@ -301,7 +301,16 @@ Fase 10.
 - **Pedido por él el 2026-11-13:** si ya se sabe que una corrida va a
   fallar, no esperarla: pararla, arreglar y volver a correr. Va una
   tercera reanudación del encargo 15, dentro de los 5 USD.
-- **Lo que sigue:** el resultado de esa reanudación; y al
+- **Reanudado por tercera vez, el encargo 15 pasa 9 de 12** (0,06 USD
+  más: 2,16 de los 5). El antebrazo salió a la primera corrección.
+  Falla la muñeca: no se rehízo (revalidarla la dio por buena sin
+  haber cumplido nunca) y está doblada hacia el codo, así que el
+  brazo no se estira (288 mm de 350). Arreglado: al reanudar se
+  corrige también la de encima que no salió, y a la pieza de la
+  punta se le mide que pueda ponerse recta con el tramo anterior
+  (**medida del asistente, él no la ha visto**; no cambia lo que
+  juzga el banco).
+- **Lo que sigue:** el resultado de reanudar la muñeca; y al
   acabar la fase, proponerle las tres fases (carcasas vistosas, brazo
   Arctos, avión).
 

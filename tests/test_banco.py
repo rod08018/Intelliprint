@@ -692,6 +692,41 @@ def test_reanudar_corrige_con_lo_medido_la_pieza_que_salio_con_defectos(tmp_path
     assert (p / "nodos" / "giro" / "concepto_aprobado").is_file(), "el concepto se queda"
 
 
+def test_reanudar_corrige_tambien_la_de_encima_que_tampoco_salio(tmp_path, monkeypatch):
+    """Brazo mediano, banco 1113-1330, tercera reanudación: el antebrazo y la
+    muñeca habían salido con defectos. Se corrigió el antebrazo, y la muñeca
+    —que nunca cumplió— se comprobó contra él y se dio por «sigue valiendo:
+    no se toca», porque la corrección de abajo no la había estropeado más.
+    Costó una vuelta entera, 48 minutos, volver a saber que no valía. La de
+    encima que tampoco salió lleva su corrección en la misma vuelta."""
+    import json
+    from orchestrator import banco, revalidar
+    corrida = tmp_path / "corrida"
+    p = _con_informes(_obra_construida(corrida / "01"), {"base": False, "giro": False})
+    medido = {"base": "pared: la pared más fina mide 0.46 mm",
+              "giro": "no se puede meter viniendo desde +y"}
+    for i, motivo in medido.items():
+        (p / "nodos" / i / "pieza_report.json").write_text(json.dumps(
+            {"titulo": i, "resuelto": False, "motivo": motivo}), encoding="utf-8")
+        (p / "nodos" / i / "concepto_aprobado").write_text("{}", encoding="utf-8")
+        (p / "nodos" / i / "parts" / i / "programa.py").write_text(f"PROGRAMA de {i}",
+                                                                  encoding="utf-8")
+
+    class Hecho:
+        stdout, stderr, returncode = "", "", 0
+
+    monkeypatch.setattr(banco.subprocess, "run", lambda orden, **k: Hecho())
+    monkeypatch.setattr(banco, "rejuzgar", lambda *a, **k: ({"x": []}, {}))
+    e = banco.Encargo(nombre="x", categoria="robots", peticion="un pan-tilt", obra=True,
+                      oraculo=[{"tipo": "conjunto_libre"}])
+    banco.reanudar([e], corrida, ["intelliprint", "obra", "--banco"], "fc", {})
+    for i, motivo in medido.items():
+        retoque = json.loads((p / "nodos" / i / "retoque.json").read_text(encoding="utf-8"))
+        assert retoque == {"programa": f"PROGRAMA de {i}", "cambio": motivo}
+    # No espera a revalidarse: se corrige cuando la de abajo esté.
+    assert revalidar.pendientes(p) == []
+
+
 def test_reanudar_rehace_con_su_motivo_la_pieza_que_no_orienta_lo_que_lleva(
         tmp_path, monkeypatch):
     """F9.14 (orienta). El pan-tilt 1111-1342 tenía todas sus piezas

@@ -170,6 +170,65 @@ def test_a_la_pieza_de_la_punta_se_le_mide_que_llega(tmp_path):
     assert "llegar a 160 mm" in u["texto"]
 
 
+def _dos_tramos_en_fila(tmp_path, mano):
+    """Un soporte con un SG90 tumbado —su eje pasa por (0, 0, 25) hacia -y,
+    las cifras de `test_conjunto`—, un brazo que gira sobre él y monta otro
+    igual 100 mm más allá en x, y una mano que gira sobre ese. `mano` es la
+    caja de la mano, en el marco del brazo."""
+    import json
+
+    from tests.test_conjunto import _obra, _sg90, _sobre
+    from tests.test_tornilleria import _caja_stl
+    tumbado = [("x", 90)]
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    carpeta = _obra(tmp_path, {
+        "soporte": ([], [_sg90((-5.8, 27.1, 18.8), tumbado)],
+                    ([-28, -17, 0], [28, 17.5, 31.5])),
+        "brazo": (["soporte"], [_sobre("soporte", (0, 0, 0)),
+                                _sg90((94.2, 27.1, 18.8), tumbado)],
+                  ([0, -30, 20], [128, -1, 31.5])),
+        "mano": (["brazo"], [_sobre("brazo", (0, 0, 0))], (list(mano[0]), list(mano[1]))),
+    })
+    plan = json.loads((carpeta / "obra.json").read_text(encoding="utf-8"))
+    for n in plan["nodos"][:2]:
+        n["compra"] = ["sg90"]
+    plan["uniones"] = [
+        {"tipo": "gira", "id": "u1", "gira": "brazo", "sobre": "soporte", "componente": "sg90",
+         "recorrido_grados": 180},
+        {"tipo": "gira", "id": "u2", "gira": "mano", "sobre": "brazo", "componente": "sg90",
+         "recorrido_grados": 180, "brazo_mm": 80}]
+    (carpeta / "obra.json").write_text(json.dumps(plan), encoding="utf-8")
+    (carpeta / "nodos" / "mano" / "parts" / "mano" / "mano.stl").write_text(
+        "solid p\n" + _caja_stl(*mano) + "endsolid p\n", encoding="utf-8")
+    return carpeta
+
+
+def test_la_punta_que_apunta_hacia_el_eje_de_atras_no_deja_estirar_el_brazo(tmp_path):
+    """Brazo mediano, banco 1113-1330, tercera reanudación: 288,3 mm de
+    alcance de los 350 pedidos, con los tres tramos de su largo (150, 120 y
+    80). La muñeca se dibujó doblada hacia el codo y solo gira 90° a cada
+    lado de como se dibuja: el brazo nunca se estira. Pasó su bucle porque
+    solo se le medía que llegara a 80 mm de su eje, hacia donde fuera.
+
+    A mano: el eje de la mano está en x = 100 y el del brazo en x = 0, así
+    que seguir recto es +x. Una mano de x = 20 a 105 tiene la punta en
+    (-80, 5) desde su eje: a 180° - atan(5 / 80) = 176,4° de seguir recto."""
+    from orchestrator.medida import defectos_de_alcance
+    [d] = defectos_de_alcance(_dos_tramos_en_fila(
+        tmp_path / "atras", ((20, -40, 20), (105, -31, 30))), "mano")
+    assert "u2" in d and "176°" in d and "90°" in d and "hacia +x" in d
+    # Siguiendo recto, vale.
+    assert defectos_de_alcance(_dos_tramos_en_fila(
+        tmp_path / "recta", ((95, -40, 20), (180, -31, 30))), "mano") == []
+    # Y en escuadra (a 86,4°) también: girando sus 90° se pone recta.
+    assert defectos_de_alcance(_dos_tramos_en_fila(
+        tmp_path / "escuadra", ((100, -40, 20), (105, -31, 105))), "mano") == []
+    # Y se le dice antes de que dibuje.
+    from orchestrator.obra import uniones_del_nodo
+    assert any("alejándose del eje" in u["texto"]
+               for u in uniones_del_nodo(tmp_path / "recta", "mano"))
+
+
 # --- con el modelo de verdad --------------------------------------------------------------------
 
 @pytest.mark.llm
