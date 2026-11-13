@@ -258,6 +258,30 @@ def _calibrar(args, raiz: Path, env: dict, nombre: str) -> None:
     from orchestrator.medidas_impresora import MedidaInvalida, registrar
 
     activo = _perfil(raiz, env)
+    if args.accion == "transmision":
+        # F10.8 (calibrar): la cicloidal de verdad con cuatro discos, y una
+        # polea. Son programas del kit, no recetas del catálogo.
+        from orchestrator.build import build_part
+        from orchestrator.calibracion import cuadro_de_transmision, piezas_de_transmision
+        from orchestrator.registry import latir
+        from orchestrator.schemas.programa import Programa
+        carpeta = (_workspace(raiz, env) / "projects"
+                   / f"{dt.datetime.now():%Y-%m-%d-%H%M}-calibracion_transmisiones")
+        carpeta.mkdir(parents=True)
+        (carpeta / "job.json").write_text(json.dumps(
+            {"pid": os.getpid(), "inicio": dt.datetime.now().isoformat()}), encoding="utf-8")
+        (carpeta / "request.md").write_text(
+            f"Piezas de prueba de transmisiones\n\nPara {activo.impresora.id} "
+            f"({activo.material}).\n", encoding="utf-8")
+        (carpeta / "calibracion.md").write_text(cuadro_de_transmision(), encoding="utf-8")
+        with latir(carpeta):
+            for parte, programa in piezas_de_transmision().items():
+                print(f"[{nombre}] construyendo {parte}…", flush=True)
+                build_part(Programa(part=parte, codigo=programa), None,
+                           carpeta / "parts" / parte, _freecadcmd(env), perfil=activo.datos)
+        print(f"[{nombre}] Listo: {carpeta}\n  Cómo probarlas y qué apuntar: "
+              f"{carpeta / 'calibracion.md'}")
+        return
     if args.accion in ("pieza", "barra"):
         from mech_toolkit.generators import CATALOGO
         from orchestrator.build import build_part
@@ -450,7 +474,8 @@ def _paso_de_obra(carpeta: Path, peticion: str, raiz: Path, env: dict, nombre: s
                     [{"number": 1, "title": "desglose", "feedback": f"el desglose no salió: {e}",
                       "plan": None}], ensure_ascii=False), encoding="utf-8")
                 sys.exit(f"[{nombre}] ✗ el desglose no salió: {e}")
-            avisos = validar_plan(desglose, agujeros)[1]
+            avisos = validar_plan(desglose, agujeros,
+                                  ajustes=_perfil(raiz, env).datos.get("fits") or {})[1]
             obra.guardar(carpeta, desglose, por="desglosador", avisos=avisos)
         print(obra.presentar(desglose, avisos), flush=True)
     if not obra.aprobada(carpeta):
@@ -676,6 +701,8 @@ def _parser() -> argparse.ArgumentParser:
     acciones = cal.add_subparsers(dest="accion", required=True)
     acciones.add_parser("pieza", help="construir las piezas para imprimirlas")
     acciones.add_parser("barra", help="construir las dos barras de flexión (F2.21 (impresora))")
+    acciones.add_parser("transmision", help="construir la cicloidal de prueba con cuatro "
+                                           "discos y una polea (F10.8 (calibrar))")
     res = acciones.add_parser(
         "resultados", help="apuntar qué encajó: manda sobre las holguras del perfil activo")
     for opcion, ayuda in (("--press", "holgura del primer agujero a presión"),

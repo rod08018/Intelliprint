@@ -176,6 +176,24 @@ def pagina(workspace: Path, raiz: Path) -> str:
     </section>
 
     <section>
+      <h2>Holgura de las transmisiones</h2>
+      <p class="nota">Con las piezas de prueba: <code>intelliprint calibrar transmision</code>. Son la
+        carcasa y la excéntrica de la reductora cicloidal y cuatro discos. Apunta la holgura del
+        disco que gira entero sin atascarse y sin bailar. Hasta que la apuntes, las reductoras
+        se hacen con 0,15 mm y el plan te avisa.</p>
+      <form class="medida" data-tipo="transmision">
+        <label>Disco que gira bien <select name="holgura_mm" required>
+          <option value="0.10">disco_010 (0,10 mm)</option>
+          <option value="0.15" selected>disco_015 (0,15 mm)</option>
+          <option value="0.20">disco_020 (0,20 mm)</option>
+          <option value="0.25">disco_025 (0,25 mm)</option>
+        </select></label>
+        {fotos}{nota}
+        <button class="btn pri">Guardar holgura</button>
+      </form>
+    </section>
+
+    <section>
       <h2>Apuntar resistencia</h2>
       <p class="nota">Con las barras de flexión: <code>intelliprint calibrar barra</code>. Sujeta el bloque
         al borde de la mesa, cuelga un cubo del agujero (a {BARRA['brazo_mm']:g} mm) y échale agua

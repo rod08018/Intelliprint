@@ -33,7 +33,7 @@ import yaml
 
 from orchestrator.calibracion import CalibracionInvalida, mpa_de_barra, validar_holguras
 
-TIPOS = ("tolerancias", "resistencia", "agujero", "referencia")
+TIPOS = ("tolerancias", "resistencia", "agujero", "transmision", "referencia")
 MAX_FOTOS = 8
 MAX_MB = 10
 # Por la cabecera, no por el nombre: el nombre lo pone el navegador.
@@ -154,6 +154,15 @@ def _validar(tipo: str, valores: dict) -> dict:
                 "MPa": round(mpa_de_barra(carga), 2)}
     if tipo == "agujero":
         return _agujero(valores)
+    if tipo == "transmision":
+        # F10.8 (calibrar): con qué holgura gira el disco de la cicloidal de
+        # prueba. Los discos van de 0,10 a 0,25.
+        holgura = _numero(valores.get("holgura_mm"), "holgura_mm")
+        if not 0.05 <= holgura <= 0.5:
+            raise MedidaInvalida(
+                f"holgura_mm: {holgura:g} mm no es una holgura de las piezas de prueba, que "
+                "van de 0,10 a 0,25 (se admite de 0,05 a 0,5)")
+        return {"holgura_mm": holgura}
     if tipo == "referencia":
         titulo = str(valores.get("titulo") or "").strip()
         if not titulo:
@@ -219,6 +228,8 @@ def vigentes(workspace: Path, perfil: str) -> dict[str, dict]:
         elif r["tipo"] == "agujero":
             v = r["valores"]
             ultimas[f"agujero:{clave_de_agujero(v['metrica'], v['uso'])}"] = r
+        elif r["tipo"] == "transmision":
+            ultimas["transmision"] = r
     return ultimas
 
 
@@ -239,6 +250,10 @@ def aplicar(datos: dict, workspace: Path, perfil: str) -> tuple[dict, dict[str, 
         if r:
             datos.setdefault("resistencia", {})[f"{orientacion}_MPa"] = r["valores"]["MPa"]
             origen[f"resistencia.{orientacion}_MPa"] = r
+    if "transmision" in ultimas:
+        r = ultimas["transmision"]
+        datos.setdefault("fits", {})["transmision_mm"] = r["valores"]["holgura_mm"]
+        origen["fits.transmision_mm"] = r
     # No toca `calibrated`: un tornillo suelto no dice nada de las holguras.
     for nombre, r in ultimas.items():
         if nombre.startswith("agujero:"):

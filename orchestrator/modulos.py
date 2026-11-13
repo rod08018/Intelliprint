@@ -66,7 +66,15 @@ def es_modulo(id_: str) -> bool:
     return _archivo(id_) is not None
 
 
-def cargar(id_: str) -> Modulo:
+def holgura_medida(perfil: dict | None) -> float | None:
+    """La holgura con la que giran las transmisiones en la impresora del
+    usuario, si la apuntó (F10.8 (calibrar)); None si no."""
+    return ((perfil or {}).get("fits") or {}).get("transmision_mm")
+
+
+def cargar(id_: str, holgura: float | None = None) -> Modulo:
+    """Con `holgura`, las piezas se hacen con esa y no con la de fábrica del
+    generador: la ficha no cambia, lo que ocupa es lo mismo."""
     ruta = _archivo(id_)
     if ruta is None:
         raise KeyError(f"no hay módulo «{id_}»; hay: {', '.join(ids()) or 'ninguno'}")
@@ -75,7 +83,12 @@ def cargar(id_: str) -> Modulo:
     if generador is None:
         raise KeyError(f"el módulo «{id_}» pide el generador «{datos.get('generador')}», que "
                        f"no existe; hay: {', '.join(sorted({*GENERADORES, 'cicloidal'}))}")
-    return generador(**(datos.get("parametros") or {}))
+    parametros = dict(datos.get("parametros") or {})
+    if holgura is not None:
+        import inspect
+        if "holgura" in inspect.signature(generador).parameters:
+            parametros["holgura"] = holgura
+    return generador(**parametros)
 
 
 def _generador(nombre: str) -> Callable[..., Modulo] | None:
@@ -113,7 +126,7 @@ def construir(carpeta: Path, freecadcmd: str, perfil: dict) -> list[Path]:
     carpeta = Path(carpeta)
     nuevas = []
     for id_ in de_un_proyecto(carpeta):
-        for nombre, programa in cargar(id_).piezas.items():
+        for nombre, programa in cargar(id_, holgura_medida(perfil)).piezas.items():
             destino = carpeta / CARPETA / id_ / nombre
             if (destino / f"{nombre}.stl").is_file():
                 continue

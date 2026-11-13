@@ -57,10 +57,11 @@ def claves_del_perfil(u: Fija) -> list[str]:
     return claves
 
 
-def validar_plan(obra: Obra, agujeros: dict,
-                 extra: Sequence[Path] = ()) -> tuple[list[str], list[str]]:
+def validar_plan(obra: Obra, agujeros: dict, extra: Sequence[Path] = (),
+                 ajustes: dict | None = None) -> tuple[list[str], list[str]]:
     """(errores, avisos) del plan. `agujeros` es `holes` del perfil activo;
-    `extra`, más carpetas de fichas."""
+    `extra`, más carpetas de fichas; `ajustes`, sus `fits`, para avisar de
+    una transmisión cuya holgura no está medida (F10.8 (calibrar))."""
     errores: list[str] = []
     avisos: list[str] = []
     en_cada_salida: dict[tuple, list[str]] = {}
@@ -124,6 +125,13 @@ def validar_plan(obra: Obra, agujeros: dict,
                 f"({', '.join(ids)}): cada motor mueve un solo giro, sea en su eje o por "
                 f"una transmisión. Pon otro en `compra` de «{sobre}» o quita una")
     avisos += _roscas_sin_medir(obra, agujeros, extra)
+    if (ajustes is not None and "transmision_mm" not in ajustes
+            and any(isinstance(u, Gira) and u.movido_por for u in obra.uniones)):
+        avisos.append(
+            "este invento lleva una transmisión impresa y la holgura con la que giran las "
+            "transmisiones en tu impresora no está medida: se hará con 0,15 mm, que es un "
+            "número y no una medida. Imprime las piezas de prueba (`intelliprint calibrar "
+            "transmision`) y apunta en la página «Impresora» con cuál gira bien")
     if not errores:
         # Con el plan ya coherente: que cada motor pueda con lo que cuelga
         # de él, antes de gastar en piezas (F10.4 (dimensionar)).

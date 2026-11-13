@@ -223,3 +223,56 @@ Para cada una:
 
 Si rompe lejos del borde del bloque, la impresión tenía un defecto: repítela.
 """
+
+
+# --- las transmisiones (F10.8 (calibrar)) -----------------------------------------------------
+
+HOLGURAS_DE_TRANSMISION_MM = (0.10, 0.15, 0.20, 0.25)
+
+
+def piezas_de_transmision() -> dict[str, str]:
+    """{nombre: programa del kit} de lo que se imprime para medir con qué
+    holgura giran las transmisiones: la carcasa y la excéntrica de la
+    cicloidal 10:1 de verdad, su disco con cada holgura —lo que se apunte
+    vale tal cual para la reductora— y una polea GT2 de 40 dientes con un
+    paso de 5 mm, para ver si la correa asienta."""
+    from orchestrator.cicloidal import generar
+    base = generar(10)
+    piezas = {"carcasa": base.piezas["carcasa"], "excentrica": base.piezas["excentrica"]}
+    for h in HOLGURAS_DE_TRANSMISION_MM:
+        piezas[f"disco_{round(h * 100):03d}"] = generar(10, holgura=h).piezas["disco"]
+    piezas["polea_40"] = (
+        'def construir(kit):\n'
+        '    return kit.polea_gt2("polea", 40).taladrar("eje", 5.2, en=(0, 0, 10))\n')
+    return piezas
+
+
+def cuadro_de_transmision() -> str:
+    filas = "\n".join(f"| disco_{round(h * 100):03d} | {h:.2f} mm |"
+                       for h in HOLGURAS_DE_TRANSMISION_MM)
+    return f"""# Piezas de prueba de las transmisiones (F10.8 (calibrar))
+
+Imprime todo con el perfil de siempre. La carcasa, de pie como sale; los discos y la
+excéntrica, tumbados.
+
+## La cicloidal
+
+1. Mete la excéntrica en un eje de 5 mm (el de un NEMA 17 o una varilla) por el centro de
+   la carcasa.
+2. Pon un disco sobre la leva, dentro de los pernos, y gira el eje con la mano.
+3. Prueba los cuatro. El bueno es el que **gira entero sin atascarse y sin bailar**: el de
+   menos holgura que no se agarra en ningún punto de la vuelta.
+
+| Disco | Holgura |
+|---|---|
+{filas}
+
+Apunta su holgura en la página «Impresora» → «Holgura de las transmisiones». Desde entonces
+la reductora se hace con ella.
+
+## La polea
+
+Pasa una correa GT2 de 6 mm por la polea de 40 dientes. Tiene que asentar en las ranuras
+sin montarse en las crestas y sin holgura de lado. Si no asienta, apúntalo como «prueba
+tuya» con una foto: la ranura de la polea es una aproximación y habrá que corregirla.
+"""
