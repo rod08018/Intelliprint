@@ -274,3 +274,30 @@ def test_el_ingeniero_recibe_las_uniones_que_el_plan_decidio_para_su_pieza():
     guion = Guion([_concepto()])
     IngenieroAgent(guion, ACTIVO).concebir(SPEC)
     assert "Uniones del plan" not in guion.prompts[0]
+
+
+def test_lo_que_monta_una_pieza_lejana_del_backlog_no_va_en_el_concepto(monkeypatch):
+    """Banco 1113-1330, segunda reanudación: el concepto del antebrazo llevó
+    la cicloidal 28:1 de la torreta entre sus componentes, con cómo entra y
+    cómo se sujeta. Su petición la nombra al contar qué hace el brazo
+    superior, pero no es suya ni de la pieza a la que se une: `obra.ajenos`
+    la marca «lejos», y ni se le enseña su ficha ni se le exige."""
+    antebrazo = Spec(
+        title="antebrazo", description="del codo a la muñeca",
+        product_class="static_part", printer="ankermake_m5_plamas", material="PLA+",
+        request="Antebrazo: aloja el rodamiento 608ZZ. Se une al brazo superior, que gira "
+                "sobre la reductora cicloidal 28:1.")
+    monkeypatch.setenv("INTELLIPRINT_AJENOS", json.dumps({"cicloidal-nema17-28": {
+        "cuantos": 0, "lejos": True, "mensaje": "lo monta «Torreta»"}}))
+    rodamiento = [{"id": "608zz", "como_entra": "a presión por delante",
+                   "como_se_sujeta": "reborde detrás de Ø18.5 que toca solo el aro exterior",
+                   "ajuste": "press"}]
+    guion = Guion([_concepto(casos=False, componentes=rodamiento)])
+    resultado = IngenieroAgent(guion, ACTIVO).concebir(antebrazo)
+    assert len(guion.prompts) == 1
+    assert [c.id for c in resultado.concepto.componentes] == ["608zz"]
+    nombra = guion.prompts[0].split("La petición nombra estos")[1].split("\n## ")[0]
+    assert "608ZZ" in nombra and "icloidal" not in nombra
+    # La petición sí la nombra: sin lo de «lejos», se le exigiría.
+    from orchestrator.componentes import mencionados
+    assert "cicloidal-nema17-28" in mencionados(antebrazo.request)

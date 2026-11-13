@@ -7,6 +7,7 @@ dice qué es sólido (`cuerpos`), qué hay que dejar libre (`despejar`: cable,
 haz de sonido) y dónde se atornilla (`fijacion`).
 """
 
+import json
 import os
 import re
 from pathlib import Path
@@ -297,6 +298,13 @@ def mencionados(texto: str) -> list[str]:
     plano = _plano(texto)
     return [i for i in ids()
             if any(_plano(a) in plano for a in [i, *cargar(i).alias] if _plano(a))]
+
+
+def lejanos() -> set[str]:
+    """Lo comprado que monta una pieza del backlog a la que la de ahora no se
+    une (`obra.ajenos`): su petición puede nombrarlo, pero no es cosa suya."""
+    ajenos = json.loads(os.environ.get("INTELLIPRINT_AJENOS") or "{}")
+    return {c for c, a in ajenos.items() if a.get("lejos")}
 
 
 def de_la_ficha(texto: str) -> list[str]:

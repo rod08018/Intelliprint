@@ -141,3 +141,32 @@ def test_con_correas_y_reductoras_cada_reduccion_se_busca_donde_toca(tmp_path, m
                         "un brazo con una correa 4:1", brazo=_con_correa)
     assert r.estado == "cumple", r.detalle
     assert "80 dientes" in r.detalle
+
+
+def test_la_reductora_de_dos_piezas_mas_abajo_no_se_le_exige_al_antebrazo(tmp_path, monkeypatch):
+    """Banco 1113-1330, segunda reanudación: al antebrazo se le dijo en cada
+    intento «no colocaste el cicloidal-nema17-28: lo monta «Torreta de giro»
+    (…) No lo coloques otra vez», y a la muñeca lo mismo con la 10:1 del
+    brazo superior. Su petición las nombra al contar qué hace la pieza a la
+    que se unen, pero van dos piezas más abajo: la ficha de la vecina no las
+    trae y el kit no deja colocarlas. Una orden que no se puede cumplir, y
+    ninguna de las dos podía darse por buena.
+
+    Del plan: la 28:1 la compra la torreta, y el antebrazo se une al brazo."""
+    import json
+
+    from orchestrator import obra as O
+    from orchestrator.medida import componentes_sin_colocar
+    (tmp_path / "request.md").write_text("un brazo de cuatro ejes", encoding="utf-8")
+    O.guardar(tmp_path, Obra(**PLAN), por="prueba")
+    ajenos = O.ajenos(tmp_path, "antebrazo")
+    assert ajenos["cicloidal-nema17-28"]["lejos"] is True
+    # La del brazo sí le toca: va en la ficha de la pieza a la que se une.
+    assert ajenos["cicloidal-nema17-10"]["lejos"] is False
+    # Y lo que compra él mismo, aunque otra de más abajo compre uno igual.
+    assert ajenos["nema17"]["lejos"] is False and ajenos["608zz"]["lejos"] is False
+    monkeypatch.setenv("INTELLIPRINT_AJENOS", json.dumps(ajenos))
+    [fallo] = componentes_sin_colocar(["cicloidal-nema17-28", "cicloidal-nema17-10"], [])
+    assert "cicloidal-nema17-10" in fallo and "obra-brazo" in fallo
+    # Colocarla sigue sin poderse: eso lo corta el kit.
+    assert ajenos["cicloidal-nema17-28"]["cuantos"] == 0

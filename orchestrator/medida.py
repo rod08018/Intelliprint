@@ -355,7 +355,8 @@ def componentes_sin_colocar(componentes, rasgos) -> list[str]:
         return (f"no colocaste el {c}: ponlo con `kit.componente(\"{c}\", en=..., "
                 "entra_por=...)` y quita su `hueco()` a la pieza; sin eso no se puede "
                 "comprobar que quepa ni que entre")
-    return [falta(c) for c in componentes if c not in colocados]
+    lejos = {c for c, a in ajenos.items() if a.get("lejos")}
+    return [falta(c) for c in componentes if c not in colocados and c not in lejos]
 
 
 # --- el sitio de cada giro (F9.1 (barrido)) --------------------------------------------------

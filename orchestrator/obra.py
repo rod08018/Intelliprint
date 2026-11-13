@@ -514,7 +514,14 @@ def peticion_del_nodo(carpeta: Path, nodo: str) -> str:
 def ajenos(carpeta: Path, nodo: str) -> dict[str, dict]:
     """Lo comprado que monta OTRA pieza del backlog: cuántos puede colocar
     este nodo (los suyos, de `compra`) y qué decirle si coloca más. Lo
-    aplica el kit. Lo que no compra nadie no sale: no hay con qué duplicarse."""
+    aplica el kit. Lo que no compra nadie no sale: no hay con qué duplicarse.
+
+    `lejos`: ni lo compra este nodo ni lo monta una pieza a la que se une.
+    El antebrazo del brazo mediano (banco 1113-1330) recibió en cada intento
+    «no colocaste el cicloidal-nema17-28 (…) No lo coloques otra vez»: era
+    el de la torreta, dos piezas más abajo, que su petición nombra al contar
+    qué hace el brazo superior. Ni la ficha de la vecina lo trae ni el kit
+    deja colocarlo: lo de lejos no se le exige a la pieza ni a su concepto."""
     obra = cargar_obra(Path(carpeta))
     n = obra.nodo(nodo)
     salida = {}
@@ -522,7 +529,8 @@ def ajenos(carpeta: Path, nodo: str) -> dict[str, dict]:
         quien = [o for o in obra.nodos if o.id != nodo and c in o.compra]
         nombres = " y ".join(f"«{o.nombre}» (ficha {id_de_ficha(o.id)})" for o in quien)
         cuantos = n.compra.count(c)
-        salida[c] = {"cuantos": cuantos, "mensaje": (
+        lejos = not cuantos and not any(o.id in n.depende_de for o in quien)
+        salida[c] = {"cuantos": cuantos, "lejos": lejos, "mensaje": (
             f"el {c} lo monta {nombres}; esta pieza compra {cuantos}. No lo coloques otra "
             f"vez: coloca la ficha de esa pieza con `kit.componente`, que ya lleva el {c} "
             "con su eje y lo que hay que dejar libre, y usa sus puntos.")}

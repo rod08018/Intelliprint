@@ -15,7 +15,7 @@ from pathlib import Path
 
 import yaml
 
-from orchestrator.componentes import cargar, ids, mencionados, resumen
+from orchestrator.componentes import cargar, ids, lejanos, mencionados, resumen
 from orchestrator.ingenieria import Material, comprobar
 from orchestrator.llm.structured import LlmClient, structured
 from orchestrator.schemas.concepto import Concepto, ConceptoComprobado
@@ -114,7 +114,10 @@ class IngenieroAgent:
         # F6.11 (biblioteca): lo que la petición nombra y tiene ficha va con su
         # forma entera. El soporte del HC-SR04 se pensó con cifras de una
         # tienda y sin saber que el sensor lleva integrados detrás.
-        nombrados = mencionados(f"{spec.request}\n{spec.title}")
+        # Menos lo que monta una pieza del backlog a la que esta no se une:
+        # la petición lo nombra de pasada (banco 1113-1330, `obra.ajenos`).
+        nombrados = [i for i in mencionados(f"{spec.request}\n{spec.title}")
+                     if i not in lejanos()]
         prompt += (f"\n## Componentes con ficha en la biblioteca\n\nHay ficha de: "
                    f"{', '.join(ids())}. Sus medidas son estas; no las supongas.\n")
         if nombrados:

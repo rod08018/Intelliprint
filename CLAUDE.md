@@ -290,9 +290,18 @@ Fase 10.
   (103 × 76 × 105 mm, el hombro por fuera de la base). El brazo
   superior no pasó de los requisitos: el modelo citó como «del
   usuario» la instrucción del sistema, abreviada. Arreglado: ese
-  requisito se quita (`spec.sin_lo_del_sistema`). Queda una
-  reanudación de las dos acordadas.
-- **Lo que sigue:** el resultado de reanudar el encargo 15; y al
+  requisito se quita (`spec.sin_lo_del_sistema`).
+- **La segunda reanudación se paró a mano antes de juzgar** (1,01 USD
+  más: 2,10 de los 5). Salió el brazo superior (46 × 100 × 250 mm);
+  el antebrazo y la muñeca no, y en cada intento llevaban una orden
+  imposible: colocar la reductora de dos piezas más abajo, que el kit
+  no deja colocar. Arreglado: lo que monta una pieza a la que esta
+  no se une no se le exige (`obra.ajenos`, `lejos`). Lo demás es del
+  diseño: el antebrazo apoyaba en los dos aros del rodamiento.
+- **Pedido por él el 2026-11-13:** si ya se sabe que una corrida va a
+  fallar, no esperarla: pararla, arreglar y volver a correr. Va una
+  tercera reanudación del encargo 15, dentro de los 5 USD.
+- **Lo que sigue:** el resultado de esa reanudación; y al
   acabar la fase, proponerle las tres fases (carcasas vistosas, brazo
   Arctos, avión).
 
