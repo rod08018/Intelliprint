@@ -1,0 +1,29 @@
+# Polea GT2 de 20 dientes para eje de 5 mm (F10.3 (correa)): la que va en el
+# eje de un NEMA 17. Se compra: con 20 dientes las crestas miden 0,4 mm, y
+# impresa no aguanta.
+id: polea-gt2-20
+nombre: Polea GT2 de 20 dientes (correa de 6 mm, eje de 5)
+alias: ["polea GT2 de 20 dientes", "GT2 20T", "GT2-20T"]
+verificado: false
+fuentes:
+  - url: https://www.adafruit.com/product/1251
+    cita: "Aluminum GT2 Timing Pulley - 6mm Belt - 20 Tooth - 5mm Bore: Measures 0.63\" (16mm) long, 0.63\" (16mm) outer edge diameter"
+  - url: https://www.adafruit.com/product/1251
+    cita: "Diameter of geared section is 0.48\" (12.2mm); 5mm inner diameter on both ends; 6 grams"
+marco: >
+  Origen en el centro de una de sus caras, con el eje del agujero en z: la
+  polea ocupa de z=0 a z=16.
+mira: "+z"
+# La fuente da el largo y el diámetro mayor, no dónde quedan los dientes
+# dentro de los 16 mm: se pone el cilindro entero, que es lo que ocupa.
+cuerpos:
+  - nombre: polea
+    cilindro: {diametro: 16, interior: 5, alto: 16, eje: "+z"}
+    en: [0, 0, 0]
+    porque: "es un anillo: por el agujero de 5 pasa el eje del motor"
+notas: >
+  Se fija al eje con dos prisioneros y se puede correr a lo largo de él: su
+  altura se ajusta al montar para que la correa quede en línea con la polea
+  grande. La sección dentada mide 12.2 mm de cresta a cresta.
+
+masa_g: 6

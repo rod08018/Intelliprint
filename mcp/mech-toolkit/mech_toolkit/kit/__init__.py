@@ -942,6 +942,47 @@ class Kit:
         return Cuerpo(_valido(_cara(p3).revolve(base, d, float(grados)), "revolucionar"),
                       self)
 
+    def polea_gt2(self, nombre, dientes, en=(0, 0, 0), eje="z", correa=6.0,
+                  pestanas=True) -> Cuerpo:
+        """Polea dentada para correa GT2 de 2 mm de paso, maciza, con el
+        centro de su base en `en` y creciendo en `eje`. Los dientes los pone
+        el kit: nunca los dibujes tú. `dientes`: los de la polea (12 o más);
+        `correa`: el ancho de la correa. Con `pestanas` lleva a cada lado un
+        cono que guía la correa y se imprime sin soportes con el eje en
+        vertical: mide 10 mm de alto para una correa de 6. Súmala a tu pieza
+        con `+` y taladra después el eje que haga falta. No le pases
+        `redondear` ni `acabar` a los dientes."""
+        from mech_toolkit import transmisiones as T
+
+        if int(dientes) != dientes or dientes < T.MINIMO_DE_DIENTES:
+            raise KitError(f"«{nombre}»: una polea GT2 tiene {T.MINIMO_DE_DIENTES} dientes o "
+                           f"más, y enteros; no {dientes!r}")
+        dientes = int(dientes)
+        base, d = _v(en), _eje(eje)
+        u, w = _perpendiculares(d)
+        radio = T.diametro_exterior(dientes) / 2
+        cara = T.ancho_de_la_cara(float(correa), bool(pestanas))
+        pie = T.PESTANA if pestanas else 0.0
+        desde = base + d * pie
+        forma = Part.makeCylinder(radio, cara, desde, d)
+        # Una sola resta con todas las ranuras: de una en una son 80 cortes.
+        ranuras = [Part.makeCylinder(
+            T.ALTO_DEL_DIENTE, cara + 2,
+            desde - d * 1 + (u * math.cos(a) + w * math.sin(a)) * radio, d)
+            for a in (2 * math.pi * k / dientes for k in range(dientes))]
+        forma = forma.cut(Part.makeCompound(ranuras))
+        if pestanas:
+            # A 45°: la de abajo se estrecha hacia los dientes y la de arriba
+            # se abre desde ellos, así que ninguna cuelga.
+            forma = forma.fuse([
+                Part.makeCone(radio + T.PESTANA, radio, T.PESTANA, base, d),
+                Part.makeCone(radio, radio + T.PESTANA, T.PESTANA, desde + d * cara, d)])
+        self._registrar(nombre, "polea_gt2", dientes=dientes, centro=list(base), eje=list(d),
+                        ancho_mm=cara, alto_mm=cara + 2 * pie,
+                        primitivo_mm=T.diametro_primitivo(dientes),
+                        exterior_mm=2 * radio, correa_mm=float(correa))
+        return Cuerpo(_valido(_un_solido(forma.removeSplitter()), "polea_gt2"), self)
+
 
 # --- la API que puede usar el programa -------------------------------------------------
 
