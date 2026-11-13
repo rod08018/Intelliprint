@@ -759,3 +759,28 @@ Y lo que sí faltaba de tornillería:
 - **Holgura, rigidez y repetibilidad** no se calculan.
 - **La electrónica, el firmware y exportar a ROS o Gazebo.**
 - **Que el modelo aguante un backlog de diez piezas o más** no está medido.
+
+## ADR-022 · Las formas curvas salen de secciones que genera el código; qué queda bien lo decide la persona
+
+**Estado:** aceptada (2026-11-13) · **Afecta a:** Fases 11, 12 y 13, ADR-021, F9.11
+
+**Problema.** La Fase 10 acaba en un brazo mediano que el banco da por bueno en 11 de 12 y que es una pila de cajas y cilindros: el kit no sabe dibujar otra cosa. El usuario quiere llegar a un brazo como Arctos y a un avión como los de Flightory, y los dos necesitan lo que hoy falta: formas curvas, paredes finas y piezas partidas en tramos. El 2026-11-12 pidió que, al acabar la fase, se le propusieran tres fases; el 2026-11-13 las aprobó.
+
+**Decisión.** Decidida con el usuario el 2026-11-13.
+
+1. **El orden: carcasas con superficies, brazo de clase Arctos y avión.** Las carcasas van primero porque son la fase más corta y lo que enseñan lo usan las otras dos. El brazo sigue yendo antes que el avión, como decidió el 2026-11-11.
+2. **Una forma curva es un puñado de secciones, y el código hace el resto.** El modelo da los puntos de cada sección y dónde va; la curva que pasa por ellos, la superficie que une las secciones, el barrido y el vaciado los genera el kit. Es la misma regla que con los dientes (ADR-021): lo que tiene fórmula no se le pide al modelo.
+3. **Si una pieza queda bien lo decide la persona viendo las vistas.** No hay medida para eso, y un juez de imágenes ya se midió y no separa. El banco sigue midiendo lo que se puede contar: que cabe, que no roza, la pared, la cama y los soportes.
+4. **Una carcasa es una pieza más del plan**, fijada a la que cubre. Se le mide contra lo que tiene dentro y contra lo que gira.
+5. **Las Fases 12 y 13 están aprobadas en resumen.** Sus filas se concretan con él al empezarlas; el gasto de cada medición se acuerda antes, como siempre.
+6. **El avión, con OpenVSP y AeroSandbox**, sin AVL ni PX4 (decidido el 2026-11-11). Antes de empezarlo decide él tres cosas: si el laminado pasa a ser parte del diseño, si Gazebo queda fuera y qué avión.
+
+**Alternativas descartadas.**
+- **Empezar por el brazo grande.** Sin partir en tramos sus piezas no caben en la cama, y sin la holgura medida de las reductoras se construye sobre un supuesto.
+- **Que el modelo escriba las superficies con FreeCAD a pelo.** El kit existe porque eso salía mal con cajas; con superficies sale peor.
+- **Un juez de imágenes para la apariencia.** Medido el 2026-11: solo una pregunta separaba, y no era esta.
+
+**Lo que no cubre.**
+- **Superficies de forma libre retocadas a mano, texturas y acabados.**
+- **La rigidez de una cáscara** y, hasta F12.3 (flecha), la de un tramo.
+- **Que algo impreso funcione**: ni que la reductora engrane, ni que el brazo aguante, ni que el avión vuele.

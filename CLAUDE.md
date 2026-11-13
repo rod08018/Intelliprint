@@ -88,6 +88,26 @@ test lo comprueba: si la cita no cuadra con el plan, la suite se pone roja.
 
 ## Por dónde iba esto
 
+**2026-11-13: Fases 11 a 13 aprobadas por él (ADR-022)**, con «me parece
+tu propuesta comienza a trabajar asap»: carcasas con superficies, brazo de
+clase Arctos y avión, en ese orden. Están en `PLAN_PROYECTO.md`. Las
+filas de la 12 y la 13 se concretan con él al empezarlas; antes del avión
+decide si el laminado entra en el diseño, si Gazebo queda fuera y qué
+avión. La Fase 10 se cierra con el brazo mediano en 11 de 12 y sin
+imprimir; lo que dejó abierto está abajo.
+
+- **Hechas: F11.1 (curvas) y F11.2 (cáscara)** (2026-11-13). El kit
+  dibuja secciones (`seccion`, `rectangulo`, `elipse`), las une
+  (`transicion`), las lleva por un camino (`barrer`) y deja un cuerpo
+  en una pared (`vaciar`). A mano, sin modelo, sale una carcasa curva
+  hueca con orejas, tornillos y acabado. **Sin resolver:** su STL pesa
+  216 MB, y tras unir un barrido curvo FreeCAD mide mal el volumen
+  (el informe lo contrasta con la malla; lo de dentro del kit que
+  compara volúmenes no está revisado). Ningún modelo las ha usado
+  todavía: eso es F11.5 (diseñador).
+- **Lo que sigue en la Fase 11:** F11.3 (tramos), partir en trozos
+  que quepan en la cama.
+
 **2026-11-11 (noche): Fase 10, brazos con transmisión (ADR-021).** Decidido
 por él: **el brazo antes que el avión**; empezar por uno pequeño con servos;
 la meta de la fase es un brazo mediano solo con NEMA 17 (350–400 mm,
@@ -339,10 +359,11 @@ Fase 10.
 - **El puente de PrusaSlicer hay que reiniciarlo** cuando cambia
   `scripts/host_bridge.py`: parar el `python -m scripts.host_bridge`
   y volver a lanzar `scripts\start-host-mcps.ps1`.
-- **Lo que sigue:** qué hacer con las tres piezas que piden soportes
-  (corregirlas es gasto, por acordar); y al
-  acabar la fase, proponerle las tres fases (carcasas vistosas, brazo
-  Arctos, avión).
+- **Abierto de la Fase 10:** las tres piezas que piden soportes (la
+  base y la muñeca del brazo mediano y el soporte del HC-SR04;
+  corregirlas es gasto, por acordar), la medida de la punta recta
+  que él no ha visto, la pinza aparcada y su dato de la holgura de
+  las transmisiones. Las tres fases se le propusieron y las aprobó.
 
 **2026-11-10: Fase 9, robots con plan mecánico (ADR-020).** El usuario quiere
 diseñar robots: que el desglose decida antes de dibujar qué gira sobre qué y con

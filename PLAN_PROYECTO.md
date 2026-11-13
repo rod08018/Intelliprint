@@ -518,6 +518,53 @@ Además el plan reservó 150 mm de radio libre para un brazo que mide 150 del ej
 - **Fuera:** la electrónica, el firmware, el cableado y exportar a ROS o Gazebo (URDF).
 - **Sin medir:** que el modelo aguante un backlog de diez piezas o más. El encargo 13 es la primera señal.
 
+### Fase 11 — Carcasas con superficies (ADR-022)
+
+**Objetivo:** que una pieza pueda tener formas curvas y paredes finas, y no solo cajas y cilindros: una carcasa que cubre un motor y su correa, y más adelante el ala de un avión. Lo pidió el usuario el 2026-11-12, al oír que la Fase 10 acababa en un brazo «funcional y feo»; el 2026-11-13 aprobó la propuesta de tres fases y su orden: «me parece tu propuesta comienza a trabajar asap».
+
+**De dónde se parte (comprobado en el código el 2026-11-13).** El kit dibuja `caja`, `cilindro`, `tubo`, `cono`, `esfera`, `hexagono`, `extruir` (un polígono de lados rectos), `revolucionar` y `polea_gt2`. No hay curvas por puntos, ni transición entre secciones, ni barrido, ni vaciado a un grosor. La pared mínima sí se mide (`medida`), y desde el 2026-11-13 cada pieza mide que cabe en la impresora y «sin soportes» lo dice el aviso de PrusaSlicer, probando la pieza apoyada en cada cara.
+
+| ID | Tarea | Criterio de aceptación |
+|----|-------|------------------------|
+| F11.1 | **Curvas y transición entre secciones** (curvas): `kit.seccion` hace una sección cerrada por puntos, con sus esquinas redondeadas o como una curva que pasa por ellos, y `kit.transicion` une varias secciones a lo largo de un eje. Las genera el código; el modelo solo da los puntos | Entre dos círculos, el volumen del tronco de cono a mano, π·h·(R² + R·r + r²)/3. Entre dos rectángulos iguales sale la caja. Una curva por puntos pasa por cada uno a menos de 0,01 mm **Hecho (2026-11-13):** `kit.seccion`, `kit.rectangulo` (con radio), `kit.elipse` y `kit.transicion`, en `tests/test_formas_curvas.py`. La curva cerrada por puntos son tramos de Bézier con la tangente sacada de los vecinos: la periódica de FreeCAD, por cuatro puntos en cruz, salía 0,5 mm más alta que ancha. Que pasa por sus puntos se mide por la caja (a 0,02 mm), no punto a punto. Una transición lisa de tres secciones puede abombarse algo más allá de ellas (0,3 mm por lado en la prueba a mano) |
+| F11.2 | **Barrido y cáscara** (cáscara): `kit.barrer` lleva una sección a lo largo de un camino y `Cuerpo.vaciar` deja un cuerpo en una pared de un grosor, abierta por la cara que se diga | Un tubo en arco: sección por longitud del camino (Pappus), a mano. Una caja de 40 vaciada a 2 mm y abierta por arriba: 40³ − 36·36·38, a mano; la medida de pared que ya existe da 2 mm **Hecho (2026-11-13):** `kit.barrer` y `Cuerpo.vaciar`. La prueba a mano, sin modelo —una carcasa que pasa de un rectángulo redondeado a un óvalo, hueca a 2 mm, con cuatro orejas atornilladas, un pasacables y el acabado de siempre—, encontró cuatro cosas que los tests de cajas no veían: (1) el vaciado de FreeCAD no puede con una transición lisa, y ahora se vacía por secciones, encogiendo cada una algo más donde la pared se inclina; solo vale para una transición recién hecha y abierta por una de sus dos puntas; (2) `acabar` no encontraba la base, porque el kit medía la caja holgada de FreeCAD; ahora mide la ajustada; (3) tras unir un barrido curvo, el volumen que da FreeCAD falla (23 542 mm³ donde la malla da 25 213): el informe de la pieza lo contrasta con la malla y avisa; (4) un camino que se curva con menos radio que la sección se rechaza diciéndolo. **Lo que queda sin resolver:** el STL de esa carcasa pesa 216 MB (medio millón de triángulos, en texto); y las comprobaciones del kit que comparan volúmenes («no quita material») no se han revisado para ese fallo de FreeCAD |
+| F11.3 | **Partir en tramos** (tramos): una pieza que no cabe en la cama se corta por planos, y cada corte lleva su unión (lengüeta y tornillo) | Una carcasa de 400 mm sale en dos tramos que caben en 235 × 235 × 250; los agujeros de un lado caen frente a los del otro, medidos |
+| F11.4 | **La carcasa cubre sin tocar** (cubre): una pieza del plan puede ser la carcasa de otra: se fija a ella, y se le mide que lo de dentro cabe con holgura, que no roza con lo que gira en todo su recorrido y que deja pasar ejes y cables | Hecha a mano, sin modelo, para el antebrazo del brazo mediano: pasa. Con la pared 1 mm dentro del motor, la medida lo dice con su cifra |
+| F11.5 | **El diseñador las usa** (diseñador): el prompt del diseñador y el del ingeniero cuentan las formas nuevas y cuándo convienen, con un ejemplo de cada una | Un test con el modelo de verdad: pedida una tapa abombada, el programa usa `transicion` o `vaciar` y construye |
+| F11.6 | **Medición** (vistosa): encargo 16 del banco, la carcasa del antebrazo del brazo mediano. Si queda bien lo decide el usuario viendo las vistas: no hay medida para eso | Las exigencias del banco (cabe, no roza, pared, cabe en la cama, sin soportes) y su visto bueno a las vistas. El gasto se acuerda antes |
+
+**Lo que esta fase no hará, dicho antes.** No mide si una pieza es bonita. No hace superficies de forma libre editadas a mano ni texturas. No calcula la rigidez de una cáscara. El orden de las tareas es el de la tabla.
+
+### Fase 12 — Brazo de clase Arctos (ADR-022)
+
+**Objetivo:** un brazo de 6 ejes, 600 mm de alcance y 2 kg de carga, con NEMA 17 y NEMA 23, como el de arctosrobotics.com. Es la meta que el usuario puso el 2026-11-11 y que la Fase 10 dejó para después. Aprobada en resumen el 2026-11-13; **sus filas se concretan con él al empezarla**, con lo que haya enseñado la Fase 11.
+
+**De dónde se parte (2026-11-13).** El brazo mediano de la Fase 10 (4 ejes, 350 mm, 300 g, solo NEMA 17) pasa 11 de 12 en el banco, con cinco piezas, cinco reanudaciones y 2,38 USD; nada está impreso. No hay ficha de NEMA 23 ni de rodamientos grandes. La única reductora es la cicloidal para NEMA 17 (10, 20 y 28 a 1), con la holgura supuesta en 0,15 mm hasta que el usuario imprima las piezas de prueba. No se calcula cuánto se dobla un tramo. «Ampliar» un invento se quedó en 0 de 9 con la pinza. Con seis giros el barrido prueba una rejilla gruesa.
+
+| ID | Tarea | Criterio de aceptación |
+|----|-------|------------------------|
+| F12.1 | **Las fichas que faltan** (fichas): NEMA 23, rodamientos grandes y más correas, entrando por el borrador de ficha de F9.11 (borrador) | Las cotas de cada ficha son las de la hoja del fabricante, citada |
+| F12.2 | **Reductora para NEMA 23** (reductora): un módulo impreso de más relación que la cicloidal de hoy | El perfil contra la fórmula publicada, la relación por conteo y cero interferencias al dar una vuelta |
+| F12.3 | **Cuánto se dobla** (flecha): el estudio calcula lo que baja la punta por la flexión de cada tramo con la carga | Una viga en voladizo a mano: F·L³/(3·E·I), con la sección medida en la pieza |
+| F12.4 | **Muñeca de tres ejes** (muñeca): tres giros seguidos, cada uno con su motor. La diferencial de Arctos no entra: el plan es un árbol de giros | Hecha a mano, sin modelo: se mueve sin chocar en la rejilla y cada motor puede con lo suyo |
+| F12.5 | **El brazo** (arctos): encargo 17 del banco, construido eje a eje | Alcance, carga, reducciones, tornillos, choques y flecha, contados a mano. La regla para parar y el tope, acordados antes |
+
+### Fase 13 — Avión de ala fija (ADR-022)
+
+**Objetivo:** diseñar un avión de ala fija imprimible, como los de flightory.com, con sus cuentas de vuelo hechas dentro del sistema. El usuario decidió el 2026-11-11 que vaya con **OpenVSP y AeroSandbox**, sin AVL ni PX4. Aprobada en resumen el 2026-11-13; **sus filas se concretan con él al empezarla**.
+
+**Tres decisiones suyas antes de empezarla:** si el laminado pasa a ser parte del diseño (el LW-PLA se imprime a una pared, y hoy el diseño no lamina); si Gazebo queda fuera del todo; y qué avión, con su envergadura y su motor.
+
+| ID | Tarea | Criterio de aceptación |
+|----|-------|------------------------|
+| F13.1 | **Las herramientas** (aero): OpenVSP y AeroSandbox instalados donde corre el sistema. No está comprobado que se instalen en el contenedor | Un ala rectangular da la pendiente de sustentación de la teoría de la línea sustentadora, a mano |
+| F13.2 | **El avión en el plan** (avión): ala, fuselaje y cola como datos; el código calcula sustentación, margen de estabilidad, velocidad de pérdida y empuje necesario | Un avión de libro con sus cifras publicadas |
+| F13.3 | **De la geometría a las piezas** (costillas): cáscaras finas, costillas, larguero comprado y tramos que caben en la cama, con lo de la Fase 11 | El volumen y el peso de un tramo de ala, a mano; cada tramo cabe |
+| F13.4 | **El peso sale del laminado** (peso): los gramos de cada pieza laminada dan el centro de gravedad | El centro de gravedad de tres masas, a mano |
+| F13.5 | **Medición** (vuelo): un encargo del banco con un avión pequeño | Margen de estabilidad, carga alar y pérdida dentro de lo que se pida. Que vuele no se comprueba |
+
+**Lo que estas dos fases no harán, dicho antes.** Ni electrónica, ni firmware, ni piloto automático, ni VTOL en la primera vuelta del avión. Que el brazo aguante impreso y que el avión vuele no lo dice el código.
+
 ---
 
 ## 5. Dependencias entre tareas críticas

@@ -184,6 +184,44 @@ def _un_solido(forma):
     return forma
 
 
+def _caja(forma):
+    """La caja ajustada de una forma. `BoundBox` es holgada en las
+    superficies curvas (la saca de sus polos): la carcasa de la prueba a mano
+    del 2026-11-13, vaciada por secciones, «empezaba» 1 mm por debajo de su
+    base, y `acabar` no encontraba ninguna arista en ella."""
+    try:
+        return forma.optimalBoundingBox(False)
+    except Exception:
+        return forma.BoundBox
+
+
+def _plano_de(d):
+    """Los dos ejes (u, v) del plano perpendicular a `d` en los que se dibuja
+    una sección, los mismos que usa `extruir`: a lo largo de z, (x, y); de y,
+    (x, z); de x, (y, z). Para un eje inclinado, dos perpendiculares."""
+    x, y, z = (FreeCAD.Vector(1, 0, 0), FreeCAD.Vector(0, 1, 0), FreeCAD.Vector(0, 0, 1))
+    if abs(abs(d.z) - 1) < TOL:
+        return x, y
+    if abs(abs(d.y) - 1) < TOL:
+        return x, z
+    if abs(abs(d.x) - 1) < TOL:
+        return y, z
+    return _perpendiculares(d)
+
+
+class Seccion:
+    """Un contorno cerrado y plano, dibujado en (u, v) alrededor de su centro.
+    No es un cuerpo: `kit.transicion` y `kit.barrer` le dan volumen. Guarda
+    cómo dibujarse, porque el plano lo pone quien la usa (ADR-022: el modelo
+    da los puntos; la curva y la superficie las hace el código)."""
+
+    def __init__(self, hacer) -> None:
+        self._hacer = hacer
+
+    def _alambre(self, centro, u, v):
+        return self._hacer(centro, u, v)
+
+
 class Cuerpo:
     """Un sólido. Se combinan con `+` (unir), `-` (restar) y `&` (intersecar)."""
 
@@ -192,6 +230,8 @@ class Cuerpo:
         self._kit = kit
         # Los rasgos con nombre que ya lleva este cuerpo: ver `_sin_rasgos`.
         self._suyos: tuple = ()
+        # Cómo se hizo, si es una transición recién hecha: ver `vaciar`.
+        self._receta = None
 
     def _nuevo(self, forma, que="la operación") -> "Cuerpo":
         nuevo = Cuerpo(_valido(_un_solido(forma), que), self._kit)
@@ -216,6 +256,95 @@ class Cuerpo:
                 "taladrarlos o de quitarles un hueco. Si era para dejarla como se imprime, "
                 "no hace falta: la pieza se dibuja donde va montada, y la postura de "
                 "impresión se elige al laminar")
+
+    def vaciar(self, grosor, abierta="+z") -> "Cuerpo":
+        """Deja el cuerpo en una cáscara de `grosor` mm, hueca y abierta por
+        su cara plana que mira hacia `abierta` («+z», «-z», «+x»…). Por fuera
+        mide lo mismo. Para carcasas y tapas: dibuja la forma maciza —con
+        `transicion`, por ejemplo— y vacíala al final, antes de taladrar."""
+        d = _eje(abierta)
+        planas = [c for c in self._forma.Faces if c.Surface.TypeId == "Part::GeomPlane"
+                  and c.normalAt(*c.Surface.parameter(c.CenterOfMass)).dot(d) > 0.99]
+        if not planas:
+            raise KitError(f"`vaciar` abre el cuerpo por una cara plana que mire hacia "
+                           f"{abierta}, y este no tiene ninguna: elige otro lado en `abierta` "
+                           "o córtale antes una cara plana")
+        cara = max(planas, key=lambda c: c.CenterOfMass.dot(d))
+
+        def vale(forma):
+            return (forma is not None and not forma.isNull() and forma.isValid()
+                    and 0 < forma.Volume < self._forma.Volume)
+        try:
+            forma = self._forma.makeThickness([cara], -float(grosor), 1e-3)
+        except Exception:
+            forma = None
+        if not vale(forma):
+            # El «thickness» de FreeCAD no puede con una transición lisa de
+            # tres secciones (un carenado: prueba a mano del 2026-11-13).
+            forma = self._vaciada_por_secciones(float(grosor), d)
+        if not vale(forma):
+            raise KitError(f"no se pudo vaciar a {grosor:g} mm: la pared no cabe en alguna "
+                           "parte de la forma. Prueba con menos grosor, con curvas más "
+                           "abiertas o con secciones más separadas. Una transición se vacía "
+                           "recién hecha, antes de unirle nada")
+        return self._nuevo(forma, "vaciar")
+
+    def _vaciada_por_secciones(self, grosor, d):
+        """La transición de `_receta` menos otra igual, más pequeña, por
+        dentro: cada sección encogida el grosor —algo más donde la pared se
+        inclina, para que no adelgace— y la punta cerrada, un grosor antes.
+        None si este cuerpo no es una transición recién hecha o no se puede."""
+        if self._receta is None:
+            return None
+        tramos, eje, base, u, v, recta = self._receta
+        hacia = d.dot(eje)
+        if abs(abs(hacia) - 1) > 1e-6:
+            return None
+        alambres = [(sec._alambre(base + eje * h, u, v), h) for sec, h in tramos]
+
+        def medio(w, k):
+            caja = w.BoundBox
+            return max(abs((p - base).dot(k)) for p in (
+                FreeCAD.Vector(caja.XMin, caja.YMin, caja.ZMin),
+                FreeCAD.Vector(caja.XMax, caja.YMax, caja.ZMax)))
+
+        def inclinacion(i, j):
+            (a, ha), (b, hb) = alambres[i], alambres[j]
+            return max(abs(medio(a, k) - medio(b, k)) for k in (u, v)) / abs(hb - ha)
+
+        n = len(alambres)
+        cerrada = 0 if hacia > 0 else n - 1
+        dentro = []
+        for i, (w, h) in enumerate(alambres):
+            vecinas = [inclinacion(i, j) for j in (i - 1, i + 1) if 0 <= j < n]
+            encoge = grosor * math.sqrt(1 + max(vecinas) ** 2)
+            if i == cerrada:
+                # La punta cerrada se queda un grosor más adentro, y ahí la
+                # forma de fuera ya ha cambiado lo que cambia en ese grosor.
+                encoge += max(vecinas) * grosor
+                h += grosor if hacia > 0 else -grosor
+            try:
+                menor = w.makeOffset2D(-encoge)
+            except Exception:
+                return None
+            if menor.isNull() or not menor.isClosed():
+                return None
+            menor.translate(eje * (h - alambres[i][1]))
+            dentro.append((menor, h))
+        if any(b[1] <= a[1] for a, b in zip(dentro, dentro[1:])):
+            return None
+        # Por la punta abierta el hueco sale 1 mm, para que corte limpio.
+        abierta = dentro[-1] if hacia > 0 else dentro[0]
+        fuera = abierta[0].copy()
+        fuera.translate(eje * (1.0 if hacia > 0 else -1.0))
+        dentro = dentro + [(fuera, 0)] if hacia > 0 else [(fuera, 0)] + dentro
+        try:
+            hueco = Part.makeLoft([w for w, _ in dentro], True, bool(recta))
+            if hueco.Volume < 0:
+                hueco.reverse()
+            return _un_solido(self._forma.cut(hueco))
+        except Exception:
+            return None
 
     def __add__(self, otro: "Cuerpo") -> "Cuerpo":
         nuevo = self._nuevo(self._forma.fuse(otro._forma).removeSplitter(), "la unión (+)")
@@ -257,13 +386,13 @@ class Cuerpo:
 
     def caja_envolvente(self) -> tuple:
         """(xmin, ymin, zmin, xmax, ymax, zmax) del cuerpo, para colocar lo siguiente."""
-        b = self._forma.BoundBox
+        b = _caja(self._forma)
         return (b.XMin, b.YMin, b.ZMin, b.XMax, b.YMax, b.ZMax)
 
     # --- acabado ----------------------------------------------------------------
 
     def _aristas(self, aristas, dentro):
-        b = self._forma.BoundBox
+        b = _caja(self._forma)
         elegidas = []
         for i, e in enumerate(self._forma.Edges):
             eb = e.BoundBox
@@ -435,7 +564,7 @@ class Cuerpo:
         # lo que se les pide o avisan, sin cambiar un redondeo por otra cosa.
         pieza = (self._acabar("achaflanar", chaflan_base, self._aristas("base", None), "base",
                               respaldo=True) if chaflan_base else self)
-        z0 = pieza._forma.BoundBox.ZMin
+        z0 = _caja(pieza._forma).ZMin
         # Todas menos las que quedan ENTERAS en la franja del chaflán. Con una
         # caja «por encima del chaflán» se quedaban fuera las verticales, que
         # empiezan justo en él (test de la escalera, 2026-11-04).
@@ -968,6 +1097,167 @@ class Kit:
         p3 = [base + u * float(r) + d * float(h) for r, h in puntos]
         return Cuerpo(_valido(_cara(p3).revolve(base, d, float(grados)), "revolucionar"),
                       self)
+
+    def seccion(self, puntos, curva=False) -> Seccion:
+        """Contorno cerrado por `puntos` (u, v), para `transicion` o `barrer`.
+        Con `curva`, una curva lisa que pasa por todos ellos en vez de lados
+        rectos: da los puntos por donde quieres que pase y el kit hace la
+        curva. Se dibuja alrededor de (0, 0), que es donde va el eje."""
+        if len(puntos) < 3:
+            raise KitError("una sección necesita al menos tres puntos")
+        uv = [(float(a), float(b)) for a, b in puntos]
+
+        def hacer(centro, u, v):
+            p3 = [centro + u * a + v * b for a, b in uv]
+            if not curva:
+                _cara(p3)   # avisa si los lados se cruzan
+                return Part.makePolygon(p3 + [p3[0]])
+            # Un tramo de Bézier de cada punto al siguiente, con la tangente
+            # de cada punto sacada de sus dos vecinos (Hermite, repartido por
+            # cuerdas). La curva periódica de FreeCAD (`interpolate`) por
+            # cuatro puntos en cruz daba un óvalo torcido, 0,5 mm más alto
+            # que ancho; esta pasa por los puntos y es simétrica si lo son.
+            n = len(p3)
+            cuerdas = [(p3[(i + 1) % n] - p3[i]).Length for i in range(n)]
+            if min(cuerdas) < TOL:
+                raise KitError("la curva no pasa por esos puntos: hay dos seguidos repetidos")
+            tangentes = []
+            for i in range(n):
+                antes, despues = cuerdas[i - 1], cuerdas[i]
+                llega = (p3[i] - p3[i - 1]) * (1 / antes)
+                sale = (p3[(i + 1) % n] - p3[i]) * (1 / despues)
+                tangentes.append((llega * despues + sale * antes) * (1 / (antes + despues)))
+            tramos = []
+            for i in range(n):
+                j, largo = (i + 1) % n, cuerdas[i] / 3
+                b = Part.BezierCurve()
+                b.setPoles([p3[i], p3[i] + tangentes[i] * largo,
+                            p3[j] - tangentes[j] * largo, p3[j]])
+                tramos.append(b.toShape())
+            return Part.Wire(tramos)
+        return Seccion(hacer)
+
+    def rectangulo(self, ancho, alto, radio=0) -> Seccion:
+        """Sección rectangular centrada, de `ancho` en u y `alto` en v, con las
+        cuatro esquinas redondeadas a `radio`. La de casi todas las carcasas."""
+        a, b, r = float(ancho) / 2, float(alto) / 2, float(radio)
+        if r <= 0:
+            return self.seccion([(-a, -b), (a, -b), (a, b), (-a, b)])
+        if r >= min(a, b) - TOL:
+            raise KitError(f"el radio ({r:g}) tiene que ser menor que la mitad del lado corto "
+                           f"({min(a, b):g}); para un óvalo usa `kit.elipse`")
+
+        def hacer(centro, u, v):
+            def p(x, y):
+                return centro + u * x + v * y
+
+            def arco(cx, cy, desde):
+                g = [math.radians(desde + k) for k in (0, 45, 90)]
+                return Part.Arc(*(p(cx + r * math.cos(t), cy + r * math.sin(t))
+                                  for t in g)).toShape()
+
+            def lado(p0, p1):
+                return Part.LineSegment(p(*p0), p(*p1)).toShape()
+
+            return Part.Wire([
+                lado((-a + r, -b), (a - r, -b)), arco(a - r, -b + r, -90),
+                lado((a, -b + r), (a, b - r)), arco(a - r, b - r, 0),
+                lado((a - r, b), (-a + r, b)), arco(-a + r, b - r, 90),
+                lado((-a, b - r), (-a, -b + r)), arco(-a + r, -b + r, 180)])
+        return Seccion(hacer)
+
+    def elipse(self, ancho, alto) -> Seccion:
+        """Sección ovalada centrada, de `ancho` en u y `alto` en v. Con los dos
+        iguales es un círculo de ese diámetro."""
+        a, b = float(ancho) / 2, float(alto) / 2
+        if min(a, b) <= 0:
+            raise KitError("el ancho y el alto de una elipse son positivos")
+
+        def hacer(centro, u, v):
+            if abs(a - b) < TOL:
+                curva = Part.Circle(centro, u.cross(v), a)
+            elif a > b:
+                curva = Part.Ellipse(centro + u * a, centro + v * b, centro)
+            else:
+                curva = Part.Ellipse(centro + v * b, centro + u * a, centro)
+            return Part.Wire([curva.toShape()])
+        return Seccion(hacer)
+
+    def transicion(self, tramos, eje="z", en=(0, 0, 0), recta=False) -> Cuerpo:
+        """Cuerpo que pasa por varias secciones puestas a lo largo de `eje`.
+        `tramos`: lista de (sección, distancia desde `en`), de menor a mayor.
+        Con tres o más, la superficie es lisa y pasa por todas; con `recta`
+        va en línea recta de cada una a la siguiente. Las secciones se dibujan
+        en el plano perpendicular al eje, como en `extruir`: a lo largo de z,
+        (u, v) = (x, y); de y, (x, z); de x, (y, z).
+
+        Es la forma de una carcasa, una tapa abombada, un carenado o una
+        boquilla: di cómo es el corte en dos o tres alturas y el kit hace la
+        superficie. Para dejarla hueca, `.vaciar(grosor)`."""
+        if len(tramos) < 2:
+            raise KitError("una transición necesita al menos dos secciones")
+        if not all(isinstance(t[0], Seccion) for t in tramos):
+            raise KitError("cada tramo es (sección, distancia): la sección se hace con "
+                           "`kit.seccion`, `kit.rectangulo` o `kit.elipse`")
+        donde = [float(h) for _, h in tramos]
+        if any(b <= a for a, b in zip(donde, donde[1:])):
+            raise KitError("las distancias de los tramos van de menor a mayor, sin repetirse")
+        d, base = _eje(eje), _v(en)
+        u, v = _plano_de(d)
+        alambres = [sec._alambre(base + d * h, u, v) for (sec, _), h in zip(tramos, donde)]
+        try:
+            forma = Part.makeLoft(alambres, True, bool(recta))
+        except Exception:
+            raise KitError("no se pudo unir esas secciones: sepáralas más o hazlas más "
+                           "parecidas entre sí") from None
+        if forma.Volume < 0:
+            forma.reverse()
+        cuerpo = Cuerpo(_valido(_un_solido(forma), "transicion"), self)
+        cuerpo._receta = (list(zip((sec for sec, _ in tramos), donde)), d, base, u, v, recta)
+        return cuerpo
+
+    def barrer(self, seccion, camino, curva=False) -> Cuerpo:
+        """Lleva una sección a lo largo de `camino`, una lista de puntos
+        (x, y, z): un tubo doblado, un pasacables, un asa. Con `curva`, el
+        camino es una curva lisa que pasa por los puntos; sin ella, tramos
+        rectos. La sección va centrada en el camino y perpendicular a él."""
+        if not isinstance(seccion, Seccion):
+            raise KitError("lo que se barre es una sección: hazla con `kit.seccion`, "
+                           "`kit.rectangulo` o `kit.elipse`")
+        puntos = [_v(p) for p in camino]
+        if len(puntos) < 2:
+            raise KitError("un camino necesita al menos dos puntos")
+        if curva and len(puntos) > 2:
+            c = Part.BSplineCurve()
+            c.interpolate(puntos)
+            ruta, sale = Part.Wire([c.toShape()]), c.tangent(c.FirstParameter)[0]
+        else:
+            ruta, sale = Part.makePolygon(puntos), puntos[1] - puntos[0]
+        u, v = _plano_de(sale.normalize())
+        cerrado = ("no se pudo barrer por ese camino: dobla más cerrado que el ancho de la "
+                   "sección y la superficie se pisa a sí misma. Abre la curva (más distancia "
+                   "entre los puntos donde tuerce) o usa una sección más estrecha")
+        perfil = seccion._alambre(puntos[0], u, v)
+        if curva and len(puntos) > 2:
+            # Si el camino se curva con menos radio que el de la sección, la
+            # superficie se pisa por dentro de la curva. FreeCAD lo da por
+            # válido y hasta mide sección por largo, así que se mira aquí.
+            caja = perfil.BoundBox
+            medio = max(abs((p - puntos[0]).dot(k)) for k in (u, v) for p in (
+                FreeCAD.Vector(caja.XMin, caja.YMin, caja.ZMin),
+                FreeCAD.Vector(caja.XMax, caja.YMax, caja.ZMax)))
+            pasos = [c.FirstParameter + (c.LastParameter - c.FirstParameter) * k / 200
+                     for k in range(201)]
+            if max(c.curvature(t) for t in pasos) * medio > 1:
+                raise KitError(cerrado)
+        try:
+            forma = ruta.makePipeShell([perfil], True, True,
+                                       0 if curva or len(puntos) == 2 else 1)
+        except Exception:
+            raise KitError(cerrado) from None
+        if forma.Volume < 0:
+            forma.reverse()
+        return Cuerpo(_valido(_un_solido(forma), "barrer"), self)
 
     def polea_gt2(self, nombre, dientes, en=(0, 0, 0), eje="z", correa=6.0,
                   pestanas=True) -> Cuerpo:

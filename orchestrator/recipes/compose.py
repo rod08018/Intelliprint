@@ -104,9 +104,21 @@ Part.export([_pieza], {stl!r})
 Part.export([_pieza], {step!r})
 doc.saveAs({fcstd!r})
 
+# El volumen de FreeCAD, contrastado con el de la malla. Tras unir un barrido
+# curvo a una cáscara (prueba a mano del 2026-11-13, F11.2 (cáscara)) el
+# sólido era válido y su `Volume` daba 23 542 mm³ donde hay 25 213: se queda
+# corto en 1 670, casi todo el cable. Si no cuadran, vale la malla.
+_volumen = _forma.Volume
+_vs, _ts = _forma.tessellate(0.05)
+_de_malla = sum(_vs[_a].dot(_vs[_b].cross(_vs[_c])) for _a, _b, _c in _ts) / 6
+if abs(_volumen - _de_malla) > 0.01 * abs(_de_malla):
+    _avisos.append("el volumen que da FreeCAD (%.0f mm³) no cuadra con el de la malla "
+                   "(%.0f): se toma el de la malla" % (_volumen, _de_malla))
+    _volumen = _de_malla
+
 print({prefix!r} + json.dumps({{
     "part": {part!r},
-    "volume_mm3": _forma.Volume,
+    "volume_mm3": _volumen,
     "bbox_mm": [_bb.XLength, _bb.YLength, _bb.ZLength],
     "bbox_min": [_bb.XMin, _bb.YMin, _bb.ZMin],
     "bbox_max": [_bb.XMax, _bb.YMax, _bb.ZMax],
