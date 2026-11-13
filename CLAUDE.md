@@ -214,8 +214,14 @@ Fase 10.
   se desarrolla; la suite entera y los del host, una vez por tarea;
   la prueba a mano sin modelo en cada tarea; corrida de pago solo al
   final de cada etapa; y no esperar parado mientras corre.
+- **Hecho: F10.5 (muestreo)** (2026-11-12). Con más de 8 000
+  combinaciones de giros se barre una rejilla más gruesa (cada 45° con
+  cinco giros: 3 125 poses de 2,5 millones) y se dice lo que no se
+  probó. Una cadena de cinco giros a mano se barre en 6 s. Un choque
+  que caiga entre dos puntos de esa rejilla se escapa.
 - **Lo que sigue:** el resultado de la corrida nueva del encargo 14
-  (`1113-0423`, tope 1,10 USD). Después, F10.5 (muestreo).
+  (`1113-0423`, tope 1,10 USD). Después, F10.6 (módulo) y F10.7
+  (cicloidal), con una sola corrida de pago al final de las dos.
 
 **2026-11-10: Fase 9, robots con plan mecánico (ADR-020).** El usuario quiere
 diseñar robots: que el desglose decida antes de dibujar qué gira sobre qué y con

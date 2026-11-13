@@ -1011,8 +1011,13 @@ def juzgar_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
                 salida.append(Resultado(estado="no_cumple",
                                         detalle="el conjunto no se movió (no hay verificación)"))
             elif all(v["ok"] for v in verificaciones):
-                salida.append(Resultado(estado="cumple",
-                                        detalle="se mueve por todo su recorrido sin chocar"))
+                # Con muchos giros no se prueban todas las poses, y se dice
+                # (F10.5 (muestreo)): «por todo su recorrido» sería mentira.
+                from orchestrator.conjunto import muestreo_en_palabras
+                sin_probar = [m for v in verificaciones for m in v.get("muestreo") or []]
+                salida.append(Resultado(estado="cumple", detalle=(
+                    "se mueve sin chocar en lo que se probó: " + muestreo_en_palabras(sin_probar)
+                    if sin_probar else "se mueve por todo su recorrido sin chocar")))
             else:
                 salida.append(Resultado(estado="no_cumple", detalle="; ".join(
                     r for v in verificaciones for r in v.get("resumen", []))))

@@ -190,12 +190,12 @@ ni una reductora impresas en la impresora del usuario. Se toman del lado
 bajo —una correa dentada bien tensada pierde menos— y van escritos junto
 a cada carga que sale de ellos. El de la reductora se revisa cuando exista
 (F10.7 (cicloidal))."""
-MAX_POSES = 8000
-"""Hasta cuántas poses se prueban todas las combinaciones. Caben tres giros
-de 180° con la rejilla de 10° (19³ = 6 859): con 5 000 se probaba cada giro
-por turno con los demás en 0°, y la peor pose de un brazo —estirado en
-horizontal— puede no estar ahí (F10.1 (serie)). Con cuatro giros ya no
-caben: es F10.5 (muestreo)."""
+from orchestrator.conjunto import MAX_POSES  # noqa: E402
+# Hasta cuántas poses se prueban todas las combinaciones. Caben tres giros
+# de 180° con la rejilla de 10° (19³ = 6 859): con 5 000 se probaba cada giro
+# por turno con los demás en 0°, y la peor pose de un brazo —estirado en
+# horizontal— puede no estar ahí (F10.1 (serie)). Con cuatro giros ya no
+# caben, y se prueba una rejilla más gruesa (F10.5 (muestreo)).
 # Las direcciones de la gravedad que se prueban en cada pieza: todas van en
 # una sola llamada a FreeCAD, pero cada una corta la pieza 30 veces.
 MAX_GRAVEDADES = 24
@@ -337,8 +337,9 @@ def estudiar(carpeta: Path, conjunto: str, raiz: Path | None = None) -> dict:
     import math
     from orchestrator import obra as O
     from orchestrator.componentes import cargar
-    from orchestrator.conjunto import (PASO, VERIFICACION, _hasta_la_raiz, _recorrido,
-                                       articulaciones_de, leer_piezas, poses)
+    from orchestrator.conjunto import (PASO, VERIFICACION, _hasta_la_raiz,
+                                       articulaciones_de, leer_piezas, muestreo_en_palabras,
+                                       poses, rejilla_de_poses)
     from orchestrator.impresion import perfil_activo
     from orchestrator.tornilleria import _aplicar, _girar, tornillos
 
@@ -396,14 +397,15 @@ def estudiar(carpeta: Path, conjunto: str, raiz: Path | None = None) -> dict:
                       "no una medida: de él salen el par disponible y la carga de lo que "
                       "mueve.")
 
-    # Las poses: todas las combinaciones de la rejilla, si no son demasiadas.
-    rejillas = {j: _recorrido(a, paso) for j, a in arts.items()}
-    if math.prod(len(r) for r in rejillas.values()) <= MAX_POSES:
-        combos = [dict(zip(rejillas, v)) for v in itertools.product(*rejillas.values())]
-    else:
-        combos = [{**{k: 0.0 for k in rejillas}, j: v} for j, r in rejillas.items() for v in r]
-        avisos.append("Demasiadas poses para probarlas todas: cada articulación por turno, "
-                      "las demás en 0°.")
+    # Las poses: todas las combinaciones de la rejilla, si no son demasiadas;
+    # si lo son, una más gruesa con los extremos de todos los giros. Antes se
+    # movía cada giro por turno con los demás en 0°, y la peor pose de un
+    # brazo puede no estar ahí (F10.5 (muestreo)).
+    combos, sin_probar = rejilla_de_poses({j: a.recorrido for j, a in arts.items()}, paso,
+                                          MAX_POSES)
+    if sin_probar:
+        texto = muestreo_en_palabras([sin_probar])
+        avisos.append(texto[0].upper() + texto[1:] + ".")
 
     raiz_id = next(i for i, p in piezas.items() if p.padre is None)
     apoyo = _apoyo(_stl(piezas[raiz_id]), poses(piezas, {}, {})[raiz_id])
@@ -579,8 +581,8 @@ def carga_del_material(carpeta: Path, conjunto: str, e: dict, freecadcmd: str,
     import itertools
     import math
     from orchestrator import obra as O
-    from orchestrator.conjunto import (PASO, _hasta_la_raiz, _inversa, _recorrido,
-                                       articulaciones_de, leer_piezas, poses)
+    from orchestrator.conjunto import (PASO, _hasta_la_raiz, _inversa, articulaciones_de,
+                                       leer_piezas, poses, rejilla_de_poses)
     from orchestrator.impresion import perfil_activo
     from orchestrator.tornilleria import _aplicar, _girar, _punto, _resta, _unit
 
@@ -590,11 +592,8 @@ def carga_del_material(carpeta: Path, conjunto: str, e: dict, freecadcmd: str,
     arts = {a.pieza: a for a in articulaciones_de(carpeta, piezas)}
     hoja, carga = e["carga"]["pieza"], e["carga"]["punto"]
     cadena = _hasta_la_raiz(piezas, hoja)          # de la hoja hacia la raíz
-    rejillas = {j: _recorrido(a, e.get("paso") or PASO) for j, a in arts.items()}
-    if math.prod(len(r) for r in rejillas.values()) <= MAX_POSES:
-        combos = [dict(zip(rejillas, v)) for v in itertools.product(*rejillas.values())]
-    else:
-        combos = [{**{k: 0.0 for k in rejillas}, j: v} for j, r in rejillas.items() for v in r]
+    combos, _ = rejilla_de_poses({j: a.recorrido for j, a in arts.items()},
+                                 e.get("paso") or PASO, MAX_POSES)
     mundos = [poses(piezas, arts, c) for c in combos]
     filas = []
     for pos, k in enumerate(cadena):

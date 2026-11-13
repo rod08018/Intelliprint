@@ -336,10 +336,61 @@ def _hasta_la_raiz(piezas, i) -> list[str]:
     return camino
 
 
+def _puntos(recorrido, tramos: int) -> list[float]:
+    lo, hi = recorrido
+    return [round(lo + (hi - lo) * k / tramos, 6) for k in range(tramos + 1)]
+
+
 def _recorrido(a: Articulacion, paso: float) -> list[float]:
     lo, hi = a.recorrido
-    n = max(1, round((hi - lo) / paso))
-    return [round(lo + (hi - lo) * k / n, 6) for k in range(n + 1)]
+    return _puntos(a.recorrido, max(1, round((hi - lo) / paso)))
+
+
+MAX_POSES = 8000
+"""Hasta cuántas combinaciones de giros se prueban de una vez. Caben tres
+giros de 180° con la rejilla de 10° (19³ = 6 859); con cuatro ya no."""
+
+
+def rejilla_de_poses(recorridos: dict[str, tuple], paso: float,
+                     limite: int = MAX_POSES) -> tuple[list[dict], dict | None]:
+    """Las poses en las que se prueban a la vez los giros de `recorridos`
+    ({giro: (de, a)}), y lo que se dejó sin probar (None si nada).
+
+    Si todas las combinaciones de la rejilla de `paso` caben en `limite`,
+    son esas. Si no (F10.5 (muestreo)), una rejilla más gruesa: el mismo
+    número impar de puntos en cada giro, el mayor que quepa, para que lleve
+    siempre los dos extremos y el centro, que es el reposo. Un brazo de
+    cinco ejes pedía 2 476 099 poses entre su primera pieza y la última, y
+    no se podía ni empezar a mover; se barre cada 45° (3 125) y se dice. Lo
+    que cae entre dos puntos de la rejilla no se ha mirado."""
+    finas = {j: _puntos(r, max(1, round((r[1] - r[0]) / paso))) for j, r in recorridos.items()}
+    total = math.prod(len(f) for f in finas.values())
+    if total <= limite:
+        return [dict(zip(finas, v)) for v in itertools.product(*finas.values())], None
+
+    def caben(n):
+        return math.prod(min(n, len(f)) for f in finas.values())
+
+    n = 3
+    while n + 2 <= max(len(f) for f in finas.values()) and caben(n + 2) <= limite:
+        n += 2
+    # A un giro corto, que ya iba con menos puntos, no se le inventan más.
+    gruesas = {j: f if len(f) <= n else _puntos(recorridos[j], n - 1) for j, f in finas.items()}
+    poses_ = [dict(zip(gruesas, v)) for v in itertools.product(*gruesas.values())]
+    return poses_, {
+        "juntas": list(recorridos), "probadas": len(poses_), "de": total,
+        "cada_grados": {j: round((recorridos[j][1] - recorridos[j][0]) / max(len(g) - 1, 1), 3)
+                        for j, g in gruesas.items()}}
+
+
+def muestreo_en_palabras(muestreos: list[dict]) -> str:
+    """Lo que no se probó, para quien lee el resultado."""
+    partes = []
+    for m in muestreos:
+        cada = sorted({g for g in m["cada_grados"].values()}, reverse=True)
+        partes.append(f"con {len(m['juntas'])} giros a la vez se probaron {m['probadas']} poses "
+                      f"de {m['de']} (cada {cada[0]:g}°)")
+    return "no se probaron todas las poses: " + "; ".join(dict.fromkeys(partes))
 
 
 def _ida_y_vuelta(a: Articulacion, paso: float) -> list[float]:
@@ -509,10 +560,12 @@ def _solidos(piezas: dict[str, Pieza],
 
 def _barrer(piezas: dict[str, Pieza], arts: dict[str, Articulacion], duenos: dict,
             solidos: dict, steps: dict, freecadcmd: str, min_gap_mm: float,
-            paso: float = PASO, solo: str | None = None) -> list[dict]:
+            paso: float = PASO, solo: str | None = None,
+            muestreo: list | None = None) -> list[dict]:
     """Los choques al mover las piezas por todo el recorrido de sus
     articulaciones. Con `solo`, nada más los pares en los que entra esa
-    pieza (o lo que monta): lo que ya había se barrió cuando se construyó."""
+    pieza (o lo que monta): lo que ya había se barrió cuando se construyó.
+    En `muestreo` se apunta lo que no se probó entero (`rejilla_de_poses`)."""
     from orchestrator.assembly import sweep_collisions
 
     # Cada par se barre solo por las articulaciones que hay entre sus dos
@@ -528,8 +581,9 @@ def _barrer(piezas: dict[str, Pieza], arts: dict[str, Articulacion], duenos: dic
     choques = []
     for juntas, pares in grupos.items():
         usados = sorted({s for par in pares for s in par})
-        rejilla = [dict(zip(juntas, valores)) for valores in
-                   itertools.product(*[_recorrido(arts[j], paso) for j in juntas])]
+        rejilla, sin_probar = rejilla_de_poses({j: arts[j].recorrido for j in juntas}, paso)
+        if sin_probar and muestreo is not None:
+            muestreo.append(sin_probar)
         cuadros = {}
         for k, angulos in enumerate(rejilla):
             mundo = poses(piezas, arts, angulos)
@@ -598,7 +652,9 @@ def verificar_conjunto(carpeta: Path, conjunto: str, freecadcmd: str, min_gap_mm
     piezas = leer_piezas(carpeta, conjunto)
     arts = {a.pieza: a for a in articulaciones_de(carpeta, piezas)}
     duenos, solidos, steps = _solidos(piezas, arts)
-    choques = _barrer(piezas, arts, duenos, solidos, steps, freecadcmd, min_gap_mm, paso)
+    muestreo: list[dict] = []
+    choques = _barrer(piezas, arts, duenos, solidos, steps, freecadcmd, min_gap_mm, paso,
+                      muestreo=muestreo)
 
     reposo = poses(piezas, arts, {})
     # «eje» va en el marco de la pieza de abajo; el banco pregunta si el giro
@@ -610,6 +666,7 @@ def verificar_conjunto(carpeta: Path, conjunto: str, freecadcmd: str, min_gap_mm
                              "recorrido": list(a.recorrido)}
                             for a in arts.values()],
          "choques": choques, "resumen": _resumen(piezas, choques, paso),
+         "muestreo": muestreo,
          "correcciones": correcciones(piezas, arts, choques, paso,
                                       presupuestos_del_plan(O.cargar_obra(carpeta)))}
     dir_nodo = carpeta / O.NODOS / conjunto
