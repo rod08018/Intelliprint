@@ -33,7 +33,7 @@ def construir(kit):
 ## Reglas
 
 1. **Las cotas del usuario, escritas tal cual y con nombre**: una constante por cota (`SEP = 60`) con un comentario que diga de qué requisito sale. El sistema comprueba que cada cota de la petición aparece escrita en el programa. No la calcules a partir de otras.
-2. **Dibuja en la orientación de impresión**: z = 0 es la cama y la pieza crece hacia +z. Si el concepto dice «tumbada de lado», dibújala ya tumbada. Lo que apoya en la cama tiene que ser una cara plana grande.
+2. **Dibuja en la orientación de impresión**: z = 0 es la cama y la pieza crece hacia +z. Si el concepto dice «tumbada de lado», dibújala ya tumbada. Lo que apoya en la cama tiene que ser una cara plana grande. **Salvo si la pieza se une a otras ya terminadas** (te llegan como fichas `obra-…`): entonces se dibuja donde va montada sobre ellas, y no se gira ni se mueve al final para tumbarla; la postura de impresión se elige al laminar.
 3. **Cada agujero, tuerca, colisa o hueco funcional lleva nombre** (`pared_1`, `ventana_servo`), y se hace con `taladrar`, `tornillo`, `tuerca`, `colisa` o `quitar`, nunca restando un cilindro a mano. Así se puede medir después.
 4. **Tornillería y holguras del perfil**: usa `tornillo(..., "M3", tipo=...)`, `tuerca(...)` y `kit.holgura("clearance")`. Un diámetro de memoria es un error aunque se parezca.
 5. **Una sola pieza**: los cuerpos que se unen tienen que **solaparse**, no solo tocarse en una cara. Si dudas, mételos 0.5 mm uno dentro del otro.

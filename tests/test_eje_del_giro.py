@@ -214,3 +214,18 @@ def test_deepseek_apunta_en_el_plan_que_el_eje_va_horizontal():
     [giro] = [u for u in obra.uniones if u.tipo == "gira"]
     assert giro.eje == "horizontal"
     assert giro.movido_por is not None and giro.movido_por.relacion == 4
+
+
+def test_si_la_de_abajo_no_cabe_en_la_impresora_se_rehace_ella(tmp_path):
+    """En la 1113-1330 el brazo superior gastó sus cinco intentos contra una
+    torreta de 430 mm de alto, que no cabe en una impresora de 250 y estaba
+    dada por buena. Reanudar habría corregido otra vez el brazo superior.
+
+    El mismo soporte que vale en el test de arriba, en una impresora en la
+    que no cabe (20 mm de lado) y en la de verdad."""
+    from orchestrator.banco import la_de_abajo_que_no_vale
+    from tests.test_correa import _con_correa
+    carpeta = _con_eje(_con_correa(tmp_path), "horizontal")
+    abajo, falta = la_de_abajo_que_no_vale(carpeta, "brazo", cama_mm=(20, 20, 20))
+    assert abajo == "soporte" and "no cabe en la impresora" in falta
+    assert la_de_abajo_que_no_vale(carpeta, "brazo", cama_mm=(235, 235, 250)) is None

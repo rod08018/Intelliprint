@@ -316,3 +316,33 @@ def test_un_tornillo_sin_tuerca_en_la_pieza_no_es_una_brida():
           "entrada": [8.0, 28.0, 18.5], "eje": [0.0, 0.0, -1.0], "profundidad_mm": None,
           "tornillo": "M4"}
     assert bridas_que_no_aprietan([_SERVO, m4]) == []
+
+
+# --- que quepa en la impresora (banco 1113-1330) ------------------------------------------------
+
+CAMA = (235, 235, 250)   # la AnkerMake M5 de `config/printers/`
+
+
+def test_una_torre_de_430_mm_no_cabe_en_una_impresora_de_250():
+    """La torreta del brazo mediano salió de 126 × 90 × 430 y se dio por
+    buena: nadie medía que cupiera. De pie pide 430 de alto y hay 250;
+    tumbada, 430 de largo y hay 235."""
+    from orchestrator.medida import no_cabe_en_la_impresora
+    [defecto] = no_cabe_en_la_impresora([126.0, 90.0, 430.0], CAMA)
+    assert "430" in defecto and "250" in defecto and "126 × 90 × 430" in defecto
+
+
+@pytest.mark.parametrize("caja", [
+    [225.0, 90.0, 20.0],     # el brazo superior de esa corrida, tumbado
+    [100.0, 240.0, 20.0],    # 240 no cabe en la cama (235), pero sí de pie (250)
+    [235.0, 250.0, 235.0],   # justa, girada
+])
+def test_lo_que_cabe_en_alguna_postura_cabe(caja):
+    from orchestrator.medida import no_cabe_en_la_impresora
+    assert no_cabe_en_la_impresora(caja, CAMA) == []
+
+
+def test_dos_lados_que_solo_caben_de_pie_no_caben_a_la_vez():
+    """240 × 240 × 20: de pie solo cabe uno de los dos lados de 240."""
+    from orchestrator.medida import no_cabe_en_la_impresora
+    assert len(no_cabe_en_la_impresora([240.0, 240.0, 20.0], CAMA)) == 1

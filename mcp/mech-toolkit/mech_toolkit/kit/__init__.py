@@ -190,12 +190,37 @@ class Cuerpo:
     def __init__(self, forma, kit: "Kit") -> None:
         self._forma = forma
         self._kit = kit
+        # Los rasgos con nombre que ya lleva este cuerpo: ver `_sin_rasgos`.
+        self._suyos: tuple = ()
 
     def _nuevo(self, forma, que="la operación") -> "Cuerpo":
-        return Cuerpo(_valido(_un_solido(forma), que), self._kit)
+        nuevo = Cuerpo(_valido(_un_solido(forma), que), self._kit)
+        nuevo._suyos = self._suyos
+        return nuevo
+
+    def _con(self, nombre) -> "Cuerpo":
+        self._suyos = (*self._suyos, nombre)
+        return self
+
+    def _sin_rasgos(self, que) -> None:
+        """Girar o mover un cuerpo no lleva consigo lo que ya tiene nombre:
+        el agujero y el componente se quedan medidos donde estaban. El brazo
+        superior del brazo mediano (banco 1113-1330) acabó con un `girar` y
+        un `mover` al centro de la cama, para dejarlo como se imprime, y todo
+        salió «a 377 mm» de la pieza."""
+        if self._suyos:
+            nombres = ", ".join(f"«{n}»" for n in self._suyos[:3])
+            raise KitError(
+                f"`{que}` después de {nombres}: lo que ya tiene nombre no se mueve con ella "
+                "y quedaría medido donde estaba. Coloca y gira los cuerpos ANTES de "
+                "taladrarlos o de quitarles un hueco. Si era para dejarla como se imprime, "
+                "no hace falta: la pieza se dibuja donde va montada, y la postura de "
+                "impresión se elige al laminar")
 
     def __add__(self, otro: "Cuerpo") -> "Cuerpo":
-        return self._nuevo(self._forma.fuse(otro._forma).removeSplitter(), "la unión (+)")
+        nuevo = self._nuevo(self._forma.fuse(otro._forma).removeSplitter(), "la unión (+)")
+        nuevo._suyos = (*self._suyos, *otro._suyos)
+        return nuevo
 
     def __sub__(self, otro: "Cuerpo") -> "Cuerpo":
         return self._nuevo(self._forma.cut(_herramienta(otro, self)).removeSplitter(),
@@ -209,12 +234,14 @@ class Cuerpo:
 
     def mover(self, dx=0.0, dy=0.0, dz=0.0) -> "Cuerpo":
         """Copia desplazada."""
+        self._sin_rasgos("mover")
         f = self._forma.copy()
         f.translate(FreeCAD.Vector(dx, dy, dz))
         return self._nuevo(f)
 
     def girar(self, grados, eje="z", centro=(0, 0, 0)) -> "Cuerpo":
         """Copia girada `grados` alrededor de `eje` (que pasa por `centro`)."""
+        self._sin_rasgos("girar")
         f = self._forma.copy()
         f.rotate(_v(centro), _eje(eje), float(grados))
         return self._nuevo(f)
@@ -436,7 +463,7 @@ class Cuerpo:
                 f"«{nombre}» no toca la pieza: no quita material. La pieza ocupa x de "
                 f"{b.XMin:.4g} a {b.XMax:.4g}, y de {b.YMin:.4g} a {b.YMax:.4g}, z de "
                 f"{b.ZMin:.4g} a {b.ZMax:.4g}; revisa `en` y `eje`")
-        return self._nuevo(resultado, f"«{nombre}»")
+        return self._nuevo(resultado, f"«{nombre}»")._con(nombre)
 
     # --- rasgos con nombre --------------------------------------------------------
 
@@ -559,7 +586,7 @@ class Cuerpo:
                 or herramienta._componente._ficha.get("origen") == "impreso"):
             resultado = self._forma.cut(forma).removeSplitter()
             if self._forma.Volume - resultado.Volume < 1e-6:
-                return self
+                return self._nuevo(self._forma)._con(nombre)
         return self._cortar(nombre, forma)
 
 

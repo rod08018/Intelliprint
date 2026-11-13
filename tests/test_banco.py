@@ -807,7 +807,8 @@ def test_el_banco_se_reanuda_desde_la_orden(tmp_path, monkeypatch):
         return {e.nombre: [] for e in encargos}, {}
 
     monkeypatch.setattr(banco, "reanudar", reanudar)
-    monkeypatch.setattr(cli, "_perfil", lambda *a: type("P", (), {"datos": {"resistencia": {}}}))
+    monkeypatch.setattr(cli, "_perfil", lambda *a: type("P", (), {
+        "datos": {"resistencia": {}}, "cama_mm": (235, 235, 250)}))
     monkeypatch.setattr(cli, "_freecadcmd", lambda env: "freecadcmd")
     monkeypatch.setattr(cli, "elegir_laminador", lambda *a: None)
     args = cli._parser().parse_args(["banco", "--reanudar", str(tmp_path),

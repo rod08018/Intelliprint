@@ -759,9 +759,10 @@ def _sin_sitio(piezas, arts, j: str, radio: float, paso: float) -> tuple[str, st
     return a.padre, (
         f"No deja sitio para que gire «{piezas[j].nombre}»: el plan reserva {radio:g} mm "
         f"alrededor del eje del {a.de} que monta esta pieza y solo hay {libre:.1f} mm, porque "
-        f"{_que(piezas, que)} queda a {libre:.1f} mm de ese eje. Sube o aleja el {a.de} al "
-        f"menos {radio - libre:.1f} mm más, sin cambiar cómo se une esta pieza a lo que tiene "
-        "debajo. Lo demás se queda como está.")
+        f"{_que(piezas, que)} queda a {libre:.1f} mm de ese eje, por delante de la cara por "
+        f"donde sale. Sube el {a.de} al menos {radio - libre:.1f} mm más, o sácalo hacia fuera "
+        "hasta que eso quede detrás de esa cara (lo que queda detrás no estorba), sin cambiar "
+        "cómo se une esta pieza a lo que tiene debajo. Lo demás se queda como está.")
 
 
 def correcciones(piezas: dict[str, Pieza], arts: dict[str, Articulacion],
@@ -917,9 +918,50 @@ def _semirrecta_a_la_caja(caja, punto, eje, largo: float | None = None) -> float
     return lejos((a + b) / 2)
 
 
+def _por_delante_a_la_caja(caja, punto, eje) -> float:
+    """Lo cerca del eje que queda la parte de la caja que está por delante
+    de la cara de salida —el plano que pasa por `punto`, perpendicular a
+    `eje`—; infinito si queda entera detrás.
+
+    La caja se corta por ese plano y lo que queda delante se mira de frente,
+    a lo largo del eje: es un polígono convexo, y el eje es su origen."""
+    from orchestrator.estudio import _envolvente_convexa, margen_de_vuelco
+    from orchestrator.tornilleria import _cruz, _unit
+    lo, hi = caja
+    n = math.sqrt(sum(c * c for c in eje))
+    e = [c / n for c in eje]
+    esquinas = [[x, y, z] for x in (lo[0], hi[0]) for y in (lo[1], hi[1]) for z in (lo[2], hi[2])]
+    delante =[sum((q - p) * d for q, p, d in zip(c, punto, e)) for c in esquinas]
+    puntos = [c for c, s in zip(esquinas, delante) if s >= 0]
+    for i in range(8):
+        for j in range(i + 1, 8):
+            # Una arista de la caja une dos esquinas que difieren en una sola
+            # coordenada; si el plano la cruza, el corte es un vértice más.
+            if sum(a != b for a, b in zip(esquinas[i], esquinas[j])) == 1 \
+                    and delante[i] * delante[j] < 0:
+                t = delante[i] / (delante[i] - delante[j])
+                puntos.append([a + t * (b - a) for a, b in zip(esquinas[i], esquinas[j])])
+    if not puntos:
+        return math.inf
+    # Dos direcciones perpendiculares al eje, para mirarlo de frente.
+    k = min(range(3), key=lambda i: abs(e[i]))
+    u = _unit(_cruz(e, [1.0 if i == k else 0.0 for i in range(3)]))
+    v = _cruz(e, u)
+    planos = _envolvente_convexa(
+        (round(sum((q - p) * d for q, p, d in zip(c, punto, u)), 6),
+         round(sum((q - p) * d for q, p, d in zip(c, punto, v)), 6)) for c in puntos)
+    if len(planos) >= 3:
+        return max(0.0, -margen_de_vuelco((0.0, 0.0), planos))
+    (ax, ay), (bx, by) = planos[0], planos[-1]
+    largo2 = (bx - ax) ** 2 + (by - ay) ** 2
+    t = max(0.0, min(1.0, -(ax * (bx - ax) + ay * (by - ay)) / largo2)) if largo2 else 0.0
+    return math.hypot(ax + t * (bx - ax), ay + t * (by - ay))
+
+
 def radio_libre(piezas: dict[str, Pieza], arts: dict[str, Articulacion], pieza: str,
                 salida: dict, paso: float = PASO,
-                largo: float | None = None, suelo: bool = False) -> tuple[float, str | None]:
+                largo: float | None = None, suelo: bool = False,
+                cara: bool = True) -> tuple[float, str | None]:
     """Cuánto sitio tiene lo que gire alrededor de `salida`, una salida de lo
     que monta `pieza`: la distancia del eje a lo más cercano de lo que hay
     DEBAJO —las piezas sobre las que va y lo comprado que montan—, y qué es.
@@ -933,8 +975,12 @@ def radio_libre(piezas: dict[str, Pieza], arts: dict[str, Articulacion], pieza: 
 
     Se mide en todos los ángulos de los giros de debajo: el eje de
     inclinación barre la base entera cuando el soporte gira. Y desde la cara
-    de la salida hacia fuera (semirrecta, no recta): lo que gira va por
-    delante del actuador, y lo que este tiene detrás no le estorba.
+    de la salida hacia fuera: lo que gira va entero por delante de esa cara
+    (se le mide), y lo que queda detrás de ella no le estorba, por cerca del
+    eje que esté. Se medía la distancia a la semirrecta, que cuenta lo que
+    queda justo detrás: al codo del brazo mediano (banco 1113-1330) se le
+    pedían 205 mm libres con el hombro a 150, y su torreta salió de 430 mm
+    de alto para que el brazo «diera la vuelta» sobre la base.
 
     Con cajas, así que es prudente de más: la medida exacta sigue siendo el
     barrido. Lo de la propia `pieza` no entra —el actuador está dentro de su
@@ -943,6 +989,11 @@ def radio_libre(piezas: dict[str, Pieza], arts: dict[str, Articulacion], pieza: 
     Con `largo`, el sitio alrededor de un tramo y no de la semirrecta
     entera: lo que se atornilla después ocupa un fondo, no llega al infinito
     (`medida.sin_sitio_para_lo_nuevo`).
+
+    Sin `cara`, o con `largo`, `salida` no es la cara de un actuador ya
+    puesto sino un sitio que se tantea (dónde cabría un eje, o lo que se
+    atornilla después): no hay cara que valga y cuenta la distancia a la
+    semirrecta, como antes.
 
     Con `suelo`, cuenta también lo que hay bajo la pieza de abajo del todo:
     se apoya en algo (es lo que supone el estudio al mirar si vuelca), y
@@ -966,7 +1017,8 @@ def radio_libre(piezas: dict[str, Pieza], arts: dict[str, Articulacion], pieza: 
                 cajas.append((SUELO, ([-LEJISIMOS] * 3,
                                       [LEJISIMOS, LEJISIMOS, piezas[a].envolvente[0][2]])))
             for solido, caja in cajas:
-                d = _semirrecta_a_la_caja(caja, punto, eje, largo)
+                d = (_por_delante_a_la_caja(caja, punto, eje) if cara and largo is None
+                     else _semirrecta_a_la_caja(caja, punto, eje, largo))
                 if d < mejor[0] - 1e-9:
                     mejor = (d, solido)
     return mejor

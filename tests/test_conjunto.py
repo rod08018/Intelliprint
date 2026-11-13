@@ -437,6 +437,39 @@ def test_el_sitio_libre_cuenta_desde_la_cara_de_la_salida_hacia_fuera():
     assert radio_libre(piezas, arts, "torre", salida) == (pytest.approx(20.0), "base")
 
 
+def test_lo_que_queda_detras_de_la_cara_de_salida_no_quita_sitio_por_cerca_que_este():
+    """El brazo mediano del banco 1113-1330: al codo se le pedían 205 mm
+    libres con el hombro a 150, y no se podía cumplir. Se medía la distancia
+    a la semirrecta del eje, y así lo que queda justo detrás de la cara de
+    salida contaba como si estorbase. Lo que gira va entero por delante de
+    esa cara (se le mide: `medida.DETRAS_MM`), y a la pieza que monta el
+    actuador se le dice «desde la cara por donde sale hacia fuera».
+
+    A mano: el eje sale en (0, 0, 100) hacia +y, y la base acaba en z = 30:
+    70 mm. Un pilar de x −5 a 5 que sube hasta z = 95 pasa a 5 mm del eje.
+    Si va de y = −30 a −10, entero detrás de la cara (y = 0), no cuenta, y
+    manda la base, a 70; midiendo a la semirrecta daba √(10² + 5²) = 11.2.
+    Si asoma por delante (hasta y = 20), cuenta lo que asoma: 5 mm."""
+    from orchestrator.conjunto import radio_libre
+    piezas, arts, salida = _torre(100, montado=([-5, -30, 30], [5, -10, 95]))
+    assert radio_libre(piezas, arts, "torre", salida) == (pytest.approx(70.0), "base")
+    piezas, arts, salida = _torre(100, montado=([-5, -30, 30], [5, 20, 95]))
+    assert radio_libre(piezas, arts, "torre", salida) == (pytest.approx(5.0), "base: montado")
+
+
+def test_si_todo_lo_de_abajo_queda_detras_de_la_cara_hay_todo_el_sitio():
+    """El hombro del brazo mediano salió a 390 mm de alto para que 355 mm de
+    brazo «dieran la vuelta» sobre la base. Con el eje saliendo en y = 60,
+    por fuera de una base que acaba en y = 50, lo que gira pasa al lado de
+    ella: no hace falta altura."""
+    import math
+
+    from orchestrator.conjunto import radio_libre
+    piezas, arts, salida = _torre(40)
+    salida["punto"] = [0, 60, 40]
+    assert radio_libre(piezas, arts, "torre", salida) == (math.inf, None)
+
+
 def test_lo_que_no_tiene_nada_debajo_tiene_todo_el_sitio():
     import math
 

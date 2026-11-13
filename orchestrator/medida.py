@@ -451,8 +451,10 @@ def defectos_de_giro(carpeta: Path, nodo: str) -> list[str]:
                         f"sitio para girar (unión {u.id}): «{gira}» necesita {radio:g} mm "
                         f"libres alrededor del eje del {s['de']} que monta esta pieza, y solo "
                         f"hay {libre:.1f} mm: {_que(piezas, que)} queda a {libre:.1f} mm de "
-                        f"ese eje. Sube o aleja el {s['de']} al menos {radio - libre:.1f} mm "
-                        "más, sin cambiar cómo se une esta pieza a lo que tiene debajo")
+                        f"ese eje, por delante de la cara por donde sale. Sube el {s['de']} "
+                        f"al menos {radio - libre:.1f} mm más, o sácalo hacia fuera hasta que "
+                        "eso quede detrás de esa cara (lo que queda detrás no estorba), sin "
+                        "cambiar cómo se une esta pieza a lo que tiene debajo")
             continue
         sobre = obra.nodo(u.sobre).nombre
         if yo.padre != u.sobre:
@@ -670,10 +672,10 @@ def _sitio_para_un_giro(piezas, arts, nodo: str, punto, hacia, radio: float,
         p = [c + e * t for c, e in zip(punto, hacia)]
         for eje in ejes:
             libre = radio_libre(piezas, arts, nodo, {"punto": p, "eje": eje},
-                                paso=CADA_GRADOS, suelo=True)[0]
+                                paso=CADA_GRADOS, suelo=True, cara=False)[0]
             if libre >= radio - 0.05:
                 libre = radio_libre(piezas, arts, nodo, {"punto": p, "eje": eje},
-                                    suelo=True)[0]
+                                    suelo=True, cara=False)[0]
                 if libre >= radio - 0.05:
                     return libre
             mejor = max(mejor, libre)
@@ -826,9 +828,29 @@ def defectos_del_plan() -> list[str]:
     return uniones_sin_hacer(*backlog) if backlog is not None else []
 
 
+def no_cabe_en_la_impresora(caja_mm, cama_mm) -> list[str]:
+    """Si la caja de la pieza no entra en la impresora en ninguna postura
+    derecha (`cama_mm`: ancho y fondo de la cama, y alto). La torreta del
+    brazo mediano (banco 1113-1330) salió de 126 × 90 × 430 mm para una
+    impresora de 250 de alto y se dio por buena: nadie lo medía. En diagonal
+    sobre la cama no se prueba."""
+    from itertools import permutations
+    if any(all(lado <= hay + 0.05 for lado, hay in zip(p, cama_mm))
+           for p in permutations(caja_mm)):
+        return []
+    mide = " × ".join(f"{round(v, 1):g}" for v in caja_mm)
+    x, y, z = cama_mm
+    return [f"no cabe en la impresora: la pieza mide {mide} mm y la impresora admite "
+            f"{x:g} × {y:g} mm de cama y {z:g} de alto; no entra en ninguna postura. Hazla "
+            "más pequeña. Si la altura era para dejar sitio a un giro, saca el eje hacia "
+            "fuera en vez de subirlo: lo que queda detrás de la cara por donde sale no "
+            "estorba"]
+
+
 def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
                          material: dict, componentes=(), pared_min_mm=None,
-                         agujeros_del_perfil=None, holgura_al_moverse_mm=None) -> list[str]:
+                         agujeros_del_perfil=None, holgura_al_moverse_mm=None,
+                         cama_mm=None) -> list[str]:
     """Lo que la pieza construida no cumple: agujeros (con los rasgos del
     kit), componentes que no caben o no entran, y sondas sobre el STEP. Los
     de acabado van con su prefijo.
@@ -842,6 +864,8 @@ def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
     fallos = defectos(requisitos, resultado.rasgos, agujeros_del_perfil)
     fallos += componentes_sin_colocar(componentes, resultado.rasgos)
     fallos += bridas_que_no_aprietan(resultado.rasgos)
+    if cama_mm:
+        fallos += no_cabe_en_la_impresora(resultado.bbox_mm, cama_mm)
     sondas = sondas_de(requisitos, resultado.rasgos, pared_min_mm)
     backlog = _del_backlog()
     if backlog is not None:

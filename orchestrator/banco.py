@@ -1419,15 +1419,20 @@ def la_que_no_deja_sitio(proyecto: Path, nodo: str) -> tuple[str, str] | None:
     return None
 
 
-def la_de_abajo_que_no_vale(proyecto: Path, nodo: str) -> tuple[str, str] | None:
+def la_de_abajo_que_no_vale(proyecto: Path, nodo: str,
+                            cama_mm=None) -> tuple[str, str] | None:
     """Si `nodo`, que no salió bien, gira sobre una pieza hecha que hoy no
     pasa lo que se le mide del giro: (esa pieza, lo que se le midió).
 
     El brazo de la articulación 1113-0216 gastó sus cinco intentos en un
     defecto que era del soporte: se había dibujado tumbado, con el eje
-    vertical y el del motor sin asomar. Corregir el brazo no lo arregla."""
+    vertical y el del motor sin asomar. Corregir el brazo no lo arregla.
+
+    Con `cama_mm`, tampoco vale la que no cabe en la impresora: la torreta
+    del brazo mediano (1113-1330) medía 430 mm de alto y estaba dada por
+    buena, y el brazo superior gastó sus intentos contra ella."""
     from orchestrator import obra
-    from orchestrator.medida import defectos_de_orientacion
+    from orchestrator.medida import defectos_de_orientacion, no_cabe_en_la_impresora
     from orchestrator.schemas.obra import Gira
     from orchestrator.transmision import defectos_de_transmision
     proyecto = Path(proyecto)
@@ -1436,6 +1441,11 @@ def la_de_abajo_que_no_vale(proyecto: Path, nodo: str) -> tuple[str, str] | None
             continue
         falta = [*defectos_de_orientacion(proyecto, u.sobre),
                  *defectos_de_transmision(proyecto, u.sobre)]
+        caja = next((proyecto / obra.NODOS / u.sobre / "parts").glob("*/envolvente.json"), None)
+        if cama_mm and caja is not None:
+            e = json.loads(caja.read_text(encoding="utf-8"))
+            falta += no_cabe_en_la_impresora([b - a for a, b in zip(e["min"], e["max"])],
+                                             cama_mm)
         if falta:
             return u.sobre, "\n".join(falta)
     return None
@@ -1448,7 +1458,8 @@ def _rehacer_la_de_abajo(proyecto: Path, nodo: str, abajo: str, falta: str) -> N
     from orchestrator import obra
     arbol = obra.cargar_obra(proyecto)
     motivo = (f"«{arbol.nodo(abajo).nombre}», sobre la que gira esta pieza, se ha hecho de "
-              "nuevo: estaba dibujada en otra postura o no dejaba sitio a la transmisión. "
+              "nuevo: estaba dibujada en otra postura, no dejaba sitio a la transmisión o no "
+              "cabía en la impresora. "
               "Esta pieza se hace de nuevo contra ella.")
     obra.rehacer(proyecto, nodo, motivo)
     obra.rehacer(proyecto, abajo, falta)
@@ -1503,7 +1514,8 @@ def nodo_a_rehacer(proyecto: Path) -> str | None:
 
 
 def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcmd: str,
-             env: dict, material: dict | None = None, laminar=None) -> tuple[dict, dict]:
+             env: dict, material: dict | None = None, laminar=None,
+             cama_mm=None) -> tuple[dict, dict]:
     """Sigue los backlogs de una corrida desde la pieza que falló, y juzga
     otra vez. Relanzar el backlog entero tras cada arreglo (2026-11-09/10)
     costaba hora y media por vuelta para volver a la misma pieza, y cada
@@ -1543,7 +1555,8 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
         proyecto = hecho.parent
         correcciones = correcciones_del_conjunto(proyecto)
         sin_sitio = None if solo_seguir else la_que_no_deja_sitio(proyecto, nodo)
-        abajo_mal = None if solo_seguir or sin_sitio else la_de_abajo_que_no_vale(proyecto, nodo)
+        abajo_mal = (None if solo_seguir or sin_sitio
+                     else la_de_abajo_que_no_vale(proyecto, nodo, cama_mm))
         if solo_seguir:
             pass
         elif abajo_mal:

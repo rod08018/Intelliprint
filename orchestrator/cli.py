@@ -147,7 +147,8 @@ def _disenar_con_kit(raiz: Path, env: dict, cliente):
             return "\n".join(defectos_de_la_pieza(
                 spec.requisitos, resultado, Path(carpeta) / f"{part}.step", freecad,
                 material, componentes, pared_min, agujeros,
-                holgura_al_moverse_mm=_perfil(raiz, env).impresora.fit_mm("slide") / 2)) or None
+                holgura_al_moverse_mm=_perfil(raiz, env).impresora.fit_mm("slide") / 2,
+                cama_mm=_perfil(raiz, env).cama_mm)) or None
 
         # F9.4 (canal): en un backlog, las uniones del plan están en la
         # carpeta del nodo (`carpeta` es `<nodo>/parts/<pieza>`).
@@ -636,7 +637,8 @@ def _banco(args, raiz: Path, env: dict, nombre: str) -> None:
         corrida = Path(args.reanudar)
         resultados, fallos = banco.reanudar(encargos, corrida, orden_del_banco(obra=True),
                                             _freecadcmd(env), dict(os.environ), material,
-                                            elegir_laminador(raiz, env))
+                                            elegir_laminador(raiz, env),
+                                            cama_mm=_perfil(raiz, env).cama_mm)
         texto = informe(resultados, modelo=f"{env.get('DEEPSEEK_MODEL', 'deepseek')}, "
                                            "reanudada desde la pieza que falló", fallos=fallos)
         # Al lado del original y de las vueltas anteriores, sin pisar ninguno.

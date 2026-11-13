@@ -277,11 +277,17 @@ Fase 10.
 - **Arreglado de ahí:** las cifras que el sistema escribe en la
   petición de una pieza (el nombre de una ficha, lo que hace la
   vecina) ya no se le exigen como cotas (`traceability.CONTEXTO`).
-- **Por decidir con él** antes de reanudar: cómo se reserva el sitio
-  de un giro en un brazo, medir que una pieza quepa en la impresora,
-  y que el diseñador no tumbe la pieza. Quedan 4,05 USD de los 5.
-- **Lo que sigue:** esas decisiones; y al acabar la fase, proponerle
-  las tres fases (carcasas vistosas, brazo Arctos, avión).
+- **Tres arreglos más, aprobados por él el 2026-11-13** («Sí, arregla
+  y reanuda»): el sitio de un giro cuenta solo lo que queda por
+  delante de la cara de salida; cada pieza mide que cabe en la
+  impresora (y al reanudar se rehace la de abajo que no cabe); y el
+  kit no deja girar ni mover un cuerpo que ya lleva agujeros. A mano,
+  una torreta de 124 mm pasa. Rejuzgados, nada de lo que pasaba
+  cambia. **Lo que se pierde:** que un brazo dé con la mesa no se
+  mide. Quedan 4,05 USD de los 5 del encargo 15.
+- **Lo que sigue:** el resultado de reanudar el encargo 15; y al
+  acabar la fase, proponerle las tres fases (carcasas vistosas, brazo
+  Arctos, avión).
 
 **2026-11-10: Fase 9, robots con plan mecánico (ADR-020).** El usuario quiere
 diseñar robots: que el desglose decida antes de dibujar qué gira sobre qué y con

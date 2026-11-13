@@ -167,6 +167,31 @@ def construir(kit):
                                          abs=0.01)
 
 
+@pytest.mark.parametrize("despues", ['p.girar(-90, eje="y")', "p.mover(dx=100)"])
+def test_una_pieza_con_agujeros_no_se_gira_ni_se_mueve_despues(tmp_path, despues):
+    """Banco 1113-1330: en su quinto intento, el brazo superior del brazo
+    mediano acabó con `pieza.girar(-90, eje="y")` y un `mover` al centro de la
+    cama, para dejarla como se imprime. Los agujeros y lo comprado se quedaron
+    medidos donde estaban, y todo salió «a 377 mm» de la pieza. Girar o mover
+    no lleva consigo lo que ya tiene nombre: es un error, con su motivo."""
+    with pytest.raises(ConstruccionFallida, match="«centro».*no se mueve con ella"):
+        _construir(f"""
+def construir(kit):
+    p = kit.caja(20, 10, 5).taladrar("centro", 4, en=(10, 5, 5))
+    return {despues}
+""", tmp_path)
+
+
+def test_un_cuerpo_se_coloca_antes_de_taladrarlo(tmp_path):
+    """Lo que sí vale: mover el cuerpo y taladrarlo donde ha quedado. A mano,
+    la misma placa con su agujero: 1000 − π·2²·5."""
+    r = _construir("""
+def construir(kit):
+    return kit.caja(20, 10, 5).mover(dx=100).taladrar("centro", 4, en=(110, 5, 5))
+""", tmp_path)
+    assert r.volume_mm3 == pytest.approx(1000 - math.pi * 4 * 5, abs=0.01)
+
+
 def test_un_agujero_que_no_toca_la_pieza_es_un_error(tmp_path):
     """Fallo real del banco: el gancho taladraba a 40 mm en una placa de 30
     de alto, un agujero caía fuera y la pieza salía sin él, en silencio."""
