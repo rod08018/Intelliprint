@@ -122,16 +122,16 @@ def test_tiempo_de_un_recorrido_con_y_sin_carga():
 # --- el estudio de un conjunto --------------------------------------------------------------
 
 
-def _brazo_en_voladizo(tmp_path):
+def _brazo_en_voladizo(tmp_path, fijaciones=()):
     """Un soporte de 56 × 34.5 apoyado en z = 0 con un SG90 tumbado (como el
     del pan-tilt): su eje sale en (0, 0, 25), en horizontal (−y). Encima, un
     brazo de 100 × 5 × 10 que sale en x desde el eje. Pesos de PrusaSlicer:
-    soporte 30 g, brazo 20 g."""
+    soporte 30 g, brazo 20 g. `fijaciones`: agujeros de más en el soporte."""
     from tests.test_conjunto import _obra, _sg90, _sobre
     girado = ((-5.8, 27.1, 18.8), [("x", 90)])
     cajas = {"soporte": ((-28, -17, 0), (28, 17.5, 31.5)), "brazo": ((0, -6, 20), (100, -1, 30))}
     carpeta = _obra(tmp_path, {
-        "soporte": ([], [_sg90(*girado)], [list(c) for c in cajas["soporte"]]),
+        "soporte": ([], [_sg90(*girado), *fijaciones], [list(c) for c in cajas["soporte"]]),
         "brazo": (["soporte"], [_sobre("soporte", (0, 0, 0))], [list(c) for c in cajas["brazo"]]),
     })
     for i, (a, b) in cajas.items():
@@ -171,6 +171,41 @@ def test_el_estudio_de_un_brazo_en_voladizo(tmp_path):
     assert e["vuelco"]["margen_mm"] == pytest.approx(10.2, abs=0.05)
     assert e["vuelco"]["carga_max_g"] == pytest.approx(8.36, abs=0.05)
     assert (e["carga_max"]["g"], e["carga_max"]["limita"]) == (pytest.approx(8.36, abs=0.05), "vuelco")
+
+
+@pytest.mark.parametrize("entrada, eje", [
+    ((-24, 10, 31.5), (0, 0, -1)),      # a una mesa: el tornillo baja
+    ((-24, 17.5, 5), (0, -1, 0)),       # a un tablero vertical: sale de lado
+])
+def test_atornillada_a_una_mesa_o_a_un_tablero_vertical_no_la_limita_el_vuelco(tmp_path, entrada,
+                                                                              eje):
+    """El hombro del encargo 14b (corrida 1113-0605) se atornilló a un
+    tablero vertical, con cuatro M3 de lado, y el estudio lo dio por apoyado
+    en su canto: 212 g «por el vuelco» con un motor que deja 875. Solo
+    contaba el tornillo que baja. Decidido por el usuario el 2026-11-13: una
+    base fijada con sus tornillos a un tablero vertical va atornillada.
+
+    El brazo en voladizo de arriba, con un M3 pasante en el soporte, lejos
+    del servo: ya no manda el vuelco (8.4 g) sino el servo, 80.0 g, a mano
+    allí. El tornillo va en el soporte: no cuelga del servo y no los cambia."""
+    from orchestrator.estudio import estudiar
+    from tests.test_tornilleria import _agujero
+    e = estudiar(_brazo_en_voladizo(tmp_path, [_agujero("fijacion", entrada, eje, metrica="M3")]),
+                 "conjunto")
+    assert e["vuelco"]["atornillada"] is True
+    assert e["carga_max"]["limita"] == "servo de «Pieza brazo»"
+    assert e["carga_max"]["g"] == pytest.approx(80.0, abs=0.1)
+
+
+def test_un_tornillo_que_sube_desde_debajo_de_la_base_no_la_sujeta(tmp_path):
+    """Con la cabeza bajo la base y saliendo por arriba no la fija a ningún
+    tablero: sujeta algo encima de ella. Sigue mandando el vuelco."""
+    from orchestrator.estudio import estudiar
+    from tests.test_tornilleria import _agujero
+    e = estudiar(_brazo_en_voladizo(tmp_path, [_agujero("para_algo", (-24, 10, 0), (0, 0, 1),
+                                                        metrica="M3")]), "conjunto")
+    assert e["vuelco"]["atornillada"] is False
+    assert e["carga_max"]["limita"] == "vuelco"
 
 
 def test_el_estudio_dice_alcance_y_tiempos(tmp_path):

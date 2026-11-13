@@ -411,7 +411,13 @@ def estudiar(carpeta: Path, conjunto: str, raiz: Path | None = None) -> dict:
 
     raiz_id = next(i for i, p in piezas.items() if p.padre is None)
     apoyo = _apoyo(_stl(piezas[raiz_id]), poses(piezas, {}, {})[raiz_id])
-    atornillada = bool(any(t.pieza == raiz_id and t.termina == "superficie" and t.eje[2] < -0.9
+    # Atornillada a algo de fuera: a una mesa (el tornillo baja) o a un
+    # tablero vertical (sale de lado). Solo contaba el que baja, y el hombro
+    # del encargo 14b (corrida 1113-0605), fijado a un tablero vertical con
+    # cuatro M3, «volcaba» con 212 g teniendo motor para 875; lo decidió el
+    # usuario el 2026-11-13. El que sube desde debajo de la base no cuenta:
+    # sujeta algo encima de ella. No se mide si los tornillos aguantan.
+    atornillada = bool(any(t.pieza == raiz_id and t.termina == "superficie" and t.eje[2] < 0.1
                            for t in todos))
 
     estado = {j: {"par_max": 0.0, "angulo": 0.0, "carga": math.inf, "radio": 0.0,

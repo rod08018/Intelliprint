@@ -256,12 +256,17 @@ Fase 10.
   `1113-0605`, 0,34 USD de 1): el hombro con la cicloidal 10:1. Solo
   falla la carga, 212 g de 500, y por el vuelco: el soporte se
   atornilló a un tablero vertical y el estudio solo da por atornillada
-  una base con los tornillos hacia abajo. El motor deja 875 g. **Por
-  decidir con él:** si eso cuenta como atornillada (cambia lo que mide
-  el banco) o se le dice a la pieza que el tablero está debajo.
-- **Lo que sigue:** esa decisión; acordar con él la corrida del encargo
-  15 (el brazo mediano); y al acabar la fase, proponerle las tres
-  fases (carcasas vistosas, brazo Arctos, avión).
+  una base con los tornillos hacia abajo. El motor deja 875 g.
+- **Decidido por él el 2026-11-13: fijada a un tablero vertical cuenta
+  como atornillada** (cambia lo que mide el banco). Rejuzgado sin
+  modelo, el 14b pasa 9 de 9 (875 g, lo limita el motor); el pan-tilt
+  sigue en 7 de 7, el brazo en 8 de 8 y el encargo 14 en 9 de 10. No
+  se mide que esos tornillos aguanten.
+- **Acordado con él el 2026-11-13: el encargo 15 (el brazo mediano) se
+  corre con 5 USD de tope**: una corrida y dos reanudaciones, y parar
+  ahí aunque no pase.
+- **Lo que sigue:** el resultado de esa corrida; y al acabar la fase,
+  proponerle las tres fases (carcasas vistosas, brazo Arctos, avión).
 
 **2026-11-10: Fase 9, robots con plan mecánico (ADR-020).** El usuario quiere
 diseñar robots: que el desglose decida antes de dibujar qué gira sobre qué y con
