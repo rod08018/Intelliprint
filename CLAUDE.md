@@ -252,9 +252,16 @@ Fase 10.
   (el hombro pide 2,4 N·m de 3,6). Son cinco piezas y cuatro giros:
   **el tope y la regla para parar están por acordar con él.** F9.11
   (borrador) no se ha hecho; el encargo usa lo que ya tiene ficha.
-- **Lo que sigue:** el resultado de la corrida del encargo 14b
-  (`1113-0605`, tope 1 USD); acordar con él la del encargo 15; y al
-  acabar la fase, proponerle las tres fases.
+- **El encargo 14b, medido, pasa 8 de 9 a la primera** (corrida
+  `1113-0605`, 0,34 USD de 1): el hombro con la cicloidal 10:1. Solo
+  falla la carga, 212 g de 500, y por el vuelco: el soporte se
+  atornilló a un tablero vertical y el estudio solo da por atornillada
+  una base con los tornillos hacia abajo. El motor deja 875 g. **Por
+  decidir con él:** si eso cuenta como atornillada (cambia lo que mide
+  el banco) o se le dice a la pieza que el tablero está debajo.
+- **Lo que sigue:** esa decisión; acordar con él la corrida del encargo
+  15 (el brazo mediano); y al acabar la fase, proponerle las tres
+  fases (carcasas vistosas, brazo Arctos, avión).
 
 **2026-11-10: Fase 9, robots con plan mecánico (ADR-020).** El usuario quiere
 diseñar robots: que el desglose decida antes de dibujar qué gira sobre qué y con
