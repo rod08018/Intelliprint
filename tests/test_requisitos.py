@@ -132,3 +132,54 @@ def test_una_separacion_de_agujeros_cubre_su_cota():
                          origen="usuario", cantidad=2, separaciones_mm=[60])
     resto = [Requisito.model_validate(r) for r in REQUISITOS if r["id"] in ("R1", "R2")]
     assert errores_de_requisitos([*resto, agujeros], REPISA) == []
+
+
+# --- lo que el sistema escribe en la petición de una pieza no es un requisito ------------------
+
+DE_UN_BACKLOG = "\n".join([
+    "Brazo superior: Va del hombro al codo; la distancia entre ejes es 150 mm.",
+    "",
+    "Lo que sigue es de dónde va esta pieza, no medidas suyas:",
+    "",
+    "Es una de las piezas de «Brazo de cuatro ejes», que se diseñan una a una: aquí solo "
+    "se diseña esta.",
+    "",
+    "Se une a estas piezas, ya terminadas. Tienen ficha con su forma construida y sus "
+    "agujeros con nombre: colócalas con `kit.componente` y atorníllate a sus agujeros con "
+    "`punto()`:",
+    "- Torreta de giro: ficha obra-torreta (Gira 180° sobre la base.)",
+    ""])
+"""La petición del brazo superior del banco 1113-1330, resumida."""
+
+SUYO = {"id": "R1", "tipo": "cota", "texto": "la distancia entre ejes es 150 mm", "valor": 150,
+        "origen": "usuario"}
+DEL_SISTEMA = {"id": "R4", "tipo": "fijacion", "origen": "usuario", "texto": (
+    "Se une a estas piezas, ya terminadas... colócalas con `kit.componente` y atorníllate "
+    "a sus agujeros con `punto()`")}
+"""Tal cual lo escribió el modelo al reanudar la 1113-1330: lo que el sistema
+le cuenta a la pieza, con unos puntos suspensivos en medio."""
+
+
+def test_un_requisito_sacado_de_lo_que_escribe_el_sistema_no_tumba_la_pieza():
+    """Al reanudar la 1113-1330 el brazo superior no pasó de los requisitos,
+    tres veces, por R4: «dice venir del usuario, pero … no está en la
+    petición». No lo dijo el usuario ni es un requisito: es la instrucción
+    del sistema, abreviada. No es un error; se quita."""
+    from orchestrator.schemas.spec import errores_de_requisitos, sin_lo_del_sistema
+    requisitos = [Requisito(**SUYO), Requisito(**DEL_SISTEMA)]
+    assert errores_de_requisitos(requisitos, DE_UN_BACKLOG) == []
+    assert [r.id for r in sin_lo_del_sistema(requisitos, DE_UN_BACKLOG)] == ["R1"]
+
+
+def test_una_cita_inventada_sigue_siendo_un_error_aunque_haya_contexto():
+    from orchestrator.schemas.spec import errores_de_requisitos, sin_lo_del_sistema
+    inventado = Requisito(id="R2", tipo="carga", origen="usuario",
+                          texto="aguanta 2 kg en la punta... sin flexar")
+    [error] = errores_de_requisitos([Requisito(**SUYO), inventado], DE_UN_BACKLOG)
+    assert "R2" in error and "no está en la petición" in error
+    assert len(sin_lo_del_sistema([Requisito(**SUYO), inventado], DE_UN_BACKLOG)) == 2
+
+
+def test_el_agente_de_requisitos_entrega_la_spec_sin_lo_del_sistema():
+    spec = RequirementsAgent(Guion([json.dumps(_spec([SUYO, DEL_SISTEMA]))])).draft(DE_UN_BACKLOG)
+    assert [r.id for r in spec.requisitos] == ["R1"]

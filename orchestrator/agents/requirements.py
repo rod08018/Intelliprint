@@ -8,7 +8,7 @@ la clase de producto — que a su vez decide qué agentes correrán después
 from pathlib import Path
 
 from orchestrator.llm.structured import LlmClient, structured
-from orchestrator.schemas.spec import Spec, errores_de_requisitos
+from orchestrator.schemas.spec import Spec, errores_de_requisitos, sin_lo_del_sistema
 
 PROMPT_PATH = Path("config/agents/requirements.md")
 
@@ -70,4 +70,5 @@ class RequirementsAgent:
         # La petición literal la fija el código después de la llamada: el
         # modelo no puede perderla ni reescribirla al resumir.
         return spec.model_copy(update={"request": peticion,
-                                       "requisitos": _sin_lo_de_la_ficha(spec.requisitos)})
+                                       "requisitos": _sin_lo_de_la_ficha(
+                                           sin_lo_del_sistema(spec.requisitos, peticion))})

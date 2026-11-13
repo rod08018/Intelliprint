@@ -284,7 +284,14 @@ Fase 10.
   kit no deja girar ni mover un cuerpo que ya lleva agujeros. A mano,
   una torreta de 124 mm pasa. Rejuzgados, nada de lo que pasaba
   cambia. **Lo que se pierde:** que un brazo dé con la mesa no se
-  mide. Quedan 4,05 USD de los 5 del encargo 15.
+  mide.
+- **Reanudado una vez con ellos, el encargo 15 sigue en 0 de 12**
+  (0,14 USD más: 1,09 de los 5). La torreta se rehízo y ya cabe
+  (103 × 76 × 105 mm, el hombro por fuera de la base). El brazo
+  superior no pasó de los requisitos: el modelo citó como «del
+  usuario» la instrucción del sistema, abreviada. Arreglado: ese
+  requisito se quita (`spec.sin_lo_del_sistema`). Queda una
+  reanudación de las dos acordadas.
 - **Lo que sigue:** el resultado de reanudar el encargo 15; y al
   acabar la fase, proponerle las tres fases (carcasas vistosas, brazo
   Arctos, avión).

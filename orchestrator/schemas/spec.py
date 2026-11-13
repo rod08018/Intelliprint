@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, model_validator
 
-from orchestrator.traceability import requested_dimensions
+from orchestrator.traceability import CONTEXTO, requested_dimensions
 
 ProductClass = Literal["static_part", "mechanism", "robot"]
 """Decide qué fases corren (§ 4.2). Un agente que no corre no alucina."""
@@ -61,6 +61,28 @@ def _normal(texto: str) -> str:
     return re.sub(r"\s+", " ", texto).strip().casefold()
 
 
+def _es_del_sistema(texto: str, peticion: str) -> bool:
+    """Si `texto` no es una cita de la petición pero sus trozos —lo que queda
+    entre puntos suspensivos— salen todos de lo que el sistema escribe en la
+    petición de una pieza de un backlog (`traceability.CONTEXTO`)."""
+    _, hay, contexto = peticion.partition(CONTEXTO)
+    if not hay or _normal(texto) in _normal(peticion):
+        return False
+    trozos = [t for t in (_normal(t) for t in re.split(r"\.{3}|…", texto)) if t]
+    return bool(trozos) and all(t in _normal(contexto) for t in trozos)
+
+
+def sin_lo_del_sistema(requisitos: list["Requisito"], peticion: str) -> list["Requisito"]:
+    """Fuera los «requisitos» que son la instrucción del sistema, abreviada.
+    Al reanudar el brazo mediano (banco 1113-1330) el brazo superior no pasó
+    de aquí, tres veces: el modelo hizo un requisito del usuario con «Se une
+    a estas piezas, ya terminadas... colócalas con `kit.componente`…», y la
+    cita, con sus puntos suspensivos, no estaba tal cual en la petición. Eso
+    le llega al diseñador por la petición y por las uniones: no se pierde."""
+    return [r for r in requisitos
+            if not (r.origen == "usuario" and _es_del_sistema(r.texto, peticion))]
+
+
 def errores_de_requisitos(requisitos: list[Requisito], peticion: str,
                           externos: str = "") -> list[str]:
     """Lo que el modelo no puede saltarse, comprobado por el código.
@@ -75,6 +97,8 @@ def errores_de_requisitos(requisitos: list[Requisito], peticion: str,
     peticion_normal = _normal(peticion)
     for r in requisitos:
         if r.origen == "usuario" and _normal(r.texto) not in peticion_normal:
+            if _es_del_sistema(r.texto, peticion):
+                continue    # no es un requisito: se quita (`sin_lo_del_sistema`)
             errores.append(
                 f"{r.id}: dice venir del usuario, pero «{r.texto}» no está en la petición. "
                 "Cita el fragmento tal cual, o márcalo como `estimado`.")
