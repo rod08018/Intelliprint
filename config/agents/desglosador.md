@@ -62,6 +62,12 @@ El eje de un servo, el aro de un rodamiento.
   sobre un eje vertical»). Con él la pieza que monta el componente se dibuja
   como va a quedar puesta, y se le mide. Si la petición no lo dice, no lo
   pongas.
+- `brazo_mm`: **si la petición dice cuánto mide el brazo o a dónde llega**,
+  la distancia del eje de ESTE giro a la punta donde va la carga, con todo
+  estirado. En un brazo de dos tramos de 120 mm, el hombro lleva 240 y el
+  codo 120. Junto con `carga_g` (abajo) sirve para comprobar, antes de
+  dibujar nada, que el motor puede con lo que cuelga de él: si no alcanza,
+  te lo diré con las cifras.
 - Cada actuador mueve una sola pieza, y cada pieza gira sobre uno solo.
 
 #### `movido_por`: cuando el motor no está en el eje
@@ -106,7 +112,9 @@ de las orejas de un servo): salen de su ficha.
 
 ## Salida
 
-Un JSON con `titulo`, `nodos` y `uniones`. Cada nodo: `id`, `nombre`, `tipo`,
+Un JSON con `titulo`, `nodos` y `uniones`; y `carga_g`, los gramos que la
+petición pide levantar o sostener en la punta, **si los dice** (si no, no lo
+pongas). Cada nodo: `id`, `nombre`, `tipo`,
 `que_hace`, `compra` y `depende_de`. Cada unión lleva su `tipo` y un `id`
 corto (`u1`, `u2`). Ordena los nodos de lo que no depende de nada a lo que
 depende de todo.

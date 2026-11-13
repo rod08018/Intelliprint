@@ -198,8 +198,24 @@ Fase 10.
   proponerle (sin escribirlas antes) tres fases: carcasas vistosas con
   superficies, el brazo de clase Arctos y el avión. La Fase 10 acaba
   en un brazo mediano funcional, no en uno que se vea como el Arctos.
-- **Lo que sigue:** lo que él decida del encargo 14. Después, F10.4
-  (dimensionar).
+- **Seis arreglos de ahí, aprobados por él el 2026-11-12:** el plan
+  dice `eje` (horizontal o vertical) y se le mide a la pieza que lo
+  monta; al soporte se le mide que el eje del motor asome; el
+  rodamiento en el que gira una pieza no cuenta para los choques (un
+  servo sí); lo que llega una pieza se mide en su malla; el sitio
+  libre de un rodamiento empieza donde acaba; y al reanudar se rehace
+  la pieza de abajo si es la que no vale.
+- **Hecho: F10.4 (dimensionar)** (2026-11-12). El plan lleva la carga
+  y lo que mide el brazo desde cada eje, y antes de dibujar se
+  comprueba que cada motor puede con lo que cuelga de él. Lo impreso
+  se estima en 0,2 g/mm: un supuesto.
+- **Ritmo acordado con él el 2026-11-12** («es terrible la cantidad de
+  tiempo que gastamos cada fase»): tests de lo que se toca mientras
+  se desarrolla; la suite entera y los del host, una vez por tarea;
+  la prueba a mano sin modelo en cada tarea; corrida de pago solo al
+  final de cada etapa; y no esperar parado mientras corre.
+- **Lo que sigue:** el resultado de la corrida nueva del encargo 14
+  (`1113-0423`, tope 1,10 USD). Después, F10.5 (muestreo).
 
 **2026-11-10: Fase 9, robots con plan mecánico (ADR-020).** El usuario quiere
 diseñar robots: que el desglose decida antes de dibujar qué gira sobre qué y con

@@ -96,6 +96,10 @@ class Gira(BaseModel):
     piezas: la que monta el actuador no mete nada ahí, y la que gira no pasa
     de él. El pan-tilt del banco 1110-0313 no lo tenía: su soporte dejó
     12.7 mm para una plataforma de 37.7."""
+    brazo_mm: float | None = Field(default=None, gt=0)
+    """Del eje de este giro a la punta donde va la carga, con el invento
+    estirado, si la petición lo dice. Con él y con `Obra.carga_g` se
+    comprueba que el motor alcanza antes de dibujar (F10.4 (dimensionar))."""
     eje: Literal["horizontal", "vertical"] | None = None
     """Hacia dónde mira el eje con el invento puesto como se usa y en
     reposo, si la petición lo dice. La articulación del banco 1113-0216
@@ -118,6 +122,9 @@ class Obra(BaseModel):
     uniones: list[Union] = []
     """Cómo se unen las piezas. Los backlogs de antes del 2026-11-10 no las
     tienen, y siguen cargando."""
+    carga_g: float | None = Field(default=None, gt=0)
+    """Los gramos que la petición pide levantar en la punta, si los dice
+    (F10.4 (dimensionar))."""
 
     @model_validator(mode="after")
     def _arbol(self):

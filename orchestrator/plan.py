@@ -112,6 +112,11 @@ def validar_plan(obra: Obra, agujeros: dict,
                 f"({', '.join(ids)}): cada motor mueve un solo giro, sea en su eje o por "
                 f"una transmisión. Pon otro en `compra` de «{sobre}» o quita una")
     avisos += _roscas_sin_medir(obra, agujeros, extra)
+    if not errores:
+        # Con el plan ya coherente: que cada motor pueda con lo que cuelga
+        # de él, antes de gastar en piezas (F10.4 (dimensionar)).
+        from orchestrator import dimensionar
+        errores += dimensionar.errores(obra, extra)
     conjuntos = [n for n in obra.nodos if n.tipo == "conjunto"]
     for u in obra.uniones:
         if isinstance(u, Gira) and not any({u.gira, u.sobre} <= set(c.depende_de)
