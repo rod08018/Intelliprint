@@ -212,6 +212,14 @@ imprimir; lo que dejó abierto está abajo.
   sin redondear y la pieza se mide igual; y unir las caras de una
   booleana ya no tumba ninguna operación del kit. La carcasa sigue
   sin pasar su bucle (del 12 al 15 % de aristas vivas).
+- **Con cuatro reanudaciones, la `1114-0631` pasa 5 de 5**
+  (`banco_reanudado-4.md`; 2,02 USD la corrida, 2,59 de los 15). El
+  encaje fallaba porque la carcasa se dibujaba dentro de la escuadra
+  y le quedaba material en las ranuras de las tuercas, y el aviso
+  le decía que el `hueco()` abría el camino, que con una pieza del
+  invento no es verdad. **No es a la primera**, y la carcasa no pasa
+  su bucle: del 21 al 24 % de aristas vivas, y FreeCAD se cae o
+  tarda más de 180 s al redondearla (sin arreglar).
 - **Hecha: F11.3 (tramos)** (2026-11-14). `pieza.partir(eje, en,
   lengueta)` corta una pieza que no cabe en la cama; cada tramo va a
   su STL en `tramos/` con una unión a media madera, y se le mide que

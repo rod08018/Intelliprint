@@ -658,6 +658,27 @@ COMO_ACABAR = (
 mitad viene del encargo 16 (banco 1114-0023): la carcasa terminaba con
 `acabar()` y volvió diez veces con «quedan vivas» sin saber por qué."""
 
+def como_abrir_el_camino(ficha: dict) -> str:
+    """Qué decirle a la pieza cuando lo que aloja no se puede meter. El
+    `hueco()` de algo comprado lleva su camino de entrada; el de una pieza del
+    invento es solo su forma con holgura (`Componente._forma_hueco`), y a la
+    carcasa del encargo 16 (banco 1114-0631) se le dijo «el `hueco()` lo abre»
+    cuando ya lo restaba y no abría nada."""
+    if ficha.get("origen") == "impreso":
+        # Lo de los entrantes: en las tres reanudaciones de esa corrida la
+        # carcasa se dibujó 2 mm dentro de la escuadra, y al restarle su
+        # hueco le quedó material dentro de las ranuras de las tuercas.
+        return ("El camino de entrada tiene que quedar abierto, y el `hueco()` de una pieza "
+                "del invento no lo abre: deja solo su forma con holgura. Si tu pieza se "
+                "dibuja metida en la otra contando con que el hueco la recorte, le queda "
+                "material dentro de sus entrantes (una ranura, el alojamiento de una tuerca, "
+                "un agujero) y ahí se engancha: haz que tu pieza acabe en la cara de la otra, "
+                "sin entrar en ella. O quita lo que se cruza con `quitar` de una caja que "
+                "cubra la zona que dice el aviso y siga hasta fuera por donde entra")
+    return ("El camino de entrada tiene que quedar abierto: el `hueco()` lo abre, o cambia "
+            "`entra_por` a un lado sin pared")
+
+
 SI_SE_CAE = (
     "FreeCAD se cae al redondear esta pieza y se ha construido sin acabado: no se arregla "
     "llamando otra vez a `acabar()`. Suele pasar donde una superficie curva se cruza con el "
@@ -1236,8 +1257,7 @@ def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
                           "fuera, aparta lo que tapa su camino, o atorníllalo desde el otro "
                           "lado (la `en` del agujero es donde va la cabeza)")
         elif isinstance(sonda, ComponenteEntra):
-            fallos.append(f"{medida.detalle}. El camino de entrada tiene que quedar abierto: "
-                          "el `hueco()` lo abre, o cambia `entra_por` a un lado sin pared")
+            fallos.append(f"{medida.detalle}. {como_abrir_el_camino(sonda.ficha)}")
         else:
             fallos.append(f"{sonda.porque}: {medida.detalle}. La abertura tiene que atravesar "
                           "la pieza entera, no ser un rebaje, y llevar holgura")

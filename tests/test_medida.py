@@ -408,3 +408,19 @@ def test_el_diametro_que_el_modelo_supuso_para_un_m3_es_el_del_perfil():
     de_memoria = [{**a, "diametro_mm": 3.2} for a in del_perfil]
     [d] = defectos([req], de_memoria, AGUJEROS)
     assert "Ø3.3" in d and 'tornillo("M3"' in d
+
+
+def test_a_una_pieza_vecina_no_se_le_abre_el_camino_con_su_hueco():
+    """Encargo 16 (banco 1114-0631): la carcasa restaba el `hueco()` de la
+    escuadra y volvía «no se puede meter… El camino de entrada tiene que
+    quedar abierto: el `hueco()` lo abre». De una pieza impresa el hueco es
+    su forma con holgura, sin barrer: no abre ningún camino, y hacerle caso
+    no cambiaba nada. Con lo comprado sí lo abre."""
+    from orchestrator.medida import como_abrir_el_camino
+    vecina = como_abrir_el_camino({"id": "obra-soporte", "origen": "impreso"})
+    assert "el `hueco()` lo abre" not in vecina and "quitar" in vecina
+    # Y por qué suele pasar: en tres reanudaciones seguidas la carcasa se
+    # dibujó 2 mm dentro de la escuadra, y al restarle el hueco le quedó
+    # material en las ranuras por donde entran las tuercas.
+    assert "entrantes" in vecina and "sin entrar en ella" in vecina
+    assert "el `hueco()` lo abre" in como_abrir_el_camino({"id": "nema17"})
