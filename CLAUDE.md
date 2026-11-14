@@ -160,6 +160,15 @@ imprimir; lo que dejó abierto está abajo.
   PrusaSlicer. Rejuzgado todo: diez piezas 52 de 52, pan-tilt 7 de
   7, brazo de servos 8 de 8, encargo 14 9 de 10, 14b 8 de 9 (baja
   una), brazo mediano 11 de 12 y encargo 16 4 de 5.
+- **Reanudado una tercera vez con su «sí», el encargo 16 seguía en
+  4 de 5** (1,45 USD de los 2). El fallo era de la medida: la
+  carcasa apoya en su brida, que por la holgura con el soporte quedó
+  0,18 mm sobre un borde, y se contaba entera como «en el aire».
+  Corregido: lo que queda a menos de una capa (0,2 mm) de la cama
+  está en la cama. **Rejuzgado sin modelo, pasa 5 de 5.** La medida
+  se corrigió después de ver el resultado y **él no lo ha visto**.
+  La carcasa sigue sin pasar su bucle por el chaflán de la base
+  (fallo del kit, sin arreglar).
 
 **2026-11-11 (noche): Fase 10, brazos con transmisión (ADR-021).** Decidido
 por él: **el brazo antes que el avión**; empezar por uno pequeño con servos;

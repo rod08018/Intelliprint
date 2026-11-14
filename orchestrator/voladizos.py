@@ -35,7 +35,12 @@ POSTURAS: dict[str, tuple[float, float, float]] = {
 """La cara de la pieza que va a la cama, y hacia dónde cae entonces lo que no
 se sostiene. «-z» es como se dibuja. Los nombres, los de `slicing.POSTURAS`."""
 
-EN_LA_CAMA_MM = 0.05
+CAPA_MM = 0.2
+"""La altura de capa si el perfil no la dice. Lo que queda a menos de una
+capa de la cama está en la cama: la primera se aplasta contra ella. La
+carcasa del encargo 16 (banco 1114-0023) apoyaba en su brida, que por la
+holgura con el soporte quedó 0,18 mm por encima de un borde, y con 0,05 de
+margen se dio toda la brida por «en el aire»."""
 AREA_MIN_MM2 = 1.0
 """Una zona más pequeña es el canto de un redondeo o ruido de la malla."""
 MAX_PUNTOS = 6000
@@ -99,7 +104,8 @@ def _puntos(tri, paso):
     return w @ tri
 
 
-def voladizos(stl: Path, postura: str, angulo_max_deg: float, puente_max_mm: float) -> list[Zona]:
+def voladizos(stl: Path, postura: str, angulo_max_deg: float, puente_max_mm: float,
+              capa_mm: float = CAPA_MM) -> list[Zona]:
     """Las zonas de la pieza que, apoyada en `postura`, no se pueden imprimir
     sin soportes; vacío si se puede."""
     import numpy as np
@@ -114,7 +120,8 @@ def voladizos(stl: Path, postura: str, angulo_max_deg: float, puente_max_mm: flo
     baja = v @ g                                          # cuanto mayor, más abajo
     cama = baja.max()
     mira = normal @ g
-    en_cama = (baja[idx] >= cama - EN_LA_CAMA_MM).all(1) & (mira > 0.99)
+    en_la_cama = capa_mm + 0.05
+    en_cama = (baja[idx] >= cama - en_la_cama).all(1) & (mira > 0.99)
     vuela = (mira > math.cos(math.radians(angulo_max_deg)) + 1e-3) & ~en_cama & (area > 1e-9)
     if not vuela.any():
         return []
@@ -162,7 +169,7 @@ def voladizos(stl: Path, postura: str, angulo_max_deg: float, puente_max_mm: flo
         e0, e1 = v[comun[m, 0]], v[comun[m, 1]]
         t_in, t_out = dentro[m], fuera[m]
         bajo_arista = np.maximum(baja[comun[m, 0]], baja[comun[m, 1]])
-        sobre_cama = np.minimum(baja[comun[m, 0]], baja[comun[m, 1]]) >= cama - EN_LA_CAMA_MM
+        sobre_cama = np.minimum(baja[comun[m, 0]], baja[comun[m, 1]]) >= cama - en_la_cama
         baja_mas = baja[idx[t_out]].max(1) > bajo_arista + 1e-3
         # Una esquina viva (convexa) no sostiene: es el final de lo que
         # vuela. Sí un rincón, o la misma superficie que sigue bajando.
@@ -192,11 +199,11 @@ def voladizos(stl: Path, postura: str, angulo_max_deg: float, puente_max_mm: flo
     return sorted(zonas, key=lambda z: -z.area_mm2)
 
 
-def como_imprimir(stl: Path, angulo_max_deg: float,
-                  puente_max_mm: float) -> tuple[str | None, dict[str, list[Zona]]]:
+def como_imprimir(stl: Path, angulo_max_deg: float, puente_max_mm: float,
+                  capa_mm: float = CAPA_MM) -> tuple[str | None, dict[str, list[Zona]]]:
     """(la primera postura en la que nada vuela, o None; las zonas de cada
     postura). Como se dibuja va primero."""
-    zonas = {q: voladizos(stl, q, angulo_max_deg, puente_max_mm) for q in POSTURAS}
+    zonas = {q: voladizos(stl, q, angulo_max_deg, puente_max_mm, capa_mm) for q in POSTURAS}
     return next((q for q in POSTURAS if not zonas[q]), None), zonas
 
 
@@ -216,7 +223,7 @@ def defecto_de_soportes(stl: Path, perfil: dict) -> list[str]:
     angulo, puente = perfil.get("overhang_max_deg"), perfil.get("bridge_max_mm")
     if not angulo or not puente:
         return []
-    postura, zonas = como_imprimir(stl, angulo, puente)
+    postura, zonas = como_imprimir(stl, angulo, puente, perfil.get("layer_height_mm") or CAPA_MM)
     if postura is not None:
         return []
     mejor = min(zonas, key=lambda q: sum(z.area_mm2 for z in zonas[q]))

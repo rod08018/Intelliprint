@@ -521,7 +521,7 @@ def _con_mallas(carpeta, que_vuela):
     juez la usa y qué dice con lo que le devuelve."""
     for stl in carpeta.glob("projects/*/nodos/*/parts/*/*.step"):
         stl.with_suffix(".stl").write_text("solid p\nendsolid p\n", encoding="utf-8")
-    return lambda stl, angulo, puente: que_vuela[Path(stl).stem]
+    return lambda stl, *limites: que_vuela[Path(stl).stem]
 
 
 def _zona(vuela=12.0):

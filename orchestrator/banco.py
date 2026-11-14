@@ -909,8 +909,9 @@ def soportes_del_juez(encargo: Encargo, step: Path, carpeta: Path) -> Path | Non
     from orchestrator.impresion import perfil_activo
 
     datos = perfil_activo(Path(__file__).resolve().parents[1]).datos
-    postura, zonas = voladizos.como_imprimir(stl, datos["overhang_max_deg"],
-                                             datos["bridge_max_mm"])
+    postura, zonas = voladizos.como_imprimir(
+        stl, datos["overhang_max_deg"], datos["bridge_max_mm"],
+        datos.get("layer_height_mm") or voladizos.CAPA_MM)
     mejor = postura or min(zonas, key=lambda q: sum(z.area_mm2 for z in zonas[q]))
     destino = Path(carpeta) / "juez"
     destino.mkdir(parents=True, exist_ok=True)

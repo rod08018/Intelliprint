@@ -228,3 +228,26 @@ def test_la_medida_entra_en_los_defectos_de_la_pieza(tmp_path):
     assert any(d.startswith("sin soportes:") for d in con)
     sin = defectos_de_la_pieza([], hecha, stl.with_suffix(".step"), _freecadcmd(), {})
     assert not any(d.startswith("sin soportes:") for d in sin)
+
+
+def _con_escalon(alto):
+    """Un bloque de 40 × 40 × 10 que apoya solo en una tira de 4 mm: al resto
+    de su base se le ha quitado `alto` mm por debajo."""
+    return f"""
+def construir(kit):
+    bloque = kit.caja(40, 40, 10)
+    return bloque.quitar("rebaje", kit.caja(36, 40, {alto}, en=(4, 0, 0)))
+"""
+
+
+def test_lo_que_queda_a_menos_de_una_capa_de_la_cama_esta_en_la_cama(tmp_path):
+    """Encargo 16 (banco 1114-0023), tercera reanudación: la carcasa apoya en
+    su brida, y al dejarle holgura al soporte su base quedó 0,18 mm por
+    encima de un borde. La medida dio toda la brida, 1 385 mm², por «en el
+    aire a 27 mm de donde se apoya», y al diseñador se le mandó cinco veces
+    a arreglar otra postura. Una impresora no distingue 0,18 mm: es menos
+    que una capa, y la primera se aplasta contra la cama. Con 1 mm de
+    escalón sí hay un techo en el aire, de 36 × 40."""
+    assert _vuelan(_con_escalon(0.18), tmp_path / "menos_de_una_capa") == []
+    [zona] = _vuelan(_con_escalon(1.0), tmp_path / "un_milimetro")
+    assert zona.plana and zona.area_mm2 == pytest.approx(36 * 40, abs=1)
