@@ -75,6 +75,14 @@ El eje de un servo, el aro de un rodamiento.
   codo 120. Junto con `carga_g` (abajo) sirve para comprobar, antes de
   dibujar nada, que el motor puede con lo que cuelga de él: si no alcanza,
   te lo diré con las cifras.
+- `a_lo_largo`: `true` **si el eje de este giro sigue al brazo** en vez de
+  cruzarlo: el antebrazo que gira sobre sí mismo, la herramienta que gira
+  sobre su propio eje («su eje va a lo largo del antebrazo», «gira sobre sí
+  mismo», «rota la herramienta»). Un giro así no levanta la carga, la hace
+  rodar: no se le pide el par de un giro que cabecea. Lleva su `brazo_mm`
+  igual que los demás —de la cara por donde sale su eje a la punta, a lo
+  largo de él— para saber dónde está. Los giros que levantan o cabecean no
+  lo llevan.
 - Cada actuador mueve una sola pieza, y cada pieza gira sobre uno solo.
 
 #### `movido_por`: cuando el motor no está en el eje

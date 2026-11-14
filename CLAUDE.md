@@ -252,9 +252,14 @@ imprimir; lo que dejó abierto está abajo.
   a su punta se le mide a lo largo del eje. El plan del brazo
   entero, escrito a mano, vale (`tests/test_brazo_grande.py`): el
   hombro pide 21,3 N·m de 32,2 con lo impreso a 0,2 g/mm. **Falta:**
-  nada está construido a mano (no se sabe si la muñeca choca), y el
-  desglosador no sabe escribir `a_lo_largo`: tocar su prompt pide
-  los tests de pago, por acordar.
+  nada está construido a mano (no se sabe si la muñeca choca).
+- **Dicho por él el 2026-11-14: «5 dolares dale»**, al pedirle
+  gasto para los tests de pago del desglosador. Entendido así
+  (interpretación del asistente): hasta 5 USD para esos tests, no
+  para el banco. El desglosador ya escribe `a_lo_largo` (una
+  petición, una corrida); los 14 tests del host pasan. **Gastado:
+  0,12 USD**, medido en el saldo de DeepSeek. El gasto del banco
+  para el brazo sigue por acordar.
 - **Decidido por él el 2026-11-14: «Ambas compradas y en los bom
   agrega el link de compra de la reductora».** Las reductoras del
   hombro y del codo se compran y F12.2 (reductora) no se hace. Hechas

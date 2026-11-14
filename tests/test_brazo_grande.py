@@ -150,6 +150,72 @@ def test_si_la_muneca_no_puede_doblada_lo_dice_el_giro_del_antebrazo():
     assert "2.194" in error and "1.300" in error and "100 mm" in error
 
 
+def _desglosar(peticion: str) -> Obra:
+    import os
+    from pathlib import Path
+
+    from orchestrator.agents.desglosador import DesglosadorAgent
+    from orchestrator.cli import _cliente
+    from orchestrator.config import load_env
+    from orchestrator.impresion import perfil_activo
+    from orchestrator.llm.router import Router
+
+    env = {**os.environ, **load_env(Path(".env"))}
+    if not env.get("DEEPSEEK_API_KEY"):
+        pytest.skip("sin DEEPSEEK_API_KEY")
+    router = Router.from_config_file(Path("config/models.yaml"), env=env)
+    obra = DesglosadorAgent(_cliente(router, env, "reason"),
+                            reserva=_cliente(router, env)).desglosar(
+        peticion, agujeros=perfil_activo(Path(".")).datos["holes"])
+    print(obra.model_dump_json(indent=1))
+    return obra
+
+
+@pytest.mark.llm
+def test_deepseek_dice_que_el_giro_del_antebrazo_va_a_lo_largo():
+    """La muñeca del brazo de 2 kg, sola. La petición dice literalmente que
+    el primer eje «va a lo largo del antebrazo» y que el segundo cabecea:
+    el primero lleva `a_lo_largo` y 280 mm hasta la punta (180 + 100), y el
+    segundo no, y 100. Sin decirlo, el plan no vale: al primero se le
+    pedirían 2000 g a 280 mm."""
+    obra = _desglosar(
+        "Una muñeca de robot con dos giros, con motores NEMA 17. El primero gira el antebrazo "
+        "sobre sí mismo: su eje va a lo largo del antebrazo, sobre una reductora cicloidal "
+        "28:1. El segundo, 180 mm más allá, cabecea la mano, con el eje horizontal, sobre "
+        "otra reductora cicloidal 28:1. Del eje del cabeceo a la punta hay 100 mm, y la punta "
+        "levanta 2 kg. Cada eje recorre 180°. La primera pieza se atornilla a un tablero con "
+        "cuatro tornillos M3.")
+    # Sin que nadie se lo explicara, el modelo dejó el primer giro sin
+    # `brazo_mm` (2026-11-14): valía, y nadie comprobaba su motor.
+    giros = sorted((u for u in obra.uniones if u.tipo == "gira"),
+                   key=lambda u: -(u.brazo_mm or 0))
+    assert [(u.a_lo_largo, u.brazo_mm) for u in giros] == [(True, 280), (False, 100)]
+    assert obra.carga_g == 2000
+    assert all(u.componente == "cicloidal-nema17-28" and u.movido_por.motor == "nema17"
+               for u in giros)
+
+
+@pytest.mark.llm
+def test_deepseek_pone_el_motorreductor_en_el_eje_y_sin_movido_por():
+    """El hombro del brazo de 2 kg, solo. El motor viene con su reductora
+    montada: es un solo componente, y el brazo gira en su eje de salida. La
+    petición lo nombra por su número de parte.
+
+    Este test no se vio en rojo: el modelo ya lo hace bien con lo que dicen
+    las notas de la ficha, sin ninguna regla en su prompt (comprobado el
+    2026-11-14 con el prompt de antes). Se queda de guarda."""
+    obra = _desglosar(
+        "Un hombro de brazo robot. Un soporte atornillado a un tablero con cuatro tornillos "
+        "M4 aloja un motor con su reductora planetaria ya montada, el 23HS30-2804S-PG47, con "
+        "el eje horizontal. El brazo gira directamente en el eje de salida de la reductora, "
+        "180°; mide 300 mm del eje a la punta y levanta 2 kg.")
+    [giro] = [u for u in obra.uniones if u.tipo == "gira"]
+    assert giro.componente == "nema23-pg47-76" and giro.movido_por is None
+    assert (giro.brazo_mm, giro.eje, obra.carga_g) == (300, "horizontal", 2000)
+    assert not giro.a_lo_largo
+    assert obra.nodo(giro.sobre).compra == ["nema23-pg47-76"]
+
+
 def test_el_sitio_de_un_giro_a_lo_largo_no_es_lo_que_mide_el_brazo():
     """El radio libre de un giro es lo que barre la pieza alrededor de su
     eje. La que cabecea llega a 100 mm de su eje y necesita más de eso; la
