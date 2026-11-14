@@ -1,0 +1,88 @@
+# NEMA 23 de 56 mm con reductora planetaria 47:1 ya montada
+# (23HS22-2804S-PG47) (F12.1 (fichas)). Decidido por el usuario el
+# 2026-11-14 para el brazo de 2 kg: las reductoras del hombro y del codo se
+# compran. Esta es la del codo. El 2026-11-14 la tienda la daba a 65,91 USD.
+id: nema23-pg47-56
+nombre: NEMA 23 de 56 mm con reductora planetaria 47:1 (23HS22-2804S-PG47)
+alias: ["23HS22-2804S-PG47"]
+verificado: false
+compra_url: https://www.oyostepper.com/goods-308-Nema-23-Stepper-Motor-Bipolar%20-L%3D56mm-%20w-Gear-Ratio-47-1-Planetary-Gearbox.html
+fuentes:
+  - url: https://www.oyostepper.com/images/upload/File/23HS22-2804S-PG47.pdf
+    cita: "23HS22-2804S-PG47, plano: 57REF, 30±1, 72REF, 56REF, 20±0.5, Ø32 (0/-0.15), Ø12 (-0.01/-0.04), Ø56, 2, 4-M5, Ø45±0.15, chavetero 4 y 9.5, cable 500±10"
+  - url: https://www.oyostepper.com/images/upload/File/23HS22-2804S-PG47.pdf
+    cita: "HOLDING TORQUE w/o GEARBOX(Nm) 1.25; GEAR RATIO 46 82/125; EFFICIENCY 73.00%; BACKLASH@NO-LOAD <=1.5°; MAX.PERMISSIBLE TORQUE(Nm) 40.00; SHAFT MAXIMUM AXIAL LOAD(N) 100.00; SHAFT MAXIMUM RADIAL LOAD(N) 200.00; WEIGHT(Kg) 1.60"
+  - url: https://www.oyostepper.com/goods-308-Nema-23-Stepper-Motor-Bipolar%20-L%3D56mm-%20w-Gear-Ratio-47-1-Planetary-Gearbox.html
+    cita: "Manufacturer Part Number: 23HS22-2804S-PG47; Frame Size: 60 x 60mm; Gearbox Length: 72mm; Motor Length: 56mm; Shaft Diameter: Φ12mm; Shaft Length: 30mm"
+marco: >
+  Origen en el centro de la cara de montaje de la reductora (la del eje de
+  salida): la reductora y el motor quedan detrás, hacia -z, y el eje sale
+  hacia +z. Los cables salen del motor por el lado -y, junto a su tapa de
+  atrás.
+mira: "+z"
+cuerpos:
+  - nombre: reductora
+    cilindro: {diametro: 56, alto: 72, eje: "+z"}
+    en: [0, 0, -72]
+    porque: "Ø56 × 72 REF; en su cara de delante van los cuatro M5"
+  # El plano acota 57 REF de lado y la página de la tienda dice «Frame Size:
+  # 60 x 60mm». Se toma lo mayor: una pieza dibujada alrededor de 57 no
+  # entraría en uno de 60, y al revés solo sobra milímetro y medio por lado.
+  - nombre: motor
+    caja: [60, 60, 56]
+    en: [-30, -30, -128]
+    porque: "el motor, detrás de la reductora: 56 REF de largo"
+  - nombre: resalte
+    cilindro: {diametro: 32, alto: 2, eje: "+z"}
+    en: [0, 0, 0]
+    porque: "centra la reductora: el agujero de la pieza tiene que dejarlo pasar"
+  - nombre: eje
+    cilindro: {diametro: 12, alto: 30, eje: "+z"}
+    en: [0, 0, 0]
+    porque: "30 ± 1 desde la cara; lleva un chavetero de 4 mm en sus últimos 20"
+despejar:
+  # El plano dibuja los cuatro cables (500 ± 10) saliendo del motor junto a
+  # su tapa de atrás, sin acotar dónde: el sitio es una estimación de quien
+  # escribió la ficha, como en el NEMA 23 suelto.
+  - nombre: cables
+    caja: [14, 15, 14]
+    en: [-7, -45, -128]
+    porque: "los cuatro cables salen por ese lateral, junto a la tapa de atrás"
+salidas:
+  - nombre: eje
+    en: [0, 0, 0]
+    eje: "+z"
+    recorrido: [0, 360]
+    largo: 30
+    porque: "un paso a paso no tiene tope: la vuelta entera"
+# Cuatro roscas M5 en la cara de la reductora, en un círculo de Ø45 ± 0.15.
+# El plano dibuja ocho taladros en esa cara; la cota «4-M5» señala los de las
+# diagonales (22,5 × cos 45° = 15,91). El fondo de la rosca no lo da: los
+# 6 mm son un supuesto de quien escribió la ficha, del lado corto, para que
+# el tornillo no haga tope dentro.
+fijacion:
+  - {nombre: M5 1, diametro: 5, en: [-15.91, -15.91, 0], eje: "-z", tornillo: M5, dentro_mm: 6}
+  - {nombre: M5 2, diametro: 5, en: [15.91, -15.91, 0], eje: "-z", tornillo: M5, dentro_mm: 6}
+  - {nombre: M5 3, diametro: 5, en: [-15.91, 15.91, 0], eje: "-z", tornillo: M5, dentro_mm: 6}
+  - {nombre: M5 4, diametro: 5, en: [15.91, 15.91, 0], eje: "-z", tornillo: M5, dentro_mm: 6}
+notas: >
+  Motor y reductora vienen montados: la pieza que se mueve va en el eje de
+  salida, de Ø12 con chavetero de 4 mm (20 de largo; 9.5 del lomo al fondo
+  del chavetero), y el plan no le pone `movido_por`. El eje admite 200 N de
+  carga radial y 100 N axial: un brazo no cuelga solo de él, lleva un
+  rodamiento al otro lado. La reductora admite 40 N·m y tiene hasta 1,5° de
+  juego sin carga. Se atornilla por delante con cuatro M5 a las roscas de su
+  cara.
+
+# El plano: «WEIGHT(Kg) 1.60». La página de la tienda dice 1.7 en otro sitio.
+masa_g: 1600
+
+# El plano: «HOLDING TORQUE w/o GEARBOX(Nm) 1.25», el del motor solo, parado
+# y a 2.8 A. A la salida llega multiplicado por la relación y el rendimiento
+# de la misma hoja: 1,25 × 46,656 × 0,73 = 42,57 N·m. Pidiéndole la mitad,
+# 21,3: por debajo de los 40 que admite la reductora.
+par_retencion_mNm: 1250
+# «GEAR RATIO 46 82/125»: 46,656 vueltas del motor por cada una de la salida.
+reduccion: 46.656
+# «EFFICIENCY 73.00%».
+rendimiento: 0.73

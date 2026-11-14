@@ -1162,7 +1162,13 @@ def _lista_de_materiales(m: dict | None) -> str:
         return ""
     impresas = "".join(f'<li>{"✓ " if p["impresa"] else ""}{e(p["nombre"])}</li>'
                        for p in m["impresas"])
-    compradas = "".join(f'<li><b>{c["cuantos"]} ×</b> {e(c["nombre"])}</li>' for c in m["comprado"])
+    # Lo que su ficha dice dónde se compra lleva el enlace, en otra pestaña:
+    # quien mira la lista está a punto de pedirlo (el usuario, 2026-11-14).
+    compradas = "".join(
+        f'<li><b>{c["cuantos"]} ×</b> {e(c["nombre"])}'
+        + (f' · <a href="{e(c["enlace"])}" target="_blank" rel="noopener noreferrer">'
+           'dónde comprarlo</a>' if c.get("enlace") else "")
+        + "</li>" for c in m["comprado"])
     sin_parentesis = re.compile(r"\s*\(.*\)$")
     incluido = "".join(f'<li><b>{c["cuantos"]} ×</b> {e(c["nombre"])} <span class="suave">'
                        f'(con el {e(sin_parentesis.sub("", c["viene_con"]))})</span></li>'

@@ -236,14 +236,22 @@ imprimir; lo que dejó abierto está abajo.
 - **Dicho por él el 2026-11-14: «quiero que levante 2 kg el brazo, tú
   propón rodamientos y motores».** Propuesto, **por aprobar** (la
   tabla está en `PLAN_PROYECTO.md`, Fase 12): tramos de 260 + 240 +
-  100 mm; base con NEMA 23 de 56 mm y correa 5:1; hombro con NEMA 23
-  de 113 mm (3,0 N·m) y reductora 40:1 (pide 24,1 N·m de 39,0); codo
-  con NEMA 23 de 56 mm y la misma 40:1 (10,1 de 16,4); la muñeca,
-  tres NEMA 17 con las cicloidales de hoy (28, 28 y 10 a 1).
-  Rodamientos por pares: 2 × 6810-2RS en la base, 6806-2RS en hombro,
-  codo, J4 y J6, y 608ZZ en el cabeceo. Las masas de lo impreso son
-  estimaciones del asistente, y **no se sabe si una cicloidal impresa
-  aguanta 24 N·m**. Faltan sus fichas, y el tope de gasto del brazo.
+  100 mm; base con NEMA 23 de 56 mm y correa 5:1; la muñeca, tres
+  NEMA 17 con las cicloidales de hoy (28, 28 y 10 a 1). Rodamientos:
+  2 × 6810-2RS en la base, 6806-2RS en hombro, codo, J4 y J6, y
+  608ZZ en el cabeceo. Las masas de lo impreso son estimaciones del
+  asistente. Faltan esas fichas, y el tope de gasto del brazo.
+- **Decidido por él el 2026-11-14: «Ambas compradas y en los bom
+  agrega el link de compra de la reductora».** Las reductoras del
+  hombro y del codo se compran y F12.2 (reductora) no se hace. Hechas
+  sus fichas: `nema23-pg47-76` (hombro: pide 25,1 N·m de 32,2) y
+  `nema23-pg47-56` (codo: 10,1 de 21,3), un NEMA 23 con planetaria
+  de 46,656:1 ya montada; la pieza gira en su eje, sin `movido_por`.
+  Una ficha puede decir dónde se compra (`compra_url`) y la lista
+  de materiales lo enseña. **Hay que decírselo:** su hoja da hasta
+  1,5° de juego (15,7 mm en la punta por el hombro y 8,9 por el
+  codo), y al proponérselas se le dijo «casi 9 mm». Las hojas son
+  las de una tienda (Oyostepper); la del fabricante no se dejó leer.
 - **El avión, dicho por él esa noche:** un VTOL, con una autonomía
   muy buena en horas, hasta 250 km de alcance, hasta 8 libras
   (3,63 kg) de carga, y que lleve hasta dos cámaras y un lidar sin

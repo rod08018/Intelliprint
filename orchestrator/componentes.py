@@ -221,18 +221,45 @@ class Ficha(BaseModel):
 
     reduccion: float | None = Field(default=None, ge=1)
     """Si es una reductora: las vueltas de su entrada por cada vuelta de su
-    salida (F10.7 (cicloidal)). El plan que la monta tiene que decir la misma."""
+    salida (F10.7 (cicloidal)). El plan que la monta tiene que decir la misma.
+    Si además da par, es un motor con la reductora ya montada, comprados
+    juntos (F12.1 (fichas)): la pieza gira en su eje de salida y el plan no
+    le pone `movido_por`."""
+    rendimiento: float | None = Field(default=None, gt=0, le=1)
+    """La parte del par que llega a la salida de una reductora comprada,
+    como la da su hoja («EFFICIENCY 73.00%»). El de una impresa no se sabe:
+    es el supuesto de `estudio.RENDIMIENTO`."""
+    compra_url: str = ""
+    """Dónde se compra, si es algo de un fabricante y un número de parte
+    concretos (pedido por el usuario el 2026-11-14: «en los BOM agrega el
+    link de compra de la reductora»). Sale en la lista de materiales. Un
+    608ZZ lo vende cualquiera y no lleva."""
+
+    @model_validator(mode="after")
+    def _enlace_web(self):
+        # La web lo pinta como enlace: un `javascript:` en una ficha sería
+        # código en la página de quien la abre.
+        if self.compra_url and not re.match(r"https?://\S+$", self.compra_url):
+            raise ValueError(f"«{self.id}»: `compra_url` tiene que ser una dirección http(s)")
+        return self
 
     def da_par(self) -> bool:
         """¿Mueve algo? Un rodamiento o un sensor, no."""
         return bool(self.par_retencion_mNm or self.par_kgf_cm)
 
     def par_motor_Nm(self, voltios: float | None = None) -> float | None:
-        """El par con el que cuenta el estudio: el de retención de un paso a
-        paso, o el de bloqueo de un servo a esa tensión. None si la ficha no
-        da ninguno, o si es un servo y no se sabe a qué tensión va."""
+        """El par con el que cuenta el estudio, en la salida de la ficha: el
+        de retención de un paso a paso, o el de bloqueo de un servo a esa
+        tensión. None si la ficha no da ninguno, o si es un servo y no se
+        sabe a qué tensión va."""
         if self.par_retencion_mNm:
-            return self.par_retencion_mNm / 1000
+            par = self.par_retencion_mNm / 1000
+            # Un motorreductor: su hoja da el par del motor SIN la reductora
+            # («HOLDING TORQUE w/o GEARBOX»), y la salida de la ficha es el
+            # eje de la reductora.
+            if self.reduccion:
+                par *= self.reduccion * (self.rendimiento or 1.0)
+            return par
         return None if voltios is None else self.par_Nm(voltios)
 
 

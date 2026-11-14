@@ -426,3 +426,97 @@ def test_una_peticion_que_nombra_un_nema_23_no_recibe_el_17():
     from orchestrator.componentes import mencionados
     assert mencionados("Una base para un motor NEMA 23 con su polea") == ["nema23"]
     assert mencionados("Escuadra para un motor NEMA 17") == ["nema17"]
+
+
+# --- F12.1 (fichas): los NEMA 23 con reductora planetaria comprada -------------------------
+# Decidido por el usuario el 2026-11-14: las reductoras del hombro y del codo
+# del brazo de 2 kg se compran («Ambas compradas»). Los planos del
+# 23HS22-2804S-PG47 y del 23HS30-2804S-PG47, leídos ese día en
+# https://www.oyostepper.com/images/upload/File/23HS22-2804S-PG47.pdf y
+# .../23HS30-2804S-PG47.pdf.
+
+MOTORREDUCTORES = {"nema23-pg47-56": (56, 1.25, 1600), "nema23-pg47-76": (76, 1.89, 2000)}
+
+
+@pytest.mark.parametrize("id_", MOTORREDUCTORES)
+def test_el_motorreductor_como_su_plano(id_):
+    """El plano: reductora de Ø56 × 72 REF, motor de 57 REF de lado y 56 o 76
+    de largo detrás, resalte de Ø32 × 2, eje de Ø12 que sale 30 ± 1 y cuatro
+    M5 en un círculo de Ø45 ± 0.15."""
+    largo, _, _ = MOTORREDUCTORES[id_]
+    reductora = _cuerpo(id_, "reductora")
+    assert (reductora.cilindro.diametro, reductora.cilindro.alto) == (56, 72)
+    assert reductora.en == [0, 0, -72]
+    motor = _cuerpo(id_, "motor")
+    # El motor empieza donde acaba la reductora, centrado en el eje.
+    assert motor.caja[2] == largo and motor.en[2] == -72 - largo
+    assert motor.en[0] + motor.caja[0] / 2 == pytest.approx(0)
+    resalte, eje = _cuerpo(id_, "resalte").cilindro, _cuerpo(id_, "eje").cilindro
+    assert (resalte.diametro, resalte.alto) == (32, 2)
+    assert (eje.diametro, eje.alto) == (12, 30)
+    f = cargar(id_).fijacion
+    assert len(f) == 4 and all(a.tornillo == "M5" and not a.tuerca for a in f)
+    for a in f:
+        assert (a.en[0] ** 2 + a.en[1] ** 2) ** 0.5 == pytest.approx(22.5, abs=0.01)
+    assert sum(a.en[0] for a in f) == pytest.approx(0) and sum(a.en[1] for a in f) == pytest.approx(0)
+    [salida] = cargar(id_).salidas
+    assert (salida.en, salida.eje, salida.recorrido, salida.largo) == ([0, 0, 0], "+z", (0, 360), 30)
+
+
+@pytest.mark.parametrize("id_", MOTORREDUCTORES)
+def test_un_motorreductor_da_el_par_en_su_salida(id_):
+    """La hoja da el par del motor SIN la reductora («HOLDING TORQUE w/o
+    GEARBOX»), la relación («46 82/125», 46,656) y el rendimiento («73.00%»).
+    En el eje de salida, que es sobre el que gira la pieza, a mano:
+    1,25 × 46,656 × 0,73 = 42,574 N·m; 1,89 × 46,656 × 0,73 = 64,371 N·m."""
+    _, par, masa = MOTORREDUCTORES[id_]
+    f = cargar(id_)
+    assert f.reduccion == pytest.approx(46 + 82 / 125) and f.rendimiento == 0.73
+    assert f.par_motor_Nm() == pytest.approx(par * 46.656 * 0.73)
+    assert f.par_motor_Nm() == pytest.approx({1.25: 42.574, 1.89: 64.371}[par], abs=1e-3)
+    assert f.da_par() and f.masa_g == masa
+
+
+def test_un_motor_suelto_sigue_dando_el_par_de_su_hoja():
+    """El NEMA 17 y el NEMA 23 no llevan reductora: su par es el de la hoja,
+    y la relación la pone la transmisión del plan."""
+    assert cargar("nema17").par_motor_Nm() == pytest.approx(0.400)
+    assert cargar("nema23").par_motor_Nm() == pytest.approx(1.26)
+
+
+def test_una_reductora_impresa_no_da_par_aunque_reduzca():
+    """La cicloidal tiene `reduccion` y ningún motor dentro: no mueve nada
+    sola, y el plan tiene que seguir pidiéndole su `movido_por`."""
+    from orchestrator import modulos
+    ficha = modulos.cargar("cicloidal-nema17-28").ficha
+    assert ficha["reduccion"] == 28 and not ficha.get("par_retencion_mNm")
+
+
+@pytest.mark.parametrize("id_", MOTORREDUCTORES)
+def test_el_motorreductor_dice_donde_se_compra(id_):
+    """«En los BOM agrega el link de compra de la reductora» (el usuario,
+    2026-11-14). La página de la tienda donde se leyeron el precio y la hoja,
+    con el número de parte del fabricante en la ficha para poder buscarlo en
+    otra."""
+    f = cargar(id_)
+    assert f.compra_url.startswith("https://www.oyostepper.com/goods-")
+    parte = {"nema23-pg47-56": "23HS22-2804S-PG47", "nema23-pg47-76": "23HS30-2804S-PG47"}[id_]
+    assert parte in f.nombre and parte in f.alias
+
+
+def test_el_enlace_de_compra_es_una_direccion_web():
+    """Se pinta como enlace en la web: nada que no sea http(s)."""
+    from pydantic import ValidationError
+
+    from orchestrator.componentes import Ficha
+    datos = cargar("608zz").model_dump()
+    assert Ficha(**{**datos, "compra_url": "https://tienda.example/608"}).compra_url
+    with pytest.raises(ValidationError):
+        Ficha(**{**datos, "compra_url": "javascript:alert(1)"})
+
+
+def test_una_peticion_que_nombra_el_motorreductor_por_su_numero_de_parte():
+    from orchestrator.componentes import mencionados
+    assert mencionados("El hombro, sobre un 23HS30-2804S-PG47") == ["nema23-pg47-76"]
+    # Y quien pide un NEMA 23 a secas no recibe uno con reductora.
+    assert mencionados("Una base para un motor NEMA 23") == ["nema23"]

@@ -105,6 +105,30 @@ def test_con_un_nema17_y_correa_el_hombro_alcanza():
     assert _errores(plan) == []
 
 
+def test_un_motorreductor_comprado_mueve_el_giro_desde_su_propio_eje():
+    """El brazo gira en el eje de salida de un NEMA 23 con reductora
+    planetaria comprada (F12.1 (fichas)), sin `movido_por`: la reducción va
+    dentro de lo comprado. Con las cifras de su hoja, a mano:
+
+    el de 56 mm da 1,25 × 46,656 × 0,73 = 42,574 N·m en la salida, y se le
+    pide la mitad, 21,287; el de 76 mm, 1,89 × 46,656 × 0,73 = 64,371, la
+    mitad 32,186.
+
+    4 kg a 600 mm: 2 400 000 g·mm; el tramo, 0,2 × 600 = 120 g a 300, 36 000.
+    Pide 2 436 000 g·mm, 23,889 N·m: el de 56 no alcanza y el de 76 sí."""
+    from orchestrator.dimensionar import errores, pares
+    plan = copy.deepcopy(UN_TRAMO)
+    plan["carga_g"] = 4000
+    plan["uniones"][0].update(radio_libre_mm=605, brazo_mm=600)
+    for ficha, da, alcanza in (("nema23-pg47-56", 21.287, False), ("nema23-pg47-76", 32.186, True)):
+        plan["nodos"][0]["compra"] = [ficha]
+        plan["uniones"][0]["componente"] = ficha
+        [p] = pares(Obra(**plan))
+        assert p["pide_Nm"] == pytest.approx(2436000e-6 * G) == pytest.approx(23.889, abs=1e-3)
+        assert p["da_Nm"] == pytest.approx(da, abs=1e-3)
+        assert (errores(Obra(**plan)) == []) is alcanza
+
+
 def test_un_eje_vertical_no_carga_peso():
     """Un plato que gira sobre un eje vertical no levanta nada: la gravedad
     no le pide par, mida lo que mida lo que lleva encima."""

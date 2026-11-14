@@ -85,3 +85,23 @@ def test_una_pieza_suelta_tambien_tiene_materiales(tmp_path):
     assert [c["nombre"] for c in m["comprado"]][1:] == [
         "Tornillo M5 · 6 mm de pieza + lo que entre donde se fije"]
     assert m["impresas"] == [{"id": "soporte", "nombre": "Soporte", "impresa": False}]
+
+
+def test_lo_comprado_dice_donde_se_compra_si_su_ficha_lo_sabe(tmp_path):
+    """«En los BOM agrega el link de compra de la reductora» (el usuario,
+    2026-11-14). El enlace es el de la tienda donde se leyó su hoja, escrito
+    aquí tal cual; lo que no tiene uno en su ficha (el MG996R) no lo inventa."""
+    parte = tmp_path / "parts" / "hombro"
+    parte.mkdir(parents=True)
+    (parte / "rasgos.json").write_text(json.dumps([
+        {"nombre": "reductora", "tipo": "componente", "ficha": "nema23-pg47-76", "en": [0, 0, 0]},
+        {"nombre": "mg996r", "tipo": "componente", "ficha": "mg996r", "en": [80, 0, 0]},
+    ]), encoding="utf-8")
+    (parte / "envolvente.json").write_text(
+        json.dumps({"min": [-40, -40, 0], "max": [120, 40, 8]}), encoding="utf-8")
+    (tmp_path / "pieza.json").write_text(json.dumps({"title": "Hombro"}), encoding="utf-8")
+    comprado = {c["id"]: c for c in materiales(tmp_path)["comprado"]}
+    assert comprado["nema23-pg47-76"]["enlace"] == (
+        "https://www.oyostepper.com/goods-311-Nema-23-Stepper-Motor-Bipolar-L%3D76mm-"
+        "w-Gear-Ratio-47-1-Planetary-Gearbox.html")
+    assert "enlace" not in comprado["mg996r"]

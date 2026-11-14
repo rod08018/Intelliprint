@@ -553,6 +553,26 @@ def construir(kit):
     assert _dentro(step, [(45, 25, 0.05), (41.05, 30, 1)], tmp_path) == [True, False]
 
 
+def test_el_motorreductor_cuelga_de_una_placa_y_su_eje_la_atraviesa(tmp_path):
+    """F12.1 (fichas): el NEMA 23 con reductora comprada, construido de
+    verdad. Cuelga bajo una placa de 6 mm con la cara de la reductora contra
+    ella. A mano, con su plano (resalte de Ø32 × 2 y eje de Ø12 × 30 desde
+    la cara), con el eje en (35, 35):
+    - (35, 35, 3), en el eje: vacío, lo atraviesa.
+    - (45, 35, 1), a 10 del eje y a media altura del resalte (radio 16): vacío.
+    - (45, 35, 4), a 10 del eje y por encima del resalte: placa (el eje
+      tiene 6 de radio).
+    - (55, 35, 1), a 20 del eje: fuera del resalte, placa."""
+    step = _step("""
+def construir(kit):
+    placa = kit.caja(70, 70, 6)
+    motor = kit.componente("nema23-pg47-76", en=(35, 35, 0), entra_por="-z")
+    return placa.quitar("motor", motor.hueco())
+""", tmp_path)
+    puntos = [(35, 35, 3), (45, 35, 1), (45, 35, 4), (55, 35, 1)]
+    assert _dentro(step, puntos, tmp_path) == [False, False, True, True]
+
+
 def test_una_pared_mas_fina_que_el_perfil_vuelve_al_disenador(tmp_path):
     """Banco `1105-2120` (2026-11-05): el soporte del MG996R salió con una
     pared de 0.15 mm. El banco la medía; el bucle no, y el diseñador nunca

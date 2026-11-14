@@ -17,12 +17,15 @@ def _rasgos(parte: Path) -> list[dict]:
     return json.loads(ruta.read_text(encoding="utf-8")) if ruta.is_file() else []
 
 
-def _nombre_de_ficha(ficha: str, fichas: list[Path]) -> str:
+def _de_la_ficha(ficha: str, fichas: list[Path]) -> dict:
+    """El nombre con el que sale en la lista y, si la ficha lo dice, dónde
+    se compra (pedido por el usuario el 2026-11-14 para las reductoras)."""
     from orchestrator.componentes import cargar
     try:
-        return cargar(ficha, fichas).nombre
+        f = cargar(ficha, fichas)
     except Exception:   # una ficha que ya no está en la biblioteca: su id basta
-        return ficha
+        return {"nombre": ficha}
+    return {"nombre": f.nombre, **({"enlace": f.compra_url} if f.compra_url else {})}
 
 
 def _tornilleria(carpeta: Path) -> tuple[Counter, Counter, dict]:
@@ -48,6 +51,7 @@ def _tornilleria(carpeta: Path) -> tuple[Counter, Counter, dict]:
 def materiales(carpeta: Path) -> dict:
     """{"impresas": [{id, nombre, impresa}],
     "comprado": [{id, nombre, cuantos, tipo}],          tipo: componente | tornilleria
+                 más "enlace" si la ficha dice dónde se compra
     "incluido": [{nombre, cuantos, viene_con}]}: lo que viene en la bolsa
     de un componente, que se ve en el ensamble pero no se compra aparte."""
     from orchestrator import obra as O
@@ -111,7 +115,7 @@ def materiales(carpeta: Path) -> dict:
                         f"{m['correa']['dientes']} dientes ({m['correa']['largo_mm']:g} mm)"] += 1
     return {
         "impresas": impresas,
-        "comprado": [{"id": f, "nombre": _nombre_de_ficha(f, fichas), "cuantos": n,
+        "comprado": [{"id": f, **_de_la_ficha(f, fichas), "cuantos": n,
                       "tipo": "componente"} for f, n in sorted(comprado.items())]
                     + [{"id": nombre, "nombre": nombre, "cuantos": n, "tipo": "modulo"}
                        for nombre, n in sorted(sueltos.items())]

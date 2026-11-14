@@ -302,6 +302,24 @@ def test_la_pagina_de_un_robot_dice_lo_que_lleva(tmp_path):
     assert "Robot · 3 piezas" in texto
 
 
+def test_la_lista_enlaza_donde_se_compra_lo_que_lo_dice():
+    """«En los BOM agrega el link de compra de la reductora» (el usuario,
+    2026-11-14): lo comprado que trae enlace lo enseña, en otra pestaña; lo
+    que no, sigue como estaba. El enlace va escapado: es un dato de una ficha."""
+    from orchestrator.web.paginas import _lista_de_materiales
+    html = _lista_de_materiales({
+        "impresas": [{"id": "hombro", "nombre": "Hombro", "impresa": False}],
+        "comprado": [
+            {"id": "reductora", "nombre": "NEMA 23 con reductora", "cuantos": 1,
+             "tipo": "componente", "enlace": "https://tienda.example/a?b=1&c=2"},
+            {"id": "sg90", "nombre": "Micro servo SG90 (9 g)", "cuantos": 2, "tipo": "componente"}],
+        "incluido": []})
+    assert html.count("<a ") == 1
+    assert 'href="https://tienda.example/a?b=1&amp;c=2"' in html
+    assert 'target="_blank"' in html and 'rel="noopener' in html
+    assert "<b>2 ×</b> Micro servo SG90 (9 g)</li>" in html
+
+
 def test_la_tarjeta_no_se_llena_de_tornillos(tmp_path):
     """En la tarjeta caben los componentes; la tornillería va en la página."""
     assert "Tornillo" not in _tarjeta(_inventario(tmp_path), "2026-11-09-pan-tilt")
