@@ -274,6 +274,27 @@ imprimir; lo que dejó abierto está abajo.
   del motor de la brida se contaban como del motor del antebrazo, a
   285 mm). No cambia ningún tornillo de las ocho corridas anteriores.
   La muñeca del encargo va sin rodamientos de apoyo.
+- **Dicho por él el 2026-11-14, al ver la muñeca medida aparte:**
+  «no veo por qué son proyectitos separados, cada proyecto puede
+  tener mecanismos completos como la muñeca del brazo», y «termina,
+  pero lo deseado es como yo lo describí, así que debes arreglar
+  eso». **El brazo es UN proyecto, con la muñeca dentro.** La corrida
+  de la muñeca (`1114-1856`) se deja terminar como ensayo. Escrito el
+  encargo 18, el brazo entero (`brazo_seis_ejes_2kg`), con tramos de
+  260 + 215 + 125 mm; su plan a mano vale (el hombro pide 20,96 N·m
+  de 32,19). **Sin correr: su tope de gasto no está acordado.**
+  Entendido así (interpretación del asistente): querría además
+  aprovechar un mecanismo ya diseñado dentro del proyecto grande;
+  hoy cada encargo se diseña de cero y «ampliar» solo añade por
+  encima.
+- **Pedido por él el 2026-11-14, «es importante»: administrar la web
+  pieza a pieza**: girar cada pieza y escribirle («agrega una
+  rendija que permita el flujo de aire»). Hecho en la página de un
+  backlog: «Girar en 3D» en cada tarjeta, «Pedir un cambio a esta
+  pieza» a la vista (estaba bajo «Más») y tocar una pieza en el
+  ensamble para ir a ella. Probado en el navegador. Falta: las
+  piezas sueltas, y elegir una cara o un punto en vez de decirlo
+  con palabras.
 - **Decidido por él el 2026-11-14: «Ambas compradas y en los bom
   agrega el link de compra de la reductora».** Las reductoras del
   hombro y del codo se compran y F12.2 (reductora) no se hace. Hechas

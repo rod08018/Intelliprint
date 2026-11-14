@@ -7,28 +7,37 @@ tendría que salir del desglosador— y sus cuentas de par, a mano y en gramos
 por milímetro (1 N·m son 101 972 g·mm), con lo impreso a 0,2 g/mm como en
 `dimensionar`.
 
-Tramos: del hombro al codo 260 mm, del codo a la muñeca 240 y de la muñeca a
-la brida 100. Desde la punta: el hombro a 600, el codo a 340, el giro del
-antebrazo (J4) a 280, el cabeceo (J5) a 100 y el giro de la herramienta (J6)
-a 40. Lo comprado que lleva cada pieza va en el eje del giro siguiente:
+El brazo es UN proyecto, con la muñeca dentro: el usuario lo dijo ese mismo
+día al ver la muñeca medida aparte («no veo por qué son proyectitos
+separados»).
 
-- brazo: el motorreductor del codo y su rodamiento, 1600 + 22 = 1622 g.
-- antebrazo: lo del J4, 275 + 60 + 22 + 22 = 379 g.
-- giro: lo del J5, 275 + 60 + 13 + 13 = 361 g.
-- mano: lo del J6, 275 + 60 + 22 + 22 = 379 g.
+Tramos: del hombro al codo 260 mm, del codo al cabeceo 215 y del cabeceo a
+la punta de la brida 125. No son los 240 y 100 de la tabla aprobada: hecha a
+mano, de la muñeca a la brida no cabe un NEMA 17 con su reductora en menos
+de 125. Desde la punta: el hombro a 600, el codo a 340, el giro del
+antebrazo (J4) a 225 —115 mm más allá del codo—, y el cabeceo (J5) a 125. El
+giro de la herramienta (J6) no dice dónde está: lo que lleva la mano se
+cuenta en la punta, que es lo peor. Cada giro va sobre un solo componente:
+los rodamientos de apoyo de la tabla no entran todavía en el plan. Lo
+comprado que lleva cada pieza va en el eje del giro siguiente:
+
+- brazo: el motorreductor del codo, 1600 g.
+- antebrazo: lo del J4, 275 + 60 = 335 g.
+- giro: lo del J5, 335 g.
+- mano: lo del J6, 335 g.
 
 Hombro (a 600): la carga, 2000 × 600 = 1 200 000; su tramo, 52 g a 130,
-6 760; lo del brazo a 260, 421 720; el tramo del codo, 12 g a 290, 3 480; lo
-del antebrazo a 320, 121 280; el tramo del J4, 36 g a 410, 14 760; lo del
-giro a 500, 180 500; el tramo del J5, 12 g a 530, 6 360; lo de la mano a
-560, 212 240; el tramo del J6, 8 g a 580, 4 640. Suma 2 171 740.
+6 760; lo del brazo a 260, 416 000; el tramo del codo, 23 g a 317,5,
+7 302,5; lo del antebrazo a 375, 125 625; el tramo del J4, 20 g a 425,
+8 500; lo del giro a 475, 159 125; el tramo del J5, 25 g a 537,5, 13 437,5;
+lo de la mano a 600, 201 000. Suma 2 137 750.
 
-Codo (a 340): 680 000 + 12 g a 30 (360) + 379 a 60 (22 740) + 36 g a 150
-(5 400) + 361 a 240 (86 640) + 12 g a 270 (3 240) + 379 a 300 (113 700) +
-8 g a 320 (2 560) = 914 640.
+Codo (a 340): 680 000 + 23 g a 57,5 (1 322,5) + 335 a 115 (38 525) + 20 g a
+165 (3 300) + 335 a 215 (72 025) + 25 g a 277,5 (6 937,5) + 335 a 340
+(113 900) = 916 010.
 
-J5 (a 100): 200 000 + 12 g a 30 (360) + 379 a 60 (22 740) + 8 g a 80 (640) =
-223 740.
+J5 (a 125): 250 000 + 25 g a 62,5 (1 562,5) + 335 a 125 (41 875) =
+293 437,5.
 
 El J4 y el J6 giran sobre un eje que va a lo largo del brazo: con el brazo
 estirado la carga está en su eje y la gravedad no les pide nada. Al J4 le
@@ -51,20 +60,17 @@ PLAN = {
     "titulo": "Brazo de seis ejes y 2 kg", "carga_g": 2000,
     "nodos": [
         {"id": "base", "nombre": "Base", "que_hace": "se atornilla al tablero y gira el brazo",
-         "compra": ["6810-2rs", "6810-2rs", "nema23"]},
+         "compra": ["6810-2rs", "nema23"]},
         {"id": "torreta", "nombre": "Torreta", "que_hace": "gira sobre la base y aloja el hombro",
-         "compra": ["nema23-pg47-76", "6806-2rs"], "depende_de": ["base"]},
+         "compra": ["nema23-pg47-76"], "depende_de": ["base"]},
         {"id": "brazo", "nombre": "Brazo", "que_hace": "del hombro al codo, 260 mm",
-         "compra": ["nema23-pg47-56", "6806-2rs"], "depende_de": ["torreta"]},
+         "compra": ["nema23-pg47-56"], "depende_de": ["torreta"]},
         {"id": "antebrazo", "nombre": "Antebrazo", "que_hace": "sale del codo y aloja el giro",
-         "compra": ["nema17", "cicloidal-nema17-28", "6806-2rs", "6806-2rs"],
-         "depende_de": ["brazo"]},
+         "compra": ["nema17", "cicloidal-nema17-28"], "depende_de": ["brazo"]},
         {"id": "giro", "nombre": "Giro del antebrazo", "que_hace": "gira sobre el eje del brazo",
-         "compra": ["nema17", "cicloidal-nema17-28", "608zz", "608zz"],
-         "depende_de": ["antebrazo"]},
+         "compra": ["nema17", "cicloidal-nema17-28"], "depende_de": ["antebrazo"]},
         {"id": "mano", "nombre": "Mano", "que_hace": "cabecea y aloja el giro de la herramienta",
-         "compra": ["nema17", "cicloidal-nema17-10", "6806-2rs", "6806-2rs"],
-         "depende_de": ["giro"]},
+         "compra": ["nema17", "cicloidal-nema17-10"], "depende_de": ["giro"]},
         {"id": "brida", "nombre": "Brida", "que_hace": "donde se atornilla la herramienta",
          "depende_de": ["mano"]},
         {"id": "todo", "nombre": "El brazo", "tipo": "conjunto", "que_hace": "se mueve",
@@ -83,14 +89,14 @@ PLAN = {
          "componente": "nema23-pg47-56", "recorrido_grados": 180, "radio_libre_mm": 350,
          "eje": "horizontal", "brazo_mm": 340},
         {"tipo": "gira", "id": "u5", "gira": "giro", "sobre": "antebrazo",
-         "componente": "cicloidal-nema17-28", "recorrido_grados": 180, "radio_libre_mm": 115,
-         "eje": "horizontal", "brazo_mm": 280, "a_lo_largo": True, "movido_por": CICLOIDAL_28},
+         "componente": "cicloidal-nema17-28", "recorrido_grados": 180, "radio_libre_mm": 135,
+         "eje": "horizontal", "brazo_mm": 225, "a_lo_largo": True, "movido_por": CICLOIDAL_28},
         {"tipo": "gira", "id": "u6", "gira": "mano", "sobre": "giro",
-         "componente": "cicloidal-nema17-28", "recorrido_grados": 180, "radio_libre_mm": 110,
-         "eje": "horizontal", "brazo_mm": 100, "movido_por": CICLOIDAL_28},
+         "componente": "cicloidal-nema17-28", "recorrido_grados": 180, "radio_libre_mm": 135,
+         "eje": "horizontal", "brazo_mm": 125, "movido_por": CICLOIDAL_28},
         {"tipo": "gira", "id": "u7", "gira": "brida", "sobre": "mano",
-         "componente": "cicloidal-nema17-10", "recorrido_grados": 180, "radio_libre_mm": 45,
-         "eje": "horizontal", "brazo_mm": 40, "a_lo_largo": True,
+         "componente": "cicloidal-nema17-10", "recorrido_grados": 180, "radio_libre_mm": 40,
+         "eje": "horizontal", "a_lo_largo": True,
          "movido_por": {"motor": "nema17", "tipo": "reductora", "relacion": 10}},
     ],
 }
@@ -111,24 +117,24 @@ def test_cada_motor_que_levanta_puede_con_lo_suyo():
     from orchestrator.dimensionar import pares
     hombro, codo, j4, j5 = pares(Obra(**PLAN))
     assert [p["union"] for p in (hombro, codo, j4, j5)] == ["u3", "u4", "u5", "u6"]
-    assert hombro["pide_Nm"] == pytest.approx(2171740 * G) == pytest.approx(21.297, abs=1e-3)
+    assert hombro["pide_Nm"] == pytest.approx(2137750 * G) == pytest.approx(20.964, abs=1e-3)
     assert hombro["da_Nm"] == pytest.approx(32.186, abs=1e-3)
-    assert codo["pide_Nm"] == pytest.approx(914640 * G) == pytest.approx(8.970, abs=1e-3)
+    assert codo["pide_Nm"] == pytest.approx(916010 * G) == pytest.approx(8.983, abs=1e-3)
     assert codo["da_Nm"] == pytest.approx(21.287, abs=1e-3)
-    assert j5["pide_Nm"] == pytest.approx(223740 * G) == pytest.approx(2.194, abs=1e-3)
+    assert j5["pide_Nm"] == pytest.approx(293437.5 * G) == pytest.approx(2.878, abs=1e-3)
     assert j5["da_Nm"] == pytest.approx(3.64)
 
 
 def test_un_giro_a_lo_largo_del_brazo_pide_lo_que_la_muneca_doblada():
     """El J4 gira el antebrazo sobre su propio eje. Con la muñeca doblada
-    90°, la carga queda a los 100 mm del J5 del eje del J4, y todo lo que
-    cuelga del J5 igual de lejos que del suyo: pide lo que el J5, 223 740
-    g·mm. Contado como un giro que levanta, a 280 mm de la punta, serían más
-    de 560 000 (5,5 N·m) y la cicloidal de 28:1 (3,64) no alcanzaría."""
+    90°, la carga queda a los 125 mm del J5 del eje del J4, y todo lo que
+    cuelga del J5 igual de lejos que del suyo: pide lo que el J5, 293 437,5
+    g·mm. Contado como un giro que levanta, a 225 mm de la punta, serían más
+    de 450 000 (4,4 N·m) y la cicloidal de 28:1 (3,64) no alcanzaría."""
     from orchestrator.dimensionar import errores, pares
     j4 = pares(Obra(**PLAN))[2]
-    assert j4["union"] == "u5" and j4["pide_Nm"] == pytest.approx(223740 * G)
-    assert j4["da_Nm"] == pytest.approx(3.64) and j4["brazo_mm"] == 100
+    assert j4["union"] == "u5" and j4["pide_Nm"] == pytest.approx(293437.5 * G)
+    assert j4["da_Nm"] == pytest.approx(3.64) and j4["brazo_mm"] == 125
     assert errores(Obra(**PLAN)) == []
     sin_decirlo = copy.deepcopy(PLAN)
     del sin_decirlo["uniones"][4]["a_lo_largo"]
@@ -138,7 +144,7 @@ def test_un_giro_a_lo_largo_del_brazo_pide_lo_que_la_muneca_doblada():
 
 def test_si_la_muneca_no_puede_doblada_lo_dice_el_giro_del_antebrazo():
     """Con una cicloidal de 10:1 en el J4 (0,400 × 10 × 0,65 / 2 = 1,30 N·m)
-    no puede con los 2,194 que le pide la muñeca doblada, y el error dice
+    no puede con los 2,878 que le pide la muñeca doblada, y el error dice
     con qué giro doblado."""
     from orchestrator.dimensionar import errores
     plan = copy.deepcopy(PLAN)
@@ -147,7 +153,7 @@ def test_si_la_muneca_no_puede_doblada_lo_dice_el_giro_del_antebrazo():
                               movido_por={"motor": "nema17", "tipo": "reductora", "relacion": 10})
     [error] = errores(Obra(**plan))
     assert "u5" in error and "u6" in error and "doblad" in error
-    assert "2.194" in error and "1.300" in error and "100 mm" in error
+    assert "2.878" in error and "1.300" in error and "125 mm" in error
 
 
 def _desglosar(peticion: str) -> Obra:
@@ -240,11 +246,46 @@ def test_el_encargo_17_pide_lo_que_dice_su_peticion():
     assert {"nema17", "cicloidal-nema17-10", "cicloidal-nema17-28"} <= set(mencionados(e.peticion))
 
 
+def test_el_encargo_18_es_el_brazo_entero_en_un_solo_proyecto():
+    """El brazo completo, con la muñeca dentro: un solo encargo y un solo
+    proyecto, como lo pidió el usuario el 2026-11-14. De su petición: 600 mm
+    del hombro a la punta (260 + 215 + 125), 2000 g, seis ejes (el primero
+    vertical), correa 5:1 en la base, cicloidales de 28:1 y 10:1 en la
+    muñeca, y lo comprado por su nombre."""
+    from pathlib import Path
+
+    from orchestrator.banco import cargar_encargos
+    from orchestrator.componentes import mencionados
+    [e] = [e for e in cargar_encargos(Path("tests/banco/encargos"))
+           if e.nombre == "brazo_seis_ejes_2kg"]
+    assert e.obra
+    assert sorted(a.relacion for a in e.oraculo if a.tipo == "reduccion") == [5, 10, 28]
+    por_tipo = {a.tipo: a for a in e.oraculo}
+    assert por_tipo["articulaciones"].ejes == ["vertical"] + ["horizontal"] * 5
+    assert por_tipo["alcance"].minimo_mm == 600 == 260 + 215 + 125
+    assert por_tipo["carga"].minimo_g == 2000
+    comprado = {a.ficha: a.cuantos for a in e.oraculo if a.tipo == "componente"}
+    assert comprado == {"nema17": 3, "nema23": 1, "nema23-pg47-76": 1, "nema23-pg47-56": 1,
+                        "6810-2rs": 1}
+    tornillos = {a.sujetan: (a.metrica, a.cuantos) for a in e.oraculo if a.tipo == "tornillos"}
+    assert tornillos == {"nema17": ("M3", 12), "nema23": ("M4", 4),
+                         "nema23-pg47-76": ("M5", 4), "nema23-pg47-56": ("M5", 4)}
+    for texto in ("260 mm", "215 mm", "125 mm", "600 mm", "2000 g", "5:1", "a lo largo"):
+        assert texto in e.peticion, texto
+    assert set(comprado) | {"cicloidal-nema17-10", "cicloidal-nema17-28"} <= set(
+        mencionados(e.peticion))
+    # Y el plan escrito a mano es el de esa petición.
+    plan = Obra(**PLAN)
+    assert plan.carga_g == por_tipo["carga"].minimo_g
+    assert sorted(c for n in plan.nodos for c in n.compra if not c.startswith("cicloidal")) \
+        == sorted(f for f, n in comprado.items() for _ in range(n))
+
+
 def test_el_sitio_de_un_giro_a_lo_largo_no_es_lo_que_mide_el_brazo():
     """El radio libre de un giro es lo que barre la pieza alrededor de su
-    eje. La que cabecea llega a 100 mm de su eje y necesita más de eso; la
-    que gira a lo largo tiene la punta a 280 mm, pero sobre su eje: con la
-    muñeca doblada barre los 100 del J5 y poco más (115), no 285."""
+    eje. La que cabecea llega a 125 mm de su eje y necesita más de eso; la
+    que gira a lo largo tiene la punta a 225 mm, pero sobre su eje: con la
+    muñeca doblada barre los 125 del J5 y poco más (135), no 230."""
     errores, _ = validar_plan(Obra(**PLAN), AGUJEROS)
     assert errores == []
     plan = copy.deepcopy(PLAN)

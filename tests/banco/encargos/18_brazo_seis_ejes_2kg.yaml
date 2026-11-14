@@ -1,0 +1,84 @@
+nombre: brazo_seis_ejes_2kg
+categoria: robots
+obra: true
+peticion: >
+  Un brazo robot de seis ejes que levanta 2000 g (2 kg) a 600 mm del hombro.
+  La base se atornilla a un tablero con cuatro tornillos M4 y gira el brazo,
+  con el eje vertical, sobre un rodamiento 6810-2RS, movida por un motor
+  NEMA 23 con una correa 5:1. El hombro y el codo lo levantan, con el eje
+  horizontal: el hombro gira directamente en el eje de salida de un motor con
+  su reductora planetaria ya montada, el 23HS30-2804S-PG47, y el codo en el de
+  otro, el 23HS22-2804S-PG47. La muñeca tiene tres ejes con motores NEMA 17,
+  cada uno sobre una reductora cicloidal. El primero, 115 mm más allá del
+  codo, gira el antebrazo sobre sí mismo (su eje va a lo largo del antebrazo),
+  sobre una reductora cicloidal 28:1. El segundo, 100 mm más allá, cabecea la
+  mano, con el eje horizontal, sobre otra reductora cicloidal 28:1. El tercero
+  gira la brida de la herramienta sobre sí misma (su eje va a lo largo de la
+  mano), sobre una reductora cicloidal 10:1. Cada eje recorre 180° (90° a cada
+  lado) sin que nada choque. Del hombro al codo hay 260 mm, del codo al eje
+  del cabeceo 215 mm y del cabeceo a la punta de la brida 125 mm: con el brazo
+  estirado la punta llega a 600 mm del eje del hombro. Las piezas se imprimen
+  sin soportes.
+oraculo:
+  # Lo comprado, por su nombre en la petición. Cada giro va sobre un solo
+  # componente: los rodamientos de apoyo de la tabla que aprobó el usuario no
+  # entran todavía, porque el plan no sabe decir que una articulación lleva dos.
+  - tipo: componente
+    ficha: nema17
+    cuantos: 3
+  - tipo: componente
+    ficha: nema23
+    cuantos: 1
+  - tipo: componente
+    ficha: nema23-pg47-76
+    cuantos: 1
+  - tipo: componente
+    ficha: nema23-pg47-56
+    cuantos: 1
+  - tipo: componente
+    ficha: 6810-2rs
+    cuantos: 1
+  - tipo: encaje
+  - tipo: conjunto_libre
+  # «con el eje vertical» la base; el hombro, el codo y el cabeceo, «con el
+  # eje horizontal»; los dos giros a lo largo siguen al brazo, que en reposo
+  # está tumbado. Seis giros en serie: lo más que había salido eran cuatro.
+  - tipo: articulaciones
+    ejes: [vertical, horizontal, horizontal, horizontal, horizontal, horizontal]
+    recorrido_grados: 180
+  - tipo: sin_soportes
+  # «una correa 5:1», «cicloidal 28:1» (dos) y «cicloidal 10:1». La reducción
+  # de los dos motores con reductora comprada no se cuenta: va dentro de ellos.
+  - tipo: reduccion
+    relacion: 5
+  - tipo: reduccion
+    relacion: 28
+  - tipo: reduccion
+    relacion: 10
+  # «la punta llega a 600 mm del eje del hombro»: 260 + 215 + 125.
+  - tipo: alcance
+    minimo_mm: 600
+  # «levanta 2000 g». Que se puede, a mano (`tests/test_brazo_grande.py`),
+  # pidiéndole a cada motor la mitad de su par y con lo impreso a 0,2 g/mm: el
+  # hombro pide 20,96 N·m de 32,19; el codo, 8,98 de 21,29; el giro del
+  # antebrazo y el cabeceo, 2,88 de 3,64.
+  - tipo: carga
+    minimo_g: 2000
+  # Los tornillos de lo comprado, los de sus fichas: cuatro M3 por NEMA 17,
+  # cuatro M4 con tuerca el NEMA 23, cuatro M5 cada motor con reductora.
+  - tipo: tornillos
+    sujetan: nema17
+    metrica: M3
+    cuantos: 12
+  - tipo: tornillos
+    sujetan: nema23
+    metrica: M4
+    cuantos: 4
+  - tipo: tornillos
+    sujetan: nema23-pg47-76
+    metrica: M5
+    cuantos: 4
+  - tipo: tornillos
+    sujetan: nema23-pg47-56
+    metrica: M5
+    cuantos: 4
