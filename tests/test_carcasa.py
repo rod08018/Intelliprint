@@ -98,6 +98,12 @@ def test_si_queda_a_medio_milimetro_pide_el_milimetro(backlog):
     No se tocan, pero una pieza impresa no garantiza medio milímetro."""
     [d] = _medida(backlog, _carcasa(dx=1.0))
     assert "0.5 mm" in d and "al menos 1 mm" in d and "nema17" in d
+    # Y dice de qué y dónde: a la carcasa del encargo 16 (banco 1114-0535) se
+    # le dijo «queda a 0.9 mm de lo que cubre» sin más, con el hueco a 1,9 mm
+    # del cuerpo; lo que rozaba era otra cosa, y no tenía cómo saberlo. El
+    # cuerpo empieza en x = -21,15 y la pared quedó en -21,65.
+    import re
+    assert "«nema17: cuerpo»" in d and re.search(r"x -21\.[67]", d)
 
 
 def test_sin_ventana_la_carcasa_tapa_la_clavija_y_el_cable(backlog):
@@ -151,7 +157,7 @@ def test_basta_con_envolver_el_cuerpo_si_el_eje_sale_por_su_agujero(backlog):
 def test_con_el_agujero_del_eje_justo_pide_el_milimetro(backlog):
     """Ø5,6 para un eje de Ø5: 0,3 mm alrededor."""
     [d] = _medida(backlog, EJE_FUERA.replace('"paso_eje", 8', '"paso_eje", 5.6'))
-    assert "0.3 mm" in d and "al menos 1 mm" in d
+    assert "0.3 mm" in d and "al menos 1 mm" in d and "«nema17: eje»" in d
 
 
 # --- la exigencia del banco -------------------------------------------------------------------------

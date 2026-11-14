@@ -467,7 +467,15 @@ def componente_cabe(forma, ficha, en, giros=()):
     if fallos:
         return {"cumple": False, "detalle": f"{ficha.get('nombre', ficha['id'])} no cabe: "
                                             + "; ".join(fallos)}
-    cerca = min(forma.distToShape(solido(p))[0] for p in cuerpos)
+    # Con cuál de sus cuerpos y en qué punto de la pieza: «queda a 0.9 mm de
+    # lo que cubre» no le dijo a la carcasa del encargo 16 (banco 1114-0535)
+    # qué apartar, con el cuerpo del motor a 1,9 mm.
+    cerca, punto, cual = min(((d, pares[0][0] if pares else None, p["nombre"])
+                              for p in cuerpos
+                              for d, pares, _ in [forma.distToShape(solido(p))]),
+                             key=lambda t: t[0])
+    donde = (f": lo más cercano es «{cual}», en x {punto.x:.1f}, y {punto.y:.1f}, "
+             f"z {punto.z:.1f} de la pieza" if punto is not None else "")
     # Una pieza de la obra (F7.1 (fichar)) es un vecino: puede ir al lado sin
     # tocar, como la base bajo el soporte de giro del pan-tilt (2026-11-09),
     # que gira libre por encima. Atornillarse a ella se comprueba con sus
@@ -476,7 +484,7 @@ def componente_cabe(forma, ficha, en, giros=()):
         return {"cumple": False,
                 "detalle": f"{ficha.get('nombre', ficha['id'])} no toca la pieza: queda a "
                            f"{cerca:.1f} mm; donde está colocado no lo sujeta nada"}
-    return {"cumple": True, "detalle": f"cabe, y se apoya a {cerca:.2f} mm de la pieza",
+    return {"cumple": True, "detalle": f"cabe, y se apoya a {cerca:.2f} mm de la pieza{donde}",
             "valor": cerca}
 
 

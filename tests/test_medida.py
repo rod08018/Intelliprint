@@ -346,3 +346,65 @@ def test_dos_lados_que_solo_caben_de_pie_no_caben_a_la_vez():
     """240 × 240 × 20: de pie solo cabe uno de los dos lados de 240."""
     from orchestrator.medida import no_cabe_en_la_impresora
     assert len(no_cabe_en_la_impresora([240.0, 240.0, 20.0], CAMA)) == 1
+
+
+# --- lo que el plan pide no puede ser un defecto -----------------------------------------
+# Encargo 16, corrida 1114-0535 (2026-11-14): el soporte gastó sus cinco
+# intentos entre dos avisos que se contradecían. Rasgos y requisitos copiados
+# de su `rasgos.json` y su `spec.yaml`.
+_TUERCA_DE_LA_CARCASA = {"nombre": "tuerca_carcasa_sup_izq", "tipo": "tuerca",
+                         "entrecaras_mm": 5.9, "entrada": [-28.0, 68.0, 6.0],
+                         "eje": [0.0, 0.0, -1.0], "profundidad_mm": 2.4, "metrica": "M3"}
+_PASANTE_DE_LA_CARCASA = {"nombre": "pasante_tuerca_carcasa_sup_izq", "tipo": "agujero",
+                          "diametro_mm": 3.3, "entrada": [-28.0, 68.0, 0.0],
+                          "eje": [0.0, 0.0, 1.0], "profundidad_mm": None}
+
+
+def test_la_tuerca_cautiva_que_pide_el_plan_no_es_una_brida():
+    """El plan decía «Carcasa se atornilla a Soporte con 4 M3, con tuerca
+    cautiva en Soporte», y a la pieza se le pedía `tuerca(...)` «y su agujero
+    pasante en línea». Lo hizo, y volvió cinco veces «brida: aprietan
+    material macizo»: un tornillo con su tuerca en la misma pieza se tomaba
+    siempre por una brida. Esa tuerca espera el tornillo de otra pieza."""
+    from orchestrator.medida import bridas_que_no_aprietan
+    rasgos = [_PASANTE_DE_LA_CARCASA, _TUERCA_DE_LA_CARCASA]
+    assert bridas_que_no_aprietan(rasgos, tuercas_del_plan=4) == []
+    # Sin plan que la pida, sigue siendo una brida que no aprieta nada.
+    [d] = bridas_que_no_aprietan(rasgos)
+    assert "aprietan material macizo" in d
+
+
+def test_las_tuercas_que_pide_el_plan_salen_de_las_uniones_de_la_pieza(tmp_path, monkeypatch):
+    """Cuatro, las de la unión u2 del soporte: las que agarran AQUÍ con
+    tuerca. Las de fuera (u1) y las que agarran en la otra pieza no cuentan."""
+    from orchestrator.medida import tuercas_del_plan
+    nodo = tmp_path / "nodos" / "soporte"
+    nodo.mkdir(parents=True)
+    (nodo / "uniones.json").write_text(json.dumps([
+        {"tipo": "fija", "id": "u1", "cabeza": "soporte", "agarra": "exterior", "metrica": "M3",
+         "cantidad": 4, "agarre": None, "papel": "cabeza", "otro": None},
+        {"tipo": "fija", "id": "u2", "cabeza": "carcasa", "agarra": "soporte", "metrica": "M3",
+         "cantidad": 4, "agarre": "tuerca", "papel": "agarra", "otro": "carcasa"},
+        {"tipo": "fija", "id": "u3", "cabeza": "soporte", "agarra": "tapa", "metrica": "M3",
+         "cantidad": 2, "agarre": "tuerca", "papel": "cabeza", "otro": "tapa"},
+        {"tipo": "sujeta", "id": "nema17", "metrica": "M3", "cantidad": 4}]), encoding="utf-8")
+    monkeypatch.setenv("INTELLIPRINT_UNIONES", str(nodo / "uniones.json"))
+    assert tuercas_del_plan() == 4
+    monkeypatch.delenv("INTELLIPRINT_UNIONES")
+    assert tuercas_del_plan() == 0
+
+
+def test_el_diametro_que_el_modelo_supuso_para_un_m3_es_el_del_perfil():
+    """«sus cuatro tornillos M3» salió como requisito `agujero` de valor 3.2
+    (origen: catálogo): un diámetro de memoria. En esta impresora el pasante
+    de un M3 es 3.3, que es lo que pone `tornillo("M3")`. Con `tornillo` volvía
+    «pide 4 agujeros de Ø3.2 y hay 0»; con `taladrar(3.2)`, «el plan pide 4
+    tornillos M3 y no hay ninguno». El 3.2 no lo dijo nadie."""
+    req = Requisito(id="R2", tipo="agujero", texto="sus cuatro tornillos M3", valor=3.2,
+                    origen="catalogo", cantidad=4, separaciones_mm=[31.0])
+    del_perfil = [_agujero(f"motor_{i}", 3.3, x, y)
+                  for i, (x, y) in enumerate([(0, 0), (31, 0), (0, 31), (31, 31)])]
+    assert defectos([req], del_perfil, AGUJEROS) == []
+    de_memoria = [{**a, "diametro_mm": 3.2} for a in del_perfil]
+    [d] = defectos([req], de_memoria, AGUJEROS)
+    assert "Ø3.3" in d and 'tornillo("M3"' in d

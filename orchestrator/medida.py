@@ -39,9 +39,23 @@ def _para_tornillo(req, del_perfil: dict) -> tuple[str, list[float]] | None:
     la métrica, el agujero es el del perfil para ese tornillo, no un Ø5.
 
     Proyecto del 608ZZ (2026-11-08): «M5» salió como agujero de valor 5, y
-    el bucle exigía un Ø5 por el que el M5 no pasa."""
+    el bucle exigía un Ø5 por el que el M5 no pasa.
+
+    Tampoco cuenta un diámetro que el texto no dice. El soporte del encargo
+    16 (banco 1114-0535) traía «sus cuatro tornillos M3» con valor 3.2: el
+    pasante de memoria del modelo, que en esta impresora es 3.3. Con
+    `tornillo("M3")` volvía «pide Ø3.2 y hay 0»; con `taladrar(3.2)`, «el
+    plan pide 4 tornillos y no hay ninguno». Cinco intentos entre los dos.
+    Un valor entre la métrica y un 25 % más que no está escrito en el texto
+    es el agujero de ese tornillo. Si el usuario escribe «agujeros de 3.3
+    para M3», el 3.3 está en el texto y se mide literal."""
+    escritos = [float(n.replace(",", "."))
+                for n in re.findall(r"(?<![Mm\d.,])\d+(?:[.,]\d+)?", req.texto)]
     for m in re.findall(r"\bM(\d+(?:[.,]\d+)?)\b", req.texto):
-        if abs(float(m.replace(",", ".")) - req.valor) < 1e-9:
+        nominal = float(m.replace(",", "."))
+        supuesto = (nominal < req.valor <= nominal * 1.25
+                    and not any(abs(n - req.valor) < 1e-9 for n in escritos))
+        if abs(nominal - req.valor) < 1e-9 or supuesto:
             metrica = f"M{m.replace(',', '.')}"
             validos = [float(v) for k, v in del_perfil.items()
                        if k.startswith(f"{metrica}_") and k.endswith(
@@ -252,18 +266,43 @@ def _solapan(a, b, minimo=0.2) -> bool:
     return min(a[1], b[1]) - max(a[0], b[0]) > minimo
 
 
-def bridas_que_no_aprietan(rasgos) -> list[str]:
+def tuercas_del_plan() -> int:
+    """Cuántas tuercas cautivas le pide el plan a la pieza que se está
+    diseñando: las de las uniones en las que el tornillo de OTRA pieza
+    agarra aquí con tuerca. Sale de su `uniones.json`."""
+    import json
+    import os
+    ruta = os.environ.get("INTELLIPRINT_UNIONES")
+    if not ruta or not Path(ruta).is_file():
+        return 0
+    return sum(u.get("cantidad", 0) for u in json.loads(Path(ruta).read_text(encoding="utf-8"))
+               if u.get("tipo") == "fija" and u.get("papel") == "agarra"
+               and u.get("agarre") == "tuerca")
+
+
+def bridas_que_no_aprietan(rasgos, tuercas_del_plan: int = 0) -> list[str]:
     """Un tornillo con su tuerca dentro de la misma pieza es una brida: al
     apretarlo tiene que cerrarse una ranura, y esa ranura tiene que dar a lo
     que se sujeta. Las dos bases del pan-tilt (2026-11-09) salieron
     «resueltas» sin apretar el servo: en una, la ranura quedaba a 8 mm de él
     tras un bloque macizo; en la otra, la ranura daba al servo pero cabeza y
     tuerca quedaban del mismo lado. Se mide con los rasgos del kit, sin
-    FreeCAD. Que el labio sea bastante fino para doblarse NO se mide."""
+    FreeCAD. Que el labio sea bastante fino para doblarse NO se mide.
+
+    `tuercas_del_plan`: las tuercas cautivas que el plan pide en esta pieza
+    para el tornillo de otra. No son bridas: aprietan la otra pieza contra
+    esta, con material macizo en medio. Al soporte del encargo 16 (banco
+    1114-0535) el plan le pedía cuatro, «con su agujero pasante en línea»,
+    y las cinco veces que las hizo volvieron como bridas que no aprietan.
+    Si la pieza no tiene más parejas de tornillo y tuerca que las que pide
+    el plan, no hay brida que medir; si tiene más, se perdonan hasta esas
+    las que aprietan macizo."""
     agujeros = [r for r in rasgos if r.get("tipo") == "agujero"]
     tuercas = [r for r in rasgos if r.get("tipo") == "tuerca"]
     huecos = [r for r in rasgos if r.get("tipo") == "hueco"]
     fallos = []
+    macizas = []
+    parejas = 0
     for tu in tuercas:
         et = _unitario(tu["eje"])
         for ag in agujeros:
@@ -274,6 +313,7 @@ def bridas_que_no_aprietan(rasgos) -> list[str]:
             t = sum(x * y for x, y in zip(d, ea))
             if math.sqrt(max(sum(x * x for x in d) - t * t, 0.0)) > 0.5 or t <= 0:
                 continue   # no es su tuerca: no está en su eje, o está detrás de la cabeza
+            parejas += 1
             # De la cabeza a la cara de la tuerca más cercana, sin tocarla.
             prof = tu.get("profundidad_mm") or 0.0
             cara = min(t, t + prof * sum(x * y for x, y in zip(et, ea)))
@@ -283,7 +323,7 @@ def bridas_que_no_aprietan(rasgos) -> list[str]:
                       for k in range(pasos + 1)]
             cruzadas = [h for h in huecos if any(_en_caja(p, h) for p in puntos)]
             if not cruzadas:
-                fallos.append(
+                macizas.append(
                     f"brida: «{ag['nombre']}» y «{tu['nombre']}» aprietan material macizo; entre "
                     "la cabeza del tornillo y la tuerca no hay ninguna ranura que se cierre. El "
                     "tornillo tiene que CRUZAR la ranura de la brida, con la cabeza a un lado y "
@@ -318,7 +358,9 @@ def bridas_que_no_aprietan(rasgos) -> list[str]:
                         "en vez de cerrarse sobre ello. La ranura tiene que cortar la pared de "
                         "lo que sujeta en la dirección del tornillo (el tornillo la cruza a la "
                         "altura del alojamiento, como una abrazadera partida)")
-    return fallos
+    if parejas <= tuercas_del_plan:
+        return []
+    return fallos + (macizas if len(macizas) > tuercas_del_plan else [])
 
 
 def componentes_sin_colocar(componentes, rasgos) -> list[str]:
@@ -712,7 +754,9 @@ def defectos_de_carcasa(carpeta: Path, nodo: str, resultado, step, freecadcmd: s
             fallos.append(
                 f"carcasa: queda a {m.valor:.1f} mm de lo que cubre ({', '.join(suyo)} de "
                 f"«{de_quien}») y tiene que dejar al menos {HOLGURA_DE_CARCASA_MM:g} mm: una "
-                "pared impresa más cerca acaba rozando. Aparta la pared por ese lado")
+                "pared impresa más cerca acaba rozando"
+                + (m.detalle.partition(": lo más cercano")[1] + m.detalle.partition(
+                    ": lo más cercano")[2]) + ". Aparta la pieza de ahí")
     return fallos
 
 
@@ -1054,7 +1098,7 @@ def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
 
     fallos = defectos(requisitos, resultado.rasgos, agujeros_del_perfil)
     fallos += componentes_sin_colocar(componentes, resultado.rasgos)
-    fallos += bridas_que_no_aprietan(resultado.rasgos)
+    fallos += bridas_que_no_aprietan(resultado.rasgos, tuercas_del_plan())
     if cama_mm:
         fallos += no_cabe_en_la_impresora(resultado.bbox_mm, cama_mm)
     if sin_soportes:

@@ -177,6 +177,40 @@ imprimir; lo que dejó abierto está abajo.
   como base lo que queda a menos de una capa del fondo (el último
   programa de la carcasa baja del 56–71 % de aristas vivas al 6 %).
   **Falta medirlo:** una corrida nueva del encargo 16, por acordar.
+- **Dicho por él la noche del 2026-11-13 al 14, antes de irse:** la
+  corrida nueva del encargo 16, «Si con 2 dolares»; «cuando termines
+  todo pasa a la siguiente fase automaticamente no me esperes»; y
+  «sube a 15 dolares maximo puedes modificar medidas en caso extremo
+  documentalo y me lo dices mañana». Entendido así (interpretación
+  del asistente): 15 USD en total de banco desde ese mensaje, y una
+  medida solo se cambia si no hay otra salida, apuntada aquí con su
+  antes y su después. **Al volver él, el gasto se acuerda otra vez.**
+- **La corrida nueva del encargo 16 se paró a mano** (`1114-0535`,
+  0,57 USD de los 15): iba a fallar por el sistema. Tres medidas del
+  bucle de la pieza **cambiadas sin él, con su permiso de esa noche;
+  hay que contárselo**: (1) la tuerca cautiva que el plan pide en una
+  pieza para el tornillo de otra ya no cuenta como «brida que no
+  aprieta» (al soporte se le pedía y se le reprochaba a la vez, cinco
+  intentos); (2) si un requisito nombra un tornillo y trae un
+  diámetro que su texto no dice (Ø3.2 para un M3), vale el agujero
+  del perfil; (3) un requisito que cita lo que escribe el sistema ya
+  no cuenta aunque lo cite entero (la frase nueva del hueco mínimo se
+  volvió una «ventana de 44.3 × 44.3» que nadie pidió: fallo del
+  cambio del 13). Ninguna cambia lo que juzga el banco. Además el
+  aviso de holgura de la carcasa dice con qué cuerpo y dónde.
+- **El avión, dicho por él esa noche:** un VTOL, con una autonomía
+  muy buena en horas, hasta 250 km de alcance, hasta 8 libras
+  (3,63 kg) de carga, y que lleve hasta dos cámaras y un lidar sin
+  perder aerodinámica. La referencia que mandó, «similar a este pero
+  mejorado»: el TerraHawk FPV de Nomadium, un VTOL de ala integrada
+  con cuatro rotores bajo el ala y hélice de empuje (1,4 m, ~2 kg,
+  6S2P, largueros de carbono; su página no da autonomía ni carga).
+  Y lo concretó: **envergadura de 2 m o más, 8 libras de carga
+  máxima y la autonomía del TerraHawk** (según la captura que mandó,
+  sin verificar: más de 3 h y 180–216 km a 72 km/h; el comercial de
+  2 m pesa 4 kg y carga 1 kg). Es un avión bastante mayor que ese:
+  el peso y la batería los dirá el cálculo. Queda por decidir
+  si el laminado entra en el diseño y si Gazebo queda fuera.
 
 **2026-11-11 (noche): Fase 10, brazos con transmisión (ADR-021).** Decidido
 por él: **el brazo antes que el avión**; empezar por uno pequeño con servos;

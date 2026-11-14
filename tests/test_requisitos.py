@@ -183,3 +183,36 @@ def test_una_cita_inventada_sigue_siendo_un_error_aunque_haya_contexto():
 def test_el_agente_de_requisitos_entrega_la_spec_sin_lo_del_sistema():
     spec = RequirementsAgent(Guion([json.dumps(_spec([SUYO, DEL_SISTEMA]))])).draft(DE_UN_BACKLOG)
     assert [r.id for r in spec.requisitos] == ["R1"]
+
+
+DE_UNA_CARCASA = "\n".join([
+    "Carcasa abombada: Tapa abombada de pared fina que cubre el cuerpo del NEMA 17, se "
+    "atornilla al soporte con cuatro tornillos M3 y deja salir el cable. Se imprime sin "
+    "soportes..",
+    "",
+    "Lo que sigue es de dónde va esta pieza, no medidas suyas:",
+    "",
+    "- Soporte escuadra: ficha obra-soporte (Escuadra que aloja el NEMA 17.)",
+    "  El hueco de tu carcasa tiene que llegar, como poco, a: x de -22.15 a 22.15, y de 25.85 "
+    "a 70.15, z de -40.5 a 1: es el mayor de sus cuerpos con la holgura. Los demás, o quedan "
+    "dentro con su holgura o les abres paso.",
+    ""])
+"""La petición de la carcasa del banco 1114-0535, resumida."""
+
+
+def test_una_cita_literal_de_lo_que_escribe_el_sistema_tampoco_es_un_requisito():
+    """Encargo 16, corrida 1114-0535: a la carcasa se le dio al inicio dónde
+    está el motor, y el modelo hizo de esa frase, citada al pie de la letra,
+    un requisito «del usuario» de tipo encaje con sección 44.3 × 44.3. Al
+    construir volvió «ninguna abertura pasante deja pasar 44.3 × 44.3»: una
+    ventana que nadie pidió. Lo que va detrás del aviso no lo dijo el
+    usuario, se cite entero o abreviado."""
+    from orchestrator.schemas.spec import errores_de_requisitos, sin_lo_del_sistema
+    suyo = Requisito(id="R2", tipo="fijacion", origen="usuario", valor=3.0, cantidad=4,
+                     texto="se atornilla al soporte con cuatro tornillos M3")
+    del_sistema = Requisito(id="R5", tipo="encaje", origen="usuario", seccion_mm=[44.3, 44.3],
+                            texto=("El hueco de tu carcasa tiene que llegar, como poco, a: x de "
+                                   "-22.15 a 22.15, y de 25.85 a 70.15, z de -40.5 a 1: es el "
+                                   "mayor de sus cuerpos con la holgura."))
+    assert errores_de_requisitos([suyo, del_sistema], DE_UNA_CARCASA) == []
+    assert [r.id for r in sin_lo_del_sistema([suyo, del_sistema], DE_UNA_CARCASA)] == ["R2"]

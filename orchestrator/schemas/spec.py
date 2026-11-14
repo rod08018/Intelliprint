@@ -62,11 +62,17 @@ def _normal(texto: str) -> str:
 
 
 def _es_del_sistema(texto: str, peticion: str) -> bool:
-    """Si `texto` no es una cita de la petición pero sus trozos —lo que queda
-    entre puntos suspensivos— salen todos de lo que el sistema escribe en la
-    petición de una pieza de un backlog (`traceability.CONTEXTO`)."""
-    _, hay, contexto = peticion.partition(CONTEXTO)
-    if not hay or _normal(texto) in _normal(peticion):
+    """Si `texto` no está en lo que pidió el usuario y sus trozos —lo que
+    queda entre puntos suspensivos— salen todos de lo que el sistema escribe
+    en la petición de una pieza de un backlog (`traceability.CONTEXTO`).
+
+    Entero o abreviado, da igual: la carcasa del encargo 16 (banco
+    1114-0535) citó al pie de la letra «El hueco de tu carcasa tiene que
+    llegar, como poco, a: x de…», que es del sistema, y como la cita estaba
+    en la petición pasó por requisito del usuario: un encaje de 44.3 × 44.3
+    que se le exigió como ventana pasante."""
+    suyo, hay, contexto = peticion.partition(CONTEXTO)
+    if not hay or _normal(texto) in _normal(suyo):
         return False
     trozos = [t for t in (_normal(t) for t in re.split(r"\.{3}|…", texto)) if t]
     return bool(trozos) and all(t in _normal(contexto) for t in trozos)
