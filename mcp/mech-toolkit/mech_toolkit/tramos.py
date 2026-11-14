@@ -17,6 +17,8 @@ Solo corre dentro de FreeCAD.
 import FreeCAD
 import Part
 
+from mech_toolkit.componentes import limpia
+
 LABIO_MIN_MM = 0.8
 """Lo más fino que se deja de labio y de lengüeta: dos pasadas de una
 boquilla de 0,4. Es un criterio de quien escribió esto, no una medida."""
@@ -103,7 +105,7 @@ def _rellena(caras, eje: str):
     todo = llenas[0]
     for c in llenas[1:]:
         todo = todo.fuse(c)
-    return todo.removeSplitter() if len(llenas) > 1 else todo
+    return limpia(todo) if len(llenas) > 1 else todo
 
 
 def _encoger(cara, cuanto: float):
@@ -190,8 +192,8 @@ def partir(forma, eje: str, cortes, lengueta: float, labio: float | None = None,
         # El hueco del otro tramo: la lengüeta con la holgura a los lados y al fondo.
         hueco = Part.makeCompound([f.makeOffset2D(holgura) for f in perfil.Faces]).extrude(
             d * (lengueta + holgura))
-        antes = tramos[i].fuse(lengua).removeSplitter()
-        despues = tramos[i + 1].cut(hueco).removeSplitter()
+        antes = limpia(tramos[i].fuse(lengua))
+        despues = limpia(tramos[i + 1].cut(hueco))
         for que, t in (("lengüeta", antes), ("labio", despues)):
             if not t.isValid() or len(t.Solids) != 1:
                 raise TramosError(

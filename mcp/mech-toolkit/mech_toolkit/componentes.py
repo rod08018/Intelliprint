@@ -97,6 +97,19 @@ _CRECIDOS: dict = {}
 SIN_DESPLAZAMIENTO = "INTELLIPRINT_SIN_DESPLAZAMIENTO"
 
 
+def limpia(forma):
+    """`forma` con las caras coplanarias que deja una booleana unidas, si OCC
+    puede; si no, tal cual. Unirlas es limpieza, no geometría: con la
+    escuadra del encargo 16 (banco 1114-0631) `removeSplitter` lanzaba
+    «Bnd_Box is void» tras una resta válida y al hacer crecer su forma, y
+    la carcasa perdió tres intentos sin llegar a medirse."""
+    try:
+        limpio = forma.removeSplitter()
+    except Exception:   # OCC lanza Part.OCCError o RuntimeError según la versión
+        return forma
+    return limpio if not limpio.isNull() and limpio.isValid() else forma
+
+
 def crecida(forma, d):
     """La forma crecida `d` mm por todas partes. El desplazamiento de OCC
     falla en muchas piezas impresas; entonces, la unión de seis copias
@@ -133,7 +146,7 @@ def crecida(forma, d):
             copia = forma.copy()
             copia.translate(FreeCAD.Vector(*[s if k == n else 0 for k in range(3)]))
             grande = grande.fuse(copia)
-    return grande.removeSplitter()
+    return limpia(grande)
 
 
 def solido(p, crecer=0.0):

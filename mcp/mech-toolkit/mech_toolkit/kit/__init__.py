@@ -24,6 +24,8 @@ import math
 import time
 import traceback
 
+from mech_toolkit.componentes import limpia
+
 try:   # dentro de freecadcmd
     import FreeCAD
     import Part
@@ -366,16 +368,16 @@ class Cuerpo:
             return None
 
     def __add__(self, otro: "Cuerpo") -> "Cuerpo":
-        nuevo = self._nuevo(self._forma.fuse(otro._forma).removeSplitter(), "la unión (+)")
+        nuevo = self._nuevo(limpia(self._forma.fuse(otro._forma)), "la unión (+)")
         nuevo._suyos = (*self._suyos, *otro._suyos)
         return nuevo
 
     def __sub__(self, otro: "Cuerpo") -> "Cuerpo":
-        return self._nuevo(self._forma.cut(_herramienta(otro, self)).removeSplitter(),
+        return self._nuevo(limpia(self._forma.cut(_herramienta(otro, self))),
                            "la resta (-)")
 
     def __and__(self, otro: "Cuerpo") -> "Cuerpo":
-        return self._nuevo(self._forma.common(otro._forma).removeSplitter(),
+        return self._nuevo(limpia(self._forma.common(otro._forma)),
                            "la intersección (&)")
 
     # --- colocar --------------------------------------------------------------
@@ -536,7 +538,7 @@ class Cuerpo:
         def cortar(forma, ps):
             try:
                 herramienta = ps[0] if len(ps) == 1 else ps[0].multiFuse(ps[1:])
-                r = _un_solido(forma.cut(herramienta).removeSplitter())
+                r = _un_solido(limpia(forma.cut(herramienta)))
             except Exception:
                 return None
             if r.ShapeType != "Solid" or not r.isValid():
@@ -645,11 +647,7 @@ class Cuerpo:
         # puede, la resta vale igual. Con el intento 2 de esa carcasa la
         # resta salía bien y era `removeSplitter` el que lanzaba «Bnd_Box is
         # void»: un intento perdido por adecentar.
-        try:
-            limpio = resultado.removeSplitter()
-            return limpio if limpio.isValid() and limpio.Solids else resultado
-        except Exception:   # OCC lanza Part.OCCError o RuntimeError según la versión
-            return resultado
+        return limpia(resultado)
 
     def partir(self, eje="x", en=(), lengueta=12.0, labio=None) -> "Cuerpo":
         """Para una pieza que NO CABE en la impresora: la corta en tramos por
@@ -916,7 +914,7 @@ class Componente:
         forma = formas[0]
         for f in formas[1:]:
             forma = forma.fuse(f)
-        return forma.removeSplitter()
+        return limpia(forma)
 
     def _toca(self, pieza) -> bool:
         """Si algún cuerpo del componente toca la pieza o se mete en ella."""
@@ -1427,7 +1425,7 @@ class Kit:
                         ancho_mm=cara, alto_mm=cara + 2 * pie,
                         primitivo_mm=T.diametro_primitivo(dientes),
                         exterior_mm=2 * radio, correa_mm=float(correa))
-        return Cuerpo(_valido(_un_solido(forma.removeSplitter()), "polea_gt2"), self)
+        return Cuerpo(_valido(_un_solido(limpia(forma)), "polea_gt2"), self)
 
 
 # --- la API que puede usar el programa -------------------------------------------------

@@ -61,3 +61,44 @@ def test_el_error_dice_en_que_linea():
 def test_un_programa_que_no_es_python_dice_por_que():
     with pytest.raises(ProgramaInvalido, match="sintaxis"):
         validar("def construir(kit) return 1")
+
+
+# --- la limpieza de caras no tumba una operación -----------------------------------------
+# Encargo 16, banco 1114-0631: con la escuadra de esa corrida, `removeSplitter`
+# (unir las caras coplanarias que deja una booleana) lanzaba «Bnd_Box is void»
+# después de una resta válida, y otra vez al hacer crecer su forma para un
+# hueco. Tres intentos de la carcasa perdidos por adecentar.
+
+class _FormaQueNoSeDejaLimpiar:
+    def removeSplitter(self):
+        raise RuntimeError("Bnd_Box is void")
+
+
+class _FormaLimpia:
+    def isNull(self):
+        return False
+
+    def isValid(self):
+        return True
+
+
+class _FormaQueSeLimpia:
+    def removeSplitter(self):
+        return _FormaLimpia()
+
+
+def test_si_occ_no_puede_unir_las_caras_la_forma_vale_como_esta():
+    from mech_toolkit.componentes import limpia
+    rota = _FormaQueNoSeDejaLimpiar()
+    assert limpia(rota) is rota
+    assert isinstance(limpia(_FormaQueSeLimpia()), _FormaLimpia)
+
+
+def test_ninguna_booleana_del_kit_limpia_sin_red():
+    """En el kit, en lo que hace crecer una forma y en los tramos, las caras
+    se unen con `limpia`, no con `removeSplitter` a pelo."""
+    from pathlib import Path
+    raiz = Path("mcp/mech-toolkit/mech_toolkit")
+    for ruta in (raiz / "kit" / "__init__.py", raiz / "componentes.py", raiz / "tramos.py"):
+        texto = ruta.read_text(encoding="utf-8")
+        assert texto.count(".removeSplitter()") == (1 if ruta.name == "componentes.py" else 0), ruta
