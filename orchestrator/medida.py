@@ -616,6 +616,15 @@ COMO_ACABAR = (
 mitad viene del encargo 16 (banco 1114-0023): la carcasa terminaba con
 `acabar()` y volvió diez veces con «quedan vivas» sin saber por qué."""
 
+def pide_sin_soportes(peticion: str) -> bool:
+    """Si la petición de la pieza pide que se imprima sin soportes. En un
+    backlog solo cuenta lo suyo: lo que va después de `CONTEXTO` es de las
+    piezas vecinas."""
+    from orchestrator.traceability import CONTEXTO
+    suyo = re.sub(r"\s+", " ", peticion.split(CONTEXTO)[0]).casefold()
+    return "sin soportes" in suyo
+
+
 HOLGURA_DE_CARCASA_MM = 1.0
 """Lo que una carcasa deja, como poco, entre su pared y lo que cubre. Una
 pared impresa a menos de eso de un motor acaba rozándolo. Lo decidió el
@@ -1032,7 +1041,7 @@ def no_cabe_en_la_impresora(caja_mm, cama_mm) -> list[str]:
 def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
                          material: dict, componentes=(), pared_min_mm=None,
                          agujeros_del_perfil=None, holgura_al_moverse_mm=None,
-                         cama_mm=None) -> list[str]:
+                         cama_mm=None, sin_soportes: dict | None = None) -> list[str]:
     """Lo que la pieza construida no cumple: agujeros (con los rasgos del
     kit), componentes que no caben o no entran, y sondas sobre el STEP. Los
     de acabado van con su prefijo.
@@ -1048,6 +1057,15 @@ def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
     fallos += bridas_que_no_aprietan(resultado.rasgos)
     if cama_mm:
         fallos += no_cabe_en_la_impresora(resultado.bbox_mm, cama_mm)
+    if sin_soportes:
+        # En la forma, no en el slicer (decidido por el usuario, 2026-11-13).
+        # `sin_soportes` es el perfil de la impresora: de él salen el ángulo
+        # y el puente. Una medida rota no es un defecto de la pieza.
+        try:
+            from orchestrator.voladizos import defecto_de_soportes
+            fallos += defecto_de_soportes(Path(step).with_suffix(".stl"), sin_soportes)
+        except Exception as fallo:  # noqa: BLE001
+            print(f"  sin medir los voladizos: {type(fallo).__name__}: {fallo}", flush=True)
     sondas = sondas_de(requisitos, resultado.rasgos, pared_min_mm)
     backlog = _del_backlog()
     if backlog is not None:

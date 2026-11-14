@@ -379,10 +379,9 @@ def _juzgar_obra(carpeta, oraculo):
     medido = {}
 
     def hechos_de(step, freecadcmd, laminado, aserciones, material):
-        import json
         medido[step.parent.name] = aserciones
         return Hechos(cilindros=[], bbox_mm=[1, 1, 1], volumen_mm3=1,
-                      soportes=json.loads(laminado.read_text())["needs_supports"],
+                      **banco.de_los_soportes(laminado),
                       sondas={a.clave(): banco.Resultado(estado="cumple", detalle=a.tipo)
                               for a in aserciones if isinstance(a, banco._Sonda)})
 
@@ -391,10 +390,14 @@ def _juzgar_obra(carpeta, oraculo):
     return banco.juzgar_obra(e, carpeta, "freecadcmd", hechos_de=hechos_de), medido
 
 
-def test_lo_que_se_pide_a_una_pieza_se_mide_en_cada_pieza_de_la_obra(tmp_path):
+def test_lo_que_se_pide_a_una_pieza_se_mide_en_cada_pieza_de_la_obra(tmp_path, monkeypatch):
     """Hasta ahora el banco juzgaba el primer STEP que encontraba: en una obra
     habría medido la base y dado por buena la obra entera."""
-    carpeta = _obra_construida(tmp_path, soportes=("giro",))
+    from orchestrator import voladizos
+    carpeta = _obra_construida(tmp_path)
+    monkeypatch.setattr(voladizos, "como_imprimir", _con_mallas(carpeta, {
+        "base": ("-z", {q: [] for q in SEIS}),
+        "giro": (None, {q: [_zona()] for q in SEIS})}))
     [r], medido = _juzgar_obra(carpeta, [{"tipo": "sin_soportes"}])
     assert set(medido) == {"base", "giro"}
     assert r.estado == "no_cumple" and "«Soporte de giro»" in r.detalle
@@ -505,133 +508,98 @@ def test_una_obra_tiene_mas_tiempo_que_una_pieza(tmp_path, monkeypatch):
     assert pedido["timeout"] >= 3 * banco.LIMITE_S
 
 
-# --- el juez lamina, el diseño no (2026-11-09) --------------------------------
+# --- «sin soportes» lo dice la forma de la pieza, no el slicer (2026-11-13) --------------------
 
-def _laminador_falso(pide_soportes=()):
-    """PrusaSlicer de mentira: dice que pide soportes la pieza cuyo STL se
-    llama como alguna de `pide_soportes`, y apunta qué laminó."""
-    from orchestrator.schemas.slicing_report import SlicingReport
-    laminados = []
-
-    def laminar(stl, gcode, postura="-z"):
-        if postura == "-z":
-            laminados.append(stl.stem)
-        return SlicingReport(plate=1, filament_mm=10, grams=1, time_s=60,
-                             needs_supports=stl.stem in pide_soportes, postura=postura)
-    laminar.laminados = laminados
-    return laminar
+def _que_no_lamine(*a, **k):
+    raise AssertionError("el banco no llama a PrusaSlicer")
 
 
-def _laminador_por_postura(sin_soportes=(), no_lamina=()):
-    """PrusaSlicer de mentira que mira cómo se apoya la pieza: pide soportes
-    salvo en las posturas de `sin_soportes`, y en las de `no_lamina` falla."""
-    from orchestrator.schemas.slicing_report import SlicingReport
-    from orchestrator.slicing import LaminadoFallido
-    probadas = []
-
-    def laminar(stl, gcode, postura="-z"):
-        probadas.append(postura)
-        if postura in no_lamina:
-            raise LaminadoFallido("There is an object with no extrusions in the first layer.")
-        pide = postura not in sin_soportes
-        return SlicingReport(plate=1, filament_mm=10, grams=1, time_s=60, needs_supports=pide,
-                             postura=postura, avisos=["Long bridging extrusions"] * pide)
-    laminar.probadas = probadas
-    return laminar
+def _con_mallas(carpeta, que_vuela):
+    """Pone la malla de cada pieza y hace que la medida de la forma diga lo
+    de `que_vuela`: {pieza: (postura en la que vale o None, zonas por postura)}.
+    La medida tiene sus propios tests (`test_voladizos`); aquí se mira que el
+    juez la usa y qué dice con lo que le devuelve."""
+    for stl in carpeta.glob("projects/*/nodos/*/parts/*/*.step"):
+        stl.with_suffix(".stl").write_text("solid p\nendsolid p\n", encoding="utf-8")
+    return lambda stl, angulo, puente: que_vuela[Path(stl).stem]
 
 
-def _juzga_sin_soportes(tmp_path, laminar):
-    import json
-    from orchestrator import banco
+def _zona(vuela=12.0):
+    from orchestrator.voladizos import Zona
+    return Zona(area_mm2=300.0, vuela_mm=vuela, plana=True, caja=([0, 0, 20], [30, 10, 20]))
+
+
+SEIS = ("-z", "+z", "-x", "+x", "-y", "+y")
+
+
+def _juzga_sin_soportes(tmp_path, monkeypatch, que_vuela):
+    from orchestrator import banco, voladizos
     carpeta = _obra_construida(tmp_path)
-    _sin_laminado_del_diseno(carpeta)
-    # Una sola pieza, para leer en qué posturas se probó.
-    plan = json.loads((carpeta / "projects" / "a" / "obra.json").read_text(encoding="utf-8"))
-    plan["nodos"] = [n for n in plan["nodos"] if n["id"] != "giro"]
-    plan["nodos"][-1]["depende_de"] = ["base"]
-    (carpeta / "projects" / "a" / "obra.json").write_text(json.dumps(plan), encoding="utf-8")
-
-    def hechos_de(step, freecadcmd, laminado, aserciones, material):
-        return Hechos(cilindros=[], bbox_mm=[1, 1, 1], volumen_mm3=1,
-                      **banco.del_laminado(laminado))
-
+    monkeypatch.setattr(voladizos, "como_imprimir", _con_mallas(carpeta, que_vuela))
     e = Encargo(nombre="pan-tilt", categoria="robots", obra=True, peticion="p",
                 oraculo=[{"tipo": "sin_soportes"}])
-    [r] = banco.juzgar_obra(e, carpeta, "freecadcmd", hechos_de=hechos_de, laminar=laminar)
+
+    def hechos_de(step, freecadcmd, de_la_forma, aserciones, material):
+        return Hechos(cilindros=[], bbox_mm=[1, 1, 1], volumen_mm3=1,
+                      **banco.de_los_soportes(de_la_forma))
+
+    [r] = banco.juzgar_obra(e, carpeta, "freecadcmd", hechos_de=hechos_de,
+                            laminar=_que_no_lamine)
     return r
 
 
-def test_el_juez_prueba_la_pieza_apoyada_en_cada_cara(tmp_path):
-    """Decidido por el usuario el 2026-11-13. La muñeca del brazo mediano
-    (banco 1113-1330) se quedó sin medir: el juez la laminaba como se
-    dibuja, montada en el brazo, y así apoya en el canto de una polea. La
-    postura se elige al laminar, como hace la persona en PrusaSlicer: se
-    prueba como se dibuja y, si no vale, apoyada en cada una de sus otras
-    caras, y se para en la primera que no pide soportes."""
-    laminar = _laminador_por_postura(sin_soportes=("-x",), no_lamina=("-z",))
-    r = _juzga_sin_soportes(tmp_path, laminar)
-    assert r.estado == "cumple" and "cara -x" in r.detalle
-    assert laminar.probadas == ["-z", "+z", "-x"]
+def test_el_banco_juzga_sin_soportes_por_la_forma_y_no_llama_al_slicer(tmp_path, monkeypatch):
+    """Decidido por el usuario el 2026-11-13: «que el banco le ponga nota,
+    pero que no tenga nada que ver con Prusa de momento; eso queda super
+    fuera». Esa mañana el juez laminaba cada pieza en seis posturas y leía el
+    aviso de PrusaSlicer. Ahora contesta con la misma medida que el diseño,
+    y aunque le pasen un laminador no lo toca."""
+    limpias = {q: [] for q in SEIS}
+    r = _juzga_sin_soportes(tmp_path, monkeypatch,
+                            {"base": ("-z", limpias), "giro": ("-z", limpias)})
+    assert r.estado == "cumple", r.detalle
+    assert "Prusa" not in r.detalle and "lamina" not in r.detalle
 
 
-def test_como_se_dibuja_va_primero_y_si_vale_no_se_prueba_mas(tmp_path):
-    laminar = _laminador_por_postura(sin_soportes=("-z", "+y"))
-    r = _juzga_sin_soportes(tmp_path, laminar)
-    assert r.estado == "cumple" and laminar.probadas == ["-z"]
-    assert "cara" not in r.detalle       # como se dibuja no hace falta decirlo
+def test_dice_sobre_que_cara_se_imprime_si_no_es_como_se_dibuja(tmp_path, monkeypatch):
+    limpias = {q: [] for q in SEIS}
+    boca_abajo = {**{q: [_zona()] for q in SEIS}, "+z": []}
+    r = _juzga_sin_soportes(tmp_path, monkeypatch,
+                            {"base": ("-z", limpias), "giro": ("+z", boca_abajo)})
+    assert r.estado == "cumple" and "«Soporte de giro» apoyada en su cara +z" in r.detalle
 
 
-def test_si_pide_soportes_en_las_seis_posturas_no_cumple_y_dice_por_que(tmp_path):
-    laminar = _laminador_por_postura()
-    r = _juzga_sin_soportes(tmp_path, laminar)
-    assert r.estado == "no_cumple" and "Long bridging extrusions" in r.detalle
-    assert sorted(laminar.probadas) == ["+x", "+y", "+z", "-x", "-y", "-z"]
+def test_si_no_hay_cara_que_valga_no_cumple_y_dice_que_vuela(tmp_path, monkeypatch):
+    limpias = {q: [] for q in SEIS}
+    r = _juzga_sin_soportes(tmp_path, monkeypatch, {
+        "base": ("-z", limpias), "giro": (None, {q: [_zona(12.0)] for q in SEIS})})
+    assert r.estado == "no_cumple" and "«Soporte de giro»" in r.detalle
+    assert "vuela 12 mm" in r.detalle and "ninguna cara" in r.detalle
 
 
-def test_si_no_se_lamina_en_ninguna_postura_queda_sin_medir(tmp_path):
-    laminar = _laminador_por_postura(no_lamina=("+x", "+y", "+z", "-x", "-y", "-z"))
-    r = _juzga_sin_soportes(tmp_path, laminar)
+def test_sin_la_malla_de_la_pieza_queda_sin_medir(tmp_path):
+    from orchestrator import banco
+    carpeta = _obra_construida(tmp_path)      # sin .stl: solo el STEP de mentira
+    e = Encargo(nombre="pan-tilt", categoria="robots", obra=True, peticion="p",
+                oraculo=[{"tipo": "sin_soportes"}])
+
+    def hechos_de(step, freecadcmd, de_la_forma, aserciones, material):
+        return Hechos(cilindros=[], bbox_mm=[1, 1, 1], volumen_mm3=1,
+                      **banco.de_los_soportes(de_la_forma))
+
+    [r] = banco.juzgar_obra(e, carpeta, "freecadcmd", hechos_de=hechos_de)
     assert r.estado == "sin_medir"
 
 
-def _sin_laminado_del_diseno(carpeta):
-    import shutil
-    for f in carpeta.glob("projects/*/nodos/*/fabrication"):
-        shutil.rmtree(f)
-
-
-def test_sin_el_laminado_del_diseno_el_juez_lamina_cada_pieza(tmp_path):
-    """El diseño ya no lamina: no se sabe en qué impresora se va a imprimir
-    (decidido por el usuario, 2026-11-09). «Sin soportes» lo sigue diciendo
-    PrusaSlicer, un oráculo que no es el propio sistema, laminando el juez."""
-    from orchestrator import banco
-    carpeta = _obra_construida(tmp_path)
-    _sin_laminado_del_diseno(carpeta)
-    laminar = _laminador_falso(pide_soportes=("giro",))
-
-    def hechos_de(step, freecadcmd, laminado, aserciones, material):
-        import json
-        return Hechos(cilindros=[], bbox_mm=[1, 1, 1], volumen_mm3=1,
-                      soportes=json.loads(laminado.read_text())["needs_supports"])
-
-    e = Encargo(nombre="pan-tilt", categoria="robots", obra=True, peticion="p",
-                oraculo=[{"tipo": "sin_soportes"}])
-    [r] = banco.juzgar_obra(e, carpeta, "freecadcmd", hechos_de=hechos_de, laminar=laminar)
-    assert sorted(laminar.laminados) == ["base", "giro"]
-    assert r.estado == "no_cumple" and "«Soporte de giro»" in r.detalle
-
-
-def test_si_no_se_pide_sin_soportes_el_juez_no_lamina(tmp_path):
-    from orchestrator import banco
-    carpeta = _obra_construida(tmp_path)
-    _sin_laminado_del_diseno(carpeta)
-    laminar = _laminador_falso()
-    e = Encargo(nombre="pan-tilt", categoria="robots", obra=True, peticion="p",
-                oraculo=[{"tipo": "componente", "ficha": "sg90", "cuantos": 2}])
-    banco.juzgar_obra(e, carpeta, "freecadcmd", laminar=laminar,
-                      hechos_de=lambda *a: Hechos(cilindros=[], bbox_mm=[1, 1, 1],
-                                                  volumen_mm3=1))
-    assert laminar.laminados == []
+def test_el_laminado_viejo_del_diseno_ya_no_cuenta(tmp_path, monkeypatch):
+    """Las corridas de antes del 2026-11-09 traen el laminado que hacía el
+    diseño (`fabrication/slicing_report.json`), con «pide soportes» leído del
+    ajuste del perfil. `_obra_construida` deja uno que dice que la base los
+    pide: manda la forma, que dice que no."""
+    limpias = {q: [] for q in SEIS}
+    r = _juzga_sin_soportes(tmp_path, monkeypatch,
+                            {"base": ("-z", limpias), "giro": ("-z", limpias)})
+    assert r.estado == "cumple"
 
 
 # --- reanudar: solo la pieza que falló (2026-11-10) ----------------------------
@@ -1074,37 +1042,13 @@ def test_reanudar_corrige_la_punta_que_no_llega(tmp_path, monkeypatch):
         == {"programa": "PROGRAMA", "cambio": falta}
 
 
-def _juez_dice(carpeta, pieza, pide, avisos=()):
-    """El laminado del juez de `pieza`, como lo deja `laminado_del_juez`."""
-    import json
-    (carpeta / "juez").mkdir(exist_ok=True)
-    (carpeta / "juez" / f"{pieza}.json").write_text(json.dumps(
-        {"plate": 1, "filament_mm": 10, "grams": 1, "time_s": 60, "needs_supports": pide,
-         "parts": [pieza], "postura": "-z", "avisos": list(avisos)}), encoding="utf-8")
-
-
-def test_lo_que_dijo_prusaslicer_de_una_pieza_se_le_dice_con_sus_palabras(tmp_path):
-    """Encargo 16 (banco 1114-0023): la carcasa pedía soportes apoyada en la
-    cara que fuera y, como el diseño no lamina, no lo supo nunca. El juez sí
-    lamina: lo que dejó escrito se le puede decir a la pieza al reanudar."""
-    from orchestrator import banco
-    p = _obra_construida(tmp_path) / "projects" / "a"
-    _juez_dice(tmp_path, "giro", True, ["Floating bridge anchors", "Long bridging extrusions"])
-    _juez_dice(tmp_path, "base", False)
-    texto = banco.pide_soportes(tmp_path, p, "giro")
-    assert "Floating bridge anchors" in texto and "Long bridging extrusions" in texto
-    assert "seis" in texto and "sin soportes" in texto
-    assert banco.pide_soportes(tmp_path, p, "base") == ""
-    # Sin laminado del juez no hay nada que decir.
-    (tmp_path / "juez" / "giro.json").unlink()
-    assert banco.pide_soportes(tmp_path, p, "giro") == ""
-
-
-def test_reanudar_corrige_la_pieza_que_pide_soportes(tmp_path, monkeypatch):
-    """Con todo lo demás bien, la exigencia «sin soportes» no tenía camino de
-    vuelta: reanudar no encontraba nada que hacer. Si el encargo la pide y el
-    juez dejó dicho que una pieza los necesita, se corrige esa pieza con lo
-    que dijo PrusaSlicer."""
+def test_al_reanudar_no_se_le_dice_al_disenador_lo_que_dijo_el_slicer(tmp_path, monkeypatch):
+    """Decidido por el usuario el 2026-11-13: «el slicer no tiene nada que
+    ver con el diseño; quiero tener el diseño bien antes de andar tocando
+    PrusaSlicer». Ese mismo día se había hecho que, al reanudar, a la pieza
+    le llegara lo que el juez leyó de PrusaSlicer: era meter el slicer en el
+    diseño por la puerta de atrás. Aunque el juez deje dicho que una pieza
+    pide soportes, reanudar no corrige por eso."""
     import json
     from orchestrator import banco
     bien = {"ok": True, "choques": [], "resumen": [], "articulaciones": [], "correcciones": {}}
@@ -1118,23 +1062,18 @@ def test_reanudar_corrige_la_pieza_que_pide_soportes(tmp_path, monkeypatch):
     corrida = tmp_path / "corrida"
     p = _con_informes(_obra_construida(corrida / "01", verificacion=bien),
                       {"base": True, "giro": True})
-    (p / "nodos" / "giro" / "concepto_aprobado").write_text("{}", encoding="utf-8")
     (p / "nodos" / "giro" / "parts" / "giro" / "programa.py").write_text("PROGRAMA",
                                                                         encoding="utf-8")
-    _juez_dice(corrida / "01", "giro", True, ["Collapsing overhang"])
-    _juez_dice(corrida / "01", "base", False)
-
-    sin_pedirlo = banco.Encargo(nombre="x", categoria="robots", peticion="p", obra=True,
-                                oraculo=[{"tipo": "conjunto_libre"}])
-    banco.reanudar([sin_pedirlo], corrida, ["intelliprint", "obra", "--banco"], "fc", {})
-    assert lanzado == [], "si el encargo no pide «sin soportes», no se corrige por eso"
-
+    (corrida / "01" / "juez").mkdir()
+    (corrida / "01" / "juez" / "giro.json").write_text(json.dumps(
+        {"plate": 1, "filament_mm": 10, "grams": 1, "time_s": 60, "needs_supports": True,
+         "parts": ["giro"], "postura": "-z", "avisos": ["Collapsing overhang"]}),
+        encoding="utf-8")
     e = banco.Encargo(nombre="x", categoria="robots", peticion="p", obra=True,
                       oraculo=[{"tipo": "conjunto_libre"}, {"tipo": "sin_soportes"}])
     banco.reanudar([e], corrida, ["intelliprint", "obra", "--banco"], "fc", {})
-    assert lanzado, "había algo que reanudar"
-    retoque = json.loads((p / "nodos" / "giro" / "retoque.json").read_text(encoding="utf-8"))
-    assert retoque["programa"] == "PROGRAMA" and "Collapsing overhang" in retoque["cambio"]
+    assert lanzado == []
+    assert not (p / "nodos" / "giro" / "retoque.json").exists()
 
 
 def test_reanudar_corrige_todas_las_piezas_a_las_que_les_faltan_tornillos(tmp_path, monkeypatch):

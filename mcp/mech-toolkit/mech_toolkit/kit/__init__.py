@@ -208,7 +208,7 @@ def _caja(forma):
     del 2026-11-13, vaciada por secciones, «empezaba» 1 mm por debajo de su
     base, y `acabar` no encontraba ninguna arista en ella."""
     try:
-        return forma.optimalBoundingBox(False)
+        return forma.optimalBoundingBox(True)
     except Exception:
         return forma.BoundBox
 

@@ -308,3 +308,12 @@ def test_sin_con_que_disenar_un_backlog_el_error_dice_backlog(tmp_path):
     assert r.status_code == 503
     assert "un backlog" in r.json()["detail"]
     assert "obra" not in r.json()["detail"]
+
+
+def test_la_pagina_del_banco_no_habla_de_prusaslicer():
+    """Decidido por el usuario el 2026-11-13: el banco pone su nota sin tener
+    nada que ver con PrusaSlicer. Su página enseñaba si el puente estaba
+    conectado, como si la nota dependiera de él."""
+    from orchestrator.web import paginas
+    html = paginas.banco([], hay_puente=True)
+    assert "PrusaSlicer" not in html and "El banco" in html

@@ -448,11 +448,13 @@ class Hechos(BaseModel):
     bbox_mm: list[float]
     volumen_mm3: float
     soportes: bool | None = None
-    """Lo que dijo PrusaSlicer; None si no se laminó."""
+    """Si pide soportes apoyada en la cara que sea, mirando su forma
+    (`soportes_del_juez`); None si no se midió."""
     postura: str = "-z"
-    """La cara que va a la cama en el laminado que se juzga (`slicing.POSTURAS`)."""
+    """La cara sobre la que se imprime sin soportes, o sobre la que menos le
+    falta (`voladizos.POSTURAS`)."""
     avisos: list[str] = []
-    """Por qué pide soportes, con las palabras de PrusaSlicer."""
+    """Lo que queda en el aire en esa postura, en palabras."""
     sondas: dict[str, "Resultado"] = {}
     """Lo que midió cada sonda (F6.12 (techo)), por la clave de su aserción."""
 
@@ -581,11 +583,13 @@ def juzgar(a, h: Hechos) -> Resultado:
         return _juzgar_envolvente(a, h)
     if isinstance(a, SinSoportes):
         if h.soportes is None:
-            return Resultado(estado="sin_medir", detalle="no se laminó")
+            return Resultado(estado="sin_medir", detalle="no hay malla de la pieza que mirar")
         if h.soportes:
-            return Resultado(estado="no_cumple", detalle="PrusaSlicer pide soportes" + (
-                f", apoyada en la cara que sea ({', '.join(h.avisos)})" if h.avisos else ""))
-        return Resultado(estado="cumple", detalle="se lamina sin soportes" + (
+            return Resultado(estado="no_cumple", detalle=(
+                "no se imprime sin soportes apoyada en ninguna cara; en la "
+                f"{h.postura}, que es como menos le falta, queda en el aire "
+                + ("; ".join(h.avisos) or "parte de la pieza")))
+        return Resultado(estado="cumple", detalle="se imprime sin soportes" + (
             f" apoyada en su cara {h.postura}" if h.postura != "-z" else ""))
     return Resultado(estado="sin_medir", detalle=f"{a.que} — se medirá con {a.fase}")
 
@@ -731,7 +735,7 @@ def extraer_hechos(step: Path, freecadcmd: str, laminado: Path | None,
     sondas = [a for a in aserciones or [] if isinstance(a, _Sonda)]
     medidas = medir_sondas(step, sondas, freecadcmd, material or {}) if sondas else []
     return Hechos(cilindros=extract_cylinders(step, freecadcmd), bbox_mm=bbox,
-                  volumen_mm3=volumen, **del_laminado(laminado),
+                  volumen_mm3=volumen, **de_los_soportes(laminado),
                   sondas={a.clave(): r for a, r in zip(sondas, medidas)})
 
 
@@ -885,56 +889,44 @@ def construida(carpeta: Path, codigo: int | None, salida: str) -> bool:
     return codigo == 0 or "] Listo:" in salida
 
 
-def laminado_del_juez(encargo: Encargo, step: Path, del_diseno: Path, carpeta: Path,
-                      laminar) -> Path | None:
-    """El laminado con el que se juzga «sin soportes». El diseño ya no lamina
-    (2026-11-09: no se sabe en qué impresora se imprimirá), así que lo hace
-    el juez, y solo si se pide «sin soportes»: lo sigue diciendo PrusaSlicer,
-    no el propio sistema.
+def soportes_del_juez(encargo: Encargo, step: Path, carpeta: Path) -> Path | None:
+    """Con qué se juzga «sin soportes»: con la forma de la pieza
+    (`voladizos.como_imprimir`), la misma medida que el diseño tiene en su
+    bucle. None si no se pide o no hay malla que mirar.
 
-    Decidido por el usuario el 2026-11-13: se prueba como se dibuja y, si
-    así no se lamina o pide soportes, apoyada en cada una de sus otras caras,
-    hasta la primera que no los pida. La muñeca del brazo mediano (banco
-    1113-1330) se quedó sin medir porque, dibujada montada en el brazo,
-    apoya en el canto de una polea; la postura la elige quien lamina.
-
-    Las corridas viejas traen el laminado del diseño, hecho cuando «pide
-    soportes» era el ajuste del perfil y no el aviso de PrusaSlicer: solo
-    se usa si aquí no hay con qué laminar."""
-    from orchestrator.slicing import POSTURAS, LaminadoFallido
-
+    Decidido por el usuario el 2026-11-13: «que el banco le ponga nota, pero
+    que no tenga nada que ver con Prusa de momento». Hasta ese día el juez
+    laminaba cada pieza con PrusaSlicer: primero leía el ajuste
+    `support_material` del perfil, que vale 0 (toda pieza que se laminaba
+    «cumplía»), y unas horas su aviso, en seis posturas. PrusaSlicer es
+    ahora cosa de la persona, cuando la pieza ya está hecha."""
     if not any(isinstance(a, SinSoportes) for a in encargo.oraculo):
-        return del_diseno if del_diseno.is_file() else None
-    if laminar is None:
-        return del_diseno if del_diseno.is_file() else None
+        return None
+    stl = Path(step).with_suffix(".stl")
+    if not stl.is_file():
+        return None
+    from orchestrator import voladizos
+    from orchestrator.impresion import perfil_activo
+
+    datos = perfil_activo(Path(__file__).resolve().parents[1]).datos
+    postura, zonas = voladizos.como_imprimir(stl, datos["overhang_max_deg"],
+                                             datos["bridge_max_mm"])
+    mejor = postura or min(zonas, key=lambda q: sum(z.area_mm2 for z in zonas[q]))
     destino = Path(carpeta) / "juez"
     destino.mkdir(parents=True, exist_ok=True)
-    stl, gcode = step.with_suffix(".stl"), destino / f"{step.stem}.gcode"
-    elegido = None
-    for postura in POSTURAS:
-        try:
-            # Como se dibuja, con la llamada de siempre: un puente del host
-            # sin reiniciar no sabe de posturas.
-            informe = laminar(stl, gcode) if postura == "-z" else laminar(
-                stl, gcode, postura=postura)
-        except LaminadoFallido:
-            continue
-        elegido = elegido or informe
-        if not informe.needs_supports:
-            elegido = informe
-            break
-    if elegido is None:
-        return None
-    salida = destino / f"{step.stem}.json"
-    salida.write_text(json.dumps(elegido.model_dump()), encoding="utf-8")
+    salida = destino / f"{Path(step).stem}.json"
+    salida.write_text(json.dumps({
+        "needs_supports": postura is None, "postura": mejor,
+        "avisos": [voladizos.zona_en_palabras(z) for z in zonas[mejor][:3]],
+        "medido_con": "la forma de la pieza"}, ensure_ascii=False), encoding="utf-8")
     return salida
 
 
-def del_laminado(laminado: Path | None) -> dict:
-    """Lo que el informe de laminado dice de los soportes, para `Hechos`."""
-    if laminado is None or not Path(laminado).exists():
+def de_los_soportes(medido: Path | None) -> dict:
+    """Lo que `soportes_del_juez` dejó dicho, para `Hechos`."""
+    if medido is None or not Path(medido).exists():
         return {"soportes": None}
-    informe = json.loads(Path(laminado).read_text(encoding="utf-8"))
+    informe = json.loads(Path(medido).read_text(encoding="utf-8"))
     return {"soportes": informe["needs_supports"], "postura": informe.get("postura", "-z"),
             "avisos": informe.get("avisos", [])}
 
@@ -942,8 +934,7 @@ def del_laminado(laminado: Path | None) -> dict:
 def juzgar_pieza(encargo: Encargo, carpeta: Path, freecadcmd: str,
                  material: dict | None = None, laminar=None) -> list[Resultado]:
     step = next(carpeta.glob("projects/*/parts/*/*.step"))
-    laminado = laminado_del_juez(encargo, step, step.parent.parent.parent / "fabrication"
-                                 / "slicing_report.json", carpeta, laminar)
+    laminado = soportes_del_juez(encargo, step, carpeta)
     rasgos_json = step.parent / "rasgos.json"
     rasgos = json.loads(rasgos_json.read_text(encoding="utf-8")) if rasgos_json.exists() else []
     de_componente = {a.clave(): sondas_de_componente(a, rasgos)
@@ -1022,8 +1013,7 @@ def juzgar_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
         propias = [(r, sondas_del_rasgo(r)) for r in p.propios if r["ficha"] in pedidos]
         encajes = [(r, sondas_del_rasgo(r, [fichas])) for r in rasgos if encaje
                    and r.get("tipo") == "componente" and str(r.get("ficha")).startswith("obra-")]
-        laminado = laminado_del_juez(encargo, p.step, p.step.parent.parent.parent
-                                     / "fabrication" / "slicing_report.json", carpeta, laminar)
+        laminado = soportes_del_juez(encargo, p.step, carpeta)
         medir = [*de_pieza, *(s for _, ss in propias + encajes for s in ss)]
         medidas[p.id] = (hechos_de(p.step, freecadcmd, laminado, medir, material),
                          propias, encajes)
@@ -1585,39 +1575,6 @@ def _corregir_la_que_no_deja_sitio(proyecto: Path, nodo: str, abajo: str, falta:
         obra.rehacer(proyecto, i, motivo if i == nodo else "")
 
 
-def pide_soportes(carpeta: Path, proyecto: Path, nodo: str) -> str:
-    """Qué decirle a `nodo` si el juez, al laminarla, vio que pide soportes
-    en las seis posturas; vacío si no los pide o si no se laminó. El diseño
-    no lamina (decidido por el usuario, 2026-11-09), así que la pieza no lo
-    sabe hasta que juzga el banco: la carcasa del encargo 16 (banco
-    1114-0023) se quedó así, sin un camino de vuelta."""
-    from orchestrator import obra
-    step = next(iter(sorted((Path(proyecto) / obra.NODOS / nodo / "parts").glob("*/*.step"))),
-                None)
-    informe = Path(carpeta) / "juez" / f"{step.stem}.json" if step else None
-    if informe is None or not informe.is_file():
-        return ""
-    dicho = json.loads(informe.read_text(encoding="utf-8"))
-    if not dicho.get("needs_supports"):
-        return ""
-    motivos = ", ".join(dicho.get("avisos") or []) or "no dio el motivo"
-    return ("sin soportes: PrusaSlicer pide soportes para esta pieza apoyada en cualquiera de "
-            f"sus seis caras ({motivos}). Tiene que poder imprimirse sin soportes en alguna "
-            "postura: elige qué cara va a la cama y, vista así, que nada vuele a más de 45° "
-            "de la vertical, que los techos planos sean cortos, y que lo que sobresale —una "
-            "oreja, una brida— nazca desde la cama o lleve por debajo un chaflán de 45°")
-
-
-def las_que_piden_soportes(encargo: "Encargo", carpeta: Path, proyecto: Path) -> dict[str, str]:
-    """{pieza: qué decirle} si el encargo pide «sin soportes» y el juez vio
-    que alguna los necesita."""
-    from orchestrator import obra
-    if not any(isinstance(a, SinSoportes) for a in encargo.oraculo):
-        return {}
-    piezas = [n.id for n in obra.cargar_obra(proyecto).nodos if n.tipo == "pieza"]
-    return {i: t for i in piezas if (t := pide_soportes(carpeta, proyecto, i))}
-
-
 def la_que_no_llega(proyecto: Path) -> tuple[str | None, str]:
     """(pieza, lo que se le mide) si la pieza de la punta, medida ahora y sin
     modelo, no llega a donde dice el plan; (None, "") si llega. El brazo
@@ -1716,13 +1673,6 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
         if nodo is None and hecho is not None and not solo_seguir:
             sin_tornillos = las_que_no_sujetan(e, hecho.parent)
             nodo = next(iter(sin_tornillos), None)
-        # Lo que dijo PrusaSlicer al juzgar, por pieza: se le dice a la que
-        # se corrija por otra cosa, y si no hay otra cosa, a la primera.
-        con_soportes = (las_que_piden_soportes(e, carpeta, hecho.parent)
-                        if hecho is not None and not solo_seguir else {})
-        solo_soportes = ""
-        if nodo is None and con_soportes:
-            nodo, solo_soportes = next(iter(con_soportes.items()))
         if nodo is None and not solo_seguir:
             continue
         proyecto = hecho.parent
@@ -1755,11 +1705,6 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
                 obra.corregir(proyecto, nodo, no_llega)
             else:
                 obra.rehacer(proyecto, nodo, no_llega)
-        elif solo_soportes:
-            if obra.programa_construido(proyecto, nodo):
-                obra.corregir(proyecto, nodo, solo_soportes)
-            else:
-                obra.rehacer(proyecto, nodo, solo_soportes)
         elif sin_tornillos:
             # Les faltan agujeros: se corrige la que hay, que por lo demás
             # está bien (pasó todo lo otro), con lo que falta en cifras. En
@@ -1788,8 +1733,7 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
             # F9.5 (parcial): la pieza se construyó y no cumple. Se corrige la
             # que hay con lo que se le midió, que trae las cifras: rehacerla
             # pedía otro concepto y salía otra pieza, sin saber por qué falló.
-            obra.corregir(proyecto, nodo, "\n".join(filter(None, [
-                _lo_medido(proyecto, nodo), con_soportes.get(nodo, "")])))
+            obra.corregir(proyecto, nodo, _lo_medido(proyecto, nodo))
             _corregir_las_de_encima_que_no_salieron(proyecto, nodo)
         else:
             obra.rehacer(proyecto, nodo)

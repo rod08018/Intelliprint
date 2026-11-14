@@ -1227,7 +1227,7 @@ def banco(corridas: list[dict], hay_puente: bool) -> str:
     cabeza = ('<meta http-equiv="refresh" content="20">'
               if any(c.get("en_marcha") for c in corridas) else "")
     return _documento("Banco · Intelliprint", f"""
-  <header class="barra"><a class="volver" href="/">← Inventos</a><span class="estado-puente">{_puente(hay_puente)}</span></header>
+  <header class="barra"><a class="volver" href="/">← Inventos</a></header>
   <main class="banco"><h1>El banco</h1>
     <p class="lead">Lo que mide si el sistema mejora: encargos fijos, juzgados sin el propio
     sistema. Cada encargo abre su proyecto para verlo.</p>

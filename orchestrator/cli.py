@@ -119,7 +119,7 @@ def _disenar_con_kit(raiz: Path, env: dict, cliente):
     generadores no sabía hacer una cartela, un hexágono ni un chaflán."""
     from orchestrator.agents.disenador_kit import DisenadorKitAgent
     from orchestrator.componentes import mencionados
-    from orchestrator.medida import defectos_de_la_pieza
+    from orchestrator.medida import defectos_de_la_pieza, pide_sin_soportes
 
     freecad = _freecadcmd(env)
     router = Router.from_config_file(raiz / "config" / "models.yaml", env=env)
@@ -148,7 +148,9 @@ def _disenar_con_kit(raiz: Path, env: dict, cliente):
                 spec.requisitos, resultado, Path(carpeta) / f"{part}.step", freecad,
                 material, componentes, pared_min, agujeros,
                 holgura_al_moverse_mm=_perfil(raiz, env).impresora.fit_mm("slide") / 2,
-                cama_mm=_perfil(raiz, env).cama_mm)) or None
+                cama_mm=_perfil(raiz, env).cama_mm,
+                sin_soportes=(_perfil(raiz, env).datos if pide_sin_soportes(spec.request)
+                              else None))) or None
 
         # F9.4 (canal): en un backlog, las uniones del plan están en la
         # carpeta del nodo (`carpeta` es `<nodo>/parts/<pieza>`).
@@ -637,7 +639,7 @@ def _banco(args, raiz: Path, env: dict, nombre: str) -> None:
         corrida = Path(args.reanudar)
         resultados, fallos = banco.reanudar(encargos, corrida, orden_del_banco(obra=True),
                                             _freecadcmd(env), dict(os.environ), material,
-                                            elegir_laminador(raiz, env),
+                                            None,
                                             cama_mm=_perfil(raiz, env).cama_mm)
         texto = informe(resultados, modelo=f"{env.get('DEEPSEEK_MODEL', 'deepseek')}, "
                                            "reanudada desde la pieza que falló", fallos=fallos)
@@ -650,7 +652,7 @@ def _banco(args, raiz: Path, env: dict, nombre: str) -> None:
     if args.rejuzgar:
         corrida = Path(args.rejuzgar)
         resultados, fallos = rejuzgar(encargos, corrida, _freecadcmd(env), material,
-                                      elegir_laminador(raiz, env))
+                                      None)
         texto = informe(resultados, modelo="rejuzgada con el juez de hoy", fallos=fallos)
         # Al lado del informe original y de los rejuicios anteriores, sin pisar
         # ninguno: cada uno es la evidencia de lo que medía el juez de ese día.
@@ -677,7 +679,7 @@ def _banco(args, raiz: Path, env: dict, nombre: str) -> None:
         resultados[e.nombre], fallo = correr(e, salida / f"{i:02d}", orden_del_banco(e.obra),
                                              _freecadcmd(env),
                                              dict(os.environ), material,
-                                             elegir_laminador(raiz, env),
+                                             None,
                                              base=por_nombre.get(e.amplia), partir_de=partir_de)
         if fallo:
             fallos[e.nombre] = fallo

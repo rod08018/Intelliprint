@@ -144,6 +144,22 @@ imprimir; lo que dejó abierto está abajo.
   admitía uno, y una superficie de facetas no se redondea. Y el
   aviso del encaje no decía dónde chocaba. Arreglado: un radio por
   esquina, decírselo al diseñador, y el choque con su sitio.
+- **Reanudado por segunda y última vez, pasa 4 de 5** (1,19 USD de
+  los 2; no queda más acordado). Ya encaja; falla «sin soportes».
+  La carcasa no pasó su bucle por el chaflán de la base (10 de 12
+  aristas, sin arreglar). Las construcciones de más de 180 s son el
+  acabado sobre programas facetados, no un cambio de hoy.
+- **Decidido por él el 2026-11-13, molesto: PrusaSlicer queda fuera
+  de todo.** «El slicer no tiene nada que ver con el diseño» y «que
+  el banco le ponga nota, pero que no tenga nada que ver con Prusa
+  de momento». No volver a proponer laminar. «Sin soportes» se mide
+  en la forma de la pieza (`orchestrator/voladizos.py`): seis
+  posturas, voladizos de más de 45° y vuelos de más de medio puente
+  (5 mm, **regla del asistente**). Con ella se corrige la pieza en
+  su bucle y con ella pone el banco la nota; el banco ya no llama a
+  PrusaSlicer. Rejuzgado todo: diez piezas 52 de 52, pan-tilt 7 de
+  7, brazo de servos 8 de 8, encargo 14 9 de 10, 14b 8 de 9 (baja
+  una), brazo mediano 11 de 12 y encargo 16 4 de 5.
 
 **2026-11-11 (noche): Fase 10, brazos con transmisión (ADR-021).** Decidido
 por él: **el brazo antes que el avión**; empezar por uno pequeño con servos;
