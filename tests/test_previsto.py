@@ -290,3 +290,38 @@ def test_el_plan_avisa_del_tornillo_de_un_servo_que_la_impresora_no_tiene_medido
     assert "«Base»" in aviso and "«Soporte»" in aviso and "«Impresora»" in aviso
     _, avisos = validar_plan(obra, {"M3_through_mm": 3.3, "M2_selftap_mm": 1.7})
     assert not [a for a in avisos if "M2" in a]
+
+
+# --- el tornillo que entra por el lado del motor ---------------------------------------------
+
+def _placa_con_motor(tmp_path, entra_en_z, eje):
+    """Un NEMA 17 colgado bajo una placa de 5 mm (de z = 5 a z = 10), con su
+    cara en z = 5, y cuatro agujeros de M3 en línea con sus roscas."""
+    motor = {"nombre": "nema17", "tipo": "componente", "ficha": "nema17", "en": [30, 30, 5],
+             "giros": [], "entra_por": "-z"}
+    agujeros = [_agujero(f"motor_{n}", (30 + x, 30 + y, entra_en_z), eje=eje, metrica="M3")
+                for n, (x, y) in enumerate([(-15.5, -15.5), (15.5, -15.5), (-15.5, 15.5),
+                                            (15.5, 15.5)])]
+    return _backlog(tmp_path, {"placa": ([], [motor, *agujeros], ([0, 0, 5], [60, 60, 10]))},
+                    _nodos(("placa", [], ["nema17"])), [])
+
+
+def test_los_tornillos_que_entran_por_el_lado_del_motor_van_al_reves_y_se_dice(tmp_path):
+    """La «Mano» de la muñeca del banco 1114-1856: taladró los cuatro M3 de
+    su motor desde la cara donde apoya el motor, alejándose de él. No
+    sujetan nada, y eso se contaba bien; pero en sus cinco intentos se le
+    dijo «miden Ø3.3 y el tornillo M3 mide 3: no rosca (…) Tiene que ser más
+    estrecho que el tornillo», que es lo de un tornillo de rosca en plástico.
+    El NEMA 17 lleva la rosca él: el agujero de la pieza es un pasante, y lo
+    que estaba mal era por dónde entra.
+
+    A mano: desde arriba (z = 10) hacia el motor, los cuatro agarran. Desde
+    la cara del motor (z = 5) hacia arriba, ninguno, y se le dice que van al
+    revés, no que estreche el agujero."""
+    assert _faltas(_placa_con_motor(tmp_path / "bien", 10, (0, 0, -1))) == []
+    carpeta = _placa_con_motor(tmp_path / "al-reves", 5, (0, 0, 1))
+    [falta] = _faltas(carpeta)
+    assert (falta.previstos, falta.hechos, falta.al_reves) == (4, 0, 4)
+    [texto] = uniones_sin_hacer(carpeta, "placa")
+    assert "al revés" in texto and "hacia el" in texto
+    assert "más estrecho" not in texto and "no rosca" not in texto

@@ -358,7 +358,7 @@ class Falta:
         falta = f"falta{'n' if k != 1 else ''} {k}"
         tornillos = f"{_n(self.previstos, 'tornillo')} {self.metrica}"
         hay = (f"hay {self.hechos}" if self.hechos
-               else "ninguno agarra" if self.no_roscan else "no hay ninguno")
+               else "ninguno agarra" if self.no_roscan or self.al_reves else "no hay ninguno")
         flojos = ""
         if self.no_roscan:
             d = float(self.metrica.lstrip("Mm"))
@@ -366,6 +366,18 @@ class Falta:
                       f"{'mide' if len(self.no_roscan) == 1 else 'miden'} Ø{self.ancho_mm:g} y "
                       f"el tornillo {self.metrica} mide {d:g}: no rosca, pasa sin tocar. Tiene "
                       "que ser más estrecho que el tornillo.")
+        if self.componente and self.al_reves:
+            # La «Mano» del banco 1114-1856: cinco intentos oyendo «tiene que
+            # ser más estrecho», con los agujeros bien de ancho y mal de lado.
+            que = cargar(self.componente, extra).nombre
+            n = self.al_reves
+            flojos = (f" {n} {'entra' if n == 1 else 'entran'} por la cara donde apoya el "
+                      f"{que} y {'se aleja' if n == 1 else 'se alejan'} de él: "
+                      f"{'va' if n == 1 else 'van'} al revés y no {'sujeta' if n == 1 else 'sujetan'} "
+                      "nada. La rosca la lleva él: el tornillo entra por la cara de enfrente "
+                      f"de esa pared y avanza hacia el {que}. Deja el agujero pasante como "
+                      "está, cambia su `en` a la otra cara y su `eje` al contrario."
+                      + flojos)
         if self.componente:
             que = cargar(self.componente, extra).nombre
             return (f"tornillos del {que}: se sujeta con {tornillos}"
@@ -428,11 +440,20 @@ def sin_hacer(obra: Obra, tornillos: Sequence, construidas,
             suyos = [t for t in tornillos if t.componente == p.componente
                      and t.lo_monta == p.piezas[0] and t.metrica == p.metrica]
             flojos = [t for t in suyos if t.no_rosca()]
+            # Si la rosca la lleva lo comprado (un motor) y no la pieza (la
+            # oreja de un servo), el que acaba en un pasante no es un agujero
+            # ancho: entró por el lado del componente y se aleja de él.
+            en_lo_comprado = not any(h.rosca_en_la_pieza
+                                     for h in cargar(p.componente, extra).fijacion)
+            reves = [t for t in flojos if en_lo_comprado and t.termina == "superficie"]
+            flojos_de_verdad = [t for t in flojos if t not in reves]
             if len(suyos) - len(flojos) < p.cantidad:
                 faltas.append(Falta((), p.piezas, p.metrica, "", p.cantidad,
                                     len(suyos) - len(flojos), p.componente, p.incluido,
-                                    no_roscan=[t.agarra_en for t in flojos],
-                                    ancho_mm=max((t.agarra_mm for t in flojos), default=0.0)))
+                                    no_roscan=[t.agarra_en for t in flojos_de_verdad],
+                                    ancho_mm=max((t.agarra_mm for t in flojos_de_verdad),
+                                                 default=0.0),
+                                    al_reves=len(reves)))
             continue
         if len(hechas) == len(p.piezas):
             clave = (p.piezas, p.metrica, p.termina, "")
