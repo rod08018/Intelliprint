@@ -254,3 +254,26 @@ def test_el_resumen_del_plan_dice_que_cubre_la_carcasa(backlog):
     resumen que lee la persona antes de aprobarlo no lo enseñaba."""
     texto = (backlog / "obra.md").read_text(encoding="utf-8")
     assert "cubre: nema17" in texto
+
+
+def test_al_inicio_se_le_da_la_caja_de_lo_que_cubre_y_el_hueco_que_tiene_que_dejar(backlog):
+    """Pedido por el usuario el 2026-11-13: «mejorar las medidas del inicio
+    para que no falle». La carcasa del encargo 16 (banco 1114-0023) se quedó
+    varias veces a 0,7 o 0,9 mm del motor: sabía que tenía que dejar 1 mm,
+    pero dónde estaba el motor lo sacaba él de la ficha, a ojo. Las cifras
+    las tiene el sistema antes de que dibuje.
+
+    A mano, con el motor de pie en el soporte: su cuerpo va de -21,15 a
+    21,15 en x e y, y de 5 a 44,5 en z; con el milímetro, el hueco tiene que
+    llegar por lo menos de -22,15 a 22,15."""
+    from orchestrator import obra as O
+    from orchestrator.traceability import requested_dimensions
+    texto = O.peticion_del_nodo(backlog, "carcasa")
+    assert "x de -21.15 a 21.15, y de -21.15 a 21.15, z de 5 a 44.5" in texto
+    assert "x de -22.15 a 22.15, y de -22.15 a 22.15, z de 4 a 45.5" in texto
+    # El eje sale del cuerpo: se le dice dónde, para que le deje paso.
+    assert "eje" in texto and "68.5" in texto
+    # Y lo que la ficha pide libre, que no se puede tapar.
+    assert "clavija y cable" in texto
+    # Siguen sin ser cotas de la pieza.
+    assert requested_dimensions(texto) == []

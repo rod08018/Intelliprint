@@ -456,3 +456,27 @@ def test_deepseek_dibuja_una_tapa_abombada_con_las_formas_curvas(tmp_path):
     assert r.solids == 1
     assert r.bbox_mm == pytest.approx([60, 60, 30], abs=2)
     assert r.volume_mm3 < 0.5 * 108000
+
+
+def test_el_acabado_trata_como_base_lo_que_queda_a_menos_de_una_capa_del_fondo(tmp_path):
+    """Encargo 16 (banco 1114-0023): la carcasa terminaba con `acabar()` y en
+    veinte intentos le volvió «quedan vivas entre el 21 y el 71 % de las
+    aristas». Al dejarle holgura al soporte, su base quedó 0,18 mm por
+    encima de un borde fino; el kit buscaba la base justo en el punto más
+    bajo, donde solo estaba ese borde, y la base de verdad se quedaba sin
+    chaflán ni redondeo. Es el mismo escalón que engañó a la medida de los
+    voladizos: menos de una capa.
+
+    Un bloque de 40 × 40 × 10 que apoya en una tira de 4 mm, con el resto de
+    su base 0,18 mm más arriba, tiene que salir acabado."""
+    from orchestrator.banco import AristasVivas, medir_sondas
+    programa = """
+def construir(kit):
+    bloque = kit.caja(40, 40, 10)
+    bloque = bloque.quitar("rebaje", kit.caja(36, 40, 0.18, en=(4, 0, 0)))
+    return bloque.acabar()
+"""
+    _construir(programa, tmp_path)
+    [m] = medir_sondas(tmp_path / "p.step", [AristasVivas(tipo="aristas_vivas")],
+                       _freecadcmd(), {})
+    assert m.estado == "cumple", m.detalle

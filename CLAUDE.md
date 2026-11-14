@@ -166,9 +166,17 @@ imprimir; lo que dejó abierto está abajo.
   0,18 mm sobre un borde, y se contaba entera como «en el aire».
   Corregido: lo que queda a menos de una capa (0,2 mm) de la cama
   está en la cama. **Rejuzgado sin modelo, pasa 5 de 5.** La medida
-  se corrigió después de ver el resultado y **él no lo ha visto**.
-  La carcasa sigue sin pasar su bucle por el chaflán de la base
-  (fallo del kit, sin arreglar).
+  se corrigió después de ver el resultado; **aprobada por él** ese
+  día («Si supongo que esta bien»).
+- **Pedido por él el 2026-11-13: «mejorar las medidas del inicio
+  para que no falle».** Entendido así (interpretación del asistente):
+  lo que hoy se le dice a una pieza cuando ya ha fallado, dárselo
+  antes de dibujar y con cifras. Hecho, sin correr: a la carcasa se
+  le da la caja de lo que cubre y el hueco mínimo; el diseñador y el
+  ingeniero saben cómo se mide «sin soportes»; y el acabado trata
+  como base lo que queda a menos de una capa del fondo (el último
+  programa de la carcasa baja del 56–71 % de aristas vivas al 6 %).
+  **Falta medirlo:** una corrida nueva del encargo 16, por acordar.
 
 **2026-11-11 (noche): Fase 10, brazos con transmisión (ADR-021).** Decidido
 por él: **el brazo antes que el avión**; empezar por uno pequeño con servos;

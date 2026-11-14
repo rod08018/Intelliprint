@@ -31,6 +31,7 @@ except ImportError:   # en el orquestador: solo se lee la API
     FreeCAD = Part = None
 
 TOL = 1e-6
+BASE_MM = 0.25
 ACABADO_MAX_S = 40.0
 """Lo más que se gasta buscando en qué aristas cabe un acabado que no cabe
 en todas: el resto queda vivo. FreeCAD entero tiene 180 s."""
@@ -426,6 +427,9 @@ class Cuerpo:
                 ok = recta and abs(d.z) < 1e-6
             elif aristas == "base":
                 ok = eb.ZMax <= b.ZMin + 1e-4
+            elif aristas == "casi base":
+                # Lo que queda a menos de una capa del fondo sin estar en él.
+                ok = b.ZMin + 1e-4 < eb.ZMax <= b.ZMin + BASE_MM
             elif aristas == "arriba":
                 ok = eb.ZMin >= b.ZMax - 1e-4
             else:
@@ -582,7 +586,19 @@ class Cuerpo:
         # lo que se les pide o avisan, sin cambiar un redondeo por otra cosa.
         pieza = (self._acabar("achaflanar", chaflan_base, self._aristas("base", None), "base",
                               respaldo=True) if chaflan_base else self)
-        z0 = _caja(pieza._forma).ZMin
+        # Y la base que queda a menos de una capa del fondo, aparte: la
+        # carcasa del encargo 16 (banco 1114-0023) apoyaba en un borde fino y
+        # el resto de su base, 0,18 mm más arriba por la holgura con el
+        # soporte, se quedaba sin chaflán ni redondeo: «quedan vivas» en
+        # veinte intentos. Juntas, FreeCAD no achaflana ninguna.
+        if chaflan_base:
+            try:
+                casi = pieza._aristas("casi base", None)
+            except KitError:
+                casi = []
+            if casi:
+                pieza = pieza._acabar("achaflanar", chaflan_base, casi, "base", respaldo=True)
+        z0 = _caja(pieza._forma).ZMin + BASE_MM
         # Todas menos las que quedan ENTERAS en la franja del chaflán. Con una
         # caja «por encima del chaflán» se quedaban fuera las verticales, que
         # empiezan justo en él (test de la escalera, 2026-11-04).

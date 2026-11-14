@@ -520,7 +520,55 @@ def peticion_del_nodo(carpeta: Path, nodo: str) -> str:
                     f"todo lo suyo, y sin tapar lo que su ficha pide libre (el cable, el haz). "
                     f"Coloca la ficha {id_de_ficha(d)} y dibuja la carcasa alrededor de lo que "
                     "trae. Al construir se mide.")
+                lineas += _donde_esta_lo_que_cubre(carpeta, d, suyo)
     return "\n".join(lineas) + "\n"
+
+
+def _donde_esta_lo_que_cubre(carpeta: Path, de: str, cubre: list[str]) -> list[str]:
+    """Las cifras que la carcasa necesita antes de dibujar: la caja de cada
+    cuerpo de lo que cubre, lo que su ficha pide libre y el hueco mínimo.
+
+    Pedido por el usuario el 2026-11-13 («mejorar las medidas del inicio
+    para que no falle»): la carcasa del encargo 16 (banco 1114-0023) sabía
+    que tenía que dejar 1 mm y se quedó varias veces a 0,7 o a 0,9, porque
+    dónde estaba el motor lo sacaba ella de la ficha, a ojo. Vacío si la
+    pieza de abajo aún no tiene ficha."""
+    import math
+
+    from orchestrator.componentes import cargar, primitivas
+    from orchestrator.medida import HOLGURA_DE_CARCASA_MM, _caja_de
+    try:
+        ficha = cargar(id_de_ficha(de), extra=[carpeta_de_fichas(Path(carpeta))])
+    except (KeyError, FileNotFoundError, ValueError):
+        return []
+
+    def n(v):
+        return f"{round(v, 2):g}"
+
+    def caja(lo, hi):
+        return (f"x de {n(lo[0])} a {n(hi[0])}, y de {n(lo[1])} a {n(hi[1])}, "
+                f"z de {n(lo[2])} a {n(hi[2])}")
+
+    lineas = [f"  Dónde está cada cosa, en el marco de la ficha {id_de_ficha(de)} (si la "
+              "colocas en `en=(0, 0, 0)` sin girarla, son también tus coordenadas):"]
+    h = HOLGURA_DE_CARCASA_MM
+    for c in cubre:
+        suyos = [(q, _caja_de(p)) for p, q in zip(primitivas(ficha, de="cuerpos"), ficha.cuerpos)
+                 if q.monta == c]
+        if not suyos:
+            continue
+        for q, (lo, hi) in suyos:
+            lineas.append(f"  - «{q.nombre}»: {caja(lo, hi)}")
+        _, (lo, hi) = max(suyos, key=lambda x: math.prod(b - a for a, b in zip(*x[1])))
+        lineas.append(
+            f"  El hueco de tu carcasa tiene que llegar, como poco, a: "
+            f"{caja([v - h for v in lo], [v + h for v in hi])}: es el mayor de sus cuerpos "
+            "con la holgura. Los demás, o quedan dentro con su holgura o les abres paso.")
+        for p, q in zip(primitivas(ficha, de="despejar"), ficha.despejar):
+            if q.monta == c and not q.gira_con:
+                lineas.append(f"  - Hay que dejar libre «{q.nombre}»: {caja(*_caja_de(p))}. "
+                              "Tu pared no puede pasar por ahí: ábrele una ventana.")
+    return lineas if len(lineas) > 1 else []
 
 
 def ajenos(carpeta: Path, nodo: str) -> dict[str, dict]:

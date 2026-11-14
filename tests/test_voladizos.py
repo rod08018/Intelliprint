@@ -251,3 +251,19 @@ def test_lo_que_queda_a_menos_de_una_capa_de_la_cama_esta_en_la_cama(tmp_path):
     assert _vuelan(_con_escalon(0.18), tmp_path / "menos_de_una_capa") == []
     [zona] = _vuelan(_con_escalon(1.0), tmp_path / "un_milimetro")
     assert zona.plana and zona.area_mm2 == pytest.approx(36 * 40, abs=1)
+
+
+def test_al_disenador_y_al_ingeniero_se_les_dice_al_inicio_como_se_mide():
+    """Pedido por el usuario el 2026-11-13: «mejorar las medidas del inicio
+    para que no falle». La regla del diseñador decía «nada en voladizo a más
+    de `overhang_max_deg`» y nada más: ni que se prueba apoyada en cada cara,
+    ni lo de medio puente, ni que lo primero es elegir qué cara va a la cama.
+    La carcasa del encargo 16 lo fue descubriendo defecto a defecto."""
+    disenador = Path("config/agents/disenador_kit.md").read_text(encoding="utf-8")
+    regla = next(l for l in disenador.splitlines() if l.startswith("7. "))
+    for dicho in ("qué cara va a la cama", "medio puente", "nace desde la cama",
+                  "chaflán de 45°", "menos de una capa"):
+        assert dicho in regla, dicho
+    ingeniero = Path("config/agents/ingeniero.md").read_text(encoding="utf-8")
+    orientacion = next(l for l in ingeniero.splitlines() if l.startswith("3. "))
+    assert "qué cara va a la cama" in orientacion and "sin soportes" in orientacion
