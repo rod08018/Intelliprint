@@ -715,8 +715,12 @@ def _arbol(carpeta: Path, vid: str, bloqueo: str, hay_puente: bool) -> tuple[str
             mas = f"<details><summary>Ver todo</summary>{e(resto)}</details>" if resto else ""
             partes.append(f'<p class="corregida"><b>{rotulo}:</b> {e(primera)}</p>{mas}')
         for stl in piezas_de(dir_nodo):
-            partes.insert(0, f'<div class="foto-pieza"><img src="/proyectos/{vid}/piezas/'
-                             f'{e(stl.stem)}.png" alt="{e(n.nombre)}" loading="lazy"></div>')
+            # La foto, y con el botón la misma pieza para girarla: una foto
+            # fija no enseña la cara de atrás (pedido por él, 2026-11-14).
+            partes.insert(0, f'<div class="foto-pieza" data-stl="/proyectos/{vid}/piezas/'
+                             f'{e(stl.stem)}.stl"><img src="/proyectos/{vid}/piezas/'
+                             f'{e(stl.stem)}.png" alt="{e(n.nombre)}" loading="lazy">'
+                             '<button type="button" class="btn girar">Girar en 3D</button></div>')
         if n.tipo == "conjunto" and estado in ("verificado", "con choques"):
             # F7.6 (animacion): moviéndose, con lo que choca en rojo.
             if (dir_nodo / "animation.gif").is_file():
@@ -744,7 +748,7 @@ def _arbol(carpeta: Path, vid: str, bloqueo: str, hay_puente: bool) -> tuple[str
         marca = O.lista(carpeta, i)
         # Lo que no es lo que toca ahora va plegado bajo «Más»: «Impresa y
         # probada» y «Corregir» en cada tarjeta hacían un muro de botones.
-        extra = []
+        extra, cambio = [], ""
         if marca:
             if marca.get("impresa"):
                 nota = f": {e(marca['nota'])}" if marca.get("nota") else ""
@@ -768,26 +772,34 @@ def _arbol(carpeta: Path, vid: str, bloqueo: str, hay_puente: bool) -> tuple[str
                         if ob.nodo(d).nombre not in se_comprueba]
             aviso = "".join(f" ({que} también {', '.join(cuales)})" for que, cuales in (
                 ("se comprueba", se_comprueba), ("se rehace", arrastra)) if cuales)
-            extra.append(
+            cambio = (
                 f'<form class="cambiar-pieza" data-rehacer="{e(i)}" data-proyecto-obra="{vid}">'
                 # Un textarea: el cambio de la brida del pan-tilt eran tres
                 # frases, y en una línea no se leía lo que se escribía.
-                f'<textarea name="cambio" rows="3" placeholder="Qué cambiar de esta pieza; '
-                f'se corrige la que hay, no se rediseña" '
-                f'aria-label="Qué cambiar de {e(n.nombre)}{e(aviso)}"{bloqueo}></textarea>'
-                f'<button class="btn"{bloqueo}>Corregir</button></form>'
+                f'<textarea name="cambio" rows="3" placeholder="Qué cambiar de esta pieza. Por '
+                'ejemplo: «agrega una rendija para que pase el aire». Se corrige la que hay, no '
+                f'se rediseña" aria-label="Qué cambiar de {e(n.nombre)}{e(aviso)}"{bloqueo}>'
+                f'</textarea><button class="btn"{bloqueo}>Corregir</button></form>'
                 + (f'<p class="nota-grupo">Después se comprueba también '
                    f'{e(", ".join(se_comprueba))}, que se diseñó contra esta: si sigue '
                    'valiendo no se toca.</p>' if se_comprueba else "")
                 + (f'<p class="nota-grupo">Cambiarla deshace también {e(", ".join(arrastra))}: '
                    'se diseñó contra esta.</p>' if arrastra else ""))
-        if extra and i != siguiente and estado not in ("diseñada", "con fallos"):
-            partes.append('<details class="mas"><summary>Más</summary>' + "".join(extra)
-                          + "</details>")
+        if i != siguiente and estado not in ("diseñada", "con fallos"):
+            # En una pieza ya lista, el cambio tiene su propio desplegable con
+            # nombre. Estaba bajo «Más», con «Impresa y probada», y él no supo
+            # que desde la web se le podía escribir a una pieza (2026-11-14).
+            if cambio:
+                partes.append('<details class="pedir-cambio"><summary>Pedir un cambio a esta '
+                              f'pieza</summary>{cambio}</details>')
+            if extra:
+                partes.append('<details class="mas"><summary>Más</summary>' + "".join(extra)
+                              + "</details>")
         else:
-            partes.extend(extra)
+            partes.extend([*extra, cambio])
         actual = ' aria-current="step"' if i == siguiente else ""
-        tarjetas.append(f'<div class="pieza nodo"{actual}>{"".join(partes)}</div>')
+        tarjetas.append(f'<div class="pieza nodo" id="pieza-{e(i)}"{actual}>'
+                        f'{"".join(partes)}</div>')
     # «Añadir función», al final: no es lo que toca ahora, es lo que se hace
     # cuando el invento ya está. Con una ampliación a medias no se pide otra.
     # El título y la explicación van fuera del formulario: `.cambiar-pieza`
@@ -1031,9 +1043,11 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
     {materiales}{estudio}{arbol}{seccion_piezas}{cambiar_todo}{docs}
     <details class="tecnico" data-version="{vid}"><summary>Detalles técnicos</summary><div class="contenido"></div></details>
   </main>"""
-    if con_visor:
+    modulos = [g for g, hace_falta in ((GUION_VISOR, con_visor),
+                                        (GUION_PIEZA, 'data-stl="' in cuerpo)) if hace_falta]
+    if modulos:
         cuerpo += ('\n<script type="importmap">{"imports": {"three": "/estatico/three.module.min.js"}}'
-                   f'</script>\n<script type="module">{GUION_VISOR}</script>')
+                   '</script>' + "".join(f'\n<script type="module">{g}</script>' for g in modulos))
     return _documento(f"{nombre} · Intelliprint", cuerpo, GUION_PROYECTO)
 
 
@@ -1431,8 +1445,13 @@ ESTILO = """
   section h2 { font-size:18px; margin:0 0 14px; }
   .piezas { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:14px; }
   .pieza { background:var(--tarjeta); border:1px solid var(--linea); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
-  .foto-pieza { aspect-ratio:4/3; background:var(--foto); }
+  .foto-pieza { aspect-ratio:4/3; background:var(--foto); position:relative; }
   .foto-pieza img { width:100%; height:100%; object-fit:contain; }
+  /* Girar la pieza en 3D en el sitio de su foto, y la tarjeta a la que se llega tocándola en el ensamble. */
+  .foto-pieza .girar { position:absolute; right:8px; bottom:8px; font-size:13px; padding:6px 10px; }
+  .foto-pieza.girando canvas { width:100%; height:100%; display:block; cursor:grab; touch-action:none; }
+  .nodo.elegida { outline:2px solid var(--acento); outline-offset:2px; }
+  .pedir-cambio > summary { cursor:pointer; color:var(--acento); font-size:14px; padding:6px 0; }
   .nombre-pieza { padding:10px 12px 0; font-weight:600; }
   .uso { font-size:11px; font-weight:600; color:var(--suave); border:1px solid var(--linea); border-radius:6px; padding:1px 6px; margin-left:4px; }
   .cambiar-pieza { display:flex; gap:6px; padding:10px 12px 12px; }
@@ -1637,6 +1656,26 @@ async function arrancar() {
   const mandar = new OrbitControls(camara, lienzo);
   mandar.enableDamping = true;
 
+  // Tocar una pieza lleva a su tarjeta, que es donde se le escribe un cambio
+  // (pedido por el usuario, 2026-11-14). Tocar, no arrastrar: arrastrar gira.
+  const rayo = new THREE.Raycaster(), dedo = new THREE.Vector2();
+  let abajo = null;
+  lienzo.addEventListener("pointerdown", ev => { abajo = [ev.clientX, ev.clientY]; });
+  lienzo.addEventListener("pointerup", ev => {
+    if (!abajo || Math.hypot(ev.clientX - abajo[0], ev.clientY - abajo[1]) > 4) return;
+    const r = lienzo.getBoundingClientRect();
+    dedo.set((ev.clientX - r.left) / r.width * 2 - 1, -(ev.clientY - r.top) / r.height * 2 + 1);
+    rayo.setFromCamera(dedo, camara);
+    const [toca] = rayo.intersectObjects(Object.values(mallas), false);
+    const pieza = toca && Object.keys(grupos).find(p => grupos[p] === toca.object.parent);
+    const tarjeta = pieza && document.getElementById("pieza-" + pieza);
+    if (!tarjeta) return;
+    document.querySelectorAll(".nodo.elegida").forEach(x => x.classList.remove("elegida"));
+    tarjeta.classList.add("elegida");
+    const cambio = tarjeta.querySelector("details.pedir-cambio"); if (cambio) cambio.open = true;
+    tarjeta.scrollIntoView({behavior: "smooth", block: "center"});
+  });
+
   function encuadrar() {
     const b = new THREE.Box3().setFromObject(escena), c = b.getCenter(new THREE.Vector3());
     const r = b.getSize(new THREE.Vector3()).length() / 2 || 50;
@@ -1744,6 +1783,87 @@ async function arrancar() {
   (function bucle() { mandar.update(); render.render(escena, camara); requestAnimationFrame(bucle); })();
 }
 arrancar();
+"""
+
+GUION_PIEZA = r"""
+// Una pieza sola, para girarla en su tarjeta (pedido por el usuario el
+// 2026-11-14). Se carga al pedirlo y hay un solo visor a la vez: cada uno es
+// un contexto de WebGL, y un navegador da pocos.
+import * as THREE from "three";
+import { OrbitControls } from "/estatico/OrbitControls.js";
+
+function leerSTL(buf) {
+  const dv = new DataView(buf), n = buf.byteLength >= 84 ? dv.getUint32(80, true) : -1;
+  if (84 + n * 50 === buf.byteLength) {            // binario: como salen las piezas de hoy
+    const v = new Float32Array(n * 9);
+    for (let i = 0; i < n; i++)
+      for (let k = 0; k < 9; k++) v[i * 9 + k] = dv.getFloat32(84 + i * 50 + 12 + k * 4, true);
+    return v;
+  }
+  const v = [];                                     // de texto: las de antes
+  for (const m of new TextDecoder().decode(buf).matchAll(/vertex\s+(\S+)\s+(\S+)\s+(\S+)/g))
+    v.push(+m[1], +m[2], +m[3]);
+  return new Float32Array(v);
+}
+
+let activo = null;
+function cerrar() {
+  if (!activo) return;
+  cancelAnimationFrame(activo.cuadro); activo.mirar.disconnect();
+  activo.geo.dispose(); activo.render.dispose();
+  activo.caja.replaceChildren(...activo.antes); activo.caja.classList.remove("girando");
+  activo = null;
+}
+
+async function girar(caja) {
+  cerrar();
+  const boton = caja.querySelector(".girar");
+  boton.disabled = true; boton.textContent = "Cargando…";
+  try {
+    const r = await fetch(caja.dataset.stl);
+    if (!r.ok) throw new Error(r.status);
+    const v = leerSTL(await r.arrayBuffer());
+    if (!v.length) throw new Error("vacía");
+    const lienzo = document.createElement("canvas");
+    const render = new THREE.WebGLRenderer({canvas: lienzo, antialias: true, alpha: true});
+    render.setPixelRatio(Math.min(devicePixelRatio, 2));
+    const escena = new THREE.Scene();
+    escena.add(new THREE.HemisphereLight(0xffffff, 0x8a8f94, 1.6));
+    const sol = new THREE.DirectionalLight(0xffffff, 1.8); sol.position.set(1, -2, 3); escena.add(sol);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(v, 3)); geo.computeVertexNormals();
+    escena.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial(
+      {color: 0x4f8fe6, roughness: .75, metalness: .05, flatShading: true})));
+    // Z hacia arriba, como en FreeCAD y en la impresora.
+    const camara = new THREE.PerspectiveCamera(35, 1, 1, 20000); camara.up.set(0, 0, 1);
+    const mandar = new OrbitControls(camara, lienzo); mandar.enableDamping = true;
+    geo.computeBoundingSphere();
+    const c = geo.boundingSphere.center, radio = geo.boundingSphere.radius || 50;
+    camara.position.copy(c).add(new THREE.Vector3(1.3, -1.9, 1.2).normalize().multiplyScalar(radio * 3.2));
+    camara.near = radio / 100; camara.far = radio * 50; mandar.target.copy(c); mandar.update();
+    const volver = Object.assign(document.createElement("button"),
+      {type: "button", className: "btn girar", textContent: "Volver a la foto"});
+    volver.addEventListener("click", cerrar);
+    boton.textContent = "Girar en 3D"; boton.disabled = false;
+    const antes = [...caja.childNodes];
+    caja.replaceChildren(lienzo, volver); caja.classList.add("girando");
+    const medir = () => {
+      const w = caja.clientWidth, h = caja.clientHeight || w * 3 / 4;
+      render.setSize(w, h, false); camara.aspect = w / h; camara.updateProjectionMatrix();
+    };
+    const mirar = new ResizeObserver(medir); mirar.observe(caja); medir();
+    activo = {caja, antes, render, geo, mirar, cuadro: 0};
+    (function bucle() {
+      if (!activo || activo.render !== render) return;
+      mandar.update(); render.render(escena, camara); activo.cuadro = requestAnimationFrame(bucle);
+    })();
+  } catch (e) {
+    // Sin WebGL o sin malla: se queda la foto, y lo dice.
+    boton.textContent = "No se pudo cargar en 3D"; boton.disabled = false;
+  }
+}
+document.querySelectorAll(".foto-pieza[data-stl] .girar").forEach(
+  b => b.addEventListener("click", () => girar(b.closest(".foto-pieza"))));
 """
 
 GUION_PROYECTO = r"""

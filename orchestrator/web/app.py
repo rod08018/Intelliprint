@@ -532,6 +532,18 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
                                 puede_pedir=trabajos is not None and not del_banco,
                                 ocupado=ocupado, del_banco=del_banco)
 
+    @app.get("/proyectos/{id}/piezas/{nombre}.stl")
+    def malla_de_pieza(id: str, nombre: str) -> FileResponse:
+        """La malla de una pieza, tal cual se construyó: es lo que dibuja el
+        navegador para girarla en su tarjeta (pedido por el usuario el
+        2026-11-14: «interactuar con las piezas, rotarlas»). También las del
+        banco: mirar no cambia nada."""
+        carpeta = _proyecto(id, banco=True)
+        stl = next((p for p in piezas_de(carpeta) if p.stem == nombre), None)
+        if stl is None:
+            raise HTTPException(404, f"este proyecto no tiene ninguna pieza {nombre!r}")
+        return FileResponse(stl, media_type="model/stl")
+
     @app.get("/proyectos/{id}/piezas/{nombre}.png")
     def vista_de_pieza(id: str, nombre: str) -> FileResponse:
         """Una pieza sola, para su tarjeta. Se guarda en `vistas/` —que no

@@ -397,3 +397,69 @@ def test_una_pieza_del_backlog_sin_ficha_se_nombra_y_no_sale_su_id(tmp_path):
     assert "obra-" not in texto
     # Lo que no es del backlog se sigue llamando por su id, que es el de la biblioteca.
     assert "sensor-raro (no hay ficha)" in texto
+
+
+# --- pieza a pieza: girarla y escribirle ----------------------------------------------------
+# Pedido por el usuario el 2026-11-14: «quiero poder administrar hasta pieza por
+# pieza (...) interactuar con las piezas, rotarlas, y escribir a esa pieza
+# "agrega espacio para poner un motor externo o interno y una rendija que
+# permita el flujo de aire"».
+
+def test_cada_pieza_se_puede_girar_en_3d(tmp_path):
+    """La tarjeta de una pieza construida era una foto fija. Ahora dice de
+    dónde sale su malla, y la web la sirve tal cual: es lo que el navegador
+    dibuja para girarla."""
+    carpeta = _empezar(tmp_path, aprobada=True)
+    _disenar_nodo(carpeta, "base")
+    web = _ws_con_trabajos(tmp_path)
+    html = web.get(f"/p/{ID}").text
+    stl = carpeta / "nodos" / "base" / "parts" / "base" / "base.stl"
+    assert f'data-stl="/proyectos/{ID}/piezas/base.stl"' in html
+    assert "Girar en 3D" in _visible(html)
+    r = web.get(f"/proyectos/{ID}/piezas/base.stl")
+    assert r.status_code == 200 and r.content == stl.read_bytes()
+    assert web.get(f"/proyectos/{ID}/piezas/no-existe.stl").status_code == 404
+    # El visor viaja con la página y solo usa lo que la web sirve ella misma.
+    from orchestrator.web.paginas import GUION_PIEZA
+    assert '"three": "/estatico/three.module.min.js"' in html and GUION_PIEZA in html
+    assert "http://" not in GUION_PIEZA and "https://" not in GUION_PIEZA
+
+
+def test_a_una_pieza_ya_lista_se_le_escribe_un_cambio_sin_buscarlo(tmp_path):
+    """Pedir un cambio a una pieza terminada estaba bajo «Más», junto a
+    «Impresa y probada»: había que saber que estaba ahí. Ahora tiene su
+    propio desplegable, con su nombre, y lo que se escribe llega a esa pieza
+    y a ninguna otra."""
+    carpeta = _empezar(tmp_path, aprobada=True)
+    _disenar_nodo(carpeta, "base")
+    (carpeta / "nodos" / "base" / "parts" / "base" / "programa.py").write_text(
+        "CODIGO", encoding="utf-8")
+    O.dar_por_lista(carpeta, "base", por="prueba")
+    _disenar_nodo(carpeta, "giro")
+    web = _ws_con_trabajos(tmp_path)
+    html = web.get(f"/p/{ID}").text
+    tarjetas = html.split('<div class="pieza nodo"')
+    [base] = [t for t in tarjetas if 'data-impresa="base"' in t]
+    assert re.search(r'<details class="pedir-cambio"><summary>Pedir un cambio a esta pieza'
+                     r'</summary>\s*<form class="cambiar-pieza" data-rehacer="base"', base), base
+    [mas] = re.findall(r'<details class="mas">.*?</details>', base, re.S)
+    assert 'data-impresa="base"' in mas and "data-rehacer" not in mas
+    # Cada tarjeta tiene su ancla: desde el ensamble se llega a ella.
+    assert 'id="pieza-base"' in html and 'id="pieza-giro"' in html
+
+    cambio = "agrega una rendija que permita el flujo de aire"
+    r = web.post(f"/api/proyectos/{ID}/nodos/base/rehacer", json={"cambio": cambio})
+    assert r.status_code == 200, r.text
+    assert O.estados(carpeta)["base"] == "corrigiendo"
+    despues = web.get(f"/p/{ID}").text.split('<div class="pieza nodo"')
+    [la_base] = [t for t in despues if 'id="pieza-base"' in t]
+    assert f"<b>Se corrige:</b> {cambio}" in la_base
+    assert all(cambio not in t for t in despues if 'id="pieza-giro"' in t)
+
+
+def test_en_el_ensamble_se_toca_una_pieza_para_ir_a_su_tarjeta():
+    """El visor del ensamble ya sabía de qué pieza es cada malla. Al tocar
+    una (sin arrastrar: arrastrar es girar), la página va a su tarjeta."""
+    from orchestrator.web.paginas import GUION_VISOR
+    assert "Raycaster" in GUION_VISOR
+    assert '"pieza-" +' in GUION_VISOR and "scrollIntoView" in GUION_VISOR
