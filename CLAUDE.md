@@ -240,7 +240,10 @@ imprimir; lo que dejó abierto está abajo.
   NEMA 17 con las cicloidales de hoy (28, 28 y 10 a 1). Rodamientos:
   2 × 6810-2RS en la base, 6806-2RS en hombro, codo, J4 y J6, y
   608ZZ en el cabeceo. Las masas de lo impreso son estimaciones del
-  asistente. Faltan esas fichas, y el tope de gasto del brazo.
+  asistente. Hechas las fichas `6806-2rs` y `6810-2rs`. **La tabla
+  no tiene su visto bueno salvo las reductoras**, y falta el tope
+  de gasto del brazo. Un giro del plan va sobre un solo componente:
+  nada dice todavía que una articulación lleva dos rodamientos.
 - **Decidido por él el 2026-11-14: «Ambas compradas y en los bom
   agrega el link de compra de la reductora».** Las reductoras del
   hombro y del codo se compran y F12.2 (reductora) no se hace. Hechas
@@ -248,10 +251,11 @@ imprimir; lo que dejó abierto está abajo.
   `nema23-pg47-56` (codo: 10,1 de 21,3), un NEMA 23 con planetaria
   de 46,656:1 ya montada; la pieza gira en su eje, sin `movido_por`.
   Una ficha puede decir dónde se compra (`compra_url`) y la lista
-  de materiales lo enseña. **Hay que decírselo:** su hoja da hasta
-  1,5° de juego (15,7 mm en la punta por el hombro y 8,9 por el
-  codo), y al proponérselas se le dijo «casi 9 mm». Las hojas son
-  las de una tienda (Oyostepper); la del fabricante no se dejó leer.
+  de materiales lo enseña. Su hoja da hasta 1,5° de juego (15,7 mm
+  en la punta por el hombro y 8,9 por el codo), y al proponérselas
+  se le había dicho «casi 9 mm». **Dicho y aceptado por él ese día:
+  «dale usa esa reductora con el juego».** Las hojas son las de una
+  tienda (Oyostepper); la del fabricante no se dejó leer.
 - **El avión, dicho por él esa noche:** un VTOL, con una autonomía
   muy buena en horas, hasta 250 km de alcance, hasta 8 libras
   (3,63 kg) de carga, y que lleve hasta dos cámaras y un lidar sin

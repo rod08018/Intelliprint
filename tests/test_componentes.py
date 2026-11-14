@@ -515,6 +515,52 @@ def test_el_enlace_de_compra_es_una_direccion_web():
         Ficha(**{**datos, "compra_url": "javascript:alert(1)"})
 
 
+# --- F12.1 (fichas): los rodamientos grandes del brazo de 2 kg -----------------------------
+# Las páginas de SKF 61806-2RS1 y 61810-2RS1 en coolenbearings.com, leídas el
+# 2026-11-14: (d, D, B, masa en g, lo más que sube el apoyo del eje, D2).
+
+RODAMIENTOS = {"6806-2rs": (30, 42, 7, 22, 32.5, 39.4), "6810-2rs": (50, 65, 7, 47.2, 55.0, 61.55)}
+
+
+@pytest.mark.parametrize("id_", RODAMIENTOS)
+def test_un_rodamiento_grande_es_un_anillo_con_las_cotas_de_su_hoja(id_):
+    d, D, B, masa, _, _ = RODAMIENTOS[id_]
+    r = _cuerpo(id_, "rodamiento").cilindro
+    assert (r.interior, r.diametro, r.alto) == (d, D, B)
+    f = cargar(id_)
+    assert f.masa_g == masa and not f.da_par()
+    [aro] = f.salidas
+    assert (aro.nombre, aro.eje, aro.recorrido, aro.largo) == ("aro interior", "+z", (0, 360), B)
+
+
+@pytest.mark.parametrize("id_", RODAMIENTOS)
+def test_en_un_rodamiento_grande_se_apoya_en_un_solo_aro(id_):
+    """Como en el 608ZZ: lo que toque la cara de un aro gira con él, y una
+    pieza no puede apoyar en los dos. La zona del aro interior llega al
+    menos hasta donde la hoja deja subir el apoyo del eje (da max), y la del
+    exterior empieza como muy tarde en su rebaje (D2); entre las dos queda
+    el sello, que no es de ninguno."""
+    d, D, B, _, da_max, D2 = RODAMIENTOS[id_]
+    zonas = cargar(id_).despejar
+    interior = [z for z in zonas if z.gira_con == "aro interior"]
+    exterior = [z for z in zonas if z.gira_con == "aro exterior"]
+    assert len(interior) == len(exterior) == 2 and len(zonas) == 4
+    for z in interior:
+        assert z.cilindro.interior == d and da_max <= z.cilindro.diametro < D2
+    for z in exterior:
+        assert z.cilindro.diametro == D and da_max < z.cilindro.interior <= D2
+    assert max(z.cilindro.diametro for z in interior) < min(z.cilindro.interior for z in exterior)
+    # Una cara a cada lado del rodamiento.
+    assert sorted(z.en[2] for z in interior) == sorted(z.en[2] for z in exterior) == [-0.5, B]
+
+
+def test_cada_rodamiento_se_reconoce_por_su_nombre_y_no_por_el_de_otro():
+    from orchestrator.componentes import mencionados
+    assert mencionados("El hombro apoya en un rodamiento 6806-2RS") == ["6806-2rs"]
+    assert mencionados("La base gira sobre dos SKF 61810-2RS1") == ["6810-2rs"]
+    assert mencionados("Una polea para un rodamiento 608ZZ") == ["608zz"]
+
+
 def test_una_peticion_que_nombra_el_motorreductor_por_su_numero_de_parte():
     from orchestrator.componentes import mencionados
     assert mencionados("El hombro, sobre un 23HS30-2804S-PG47") == ["nema23-pg47-76"]

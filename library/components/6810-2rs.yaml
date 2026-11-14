@@ -1,0 +1,62 @@
+# Rodamiento de sección fina 6810-2RS / 61810-2RS1 (F12.1 (fichas)): el de la
+# base del brazo de 2 kg, dos separados 40 mm, propuesto por el asistente el
+# 2026-11-14. Por su agujero de 50 mm pasan los cables.
+id: 6810-2rs
+nombre: Rodamiento 6810-2RS (50 × 65 × 7)
+alias: ["6810-2RS", "6810 2RS", "6810RS", "6810ZZ", "61810", "rodamiento 6810"]
+verificado: false
+fuentes:
+  - url: https://www.coolenbearings.com/skf/ball-bearings/deep-groove/61810-2rs1
+    cita: "SKF 61810-2RS1: Bore diameter 50.0 mm, Outside diameter 65.0 mm, Width 7.0 mm; Shoulder diameter d1 ≈ 54.9 mm; Recess diameter D2 ≈ 61.55 mm; shaft abutment da min. 52.0 mm, max. 55.0 mm; housing abutment Da max. 63.0 mm"
+  - url: https://www.coolenbearings.com/skf/ball-bearings/deep-groove/61810-2rs1
+    cita: "Basic static load rating C0 4.15 kN; Net weight 0.0472 kg"
+marco: >
+  Origen en el centro de una de sus caras, con el eje del agujero en z: el
+  rodamiento ocupa de z=0 a z=7.
+mira: "+z"
+cuerpos:
+  - nombre: rodamiento
+    cilindro: {diametro: 65, interior: 50, alto: 7, eje: "+z"}
+    en: [0, 0, 0]
+    porque: "es un anillo: por el agujero de 50 pasan el eje hueco y los cables"
+# Las caras de los dos aros, medio milímetro hacia fuera, como en el 608ZZ:
+# lo que apoye en una gira con ese aro, y la pieza puede tocar las de UN solo
+# aro (`gira_con`). El aro interior llega hasta d1 ≈ 54.9 y el exterior
+# empieza en D2 ≈ 61.55; a los dos, 0.4 mm de margen en el radio. Entre uno
+# y otro queda el sello.
+despejar:
+  - nombre: cara de abajo del aro interior
+    cilindro: {diametro: 55.7, interior: 50, alto: 0.5, eje: "+z"}
+    en: [0, 0, -0.5]
+    gira_con: aro interior
+  - nombre: cara de arriba del aro interior
+    cilindro: {diametro: 55.7, interior: 50, alto: 0.5, eje: "+z"}
+    en: [0, 0, 7]
+    gira_con: aro interior
+  - nombre: cara de abajo del aro exterior
+    cilindro: {diametro: 65, interior: 60.75, alto: 0.5, eje: "+z"}
+    en: [0, 0, -0.5]
+    gira_con: aro exterior
+  - nombre: cara de arriba del aro exterior
+    cilindro: {diametro: 65, interior: 60.75, alto: 0.5, eje: "+z"}
+    en: [0, 0, 7]
+    gira_con: aro exterior
+salidas:
+  - nombre: aro interior
+    en: [0, 0, 0]
+    eje: "+z"
+    recorrido: [0, 360]
+    # El ancho del aro (B = 7): lo que apoya en la cara de arriba también
+    # gira con él.
+    largo: 7
+    porque: "un rodamiento gira libre, sin tope: la vuelta entera"
+notas: >
+  El aro exterior va a presión en un alojamiento de Ø65 (con la holgura de
+  «press» del perfil) y el interior en un eje de 50. Si algo apoya en una
+  cara, que apoye solo en el aro que no gira: un reborde en el alojamiento
+  no baja de Ø63 (Da max), y un separador en el eje no pasa de Ø55 (da
+  max). Admite 4,15 kN parado según esta página (otras tiendas dicen 6,8).
+  Uno solo no aguanta un momento de vuelco: van dos, separados.
+
+# La página: «Net weight 0.0472 kg».
+masa_g: 47.2

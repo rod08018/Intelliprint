@@ -1,0 +1,63 @@
+# Rodamiento de sección fina 6806-2RS / 61806-2RS1 (F12.1 (fichas)): el de
+# las articulaciones del brazo de 2 kg (hombro, codo, giro del antebrazo y de
+# la herramienta), propuesto por el asistente el 2026-11-14.
+id: 6806-2rs
+nombre: Rodamiento 6806-2RS (30 × 42 × 7)
+alias: ["6806-2RS", "6806 2RS", "6806RS", "6806ZZ", "61806", "rodamiento 6806"]
+verificado: false
+fuentes:
+  - url: https://www.coolenbearings.com/skf/ball-bearings/deep-groove/61806-2rs1
+    cita: "SKF 61806-2RS1: Bore diameter 30.000 mm, Outside diameter 42.000 mm, Width 7.000 mm; Recess diameter D2 ≈ 39.4 mm; shaft abutment da min. 32.0 mm, max. 32.5 mm; housing abutment Da max. 40.0 mm"
+  - url: https://www.coolenbearings.com/skf/ball-bearings/deep-groove/61806-2rs1
+    cita: "Basic static load rating C0 2.9 kN; Net weight 0.022 kg"
+marco: >
+  Origen en el centro de una de sus caras, con el eje del agujero en z: el
+  rodamiento ocupa de z=0 a z=7.
+mira: "+z"
+cuerpos:
+  - nombre: rodamiento
+    cilindro: {diametro: 42, interior: 30, alto: 7, eje: "+z"}
+    en: [0, 0, 0]
+    porque: "es un anillo: por el agujero de 30 pasa el eje"
+# Las caras de los dos aros, medio milímetro hacia fuera, como en el 608ZZ:
+# lo que apoye en una gira con ese aro, y la pieza puede tocar las de UN solo
+# aro (`gira_con`). La página no da el diámetro del hombro del aro interior
+# (d1): se toma lo más que deja subir el apoyo del eje (da max 32.5); el
+# exterior empieza en su rebaje (D2 ≈ 39.4). A los dos, 0.4 mm de margen en
+# el radio. Entre uno y otro queda el sello.
+despejar:
+  - nombre: cara de abajo del aro interior
+    cilindro: {diametro: 33.3, interior: 30, alto: 0.5, eje: "+z"}
+    en: [0, 0, -0.5]
+    gira_con: aro interior
+  - nombre: cara de arriba del aro interior
+    cilindro: {diametro: 33.3, interior: 30, alto: 0.5, eje: "+z"}
+    en: [0, 0, 7]
+    gira_con: aro interior
+  - nombre: cara de abajo del aro exterior
+    cilindro: {diametro: 42, interior: 38.6, alto: 0.5, eje: "+z"}
+    en: [0, 0, -0.5]
+    gira_con: aro exterior
+  - nombre: cara de arriba del aro exterior
+    cilindro: {diametro: 42, interior: 38.6, alto: 0.5, eje: "+z"}
+    en: [0, 0, 7]
+    gira_con: aro exterior
+salidas:
+  - nombre: aro interior
+    en: [0, 0, 0]
+    eje: "+z"
+    recorrido: [0, 360]
+    # El ancho del aro (B = 7): lo que apoya en la cara de arriba también
+    # gira con él.
+    largo: 7
+    porque: "un rodamiento gira libre, sin tope: la vuelta entera"
+notas: >
+  El aro exterior va a presión en un alojamiento de Ø42 (con la holgura de
+  «press» del perfil) y el interior en un eje de 30. Si algo apoya en una
+  cara, que apoye solo en el aro que no gira: un reborde en el alojamiento
+  no baja de Ø40 (Da max), y un separador en el eje no pasa de Ø32.5 (da
+  max). Admite 2,9 kN parado. Uno solo no aguanta un momento de vuelco: van
+  por pares separados, o con otro apoyo al otro lado.
+
+# La página: «Net weight 0.022 kg». El catálogo de SKF da 0.025.
+masa_g: 22
