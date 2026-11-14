@@ -1005,8 +1005,15 @@ def radio_libre(piezas: dict[str, Pieza], arts: dict[str, Articulacion], pieza: 
         j = piezas[j].padre
     mejor: tuple[float, str | None] = (math.inf, None)
     juntas = [j for j in _hasta_la_raiz(piezas, pieza) if j in arts]
-    for valores in itertools.product(*[_recorrido(arts[j], paso) for j in juntas]):
-        mundo = poses(piezas, arts, dict(zip(juntas, valores)))
+    # En la rejilla del barrido (F10.5 (muestreo)), no en todas las
+    # combinaciones: con cinco giros debajo son 2 476 099, y medir el sitio
+    # de la «Mano» del brazo de seis ejes hecho a mano (2026-11-14) no acabó
+    # en veinte minutos. En una corrida de pago esa pieza no pasa del primer
+    # intento. Lo que cae entre dos puntos de la rejilla no se mira aquí
+    # tampoco: la medida exacta sigue siendo el barrido.
+    combos, _ = rejilla_de_poses({j: arts[j].recorrido for j in juntas}, paso)
+    for combo in combos:
+        mundo = poses(piezas, arts, combo)
         for a in debajo:
             r, t = _componer(_inversa(mundo[a]), mundo[pieza])
             punto = [x + y for x, y in zip(_mv(r, salida["punto"]), t)]

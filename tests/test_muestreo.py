@@ -155,3 +155,27 @@ def test_el_estudio_de_cinco_giros_prueba_la_rejilla_gruesa_y_no_un_giro_cada_ve
     e = estudiar(_cadena(tmp_path), "conjunto")
     assert e["poses"] == 3125
     assert any("45°" in a for a in e["avisos"])
+
+
+def test_el_sitio_de_un_giro_tambien_se_mide_en_la_rejilla_gruesa(tmp_path, monkeypatch):
+    """El brazo de seis ejes hecho a mano (2026-11-14): medir el sitio del
+    giro que monta la «Mano», que tiene cinco giros debajo, llevaba más de
+    veinte minutos sin acabar. `radio_libre` seguía probando todas las
+    combinaciones de los giros de debajo, 19⁵ = 2 476 099, las mismas que el
+    barrido dejó de probar con F10.5 (muestreo). En una corrida de pago esa
+    pieza no habría pasado del primer intento.
+
+    Con cinco giros debajo, la rejilla gruesa: 5⁵ = 3 125 poses."""
+    from orchestrator import conjunto
+    from orchestrator.conjunto import articulaciones_de, leer_piezas, radio_libre
+    carpeta = _cadena(tmp_path)
+    piezas = leer_piezas(carpeta, solo_construidas=True)
+    arts = {a.pieza: a for a in articulaciones_de(carpeta, piezas)}
+    assert len([j for j in arts]) == 5
+    veces = []
+    de_verdad = conjunto.poses
+    monkeypatch.setattr(conjunto, "poses", lambda *a, **k: veces.append(1) or de_verdad(*a, **k))
+    salida = {"de": "sg90", "nombre": "eje", "punto": [29.4, 12.2, 27.1], "eje": [0, 0, 1],
+              "recorrido": (-90, 90), "largo": 0.0}
+    radio_libre(piezas, arts, "p5", salida)
+    assert len(veces) == 5 ** 5 == 3125
