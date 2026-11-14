@@ -1,0 +1,72 @@
+# Motor paso a paso NEMA 23 de 56 mm (SY57STH56-2804A) (F12.1 (fichas)).
+id: nema23
+nombre: Motor paso a paso NEMA 23 (SY57STH56-2804A, 56 mm)
+alias: ["NEMA 23", "NEMA23", "SY57STH56-2804A", "57STH56"]
+verificado: false
+fuentes:
+  - url: https://www.pololu.com/file/0J674/SY57STH56-2804A.pdf
+    cita: "SY57STH56-2804A, Dimensions (unit=mm): 56.4±1, 47.1±0.2, 4-Ø5, Ø38.1±0.03, 1.6, 5, Ø6.35 (0/-0.01), 5.85 (0/-0.1), 15, 21±1, 56±1"
+  - url: https://www.pololu.com/file/0J674/SY57STH56-2804A.pdf
+    cita: "Rated Current (A) 2.8; Holding Torque (N.cm) 126; Max.radial force (N) 28 (20mm from the flange); Max.axial force (N) 10"
+  - url: https://www.pololu.com/product-info-merged/1474
+    cita: "Weight: 0.7 kg (25 oz)"
+marco: >
+  Origen en el centro de la cara de montaje (la del eje): el motor queda
+  detrás, hacia -z, y el eje sale hacia +z. Los cables salen por el lado -y,
+  junto a la tapa de atrás.
+mira: "+z"
+cuerpos:
+  # La brida, de 5 mm, lleva los cuatro agujeros; el plano la dibuja del
+  # mismo lado que el cuerpo (56.4 ± 1).
+  - nombre: brida
+    caja: [56.4, 56.4, 5]
+    en: [-28.2, -28.2, -5]
+  - nombre: cuerpo
+    caja: [56.4, 56.4, 51]
+    en: [-28.2, -28.2, -56]
+    porque: "56 ± 1 desde la cara de montaje, con la brida"
+  - nombre: resalte
+    cilindro: {diametro: 38.1, alto: 1.6, eje: "+z"}
+    en: [0, 0, 0]
+    porque: "centra el motor: el agujero de la pieza tiene que dejarlo pasar"
+  - nombre: eje
+    cilindro: {diametro: 6.35, alto: 21, eje: "+z"}
+    en: [0, 0, 0]
+    porque: "21 ± 1 desde la cara; lleva un plano (5.85 de plano a lomo) en sus últimos 15 mm"
+despejar:
+  # El plano dibuja los cuatro cables (UL 1007 AWG22, 300 ± 10) saliendo por
+  # un lateral junto a la tapa de atrás, sin acotar dónde: el sitio que se
+  # les deja aquí es una estimación de quien escribió la ficha.
+  - nombre: cables
+    caja: [14, 15, 14]
+    en: [-7, -43.2, -56]
+    porque: "los cuatro cables salen por ese lateral, junto a la tapa de atrás"
+salidas:
+  - nombre: eje
+    en: [0, 0, 0]
+    eje: "+z"
+    recorrido: [0, 360]
+    largo: 21
+    porque: "un paso a paso no tiene tope: la vuelta entera"
+# Agujeros PASANTES de Ø5 en la brida, no roscados como los del NEMA 17: el
+# tornillo atraviesa la pieza y la brida (5 mm) y agarra con una tuerca por
+# detrás de ella. Por un Ø5 un M5 no pasa con holgura; va un M4.
+fijacion:
+  - {nombre: M4 1, diametro: 5, en: [-23.55, -23.55, 0], eje: "-z", tornillo: M4, dentro_mm: 5, tuerca: tuerca M4}
+  - {nombre: M4 2, diametro: 5, en: [23.55, -23.55, 0], eje: "-z", tornillo: M4, dentro_mm: 5, tuerca: tuerca M4}
+  - {nombre: M4 3, diametro: 5, en: [-23.55, 23.55, 0], eje: "-z", tornillo: M4, dentro_mm: 5, tuerca: tuerca M4}
+  - {nombre: M4 4, diametro: 5, en: [23.55, 23.55, 0], eje: "-z", tornillo: M4, dentro_mm: 5, tuerca: tuerca M4}
+notas: >
+  Los cuatro agujeros de la brida son pasantes de Ø5, a 47.1 entre centros:
+  cada tornillo M4 cruza la pieza y la brida y lleva su tuerca detrás. Hay
+  NEMA 23 de otros largos (41 a 112 mm) y con eje de 8 mm: si el tuyo no es
+  este, cambia el largo del cuerpo, el eje y el par. La carga radial que
+  admite el eje es de 28 N a 20 mm de la brida: una correa tensa tira de él.
+
+# La página del vendedor: «Weight: 0.7 kg (25 oz)». La hoja no lo da.
+masa_g: 700
+
+# La hoja: «Holding Torque (N.cm) 126», a 2.8 A por fase. Es el par parado:
+# la curva de la misma hoja da 72 N·cm girando despacio (307 pasos/s, a
+# medio paso) y cae a 39 a 5 100.
+par_retencion_mNm: 1260

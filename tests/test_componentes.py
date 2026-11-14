@@ -379,3 +379,50 @@ def test_las_masas_que_dan_sus_fuentes():
     assert cargar("608zz").masa_g == 13
     assert cargar("nema17").masa_g == 275
     assert cargar("hc-sr04").masa_g == 8.5
+
+
+# --- F12.1 (fichas): el NEMA 23 -----------------------------------------------------------
+# La hoja del fabricante del SY57STH56-2804A (Changzhou Songyang), descargada
+# de https://www.pololu.com/file/0J674/SY57STH56-2804A.pdf el 2026-11-14.
+
+def test_nema23_como_su_plano():
+    """El plano: 56.4 ± 1 de lado, 56 ± 1 de largo con una brida de 5, cuatro
+    agujeros de Ø5 a 47.1 ± 0.2 entre centros, resalte de Ø38.1 × 1.6 y eje
+    de Ø6.35 que sale 21 ± 1."""
+    brida, cuerpo = _cuerpo("nema23", "brida"), _cuerpo("nema23", "cuerpo")
+    assert brida.caja == [56.4, 56.4, 5]
+    # Brida y cuerpo, uno detrás de otro, suman los 56 del plano.
+    assert brida.caja[2] + cuerpo.caja[2] == 56 and cuerpo.en[2] == -56
+    resalte = _cuerpo("nema23", "resalte").cilindro
+    assert (resalte.diametro, resalte.alto) == (38.1, 1.6)
+    eje = _cuerpo("nema23", "eje").cilindro
+    assert (eje.diametro, eje.alto) == (6.35, 21)
+    f = cargar("nema23").fijacion
+    assert len(f) == 4 and all(a.diametro == 5 for a in f)
+    xs, ys = sorted({a.en[0] for a in f}), sorted({a.en[1] for a in f})
+    assert xs[1] - xs[0] == pytest.approx(47.1) and ys[1] - ys[0] == pytest.approx(47.1)
+    assert sum(xs) == pytest.approx(0) and cuerpo.en[0] + cuerpo.caja[0] / 2 == pytest.approx(0)
+
+
+def test_los_tornillos_del_nema23_cruzan_la_brida_y_llevan_tuerca():
+    """Sus agujeros son pasantes, no roscados como los del NEMA 17: el
+    tornillo cruza los 5 mm de la brida y agarra en una tuerca. Por un Ø5 va
+    un M4 con holgura; un M5 no."""
+    for a in cargar("nema23").fijacion:
+        assert (a.tornillo, a.dentro_mm, a.tuerca) == ("M4", 5, "tuerca M4")
+        assert not a.rosca_en_la_pieza
+
+
+def test_el_nema23_da_su_par_su_masa_y_tiene_eje():
+    """La hoja: «Holding Torque (N.cm) 126», 1,26 N·m. El vendedor: 0,7 kg.
+    El eje sale del centro de la cara de montaje y da vueltas enteras."""
+    f = cargar("nema23")
+    assert f.par_motor_Nm() == pytest.approx(1.26) and f.masa_g == 700
+    [eje] = f.salidas
+    assert (eje.en, eje.eje, eje.recorrido, eje.largo) == ([0, 0, 0], "+z", (0, 360), 21)
+
+
+def test_una_peticion_que_nombra_un_nema_23_no_recibe_el_17():
+    from orchestrator.componentes import mencionados
+    assert mencionados("Una base para un motor NEMA 23 con su polea") == ["nema23"]
+    assert mencionados("Escuadra para un motor NEMA 17") == ["nema17"]

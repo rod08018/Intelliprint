@@ -543,7 +543,7 @@ Además el plan reservó 150 mm de radio libre para un brazo que mide 150 del ej
 
 | ID | Tarea | Criterio de aceptación |
 |----|-------|------------------------|
-| F12.1 | **Las fichas que faltan** (fichas): NEMA 23, rodamientos grandes y más correas, entrando por el borrador de ficha de F9.11 (borrador) | Las cotas de cada ficha son las de la hoja del fabricante, citada |
+| F12.1 | **Las fichas que faltan** (fichas): NEMA 23, rodamientos grandes y más correas, entrando por el borrador de ficha de F9.11 (borrador) | Las cotas de cada ficha son las de la hoja del fabricante, citada **Empezada (2026-11-14), sin él:** la ficha `nema23` (SY57STH56-2804A, 56 mm; 1,26 N·m de retención, 0,7 kg), con las cotas del plano del fabricante. Sus agujeros son pasantes de Ø5 en una brida de 5 mm: va un M4 que cruza pieza y brida y lleva tuerca detrás. **Supuesto del asistente:** por dónde salen los cables (el plano no lo acota) y que el motor sea ese modelo: él no ha dicho cuál tiene o va a comprar. Faltan los rodamientos grandes y las correas, y F9.11 (borrador) sigue sin hacer |
 | F12.2 | **Reductora para NEMA 23** (reductora): un módulo impreso de más relación que la cicloidal de hoy | El perfil contra la fórmula publicada, la relación por conteo y cero interferencias al dar una vuelta |
 | F12.3 | **Cuánto se dobla** (flecha): el estudio calcula lo que baja la punta por la flexión de cada tramo con la carga | Una viga en voladizo a mano: F·L³/(3·E·I), con la sección medida en la pieza |
 | F12.4 | **Muñeca de tres ejes** (muñeca): tres giros seguidos, cada uno con su motor. La diferencial de Arctos no entra: el plan es un árbol de giros | Hecha a mano, sin modelo: se mueve sin chocar en la rejilla y cada motor puede con lo suyo |

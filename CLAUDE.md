@@ -212,6 +212,11 @@ imprimir; lo que dejó abierto está abajo.
   defectos. **Criterio del asistente:** 0,8 mm de labio y de
   lengüeta como poco. Ningún modelo la ha usado y el banco no tiene
   encargo que la pida. Con ella la Fase 11 no tiene más filas.
+- **Empezada la Fase 12 sin él, por lo que no depende de su
+  respuesta:** la ficha `nema23` (F12.1 (fichas)), con las cotas de
+  la hoja del fabricante. Qué NEMA 23 tiene o va a comprar no lo ha
+  dicho: es un supuesto. **Las filas de la Fase 12 siguen por
+  concretar con él**, y también el tope de gasto de su brazo.
 - **El avión, dicho por él esa noche:** un VTOL, con una autonomía
   muy buena en horas, hasta 250 km de alcance, hasta 8 libras
   (3,63 kg) de carga, y que lleve hasta dos cámaras y un lidar sin
