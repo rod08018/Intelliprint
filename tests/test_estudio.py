@@ -412,3 +412,29 @@ def test_el_apoyo_guardado_sigue_siendo_convexo():
                 30 * math.sin(2 * math.pi * k / 2000) - 0.654321) for k in range(2000)]
     guardado = [tuple(p) for p in apoyo_para_guardar(circulo)]
     assert margen_de_vuelco([0.123456, -0.654321], guardado) == pytest.approx(30, abs=0.01)
+
+
+def test_la_carga_que_tira_casi_a_lo_largo_solo_flexa_con_lo_que_va_de_traves(tmp_path):
+    """El brazo de 2 kg hecho a mano (2026-11-14): «levanta 0 g, lo limita el
+    material de Brazo». Colgando hacia abajo, la gravedad iba casi a lo largo
+    de la pieza, con un 7 % de través hacia su lado fino; ese resto se
+    normalizaba, y se contaba como si todo el peso la doblara de plano.
+
+    La barra de 100 × 10 × 10 de arriba aguanta 20,11 N de través. Con el
+    peso tirando a 53,13° de su eje (0,8 a lo largo y 0,6 de través), lo que
+    la flexa es el 60 % del peso: aguanta 20,11 / 0,6 = 33,52 N."""
+    from tests.test_generators import _freecadcmd
+    if _freecadcmd() is None:
+        pytest.skip("sin freecadcmd")
+    from orchestrator.build import build_part
+    from orchestrator.estudio import resistencia_de_tramos
+    from orchestrator.schemas.programa import Programa
+    from tests.test_sondas import PERFIL, MATERIAL
+    build_part(Programa(part="p", codigo="def construir(kit):\n    return kit.caja(100, 10, 10)\n"),
+               None, tmp_path, _freecadcmd(), perfil=PERFIL)
+    de_traves, inclinada = resistencia_de_tramos(tmp_path / "p.step", [
+        {"desde": [0, 5, 5], "hasta": [100, 5, 5], "gravedad": [0, 0, -1]},
+        {"desde": [0, 5, 5], "hasta": [100, 5, 5], "gravedad": [0.8, 0, -0.6]}],
+        _freecadcmd(), MATERIAL)
+    assert de_traves["N_max"] == pytest.approx(20.11, rel=0.01)
+    assert inclinada["N_max"] == pytest.approx(33.52, rel=0.01)

@@ -3,18 +3,19 @@ categoria: robots
 obra: true
 peticion: >
   Un brazo robot de seis ejes que levanta 2000 g (2 kg) a 600 mm del hombro.
-  La base se atornilla a un tablero con cuatro tornillos M4 y gira el brazo,
+  En reposo el brazo apunta hacia arriba, y así se dibuja cada pieza. La base se atornilla a un tablero con cuatro tornillos M4 y gira el brazo,
   con el eje vertical, sobre un rodamiento 6810-2RS, movida por un motor
   NEMA 23 con una correa 5:1. El hombro y el codo lo levantan, con el eje
   horizontal: el hombro gira directamente en el eje de salida de un motor con
   su reductora planetaria ya montada, el 23HS30-2804S-PG47, y el codo en el de
   otro, el 23HS22-2804S-PG47. La muñeca tiene tres ejes con motores NEMA 17,
-  cada uno sobre una reductora cicloidal. El primero, 185 mm más allá del
-  codo, gira el antebrazo sobre sí mismo (su eje va a lo largo del antebrazo),
-  sobre una reductora cicloidal 28:1. El segundo, 100 mm más allá, cabecea la
+  cada uno sobre una reductora cicloidal. El primero, 145 mm más allá del
+  codo, gira el antebrazo sobre sí mismo (su eje va a lo largo del antebrazo,
+  vertical en reposo), sobre una reductora cicloidal 28:1. El segundo, 140 mm más allá, cabecea la
   mano, con el eje horizontal, sobre otra reductora cicloidal 28:1. El tercero
   gira la brida de la herramienta sobre sí misma (su eje va a lo largo de la
-  mano), sobre una reductora cicloidal 10:1. Cada eje recorre 180° (90° a cada
+  mano, vertical en reposo), sobre una reductora cicloidal 10:1. La brida
+  lleva cuatro agujeros pasantes M3 para atornillar la herramienta. Cada eje recorre 180° (90° a cada
   lado) sin que nada choque. Del hombro al codo hay 190 mm, del codo al eje
   del cabeceo 285 mm y del cabeceo a la punta de la brida 125 mm: con el brazo
   estirado la punta llega a 600 mm del eje del hombro. Las piezas se imprimen
@@ -42,9 +43,11 @@ oraculo:
   - tipo: conjunto_libre
   # «con el eje vertical» la base; el hombro, el codo y el cabeceo, «con el
   # eje horizontal»; los dos giros a lo largo siguen al brazo, que en reposo
-  # está tumbado. Seis giros en serie: lo más que había salido eran cuatro.
+  # apunta hacia arriba (decidido por el usuario el 2026-11-14: tumbado, el
+  # hombro lo bajaba bajo la mesa). Seis giros en serie: lo más que había
+  # salido eran cuatro.
   - tipo: articulaciones
-    ejes: [vertical, horizontal, horizontal, horizontal, horizontal, horizontal]
+    ejes: [vertical, horizontal, horizontal, vertical, horizontal, vertical]
     recorrido_grados: 180
   - tipo: sin_soportes
   # «una correa 5:1», «cicloidal 28:1» (dos) y «cicloidal 10:1». La reducción
@@ -62,7 +65,7 @@ oraculo:
     minimo_mm: 600
   # «levanta 2000 g». Que se puede, a mano (`tests/test_brazo_grande.py`),
   # pidiéndole a cada motor la mitad de su par y con lo impreso a 0,2 g/mm: el
-  # hombro pide 19,87 N·m de 32,19; el codo, 11,10 de 21,29; el giro del
+  # hombro pide 19,73 N·m de 32,19; el codo, 10,97 de 21,29; el giro del
   # antebrazo y el cabeceo, 2,88 de 3,64.
   - tipo: carga
     minimo_g: 2000

@@ -701,9 +701,15 @@ def carga_en_camino(forma, desde, hasta, gravedad, material, secciones=30):
         return {"cumple": True, "N_max": None, "detalle": "la carga cae sobre el eje: no flexa"}
     n = (b - a).normalize()
     g = V(*gravedad)
+    entera = g.Length
     g = g - n * g.dot(n)                       # lo que flexa: la gravedad de través
-    if g.Length < 1e-6:
+    if entera < 1e-9 or g.Length < 1e-6 * entera:
         return {"cumple": True, "N_max": None, "detalle": "la carga tira a lo largo: no flexa"}
+    # Qué parte del peso va de través. El brazo de 2 kg hecho a mano
+    # (2026-11-14) colgaba con la gravedad casi a lo largo de su placa y un
+    # 7 % hacia su lado fino; ese resto se normalizaba, y la placa «se rompía»
+    # con 0 g como si todo el peso la doblara de plano.
+    de_traves = g.Length / entera
     g = g.normalize()
     b_eje = n.cross(g).normalize()
     capas = abs(n.z) > 0.7
@@ -741,7 +747,7 @@ def carga_en_camino(forma, desde, hasta, gravedad, material, secciones=30):
     if peor is None:
         return {"cumple": None, "N_max": None, "detalle": "no se pudo cortar la pieza en ese tramo"}
     sigma_por_N, t = peor
-    n_max = resistencia_MPa / material["factor_seguridad"] / sigma_por_N
+    n_max = resistencia_MPa / material["factor_seguridad"] / sigma_por_N / de_traves
     return {"cumple": True, "N_max": n_max, "t_mm": t,
             "detalle": f"{n_max:.1f} N en la punta: el corte peor, a {t:.0f} mm del eje, "
                        f"{'entre capas' if capas else 'en el plano de capa'} "

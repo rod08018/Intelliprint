@@ -73,7 +73,10 @@ def pares(obra: Obra, extra: Sequence[Path] = ()) -> list[dict]:
 
     salida = []
     for u in giros:
-        if u.brazo_mm is None or u.eje == "vertical":
+        # Un plato de eje vertical no levanta nada. Un giro a lo largo de un
+        # brazo que en reposo apunta hacia arriba también es vertical, y ese
+        # sí hay que mirarlo: lo que le pide par es la muñeca doblada.
+        if u.brazo_mm is None or (u.eje == "vertical" and not u.a_lo_largo):
             continue
         if u.a_lo_largo:
             # Se rellena abajo, con lo que pida el que se dobla.

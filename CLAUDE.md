@@ -301,6 +301,22 @@ imprimir; lo que dejó abierto está abajo.
   para el NEMA 23. **Sin correr: su tope de gasto no está acordado**
   (se le preguntó; quedan 3,72 USD de los 5, que eran para la
   muñeca).
+- **Decidido por él el 2026-11-14: en reposo el brazo apunta hacia
+  arriba** («Arriba»). El encargo 18 y su plan lo dicen; el antebrazo
+  se reparte en 145 + 140 mm y la brida lleva cuatro M3 para la
+  herramienta. **De pie y a mano pasa 15 de 18** (llega a 600,5 mm
+  y los motores levantan 2,7 kg); tres fallos del dibujo corregidos
+  sin volver a juzgar. Está en la web como proyecto
+  (`2026-11-14-brazo-de-seis-ejes-a-mano-sin-modelo`): él dijo dos
+  veces que no veía el brazo entero ni en el banco ni en sus
+  inventos. **En «Banco» no sale hasta correrlo con el modelo, y su
+  gasto sigue sin acordar.** **Una medida del banco cambiada que no
+  ha aprobado:** la carga que aguanta una pieza cuenta solo la parte
+  del peso que va de través (daba «0 g» en la placa del brazo); solo
+  puede subir una carga. Y `dimensionar` ya no salta un giro a lo
+  largo por ser vertical. La reserva de sitio de cada giro avisa
+  por posturas bajo la mesa y tarda mucho con cinco giros: sin
+  arreglar.
   Entendido así (interpretación del asistente): querría además
   aprovechar un mecanismo ya diseñado dentro del proyecto grande;
   hoy cada encargo se diseña de cero y «ampliar» solo añade por
