@@ -909,9 +909,13 @@ def soportes_del_juez(encargo: Encargo, step: Path, carpeta: Path) -> Path | Non
     from orchestrator.impresion import perfil_activo
 
     datos = perfil_activo(Path(__file__).resolve().parents[1]).datos
-    postura, zonas = voladizos.como_imprimir(
-        stl, datos["overhang_max_deg"], datos["bridge_max_mm"],
-        datos.get("layer_height_mm") or voladizos.CAPA_MM)
+    # Una pieza partida (F11.3 (tramos)) se imprime por tramos: se imprime sin
+    # soportes si lo hace cada uno, y el que no pueda es el que se cuenta.
+    mallas = sorted((stl.parent / "tramos").glob("*.stl")) or [stl]
+    medidas = [voladizos.como_imprimir(
+        m, datos["overhang_max_deg"], datos["bridge_max_mm"],
+        datos.get("layer_height_mm") or voladizos.CAPA_MM) for m in mallas]
+    postura, zonas = next((m for m in medidas if m[0] is None), medidas[0])
     mejor = postura or min(zonas, key=lambda q: sum(z.area_mm2 for z in zonas[q]))
     destino = Path(carpeta) / "juez"
     destino.mkdir(parents=True, exist_ok=True)

@@ -198,6 +198,20 @@ imprimir; lo que dejó abierto está abajo.
   volvió una «ventana de 44.3 × 44.3» que nadie pidió: fallo del
   cambio del 13). Ninguna cambia lo que juzga el banco. Además el
   aviso de holgura de la carcasa dice con qué cuerpo y dónde.
+- **Con esos arreglos, la corrida nueva da 2 de 5** (`1114-0631`,
+  0,75 USD; 1,32 de los 15). El soporte salió, con sus tuercas. La
+  carcasa, con el motor de eje horizontal esta vez, perdió cuatro de
+  cinco intentos al construir: `acabar()` no construía una pieza sin
+  arista hacia abajo, y la limpieza de caras de FreeCAD tumbaba una
+  resta válida. Arreglados los dos en el kit.
+- **Hecha: F11.3 (tramos)** (2026-11-14). `pieza.partir(eje, en,
+  lengueta)` corta una pieza que no cabe en la cama; cada tramo va a
+  su STL en `tramos/` con una unión a media madera, y se le mide que
+  quepa, que se imprima sin soportes y que un tornillo cierre cada
+  corte. A mano, un carenado curvo de 400 mm sale en dos tramos sin
+  defectos. **Criterio del asistente:** 0,8 mm de labio y de
+  lengüeta como poco. Ningún modelo la ha usado y el banco no tiene
+  encargo que la pida. Con ella la Fase 11 no tiene más filas.
 - **El avión, dicho por él esa noche:** un VTOL, con una autonomía
   muy buena en horas, hasta 250 km de alcance, hasta 8 libras
   (3,63 kg) de carga, y que lleve hasta dos cámaras y un lidar sin
@@ -208,8 +222,10 @@ imprimir; lo que dejó abierto está abajo.
   Y lo concretó: **envergadura de 2 m o más, 8 libras de carga
   máxima y la autonomía del TerraHawk** (según la captura que mandó,
   sin verificar: más de 3 h y 180–216 km a 72 km/h; el comercial de
-  2 m pesa 4 kg y carga 1 kg). Es un avión bastante mayor que ese:
-  el peso y la batería los dirá el cálculo. Queda por decidir
+  2 m pesa 4 kg y carga 1 kg). **Y bajó la carga esa misma noche:**
+  «que sea igual, yo siento que podemos usar lo mismo»: la del
+  TerraHawk, no 8 libras (entendido como la del comercial de 2 m,
+  hasta 1 kg; sin confirmar). Queda por decidir
   si el laminado entra en el diseño y si Gazebo queda fuera.
 
 **2026-11-11 (noche): Fase 10, brazos con transmisión (ADR-021).** Decidido

@@ -27,6 +27,8 @@ import Part
 doc = FreeCAD.newDocument({part!r})
 _rasgos = []
 _avisos = []
+_cortes = None
+_formas_de_tramos = None
 '''
 
 _PREAMBULO_PROGRAMA = '''\
@@ -54,6 +56,21 @@ _obj = doc.addObject("Part::Feature", "pieza")
 _obj.Shape = _cuerpo._forma
 _rasgos = _kit.rasgos()
 _avisos = list(_kit._avisos)
+# F11.3 (tramos): si el programa partió la pieza. Si después de `partir` la
+# siguió trabajando, se parte otra vez la que entrega.
+_cortes = _kit._cortes
+_formas_de_tramos = None
+if _cortes is not None:
+    if _cortes["de"] is _cuerpo._forma:
+        _formas_de_tramos = _cortes["tramos"]
+    else:
+        from mech_toolkit import tramos as _T0
+        try:
+            _formas_de_tramos = _T0.partir(_cuerpo._forma, _cortes["eje"], _cortes["en"],
+                                           _cortes["lengueta"], _cortes["labio"],
+                                           _cortes["holgura"])
+        except _T0.TramosError as _e:
+            raise RuntimeError("INTELLIPRINT_FALLO: " + str(_e))
 '''
 
 _EPILOGO = '''
@@ -111,6 +128,36 @@ MeshPart.meshFromShape(Shape=_forma, LinearDeflection=0.01, AngularDeflection=0.
 Part.export([_pieza], {step!r})
 doc.saveAs({fcstd!r})
 
+# F11.3 (tramos): cada tramo de una pieza partida va a su STL, en `tramos/`.
+# La pieza entera se queda como estaba: se mide y se monta entera, y sus
+# tramos son cómo se imprime. Qué tornillos cierran cada corte se mide aquí,
+# en los tramos ya partidos.
+import os
+import shutil
+_carpeta_de_tramos = os.path.join(os.path.dirname({stl!r}), "tramos")
+shutil.rmtree(_carpeta_de_tramos, ignore_errors=True)
+_tramos = []
+_cortes_medidos = []
+if _formas_de_tramos:
+    from mech_toolkit import tramos as _T
+    os.makedirs(_carpeta_de_tramos)
+    for _i, _t in enumerate(_formas_de_tramos):
+        _nombre = "%s-%d.stl" % ({part!r}, _i + 1)
+        MeshPart.meshFromShape(Shape=_t, LinearDeflection=0.01, AngularDeflection=0.1,
+                               Relative=False).write(os.path.join(_carpeta_de_tramos, _nombre))
+        _tb = _t.optimalBoundingBox()
+        _tramos.append({{
+            "n": _i + 1, "stl": "tramos/" + _nombre, "volume_mm3": _t.Volume,
+            "bbox_mm": [_tb.XLength, _tb.YLength, _tb.ZLength],
+            "bbox_min": [_tb.XMin, _tb.YMin, _tb.ZMin],
+            "bbox_max": [_tb.XMax, _tb.YMax, _tb.ZMax]}})
+    _agujeros = [_r for _r in _rasgos if _r.get("tipo") == "agujero"]
+    for _i, _c in enumerate(_cortes["en"]):
+        _cortes_medidos.append({{
+            "eje": _cortes["eje"], "en": _c, "lengueta": _cortes["lengueta"],
+            "tornillos": _T.tornillos_del_corte(_formas_de_tramos, _i, _cortes["eje"], _c,
+                                                _cortes["lengueta"], _agujeros)}})
+
 # El volumen de FreeCAD, contrastado con el de la malla. Tras unir un barrido
 # curvo a una cáscara (prueba a mano del 2026-11-13, F11.2 (cáscara)) el
 # sólido era válido y su `Volume` daba 23 542 mm³ donde hay 25 213: se queda
@@ -133,6 +180,8 @@ print({prefix!r} + json.dumps({{
     "fcstd_object": _pieza.Name,
     "rasgos": _rasgos,
     "avisos": _avisos,
+    "tramos": _tramos,
+    "cortes": _cortes_medidos,
 }}))
 '''
 

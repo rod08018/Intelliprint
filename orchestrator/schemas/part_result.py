@@ -29,6 +29,12 @@ class PartResult(BaseModel):
     avisos: list[str] = []
     """Lo que el kit no pudo hacer sin romper la pieza, p. ej. aristas que
     no admitían el redondeo y quedaron vivas."""
+    tramos: list[dict] = []
+    """Si la pieza se partió para que quepa en la cama (F11.3 (tramos)): de
+    cada tramo, su número, su STL (en `tramos/`), su volumen y su caja."""
+    cortes: list[dict] = []
+    """Los cortes de una pieza partida: eje, dónde, cuánto mide la lengüeta y
+    qué tornillos cruzan labio y lengüeta, medido en los tramos."""
     defectos: list[str] = []
     """Requisitos que la pieza entregada NO cumple, medidos al construir
     (F6.7 (lazo)): se entrega la mejor que salió, no una que cumple."""

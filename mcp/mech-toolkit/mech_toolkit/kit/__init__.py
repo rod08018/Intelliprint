@@ -584,8 +584,16 @@ class Cuerpo:
         # Con respaldo: lo que OCC no acaba se achaflana con un corte (ver
         # `prisma_de_chaflan`). Solo aquí: `redondear` y `achaflanar` hacen
         # lo que se les pide o avisan, sin cambiar un redondeo por otra cosa.
-        pieza = (self._acabar("achaflanar", chaflan_base, self._aristas("base", None), "base",
-                              respaldo=True) if chaflan_base else self)
+        # Si nada toca la cama con una arista no hay chaflán que hacer, y no
+        # es un error: la carcasa del encargo 16 (banco 1114-0631), montada
+        # sobre un motor de eje horizontal, tenía una superficie curva hacia
+        # abajo y `acabar()` no construía. Dos de sus cinco intentos.
+        try:
+            base = self._aristas("base", None) if chaflan_base else []
+        except KitError:
+            base = []
+        pieza = (self._acabar("achaflanar", chaflan_base, base, "base", respaldo=True)
+                 if base else self)
         # Y la base que queda a menos de una capa del fondo, aparte: la
         # carcasa del encargo 16 (banco 1114-0023) apoyaba en un borde fino y
         # el resto de su base, 0,18 mm más arriba por la holgura con el
@@ -613,13 +621,75 @@ class Cuerpo:
         return pieza._acabar("redondear", radio, elegidas, "todas menos la base",
                              respaldo=True)
 
+    def _restar(self, nombre, herramienta):
+        """La pieza menos `herramienta`, si queda algo. La carcasa del
+        encargo 16 (banco 1114-0631) se dibujó entera dentro del hueco de la
+        pieza vecina que le quitaba, y volvió «OCCError: Bnd_Box is void».
+
+        Ese mismo error sale por el otro extremo: si de la herramienta,
+        recortada a la caja de la pieza (`_recortada`), no queda nada, OCC no
+        resta un vacío. Entonces no se quita nada, y quien llama decide si
+        eso es un error de posición."""
+        if herramienta.isNull() or not herramienta.Solids:
+            return self._forma
+        resultado = self._forma.cut(herramienta)
+        if resultado.isNull() or not resultado.Solids or resultado.Volume < 1e-6:
+            b, h = self._forma.BoundBox, herramienta.BoundBox
+            raise KitError(
+                f"«{nombre}» se lleva la pieza entera: no queda nada. Lo que quitas ocupa x "
+                f"de {h.XMin:.4g} a {h.XMax:.4g}, y de {h.YMin:.4g} a {h.YMax:.4g}, z de "
+                f"{h.ZMin:.4g} a {h.ZMax:.4g}, y la pieza, x de {b.XMin:.4g} a {b.XMax:.4g}, "
+                f"y de {b.YMin:.4g} a {b.YMax:.4g}, z de {b.ZMin:.4g} a {b.ZMax:.4g}: está "
+                "toda dentro. La pieza tiene que rodear lo que se le quita, no caber en ello")
+        # Unir las caras coplanarias es limpieza, no geometría: si OCC no
+        # puede, la resta vale igual. Con el intento 2 de esa carcasa la
+        # resta salía bien y era `removeSplitter` el que lanzaba «Bnd_Box is
+        # void»: un intento perdido por adecentar.
+        try:
+            limpio = resultado.removeSplitter()
+            return limpio if limpio.isValid() and limpio.Solids else resultado
+        except Exception:   # OCC lanza Part.OCCError o RuntimeError según la versión
+            return resultado
+
+    def partir(self, eje="x", en=(), lengueta=12.0, labio=None) -> "Cuerpo":
+        """Para una pieza que NO CABE en la impresora: la corta en tramos por
+        los planos `eje` = cada valor de `en`, y en cada corte pone una unión
+        a media madera de `lengueta` mm: el tramo de antes se queda con la
+        parte de dentro de la pared (la lengüeta) y el de después con la de
+        fuera (`labio`, por defecto media pared), con la holgura de deslizar
+        del perfil. La pieza sigue siendo una: se dibuja, se taladra y se
+        monta entera, y se imprime por tramos. Va AL FINAL, después de
+        `acabar()`. Antes, taladra en cada unión al menos un
+        `tornillo(..., tipo="rosca")` desde fuera, perpendicular a `eje`, con
+        su `en` entre el corte y `lengueta` mm más allá: cruza el labio y la
+        lengüeta y los cierra. Corta por donde la sección no cambie a lo
+        largo de la lengüeta y la pared mida 2 mm o más."""
+        from mech_toolkit import tramos
+
+        if self._kit._cortes is not None:
+            raise KitError("la pieza ya está partida: `partir` se llama una sola vez, con "
+                           "todos los cortes en `en`")
+        if isinstance(en, (int, float)):
+            en = [en]
+        holgura = float(self._kit.perfil.get("fits", {}).get("slide_mm", 0.2))
+        try:
+            hechos = tramos.partir(self._forma, eje, en, lengueta, labio, holgura)
+        except tramos.TramosError as e:
+            raise KitError(str(e)) from None
+        # Se parte aquí para que un corte imposible vuelva con su línea del
+        # programa; si después la pieza cambia, el epílogo la parte otra vez.
+        self._kit._cortes = {"eje": eje, "en": sorted(float(c) for c in en),
+                             "lengueta": float(lengueta), "labio": labio,
+                             "holgura": holgura, "de": self._forma, "tramos": hechos}
+        return self
+
     def _cortar(self, nombre, herramienta) -> "Cuerpo":
         """Quita un rasgo con nombre, comprobando que de verdad quita algo.
 
         Fallo real del banco (2026-11-04): el gancho taladraba a 40 mm en una
         placa de 30 de alto; un agujero caía fuera y la pieza salía sin él,
         en silencio. Un rasgo que no toca la pieza es un error de posición."""
-        resultado = self._forma.cut(herramienta).removeSplitter()
+        resultado = self._restar(nombre, herramienta)
         if self._forma.Volume - resultado.Volume < 1e-6:
             b = self._forma.BoundBox
             raise KitError(
@@ -747,7 +817,7 @@ class Cuerpo:
         if isinstance(herramienta, Hueco) and (
                 herramienta._componente._toca(self._forma)
                 or herramienta._componente._ficha.get("origen") == "impreso"):
-            resultado = self._forma.cut(forma).removeSplitter()
+            resultado = self._restar(nombre, forma)
             if self._forma.Volume - resultado.Volume < 1e-6:
                 return self._nuevo(self._forma)._con(nombre)
         return self._cortar(nombre, forma)
@@ -992,6 +1062,8 @@ class Kit:
         self._ajenos = ajenos or {}
         self._rasgos: list[dict] = []
         self._avisos: list[str] = []
+        # Si la pieza se parte en tramos (`Cuerpo.partir`): dónde y cómo.
+        self._cortes: dict | None = None
 
     def _registrar(self, nombre, tipo, **datos) -> None:
         if not isinstance(nombre, str) or not nombre:

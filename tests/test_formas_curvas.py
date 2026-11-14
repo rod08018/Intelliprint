@@ -480,3 +480,37 @@ def construir(kit):
     [m] = medir_sondas(tmp_path / "p.step", [AristasVivas(tipo="aristas_vivas")],
                        _freecadcmd(), {})
     assert m.estado == "cumple", m.detalle
+
+
+# --- lo que la corrida 1114-0631 del encargo 16 perdió al construir -------------------------------
+# La carcasa gastó cuatro de sus cinco intentos sin llegar a medirse. Dos, en
+# `acabar()`; otro, en un error de OCC que no decía nada.
+
+def test_el_acabado_no_falla_si_la_pieza_no_tiene_arista_abajo(tmp_path):
+    """Montada sobre un motor de eje horizontal, la carcasa quedó con una
+    superficie curva hacia abajo: nada que achaflanar contra la cama. Y
+    `acabar()`, con el que tiene que terminar toda pieza, no construía:
+    «ninguna arista base: no hay nada que redondear», dos veces.
+
+    Un cilindro elíptico tumbado, de 40 × 30 y 50 de largo: π·20·15·50 =
+    47 124 mm³, menos lo poco que le quita redondear sus dos bocas."""
+    r = _construir("""
+def construir(kit):
+    s = kit.elipse(40, 30)
+    return kit.transicion([(s, 0), (s, 50)], eje="y").acabar()
+""", tmp_path)
+    entero = math.pi * 20 * 15 * 50
+    assert r.solids == 1 and 0.98 * entero < r.volume_mm3 < entero
+
+
+def test_quitar_algo_que_se_lleva_la_pieza_entera_lo_dice(tmp_path):
+    """El intento 2 dibujó la carcasa dentro de lo que le quitaba, el hueco
+    de la pieza vecina, y volvió «OCCError: Bnd_Box is void»."""
+    with pytest.raises(ConstruccionFallida) as fallo:
+        _construir("""
+def construir(kit):
+    pieza = kit.caja(10, 10, 10)
+    return pieza.quitar("todo", kit.caja(20, 20, 20, en=(-5, -5, -5)))
+""", tmp_path)
+    assert "«todo»" in str(fallo.value) and "pieza entera" in str(fallo.value)
+    assert "Bnd_Box" not in str(fallo.value)

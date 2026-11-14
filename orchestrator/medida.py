@@ -1079,7 +1079,38 @@ def no_cabe_en_la_impresora(caja_mm, cama_mm) -> list[str]:
             f"{x:g} × {y:g} mm de cama y {z:g} de alto; no entra en ninguna postura. Hazla "
             "más pequeña. Si la altura era para dejar sitio a un giro, saca el eje hacia "
             "fuera en vez de subirlo: lo que queda detrás de la cara por donde sale no "
-            "estorba"]
+            "estorba. Si tiene que medir eso, termina con `pieza.partir(eje=..., en=[...])`: "
+            "se imprime por tramos que sí caben"]
+
+
+def tramos_que_no_caben(resultado, cama_mm) -> list[str]:
+    """De una pieza partida (F11.3 (tramos)), los tramos que siguen sin
+    caber: lo que tiene que entrar en la impresora es cada tramo."""
+    fallos = []
+    x, y, z = cama_mm
+    for t in getattr(resultado, "tramos", None) or []:
+        if no_cabe_en_la_impresora(t["bbox_mm"], cama_mm):
+            mide = " × ".join(f"{round(v, 1):g}" for v in t["bbox_mm"])
+            fallos.append(
+                f"no cabe en la impresora: el tramo {t['n']} de la pieza partida mide {mide} "
+                f"mm y la impresora admite {x:g} × {y:g} mm de cama y {z:g} de alto. Añade "
+                "un corte a `partir(en=[...])` o muévelos: cada tramo mide lo que hay entre "
+                "dos cortes más la lengüeta")
+    return fallos
+
+
+def cortes_sin_cerrar(resultado) -> list[str]:
+    """Los cortes de una pieza partida que ningún tornillo cierra. Se mide en
+    los tramos ya partidos (`tramos.tornillos_del_corte`): el agujero tiene
+    que estar en el labio de uno y en la lengüeta del otro, enfrentados."""
+    return [
+        f"unión de tramos: el corte en {c['eje']} = {c['en']:g} no lleva ningún tornillo "
+        "que lo cierre: los dos tramos se separarían. Taladra en la pieza entera, antes de "
+        "`partir`, al menos un `tornillo(..., tipo=\"rosca\")` desde fuera, perpendicular "
+        f"a {c['eje']}, con su `en` en {c['eje']} de {c['en']:g} a "
+        f"{c['en'] + c['lengueta']:g}: ahí el labio de un tramo monta sobre la lengüeta del "
+        "otro, y el tornillo cruza los dos"
+        for c in getattr(resultado, "cortes", None) or [] if not c["tornillos"]]
 
 
 def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
@@ -1096,18 +1127,31 @@ def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
     from orchestrator.banco import (AccesoTornillo, AristasVivas, ComponenteCabe,
                                     ComponenteEntra, ParedMinima, ZonaLibre, medir_sondas)
 
+    # Lo que mide una pieza partida (F11.3 (tramos)); una hecha antes no los trae.
+    tramos = getattr(resultado, "tramos", None) or []
     fallos = defectos(requisitos, resultado.rasgos, agujeros_del_perfil)
     fallos += componentes_sin_colocar(componentes, resultado.rasgos)
     fallos += bridas_que_no_aprietan(resultado.rasgos, tuercas_del_plan())
     if cama_mm:
-        fallos += no_cabe_en_la_impresora(resultado.bbox_mm, cama_mm)
+        # De una pieza partida, lo que tiene que caber es cada tramo.
+        fallos += (tramos_que_no_caben(resultado, cama_mm) if tramos
+                   else no_cabe_en_la_impresora(resultado.bbox_mm, cama_mm))
+    fallos += cortes_sin_cerrar(resultado)
     if sin_soportes:
         # En la forma, no en el slicer (decidido por el usuario, 2026-11-13).
         # `sin_soportes` es el perfil de la impresora: de él salen el ángulo
         # y el puente. Una medida rota no es un defecto de la pieza.
         try:
             from orchestrator.voladizos import defecto_de_soportes
-            fallos += defecto_de_soportes(Path(step).with_suffix(".stl"), sin_soportes)
+            if tramos:
+                # Cada tramo se imprime por su cuenta, en la postura que le valga.
+                for t in tramos:
+                    fallos += [d.replace("sin soportes: ", "sin soportes: en el tramo "
+                                         f"{t['n']} de la pieza partida, ", 1)
+                               for d in defecto_de_soportes(Path(step).parent / t["stl"],
+                                                            sin_soportes)]
+            else:
+                fallos += defecto_de_soportes(Path(step).with_suffix(".stl"), sin_soportes)
         except Exception as fallo:  # noqa: BLE001
             print(f"  sin medir los voladizos: {type(fallo).__name__}: {fallo}", flush=True)
     sondas = sondas_de(requisitos, resultado.rasgos, pared_min_mm)
