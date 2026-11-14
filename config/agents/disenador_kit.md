@@ -30,6 +30,34 @@ def construir(kit):
     return pieza.acabar()
 ```
 
+Y una pieza de formas curvas, una carcasa hueca que cubre un motor:
+
+```python
+ANCHO = 70       # R1: "70 mm de ancho"
+FONDO = 56       # R1: "56 de fondo"
+ALTO = 46        # R2: "46 mm de alto"
+PARED = 2.0      # R3: "pared de 2 mm"
+
+def construir(kit):
+    # El corte de la carcasa a tres alturas: abajo el rectángulo de la base,
+    # arriba un óvalo. El kit hace la superficie lisa que pasa por los tres.
+    base = kit.rectangulo(ANCHO, FONDO, radio=10)
+    medio = kit.rectangulo(ANCHO - 8, FONDO - 6, radio=14)
+    techo = kit.elipse(ANCHO - 26, FONDO - 22)
+    carcasa = kit.transicion([(base, 0), (medio, 28), (techo, ALTO)])
+    # Hueca y abierta por debajo. Recién hecha: antes de unirle nada.
+    carcasa = carcasa.vaciar(PARED, abierta="-z")
+    # Las orejas se meten en la pared: solapadas, no solo tocándose.
+    orejas = [(-39, -22), (39, -22), (-39, 22), (39, 22)]
+    for x, y in orejas:
+        carcasa = carcasa + kit.cilindro(12, 4, en=(x, y, 0))
+    # Los agujeros, al final.
+    for i, (x, y) in enumerate(orejas):
+        carcasa = carcasa.tornillo(f"oreja_{i + 1}", "M3", en=(x, y, 4), eje="-z",
+                                   tipo="pasante")
+    return carcasa.acabar()
+```
+
 ## Reglas
 
 1. **Las cotas del usuario, escritas tal cual y con nombre**: una constante por cota (`SEP = 60`) con un comentario que diga de qué requisito sale. El sistema comprueba que cada cota de la petición aparece escrita en el programa. No la calcules a partir de otras.
@@ -44,6 +72,7 @@ def construir(kit):
 10. **No apliques holguras a las cotas del usuario** salvo las de encaje que pida el concepto: un tubo de Ø32 que tiene que entrar lleva `32 + kit.holgura("slide")`.
 11. **Una ventana para un componente lo atraviesa entero**: si un requisito dice que un cuerpo tiene que pasar (un servo de 40.7 × 19.7), la abertura atraviesa la pieza de lado a lado, con holgura (`+ kit.holgura("clearance")` en cada medida). Un rebaje ciego no vale: se mide al construir.
 12. **Un componente comprado se coloca con `kit.componente`, nunca se dibuja con cajas.** Si el concepto aloja un sensor, una placa, un servo, un motor, un perfil o un rodamiento, el encargo trae su ficha: su marco, lo que choca y lo que hay que dejar libre. Colócalo con `sensor = kit.componente("hc-sr04", en=..., girar=..., entra_por="+y")`: `en` es dónde va el origen del marco de la ficha y `entra_por`, desde dónde se mete. Después, `pieza = pieza.quitar("alojamiento_sensor", sensor.hueco())`: el hueco deja sitio a todo lo que choca con su holgura, abre el camino por donde entra y deja libre lo que la ficha pide (cable, haz, enchufes). Pon las paredes y los apoyos alrededor con `sensor.envolvente()` y los tornillos en `sensor.punto("...")`. Al construir se mete el componente real en la pieza: si algo choca o no se puede meter, vuelve con el nombre de lo que choca.
+13. **Una carcasa, una tapa o un carenado se dibujan con secciones, no con cajas.** Si el concepto pide una forma curva (abombada, que se estrecha, carenada) o una pared fina que cubre algo, di cómo es su corte en dos o tres alturas con `kit.rectangulo(ancho, alto, radio=...)`, `kit.elipse` o `kit.seccion(puntos, curva=True)`, únelas con `kit.transicion` y déjala hueca con `.vaciar(grosor, abierta=...)`. El orden importa: **se vacía recién hecha**, antes de sumarle orejas, nervios o pasacables, y los agujeros van al final. Un tubo o un asa que dobla es `kit.barrer`; su camino no puede curvarse más cerrado que el ancho de lo que barres. Donde una caja basta —una escuadra, una placa—, sigue usando cajas y `extruir`.
 
 Solo puedes usar lo que hay en el kit, aritmética, `for`, `if`, listas y las funciones `range`, `len`, `min`, `max`, `abs`, `round`, `enumerate`, `zip`, `sum`, `sqrt`, `sin`, `cos`, `tan`, `atan2`, `radians`, `degrees`, `hypot` y `pi`. Nada de `import`, `open`, clases ni `try`: un programa así se rechaza con la línea y el motivo.
 

@@ -606,6 +606,83 @@ def defectos_de_alcance(carpeta: Path, nodo: str) -> list[str]:
     return fallos
 
 
+HOLGURA_DE_CARCASA_MM = 1.0
+"""Lo que una carcasa deja, como poco, entre su pared y lo que cubre. Una
+pared impresa a menos de eso de un motor acaba rozándolo. Lo decidió el
+asistente al hacer F11.4 (cubre); no es un dato medido."""
+
+
+def _caja_de(p) -> tuple[list[float], list[float]]:
+    """La caja de una primitiva ya colocada (`componentes.primitivas`)."""
+    if p["tipo"] in ("caja", "step"):
+        return p["min"], p["max"]
+    r = p["diametro"] / 2
+    fin = [b + e * p["alto"] for b, e in zip(p["base"], p["eje"])]
+    return ([min(b, f) - (0 if e else r) for b, f, e in zip(p["base"], fin, p["eje"])],
+            [max(b, f) + (0 if e else r) for b, f, e in zip(p["base"], fin, p["eje"])])
+
+
+def defectos_de_carcasa(carpeta: Path, nodo: str, resultado, step, freecadcmd: str,
+                        material: dict) -> list[str]:
+    """Lo que la carcasa construida de `nodo` no cumple con lo que cubre
+    (`cubre`, en el plan): que lo envuelve, que no se mete en ello ni le tapa
+    lo que su ficha pide libre, y que le deja `HOLGURA_DE_CARCASA_MM`.
+
+    Que lo envuelve se mide con cajas: la de cada cuerpo de lo cubierto
+    tiene que caer dentro de la de la carcasa. No dice que esté cerrada: una
+    jaula de barrotes también pasaría."""
+    from orchestrator import obra as O
+    from orchestrator.banco import ComponenteCabe, medir_sondas
+    from orchestrator.componentes import cargar, primitivas
+
+    obra = O.cargar_obra(Path(carpeta))
+    n = obra.nodo(nodo)
+    if not n.cubre:
+        return []
+    colocadas = {r.get("ficha"): r for r in resultado.rasgos if r.get("tipo") == "componente"}
+    fallos = []
+    for d in n.depende_de:
+        suyo = [c for c in n.cubre if c in obra.nodo(d).compra]
+        r = colocadas.get(O.id_de_ficha(d))
+        if not suyo or r is None:
+            continue    # si no la colocó, ya se lo dice `componentes_sin_colocar`
+        de_quien = obra.nodo(d).nombre
+        ficha = cargar(O.id_de_ficha(d))
+        solo = ficha.model_copy(update={
+            "cuerpos": [c for c in ficha.cuerpos if c.monta in suyo],
+            "despejar": [c for c in ficha.despejar if c.monta in suyo]})
+        donde = {"en": r["en"], "giros": r.get("giros") or []}
+        fuera: dict[str, float] = {}
+        for p in primitivas(solo, donde["en"], donde["giros"]):
+            lo, hi = _caja_de(p)
+            sale = max(max(a - b for a, b in zip(resultado.bbox_min, lo)),
+                       max(a - b for a, b in zip(hi, resultado.bbox_max)))
+            if sale > 0.05:
+                fuera[p["nombre"]] = sale
+        if fuera:
+            peor = max(fuera, key=fuera.get)
+            fallos.append(
+                f"carcasa: no cubre lo de «{de_quien}»: «{peor}» sobresale {fuera[peor]:.1f} mm "
+                f"de tu pieza" + (f", y {len(fuera) - 1} cuerpo(s) más" if len(fuera) > 1 else "")
+                + f". Una carcasa envuelve lo que cubre ({', '.join(suyo)}): llévala hasta "
+                f"ahí, con {HOLGURA_DE_CARCASA_MM:g} mm de holgura alrededor")
+            continue
+        [m] = medir_sondas(step, [ComponenteCabe(tipo="componente_cabe", ficha=solo.model_dump(),
+                                                 **donde)], freecadcmd, material)
+        if m.estado == "no_cumple":
+            fallos.append(
+                f"carcasa: {m.detalle}. La pared no puede meterse en lo que cubre ni tapar lo "
+                "que su ficha pide libre: apártala, o ábrele una ventana por donde sale el "
+                "cable")
+        elif m.estado == "cumple" and m.valor is not None \
+                and m.valor < HOLGURA_DE_CARCASA_MM - 0.05:
+            fallos.append(
+                f"carcasa: queda a {m.valor:.1f} mm de lo que cubre ({', '.join(suyo)} de "
+                f"«{de_quien}») y tiene que dejar al menos {HOLGURA_DE_CARCASA_MM:g} mm: una "
+                "pared impresa más cerca acaba rozando. Aparta la pared por ese lado")
+    return fallos
+
+
 def defectos_de_orientacion(carpeta: Path, nodo: str) -> list[str]:
     """Los giros cuyo eje no mira hacia donde dice el plan, en la pieza que
     lo monta, con el invento en reposo y z hacia arriba.
@@ -967,6 +1044,10 @@ def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
         except Exception as fallo:  # noqa: BLE001
             print(f"  sin medir el sitio de los giros: {type(fallo).__name__}: {fallo}",
                   flush=True)
+        try:
+            fallos += defectos_de_carcasa(*backlog, resultado, step, freecadcmd, material)
+        except Exception as fallo:  # noqa: BLE001
+            print(f"  sin medir lo que cubre: {type(fallo).__name__}: {fallo}", flush=True)
         # Aparte: que falle una medida no deja sin hacer la otra.
         try:
             fallos += defectos_del_plan()

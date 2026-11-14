@@ -57,6 +57,30 @@ def claves_del_perfil(u: Fija) -> list[str]:
     return claves
 
 
+def _carcasas_sin_nada_que_cubrir(obra: Obra) -> list[str]:
+    """Una carcasa (F11.4 (cubre)) cubre lo que lleva una pieza a la que se
+    une, y va atornillada a ella: si no, no hay con qué medir que lo cubre ni
+    dónde sujetarla."""
+    errores = []
+    for n in obra.nodos:
+        for c in n.cubre:
+            duenas = [d for d in n.depende_de if c in obra.nodo(d).compra]
+            if not duenas:
+                errores.append(
+                    f"«{n.nombre}» dice que cubre «{c}», y ninguna pieza a la que se une "
+                    f"({', '.join(n.depende_de) or 'ninguna'}) lo lleva en `compra`. Una "
+                    "carcasa cubre lo comprado que monta una pieza de su `depende_de`")
+                continue
+            for d in duenas:
+                if not any(isinstance(u, Fija) and {u.cabeza, u.agarra} == {n.id, d}
+                           for u in obra.uniones):
+                    errores.append(
+                        f"«{n.nombre}» cubre lo que monta «{obra.nodo(d).nombre}» y no hay "
+                        "una unión `fija` entre las dos: una carcasa va atornillada a la "
+                        "pieza que cubre")
+    return errores
+
+
 def validar_plan(obra: Obra, agujeros: dict, extra: Sequence[Path] = (),
                  ajustes: dict | None = None) -> tuple[list[str], list[str]]:
     """(errores, avisos) del plan. `agujeros` es `holes` del perfil activo;
@@ -64,6 +88,7 @@ def validar_plan(obra: Obra, agujeros: dict, extra: Sequence[Path] = (),
     una transmisión cuya holgura no está medida (F10.8 (calibrar))."""
     errores: list[str] = []
     avisos: list[str] = []
+    errores += _carcasas_sin_nada_que_cubrir(obra)
     en_cada_salida: dict[tuple, list[str]] = {}
     de_cada_motor: dict[tuple, list[str]] = {}
     for u in obra.uniones:

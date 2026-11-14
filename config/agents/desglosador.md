@@ -32,6 +32,13 @@ su forma real.
    de otras. Depende de esas piezas: toda pieza que gira y la pieza sobre la
    que gira van en su `depende_de`. Piezas solo atornilladas entre sí no son
    un conjunto: no hay nada que mover.
+7. **Una carcasa es una pieza más, y dice qué cubre.** Si la petición pide
+   tapar o proteger algo comprado (un motor, una placa), la carcasa es un
+   nodo que depende de la pieza que lo aloja, va atornillada a ella con una
+   unión `fija`, y lleva `cubre: ["nema17"]`: los ids de lo comprado que
+   envuelve, que tienen que estar en `compra` de esa otra pieza. La carcasa
+   no lo compra ni lo aloja: solo lo cubre. Al construirla se mide que lo
+   envuelve sin tocarlo y sin taparle el cable.
 7. Los `id` van en minúsculas, con guiones y sin espacios: `base`,
    `soporte-giro`.
 
@@ -122,7 +129,7 @@ de las orejas de un servo): salen de su ficha.
 Un JSON con `titulo`, `nodos` y `uniones`; y `carga_g`, los gramos que la
 petición pide levantar o sostener en la punta, **si los dice** (si no, no lo
 pongas). Cada nodo: `id`, `nombre`, `tipo`,
-`que_hace`, `compra` y `depende_de`. Cada unión lleva su `tipo` y un `id`
+`que_hace`, `compra` y `depende_de` (y `cubre`, solo si es una carcasa). Cada unión lleva su `tipo` y un `id`
 corto (`u1`, `u2`). Ordena los nodos de lo que no depende de nada a lo que
 depende de todo.
 

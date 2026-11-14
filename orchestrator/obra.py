@@ -508,6 +508,17 @@ def peticion_del_nodo(carpeta: Path, nodo: str) -> str:
             for c in dict.fromkeys(dep.compra):
                 lineas.append(f"  Esta pieza ya lleva {c} montado: su cuerpo, su eje y lo que hay que dejar "
                               f"libre están en la ficha {id_de_ficha(d)}; no coloques otro {c}.")
+            suyo = [c for c in n.cubre if c in dep.compra]
+            if suyo:
+                # F11.4 (cubre). La holgura va escrita con letra: es del
+                # sistema, y con cifra pasaría por una cota de la pieza.
+                from orchestrator.medida import HOLGURA_DE_CARCASA_MM
+                lineas.append(
+                    f"  Esta pieza es la carcasa de {', '.join(suyo)}: lo envuelve entero sin "
+                    f"tocarlo, dejando al menos {HOLGURA_DE_CARCASA_MM:g} mm entre su pared y "
+                    f"todo lo suyo, y sin tapar lo que su ficha pide libre (el cable, el haz). "
+                    f"Coloca la ficha {id_de_ficha(d)} y dibuja la carcasa alrededor de lo que "
+                    "trae. Al construir se mide.")
     return "\n".join(lineas) + "\n"
 
 

@@ -334,3 +334,75 @@ def test_vaciar_dice_que_cara_no_encuentra(tmp_path):
 def construir(kit):
     return kit.esfera(30).vaciar(2, abierta="+z")
 """, tmp_path)
+
+
+# --- el diseñador las usa (F11.5 (diseñador)) -----------------------------------------------------
+
+def _ejemplos_del_prompt() -> list[str]:
+    import re
+    texto = Path("config/agents/disenador_kit.md").read_text(encoding="utf-8")
+    return re.findall(r"```python\n(.*?)```", texto, re.S)
+
+
+def test_al_disenador_y_al_ingeniero_se_les_cuentan_las_formas_curvas():
+    """Que el kit las tenga no basta: el diseñador dibuja lo que su prompt le
+    enseña, y hasta hoy le enseñaba una escuadra extruida. La lista de
+    operaciones sale sola de los docstrings; la regla de cuándo usarlas y el
+    ejemplo hay que escribirlos. Y el ingeniero tiene que saber que puede
+    proponer una forma curva, o seguirá proponiendo cajas."""
+    from orchestrator.agents.disenador_kit import DisenadorKitAgent
+    from orchestrator.impresion import perfil_activo
+    texto = DisenadorKitAgent(None, perfil_activo(Path(".")))._instrucciones
+    for operacion in ("kit.seccion", "kit.rectangulo", "kit.elipse", "kit.transicion",
+                      "kit.barrer", "cuerpo.vaciar"):
+        assert f"`{operacion}(" in texto, operacion
+    reglas = Path("config/agents/disenador_kit.md").read_text(encoding="utf-8")
+    assert "**Una carcasa, una tapa o un carenado" in reglas
+    assert any("kit.transicion" in e and ".vaciar(" in e for e in _ejemplos_del_prompt())
+    ingeniero = Path("config/agents/ingeniero.md").read_text(encoding="utf-8")
+    assert "transición entre secciones" in ingeniero and "cáscara" in ingeniero
+
+
+def test_los_ejemplos_del_prompt_del_disenador_se_construyen(tmp_path):
+    """Un ejemplo que no se construye enseña a escribir programas que no se
+    construyen. Son programas enteros: se pasan por FreeCAD tal cual."""
+    ejemplos = _ejemplos_del_prompt()
+    assert len(ejemplos) >= 2
+    for i, codigo in enumerate(ejemplos):
+        r = _construir(codigo, tmp_path / str(i))
+        assert r.solids == 1, codigo[:80]
+
+
+@pytest.mark.llm
+def test_deepseek_dibuja_una_tapa_abombada_con_las_formas_curvas(tmp_path):
+    """Criterio de F11.5 (diseñador): pedida una tapa abombada, el programa
+    usa las formas nuevas y se construye. Lo pedido: 60 × 60 de base, 30 de
+    alto, hueca a 2 mm y abierta por debajo. Maciza serían menos de
+    60·60·30 = 108 000 mm³; hueca, menos de la mitad."""
+    import os
+
+    from orchestrator.agents.disenador_kit import DisenadorKitAgent
+    from orchestrator.build import design_and_build
+    from orchestrator.cli import _cliente
+    from orchestrator.config import load_env
+    from orchestrator.impresion import perfil_activo
+    from orchestrator.llm.router import Router
+
+    env = {**os.environ, **load_env(Path(".env"))}
+    if not env.get("DEEPSEEK_API_KEY"):
+        pytest.skip("sin DEEPSEEK_API_KEY")
+    router = Router.from_config_file(Path("config/models.yaml"), env=env)
+    activo = perfil_activo(Path("."))
+    disenador = DisenadorKitAgent(_cliente(router, env, "reason"), activo,
+                                  reserva=_cliente(router, env))
+    peticion = ("Tapa abombada para cubrir un motor: por fuera mide 60 x 60 mm en la base, "
+                "con las esquinas redondeadas, y 30 mm de alto; arriba se estrecha y acaba "
+                "en un óvalo. Hueca, con pared de 2 mm, y abierta por debajo. Sin agujeros.")
+    programa, r = design_and_build(disenador, peticion, None, tmp_path, freecadcmd=_freecadcmd(),
+                                   part="tapa", request=peticion, perfil=activo.datos,
+                                   max_construcciones=3)
+    print(programa.codigo)
+    assert "transicion" in programa.codigo and "vaciar" in programa.codigo
+    assert r.solids == 1
+    assert r.bbox_mm == pytest.approx([60, 60, 30], abs=2)
+    assert r.volume_mm3 < 0.5 * 108000

@@ -106,8 +106,22 @@ imprimir; lo que dejó abierto está abajo.
   contrasta con la malla; lo de dentro del kit que compara volúmenes
   no está revisado). Ningún modelo las ha usado todavía: eso es
   F11.5 (diseñador).
-- **Lo que sigue en la Fase 11:** F11.3 (tramos), partir en trozos
-  que quepan en la cama.
+- **Orden cambiado por él el 2026-11-13** («Sí, carcasa primero»):
+  F11.5 y F11.4, la medición (F11.6) y, al final, F11.3 (tramos).
+- **Hecha: F11.5 (diseñador).** Los prompts del diseñador y del
+  ingeniero cuentan las formas curvas, con un ejemplo que un test
+  construye. DeepSeek, pedida una tapa abombada, la dibujó con
+  `transicion` y `vaciar` a la primera (una petición, una corrida).
+- **Hecha a medias: F11.4 (cubre).** Un nodo del plan dice `cubre` y
+  a la carcasa se le mide que envuelve lo comprado, que no lo toca,
+  que no le tapa el cable y que le deja 1 mm (**el milímetro lo puso
+  el asistente**). Probado con un NEMA 17 de pie. **No se hizo para
+  el antebrazo del brazo mediano**: ahí el motor ya va dentro de la
+  pieza y lo que se ve son la polea y la correa, que no tienen
+  cuerpo en el sistema. No mide que esté cerrada ni que no roce con
+  lo que gira.
+- **Por decidir con él: qué carcasa se mide en F11.6.** La del
+  antebrazo no se puede medir bien hoy; un motor con su carcasa, sí.
 
 **2026-11-11 (noche): Fase 10, brazos con transmisión (ADR-021).** Decidido
 por él: **el brazo antes que el avión**; empezar por uno pequeño con servos;

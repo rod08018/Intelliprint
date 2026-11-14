@@ -33,6 +33,10 @@ class Nodo(BaseModel):
     ofrece: list[str] = []
     """Lo que da a las demás, corto y medible: «asiento Ø22 para un 608ZZ»."""
     necesita: list[str] = []
+    cubre: list[str] = []
+    """Si la pieza es una carcasa (F11.4 (cubre)): los ids de lo comprado que
+    cubre, que monta una pieza a la que se atornilla. Se le mide que lo
+    envuelve, que no lo toca y que le deja libre lo que su ficha pide."""
 
 
 class Fija(BaseModel):
