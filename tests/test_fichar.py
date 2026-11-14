@@ -343,6 +343,48 @@ def test_el_brazo_se_construye_aunque_occ_se_caiga_al_crecer_el_plato(tmp_path, 
     assert r.solids == 1
 
 
+def test_si_freecad_se_cae_al_redondear_la_pieza_se_entrega_sin_redondear(tmp_path, monkeypatch):
+    """Encargo 16 (banco 1114-0631): dos de los cinco intentos de la carcasa
+    acabaron con FreeCAD caído por un fallo de segmentación de OCC en
+    `ChFi3d_FilBuilder`, dentro de `acabar()`. Una caída no deja medir nada:
+    la carcasa se quedó sin saber si cubría el motor o si se imprimía. Sin
+    redondear sí se construye, y lo demás se le puede medir. Es el quinto
+    programa tal cual, con la ficha de la escuadra de esa corrida."""
+    import shutil
+    origen = Path("tests/kit_regresiones/carcasa_de_lado")
+    fichas = tmp_path / "fichas"
+    shutil.copytree(origen, fichas)
+    monkeypatch.setenv("INTELLIPRINT_FICHAS", str(fichas))
+    r = build_part(Programa(part="carcasa", codigo=(origen / "programa.txt").read_text(
+        encoding="utf-8")), None, tmp_path / "carcasa", _freecadcmd(), perfil=PERFIL)
+    # Con el FreeCAD del contenedor se cae y sale sin redondear, con su aviso;
+    # con el de Windows ese redondeo no se cae. En los dos, sale.
+    assert r.solids == 1
+
+
+def test_con_el_redondeo_apagado_acabar_deja_la_pieza_como_esta_y_lo_dice(tmp_path, monkeypatch):
+    """Lo que hace la repetición: una caja de 20 × 20 × 10 «acabada» sigue
+    midiendo 4 000 mm³, sin chaflán ni redondeo, y el aviso dice por qué."""
+    from mech_toolkit.componentes import SIN_REDONDEO
+    monkeypatch.setenv(SIN_REDONDEO, "1")
+    r = build_part(Programa(part="caja", codigo="""
+def construir(kit):
+    return kit.caja(20, 20, 10).acabar()
+"""), None, tmp_path, _freecadcmd(), perfil=PERFIL)
+    assert r.volume_mm3 == pytest.approx(4000, abs=0.01)
+    assert any("se cae al redondear" in a for a in r.avisos)
+
+
+def test_la_traza_dice_si_la_caida_fue_redondeando():
+    """La de la carcasa pasaba por `ChFi3d_FilBuilder` y
+    `BRepFilletAPI_MakeFillet`; la del plato, por `BRepOffset_MakeOffset`."""
+    from orchestrator.build import al_redondear
+    redondeando = CAIDA.replace("BRepOffset_MakeOffset::BuildOffsetByInter",
+                                "ChFi3d_FilBuilder::PerformSurf").replace(
+        "BRep_Tool::CurveOnSurface", "BRepFilletAPI_MakeFillet::Build")
+    assert al_redondear(redondeando) and not al_redondear(CAIDA)
+
+
 CAIDA = """\
 FreeCAD 1.1.3, Libs: 1.1.3R20260725 (Git shallow)
 Program received signal SIGSEGV, Segmentation fault.

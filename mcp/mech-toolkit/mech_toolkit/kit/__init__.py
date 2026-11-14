@@ -583,6 +583,19 @@ class Cuerpo:
         chaflán por corte del mismo tamaño, y si tampoco, queda viva; todo
         con un aviso. En el banco (2026-11-04) entre el 36 % y el 63 % de las
         aristas quedaban vivas: se redondeaban las verticales y nada más."""
+        import os
+
+        from mech_toolkit.componentes import SIN_REDONDEO
+
+        # FreeCAD se cayó redondeando esta misma pieza y se está repitiendo
+        # sin acabado (`build_part`). La carcasa del encargo 16 (banco
+        # 1114-0631) perdió así dos de cinco intentos: una caída no deja
+        # medir nada, y una pieza con las aristas vivas sí.
+        if os.environ.get(SIN_REDONDEO):
+            self._kit._avisos.append(
+                "FreeCAD se cae al redondear esta pieza (un fallo de OCC, no de tu "
+                "programa): se entrega con las aristas vivas")
+            return self
         # Con respaldo: lo que OCC no acaba se achaflana con un corte (ver
         # `prisma_de_chaflan`). Solo aquí: `redondear` y `achaflanar` hacen
         # lo que se les pide o avisan, sin cambiar un redondeo por otra cosa.

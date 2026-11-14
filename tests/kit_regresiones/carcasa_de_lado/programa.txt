@@ -1,0 +1,59 @@
+NUM_TORNILLOS = 4          # R4: cuatro tornillos M3
+METRICA = 'M3'             # R4: tornillos M3
+METRICA_MM = 3             # R4: 3 mm
+PARED = 2.0                # Concepto: pared fina (2 mm)
+Y_BASE = -43.0             # Concepto: fondo cerrado y=-43
+Y_BOCA = 5.5               # Concepto: cara de apoyo de tornillos y=5.5
+
+X_MIN = -22.15             # Concepto: hueco interior minimo (1 mm sobre el motor)
+X_MAX = 22.15
+Z_MIN = 9.85
+Z_MAX = 54.15
+
+ANCHO_EXT = 48.3           # X_MAX - X_MIN + 2*PARED
+ALTO_EXT = 48.3            # Z_MAX - Z_MIN + 2*PARED
+RADIO_EXT = 4.0            # Radio exterior > PARED para que el vaciado no falle
+
+TORRETA_D = 8.0            # Concepto: torretas verticales de Ø8 mm
+TORRETA_X = 26.0           # Concepto: x de torretas alineadas con carcasa-1..4
+TORRETA_Z1 = 10.0          # Concepto: z de torreta inferior
+TORRETA_Z2 = 54.0          # Concepto: z de torreta superior
+
+
+def construir(kit):
+    soporte = kit.componente('obra-soporte', en=(0, 0, 0), girar=(), entra_por='+y')
+    largo_y = Y_BOCA - Y_BASE
+
+    # 1. Cuerpo exterior: prisma de seccion rectangular redondeada, eje y.
+    sec = kit.rectangulo(ANCHO_EXT, ALTO_EXT, radio=RADIO_EXT)
+    cuerpo = kit.transicion([(sec, 0.0), (sec, largo_y)], eje='y', en=(0, Y_BASE, 0))
+    cuerpo = cuerpo.mover(dz=32.0)
+
+    # 2. Pared fina abierta por la boca (+y).
+    cuerpo = cuerpo.vaciar(PARED, abierta='+y')
+
+    # 3. Ventana del cable: U abierta al borde superior (+y) y a la boca.
+    ventana = kit.caja(19.0, 46.5, 8.0, en=(-9.5, -41.0, 52.0))
+    cuerpo = cuerpo.quitar('ventana_cable', ventana)
+
+    # 4. Cuatro torretas verticales en las esquinas de fijacion.
+    for x in (TORRETA_X, -TORRETA_X):
+        for z in (TORRETA_Z1, TORRETA_Z2):
+            cuerpo = cuerpo + kit.cilindro(TORRETA_D, largo_y, en=(x, Y_BASE, z), eje='y')
+
+    # 5. Cavidad minima de 1 mm alrededor del motor.
+    cavidad = kit.caja(X_MAX - X_MIN, Y_BOCA - (-41.0), Z_MAX - Z_MIN,
+                       en=(X_MIN, -41.0, Z_MIN))
+    cuerpo = cuerpo.quitar('cavidad_motor', cavidad)
+
+    # 6. Ajuste con la escuadra y el NEMA 17 ya montado.
+    cuerpo = cuerpo.quitar('alojamiento_soporte', soporte.hueco(holgura='clearance'))
+
+    # 7. Cuatro tornillos M3 pasantes alineados con la escuadra.
+    for i in range(1, NUM_TORNILLOS + 1):
+        pt = soporte.punto('carcasa-' + str(i))
+        cuerpo = cuerpo.tornillo('carcasa_' + str(i), METRICA, en=pt, eje='-y',
+                                 tipo='pasante', avellanado=6.0)
+
+    # 8. Acabado de producto.
+    return cuerpo.acabar(radio=0.5)

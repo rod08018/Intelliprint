@@ -1,0 +1,203 @@
+id: obra-soporte
+nombre: Escuadra soporte del NEMA 17
+origen: impreso
+proyecto: 2026-11-14-063137-un_soporte_para_un_motor_nema_17_con_su
+verificado: false
+fuentes:
+- url: proyecto 2026-11-14-063137-un_soporte_para_un_motor_nema_17_con_su
+  cita: construida por Intelliprint (escuadra_soporte_nema_17)
+marco: 'El de la pieza construida: el mismo origen y los mismos ejes que su programa.'
+mira: +z
+cuerpos:
+- nombre: Escuadra soporte del NEMA 17
+  en:
+  - 0
+  - 0
+  - 0
+  step:
+    ruta: obra-soporte.step
+    min:
+    - -34.0
+    - -58.0
+    - 0.0
+    max:
+    - 34.0
+    - 5.5000001
+    - 64.0
+- nombre: 'nema17: cuerpo'
+  en:
+  - -21.15
+  - -40.0
+  - 10.85
+  caja:
+  - 42.3
+  - 39.5
+  - 42.3
+  monta: nema17
+- nombre: 'nema17: resalte'
+  en:
+  - 0.0
+  - -0.5
+  - 32.0
+  cilindro:
+    diametro: 22.0
+    alto: 2.0
+    eje: +y
+  porque: 'centra el motor: el agujero de la pieza tiene que dejarlo pasar'
+  monta: nema17
+- nombre: 'nema17: eje'
+  en:
+  - 0.0
+  - -0.5
+  - 32.0
+  cilindro:
+    diametro: 5.0
+    alto: 24.0
+    eje: +y
+  porque: '23 ± 1 desde la cara: se toma 24'
+  monta: nema17
+- nombre: 'nema17: conector'
+  en:
+  - -8.0
+  - -40.0
+  - 53.15
+  caja:
+  - 16.0
+  - 9.6
+  - 7.0
+  monta: nema17
+despejar:
+- nombre: 'nema17: clavija y cable'
+  en:
+  - -8.0
+  - -40.0
+  - 60.15
+  caja:
+  - 16.0
+  - 12.0
+  - 15.0
+  porque: la clavija JST PH de 6 pines y el cable que sale de ella
+  monta: nema17
+fijacion:
+- nombre: lagrima_resalte
+  diametro: 22.35
+  en:
+  - 0.0
+  - -0.5
+  - 32.0
+  eje: +y
+- nombre: lagrima_eje
+  diametro: 5.35
+  en:
+  - 0.0
+  - -0.5
+  - 32.0
+  eje: +y
+- nombre: motor-1
+  diametro: 3.3
+  en:
+  - -15.5
+  - 5.5
+  - 47.5
+  eje: -y
+  tornillo: M3
+- nombre: motor-2
+  diametro: 3.3
+  en:
+  - 15.5
+  - 5.5
+  - 47.5
+  eje: -y
+  tornillo: M3
+- nombre: motor-3
+  diametro: 3.3
+  en:
+  - -15.5
+  - 5.5
+  - 16.5
+  eje: -y
+  tornillo: M3
+- nombre: motor-4
+  diametro: 3.3
+  en:
+  - 15.5
+  - 5.5
+  - 16.5
+  eje: -y
+  tornillo: M3
+- nombre: tablero-1
+  diametro: 3.3
+  en:
+  - -28.0
+  - -54.0
+  - 6.0
+  eje: -z
+  tornillo: M3
+- nombre: tablero-2
+  diametro: 3.3
+  en:
+  - -28.0
+  - -16.0
+  - 6.0
+  eje: -z
+  tornillo: M3
+- nombre: tablero-3
+  diametro: 3.3
+  en:
+  - 28.0
+  - -54.0
+  - 6.0
+  eje: -z
+  tornillo: M3
+- nombre: tablero-4
+  diametro: 3.3
+  en:
+  - 28.0
+  - -16.0
+  - 6.0
+  eje: -z
+  tornillo: M3
+- nombre: carcasa-1
+  diametro: 3.3
+  en:
+  - -26.0
+  - 5.5
+  - 10.0
+  eje: -y
+  tornillo: M3
+- nombre: carcasa-2
+  diametro: 3.3
+  en:
+  - -26.0
+  - 5.5
+  - 54.0
+  eje: -y
+  tornillo: M3
+- nombre: carcasa-3
+  diametro: 3.3
+  en:
+  - 26.0
+  - 5.5
+  - 10.0
+  eje: -y
+  tornillo: M3
+- nombre: carcasa-4
+  diametro: 3.3
+  en:
+  - 26.0
+  - 5.5
+  - 54.0
+  eje: -y
+  tornillo: M3
+salidas:
+- nombre: 'nema17: eje'
+  en:
+  - 0.0
+  - -0.5
+  - 32.0
+  eje: +y
+  recorrido:
+  - 0.0
+  - 360.0
+  largo: 24.0
+  porque: la salida «eje» del nema17 que monta esta pieza

@@ -204,6 +204,14 @@ imprimir; lo que dejó abierto está abajo.
   cinco intentos al construir: `acabar()` no construía una pieza sin
   arista hacia abajo, y la limpieza de caras de FreeCAD tumbaba una
   resta válida. Arreglados los dos en el kit.
+- **Reanudada dos veces, la `1114-0631` pasa 4 de 5** (primero 3 de
+  5; `banco_reanudado-2.md`; 1,47 USD la corrida, 2,03 de los 15).
+  Solo falla el encaje: 8,3 mm³ de la carcasa se cruzan al meter la
+  escuadra. Por el camino, dos intentos se perdieron con FreeCAD
+  caído al redondear. Arreglado: si se cae redondeando, se repite
+  sin redondear y la pieza se mide igual; y unir las caras de una
+  booleana ya no tumba ninguna operación del kit. La carcasa sigue
+  sin pasar su bucle (del 12 al 15 % de aristas vivas).
 - **Hecha: F11.3 (tramos)** (2026-11-14). `pieza.partir(eje, en,
   lengueta)` corta una pieza que no cabe en la cama; cada tramo va a
   su STL en `tramos/` con una unión a media madera, y se le mide que

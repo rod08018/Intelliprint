@@ -95,6 +95,10 @@ def primitivas(ficha, en=(0, 0, 0), giros=(), de="cuerpos") -> list[dict]:
 _LEIDOS: dict = {}
 _CRECIDOS: dict = {}
 SIN_DESPLAZAMIENTO = "INTELLIPRINT_SIN_DESPLAZAMIENTO"
+SIN_REDONDEO = "INTELLIPRINT_SIN_REDONDEO"
+"""Con esta variable en el entorno, `Cuerpo.acabar` no redondea ni achaflana:
+`build_part` la pone al repetir una construcción en la que FreeCAD se cayó
+dentro del redondeo de OCC."""
 
 
 def limpia(forma):

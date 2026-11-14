@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Callable
 
 from orchestrator.fcstd import mostrar_solo
-from mech_toolkit.componentes import SIN_DESPLAZAMIENTO
+from mech_toolkit.componentes import SIN_DESPLAZAMIENTO, SIN_REDONDEO
 from orchestrator.recipes.compose import (
     RESULT_PREFIX, compose_build_script, compose_program_script)
 from orchestrator.schemas.part_result import BuildOutputError, PartResult
@@ -67,6 +67,11 @@ def se_cayo(salida: str, codigo: int | None = None) -> bool:
     if codigo is not None and (codigo < 0 or codigo in _MUERTE_EN_WINDOWS):
         return True
     return bool(_CAIDA.search(salida))
+
+
+def al_redondear(salida: str) -> bool:
+    """Si la traza de la caída pasa por el redondeo o el chaflán de OCC."""
+    return bool(re.search(r"\b(ChFi3d|ChFi2d|BRepFilletAPI)_", salida))
 
 
 def motivo_de_la_caida(salida: str) -> str:
@@ -147,19 +152,27 @@ def build_part(
         # de ninguna pieza que falló (2026-11-04).
         (carpeta / "programa.py").write_text(receta.codigo, encoding="utf-8")
     try:
-        proceso = subprocess.run(
-            [freecadcmd, str(build)], capture_output=True, text=True, timeout=TIEMPO_MAX_S
-        )
-        if (not isinstance(receta, Recipe) and RESULT_PREFIX not in proceso.stdout
-                and se_cayo(proceso.stdout + "\n" + proceso.stderr, proceso.returncode)):
-            # Se cayó FreeCAD, no el programa. Lo que más lo tumba es el
-            # desplazamiento de OCC al crecer la forma de una pieza vecina
-            # para su hueco (`mech_toolkit.componentes.crecida`), que tiene
-            # otra manera de hacerlo: se repite una vez sin él, sin modelo.
-            # Si se cae igual, el motivo le llega al diseñador.
+        # Si se cae FreeCAD, no el programa, se repite por otro camino, sin
+        # modelo. Lo que más lo tumba es el desplazamiento de OCC al crecer
+        # la forma de una pieza vecina para su hueco
+        # (`mech_toolkit.componentes.crecida`), que tiene otra manera de
+        # hacerlo. Y si la traza dice que fue redondeando (`acabar`), se
+        # repite sin redondear: la pieza sale con las aristas vivas, pero
+        # sale, y se le mide todo lo demás (encargo 16, banco 1114-0631).
+        # Si se cae igual, el motivo le llega al diseñador.
+        sin: dict[str, str] = {}
+        while True:
             proceso = subprocess.run(
                 [freecadcmd, str(build)], capture_output=True, text=True,
-                timeout=TIEMPO_MAX_S, env={**os.environ, SIN_DESPLAZAMIENTO: "1"})
+                timeout=TIEMPO_MAX_S, env={**os.environ, **sin})
+            salida = proceso.stdout + "\n" + proceso.stderr
+            if (isinstance(receta, Recipe) or RESULT_PREFIX in proceso.stdout
+                    or not se_cayo(salida, proceso.returncode)):
+                break
+            otro = SIN_REDONDEO if al_redondear(salida) else SIN_DESPLAZAMIENTO
+            if otro in sin:
+                break
+            sin[otro] = "1"
     except subprocess.TimeoutExpired:
         # Vuelve al agente como cualquier fallo. Antes tumbaba el proyecto
         # entero: la escuadra de repisa del banco murió así (2026-11-04).

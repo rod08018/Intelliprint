@@ -658,6 +658,16 @@ COMO_ACABAR = (
 mitad viene del encargo 16 (banco 1114-0023): la carcasa terminaba con
 `acabar()` y volvió diez veces con «quedan vivas» sin saber por qué."""
 
+SI_SE_CAE = (
+    "FreeCAD se cae al redondear esta pieza y se ha construido sin acabado: no se arregla "
+    "llamando otra vez a `acabar()`. Suele pasar donde una superficie curva se cruza con el "
+    "hueco de otra pieza o con otra curva: deja recto ese cruce (una pared plana junto a lo "
+    "que se le quita) o quita antes el hueco y dale después la forma")
+"""Lo que se le dice cuando las aristas vivas son de una caída de FreeCAD
+(`build.al_redondear`): con el texto de siempre se le pedía un `acabar()` que
+ya tenía."""
+
+
 def pide_sin_soportes(peticion: str) -> bool:
     """Si la petición de la pieza pide que se imprima sin soportes. En un
     backlog solo cuenta lo suyo: lo que va después de `CONTEXTO` es de las
@@ -1212,7 +1222,9 @@ def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
         elif isinstance(sonda, AristasVivas):
             # Antes decía `redondear(1, aristas="todas")`: redondea también los
             # rincones, y en el SG90 del banco eso cerró la ventana del servo.
-            fallos.append(f"{ACABADO}: {medida.detalle}. {COMO_ACABAR}")
+            caida = any("se cae al redondear" in a
+                        for a in getattr(resultado, "avisos", None) or [])
+            fallos.append(f"{ACABADO}: {medida.detalle}. {SI_SE_CAE if caida else COMO_ACABAR}")
         elif isinstance(sonda, ComponenteCabe):
             fallos.append(f"{medida.detalle}. Resta a la pieza el `hueco()` del componente "
                           "(`pieza.quitar(\"...\", componente.hueco())`), y si lo que choca "
