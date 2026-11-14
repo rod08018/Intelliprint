@@ -541,6 +541,21 @@ Además el plan reservó 150 mm de radio libre para un brazo que mide 150 del ej
 
 **De dónde se parte (2026-11-13).** El brazo mediano de la Fase 10 (4 ejes, 350 mm, 300 g, solo NEMA 17) pasa 11 de 12 en el banco, con cinco piezas, cinco reanudaciones y 2,38 USD; nada está impreso. No hay ficha de NEMA 23 ni de rodamientos grandes. La única reductora es la cicloidal para NEMA 17 (10, 20 y 28 a 1), con la holgura supuesta en 0,15 mm hasta que el usuario imprima las piezas de prueba. No se calcula cuánto se dobla un tramo. «Ampliar» un invento se quedó en 0 de 9 con la pinza. Con seis giros el barrido prueba una rejilla gruesa.
 
+**Motores y rodamientos, propuestos por el asistente el 2026-11-14; por aprobar.** Lo pidió él: «quiero que levante 2 kg el brazo, tú propón rodamientos y motores». Tramos de 260 + 240 + 100 mm (del hombro al codo, del codo a la muñeca y de la muñeca a la brida de la herramienta): 600 mm del hombro a la punta. La cuenta es a mano, con el brazo estirado en horizontal y las reglas del estudio: de cada paso a paso se pide la mitad de su par de retención, y llega al eje el 90 % por correa y el 65 % por reductora.
+
+| Eje | Motor | Transmisión | Pide (N·m) | Da (N·m) | Rodamientos |
+|---|---|---|---|---|---|
+| J1, base (vertical) | NEMA 23 de 56 mm (1,26 N·m, el de la ficha) | Correa 5:1 (20 → 100 dientes) | no levanta peso | 2,8 | 2 × 6810-2RS (50 × 65 × 7), a 40 mm uno del otro |
+| J2, hombro | NEMA 23 de 113 mm (3,0 N·m, 23HS45-4204S) | Reductora 40:1 | 24,1 | 39,0 | 2 × 6806-2RS (30 × 42 × 7) |
+| J3, codo | NEMA 23 de 56 mm | Reductora 40:1 | 10,1 | 16,4 | 2 × 6806-2RS |
+| J4, giro del antebrazo | NEMA 17 (17HS4401) | Cicloidal 28:1 | 2,2 | 3,6 | 2 × 6806-2RS, a 30 mm |
+| J5, cabeceo de la muñeca | NEMA 17 | Cicloidal 28:1 | 2,2 | 3,6 | 2 × 608ZZ, con un tornillo M8 de eje |
+| J6, giro de la herramienta | NEMA 17 | Cicloidal 10:1 | 0,6 | 1,3 | 2 × 6806-2RS |
+
+**Por qué así.** El motor del hombro no lo levanta ningún eje, así que puede ser el grande; el del codo cuelga a 260 mm del hombro y cada 100 g suyos le piden 0,26 N·m, por eso es el de 56 mm con más reducción y no uno más largo. Con el mismo NEMA 23 de 56 mm en el hombro harían falta 80:1. La reductora de F12.2 (reductora) sería una sola, de 40:1, para el hombro y el codo. Los rodamientos van por pares separados porque uno solo de bolas no aguanta un momento de vuelco; en la base cada 6810 lleva unos 600 N de los 6 800 que admite parado, y por su agujero de 50 mm pasan los cables.
+
+**Lo que esa cuenta supone, sin medir.** Las masas de lo impreso las estimó el asistente (2,5 g/mm el brazo superior, 1,5 el antebrazo, 500 g la reductora del codo; en total el hombro mueve unos 5,8 kg con la carga). El J4 se calcula con la muñeca doblada 90° y el J6 con la carga a 30 mm de su eje. **No se sabe si una cicloidal impresa aguanta 24 N·m**: la de hoy es plástico contra plástico, sin rodamientos, y nada está impreso; la de 40:1 tendría que llevar rodamientos dentro, y cuáles se decide al diseñarla. La documentación de Arctos da 1 kg de carga para su brazo (una tienda dice 2 kg), con dos NEMA 23 de 2,8 A; aquí van tres. Los distribuidores no coinciden en la carga estática del 6810 (4,15 o 6,8 kN): con cualquiera sobra. La electrónica queda fuera, pero el motor de 4,2 A no va con un TMC2209.
+
 | ID | Tarea | Criterio de aceptación |
 |----|-------|------------------------|
 | F12.1 | **Las fichas que faltan** (fichas): NEMA 23, rodamientos grandes y más correas, entrando por el borrador de ficha de F9.11 (borrador) | Las cotas de cada ficha son las de la hoja del fabricante, citada **Empezada (2026-11-14), sin él:** la ficha `nema23` (SY57STH56-2804A, 56 mm; 1,26 N·m de retención, 0,7 kg), con las cotas del plano del fabricante. Sus agujeros son pasantes de Ø5 en una brida de 5 mm: va un M4 que cruza pieza y brida y lleva tuerca detrás. **Supuesto del asistente:** por dónde salen los cables (el plano no lo acota) y que el motor sea ese modelo: él no ha dicho cuál tiene o va a comprar. Faltan los rodamientos grandes y las correas, y F9.11 (borrador) sigue sin hacer |

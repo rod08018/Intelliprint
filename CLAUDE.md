@@ -233,6 +233,17 @@ imprimir; lo que dejó abierto está abajo.
   la hoja del fabricante. Qué NEMA 23 tiene o va a comprar no lo ha
   dicho: es un supuesto. **Las filas de la Fase 12 siguen por
   concretar con él**, y también el tope de gasto de su brazo.
+- **Dicho por él el 2026-11-14: «quiero que levante 2 kg el brazo, tú
+  propón rodamientos y motores».** Propuesto, **por aprobar** (la
+  tabla está en `PLAN_PROYECTO.md`, Fase 12): tramos de 260 + 240 +
+  100 mm; base con NEMA 23 de 56 mm y correa 5:1; hombro con NEMA 23
+  de 113 mm (3,0 N·m) y reductora 40:1 (pide 24,1 N·m de 39,0); codo
+  con NEMA 23 de 56 mm y la misma 40:1 (10,1 de 16,4); la muñeca,
+  tres NEMA 17 con las cicloidales de hoy (28, 28 y 10 a 1).
+  Rodamientos por pares: 2 × 6810-2RS en la base, 6806-2RS en hombro,
+  codo, J4 y J6, y 608ZZ en el cabeceo. Las masas de lo impreso son
+  estimaciones del asistente, y **no se sabe si una cicloidal impresa
+  aguanta 24 N·m**. Faltan sus fichas, y el tope de gasto del brazo.
 - **El avión, dicho por él esa noche:** un VTOL, con una autonomía
   muy buena en horas, hasta 250 km de alcance, hasta 8 libras
   (3,63 kg) de carga, y que lleve hasta dos cámaras y un lidar sin
