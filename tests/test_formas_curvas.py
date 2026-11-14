@@ -99,6 +99,24 @@ def construir(kit):
     assert r.volume_mm3 == pytest.approx(1800, abs=0.01)
 
 
+def test_un_punto_repetido_en_el_contorno_no_es_un_error(tmp_path):
+    """Encargo 16 (banco 1114-0023), primer intento de la carcasa: «OCCError:
+    Both points are equal». El modelo generó el contorno con su propia
+    función y el último punto repetía el primero. Es el mismo triángulo de
+    300 mm²: se quita el repetido y se sigue, en una sección y en `extruir`."""
+    r = _construir("""
+def construir(kit):
+    s = kit.seccion([(0, 0), (30, 0), (30, 0), (0, 20), (0, 0)])
+    return kit.transicion([(s, 0), (s, 6)])
+""", tmp_path / "seccion")
+    assert r.volume_mm3 == pytest.approx(1800, abs=0.01)
+    r = _construir("""
+def construir(kit):
+    return kit.extruir([(0, 0), (30, 0), (0, 20), (0, 20), (0, 0)], 6)
+""", tmp_path / "extruir")
+    assert r.volume_mm3 == pytest.approx(1800, abs=0.01)
+
+
 def test_con_tres_secciones_la_superficie_es_lisa_y_pasa_por_la_del_medio(tmp_path):
     """Una barriga: Ø20, Ø40 y Ø20 a 0, 20 y 40 de alto. Lisa abulta más que
     dos troncos de cono (2·π·20·(100 + 200 + 400)/3 = 29 321,5) y cabe en el

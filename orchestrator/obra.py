@@ -217,7 +217,8 @@ def presentar(obra: Obra, avisos: list[str] | tuple = ()) -> str:
         tipo = ", conjunto" if n.tipo == "conjunto" else ""
         lineas.append(f"- **{n.nombre}** (`{n.id}`{tipo}): {n.que_hace}")
         for titulo, cosas in (("compra", n.compra), ("depende de", n.depende_de),
-                              ("ofrece", n.ofrece), ("necesita", n.necesita)):
+                              ("cubre", n.cubre), ("ofrece", n.ofrece),
+                              ("necesita", n.necesita)):
             if cosas:
                 lineas.append(f"  - {titulo}: {'; '.join(cosas)}")
     if obra.uniones:

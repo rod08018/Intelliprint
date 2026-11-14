@@ -1074,6 +1074,69 @@ def test_reanudar_corrige_la_punta_que_no_llega(tmp_path, monkeypatch):
         == {"programa": "PROGRAMA", "cambio": falta}
 
 
+def _juez_dice(carpeta, pieza, pide, avisos=()):
+    """El laminado del juez de `pieza`, como lo deja `laminado_del_juez`."""
+    import json
+    (carpeta / "juez").mkdir(exist_ok=True)
+    (carpeta / "juez" / f"{pieza}.json").write_text(json.dumps(
+        {"plate": 1, "filament_mm": 10, "grams": 1, "time_s": 60, "needs_supports": pide,
+         "parts": [pieza], "postura": "-z", "avisos": list(avisos)}), encoding="utf-8")
+
+
+def test_lo_que_dijo_prusaslicer_de_una_pieza_se_le_dice_con_sus_palabras(tmp_path):
+    """Encargo 16 (banco 1114-0023): la carcasa pedía soportes apoyada en la
+    cara que fuera y, como el diseño no lamina, no lo supo nunca. El juez sí
+    lamina: lo que dejó escrito se le puede decir a la pieza al reanudar."""
+    from orchestrator import banco
+    p = _obra_construida(tmp_path) / "projects" / "a"
+    _juez_dice(tmp_path, "giro", True, ["Floating bridge anchors", "Long bridging extrusions"])
+    _juez_dice(tmp_path, "base", False)
+    texto = banco.pide_soportes(tmp_path, p, "giro")
+    assert "Floating bridge anchors" in texto and "Long bridging extrusions" in texto
+    assert "seis" in texto and "sin soportes" in texto
+    assert banco.pide_soportes(tmp_path, p, "base") == ""
+    # Sin laminado del juez no hay nada que decir.
+    (tmp_path / "juez" / "giro.json").unlink()
+    assert banco.pide_soportes(tmp_path, p, "giro") == ""
+
+
+def test_reanudar_corrige_la_pieza_que_pide_soportes(tmp_path, monkeypatch):
+    """Con todo lo demás bien, la exigencia «sin soportes» no tenía camino de
+    vuelta: reanudar no encontraba nada que hacer. Si el encargo la pide y el
+    juez dejó dicho que una pieza los necesita, se corrige esa pieza con lo
+    que dijo PrusaSlicer."""
+    import json
+    from orchestrator import banco
+    bien = {"ok": True, "choques": [], "resumen": [], "articulaciones": [], "correcciones": {}}
+
+    class Hecho:
+        stdout, stderr, returncode = "", "", 0
+
+    lanzado = []
+    monkeypatch.setattr(banco.subprocess, "run", lambda orden, **k: lanzado.append(orden) or Hecho())
+    monkeypatch.setattr(banco, "rejuzgar", lambda *a, **k: ({"x": []}, {}))
+    corrida = tmp_path / "corrida"
+    p = _con_informes(_obra_construida(corrida / "01", verificacion=bien),
+                      {"base": True, "giro": True})
+    (p / "nodos" / "giro" / "concepto_aprobado").write_text("{}", encoding="utf-8")
+    (p / "nodos" / "giro" / "parts" / "giro" / "programa.py").write_text("PROGRAMA",
+                                                                        encoding="utf-8")
+    _juez_dice(corrida / "01", "giro", True, ["Collapsing overhang"])
+    _juez_dice(corrida / "01", "base", False)
+
+    sin_pedirlo = banco.Encargo(nombre="x", categoria="robots", peticion="p", obra=True,
+                                oraculo=[{"tipo": "conjunto_libre"}])
+    banco.reanudar([sin_pedirlo], corrida, ["intelliprint", "obra", "--banco"], "fc", {})
+    assert lanzado == [], "si el encargo no pide «sin soportes», no se corrige por eso"
+
+    e = banco.Encargo(nombre="x", categoria="robots", peticion="p", obra=True,
+                      oraculo=[{"tipo": "conjunto_libre"}, {"tipo": "sin_soportes"}])
+    banco.reanudar([e], corrida, ["intelliprint", "obra", "--banco"], "fc", {})
+    assert lanzado, "había algo que reanudar"
+    retoque = json.loads((p / "nodos" / "giro" / "retoque.json").read_text(encoding="utf-8"))
+    assert retoque["programa"] == "PROGRAMA" and "Collapsing overhang" in retoque["cambio"]
+
+
 def test_reanudar_corrige_todas_las_piezas_a_las_que_les_faltan_tornillos(tmp_path, monkeypatch):
     """F9.9 (revalidar). Antes bastaba corregir la primera: las de encima se
     rehacían de cero y contaban sus tornillos al dibujarse. Ahora se quedan

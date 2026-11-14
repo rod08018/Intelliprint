@@ -127,6 +127,17 @@ imprimir; lo que dejó abierto está abajo.
   modelo, pasa 5 de 5 (a la segunda: la carcasa se imprime boca
   abajo, con bridas en vez de orejas). La carcasa del antebrazo
   queda para cuando la polea y la correa tengan cuerpo.
+- **El encargo 16, medido, se queda en 3 de 5** (corrida `1114-0023`,
+  0,49 USD de los 2). Plan y soporte, a la primera; la carcasa gastó
+  sus cinco intentos. No cumple el encaje (un saliente de la escuadra
+  no la deja bajar recta: es real, mirado en FreeCAD) ni «sin
+  soportes». Tres intentos se fueron en el sistema, y el juez se
+  cayó al final. Arreglado: un punto repetido ya no es un error, el
+  juez encuentra las fichas, el resumen del plan dice qué cubre la
+  carcasa y al reanudar se le dice a la pieza lo que dijo
+  PrusaSlicer. Sin arreglar: vaciar una forma que se estrecha hasta
+  casi cerrarse, y una construcción de más de 180 s. Reanudar,
+  pidiéndole antes el «sí».
 
 **2026-11-11 (noche): Fase 10, brazos con transmisión (ADR-021).** Decidido
 por él: **el brazo antes que el avión**; empezar por uno pequeño con servos;

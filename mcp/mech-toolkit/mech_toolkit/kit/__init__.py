@@ -147,6 +147,21 @@ def _valido(forma, que):
     return forma
 
 
+def _sin_repetidos(p3) -> list:
+    """El contorno sin los puntos que repiten al anterior, ni el último si
+    repite al primero. El modelo genera sus contornos con bucles y cierra el
+    polígono «por si acaso»: la carcasa del encargo 16 (banco 1114-0023)
+    perdió así un intento, con un «OCCError: Both points are equal» que no
+    le decía nada."""
+    limpio = []
+    for p in p3:
+        if not limpio or (p - limpio[-1]).Length > TOL:
+            limpio.append(p)
+    if len(limpio) > 1 and (limpio[0] - limpio[-1]).Length <= TOL:
+        limpio.pop()
+    return limpio
+
+
 def _cruces(p3) -> list:
     """Pares de lados del polígono que se tocan sin ser contiguos."""
     n = len(p3)
@@ -164,6 +179,9 @@ def _cruces(p3) -> list:
 def _cara(p3):
     """La cara de un polígono cerrado, comprobando que sus lados no se cruzan:
     FreeCAD la construye igual y el sólido sale no válido."""
+    p3 = _sin_repetidos(p3)
+    if len(p3) < 3:
+        raise KitError("un polígono necesita al menos tres puntos distintos")
     cruces = _cruces(p3)
     if cruces:
         lados = ", ".join(f"{i} y {j}" for i, j in cruces[:4])
@@ -1108,7 +1126,9 @@ class Kit:
         uv = [(float(a), float(b)) for a, b in puntos]
 
         def hacer(centro, u, v):
-            p3 = [centro + u * a + v * b for a, b in uv]
+            p3 = _sin_repetidos([centro + u * a + v * b for a, b in uv])
+            if len(p3) < 3:
+                raise KitError("una sección necesita al menos tres puntos distintos")
             if not curva:
                 _cara(p3)   # avisa si los lados se cruzan
                 return Part.makePolygon(p3 + [p3[0]])

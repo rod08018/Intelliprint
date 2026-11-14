@@ -1585,6 +1585,39 @@ def _corregir_la_que_no_deja_sitio(proyecto: Path, nodo: str, abajo: str, falta:
         obra.rehacer(proyecto, i, motivo if i == nodo else "")
 
 
+def pide_soportes(carpeta: Path, proyecto: Path, nodo: str) -> str:
+    """Qué decirle a `nodo` si el juez, al laminarla, vio que pide soportes
+    en las seis posturas; vacío si no los pide o si no se laminó. El diseño
+    no lamina (decidido por el usuario, 2026-11-09), así que la pieza no lo
+    sabe hasta que juzga el banco: la carcasa del encargo 16 (banco
+    1114-0023) se quedó así, sin un camino de vuelta."""
+    from orchestrator import obra
+    step = next(iter(sorted((Path(proyecto) / obra.NODOS / nodo / "parts").glob("*/*.step"))),
+                None)
+    informe = Path(carpeta) / "juez" / f"{step.stem}.json" if step else None
+    if informe is None or not informe.is_file():
+        return ""
+    dicho = json.loads(informe.read_text(encoding="utf-8"))
+    if not dicho.get("needs_supports"):
+        return ""
+    motivos = ", ".join(dicho.get("avisos") or []) or "no dio el motivo"
+    return ("sin soportes: PrusaSlicer pide soportes para esta pieza apoyada en cualquiera de "
+            f"sus seis caras ({motivos}). Tiene que poder imprimirse sin soportes en alguna "
+            "postura: elige qué cara va a la cama y, vista así, que nada vuele a más de 45° "
+            "de la vertical, que los techos planos sean cortos, y que lo que sobresale —una "
+            "oreja, una brida— nazca desde la cama o lleve por debajo un chaflán de 45°")
+
+
+def las_que_piden_soportes(encargo: "Encargo", carpeta: Path, proyecto: Path) -> dict[str, str]:
+    """{pieza: qué decirle} si el encargo pide «sin soportes» y el juez vio
+    que alguna los necesita."""
+    from orchestrator import obra
+    if not any(isinstance(a, SinSoportes) for a in encargo.oraculo):
+        return {}
+    piezas = [n.id for n in obra.cargar_obra(proyecto).nodos if n.tipo == "pieza"]
+    return {i: t for i in piezas if (t := pide_soportes(carpeta, proyecto, i))}
+
+
 def la_que_no_llega(proyecto: Path) -> tuple[str | None, str]:
     """(pieza, lo que se le mide) si la pieza de la punta, medida ahora y sin
     modelo, no llega a donde dice el plan; (None, "") si llega. El brazo
@@ -1683,6 +1716,13 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
         if nodo is None and hecho is not None and not solo_seguir:
             sin_tornillos = las_que_no_sujetan(e, hecho.parent)
             nodo = next(iter(sin_tornillos), None)
+        # Lo que dijo PrusaSlicer al juzgar, por pieza: se le dice a la que
+        # se corrija por otra cosa, y si no hay otra cosa, a la primera.
+        con_soportes = (las_que_piden_soportes(e, carpeta, hecho.parent)
+                        if hecho is not None and not solo_seguir else {})
+        solo_soportes = ""
+        if nodo is None and con_soportes:
+            nodo, solo_soportes = next(iter(con_soportes.items()))
         if nodo is None and not solo_seguir:
             continue
         proyecto = hecho.parent
@@ -1715,6 +1755,11 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
                 obra.corregir(proyecto, nodo, no_llega)
             else:
                 obra.rehacer(proyecto, nodo, no_llega)
+        elif solo_soportes:
+            if obra.programa_construido(proyecto, nodo):
+                obra.corregir(proyecto, nodo, solo_soportes)
+            else:
+                obra.rehacer(proyecto, nodo, solo_soportes)
         elif sin_tornillos:
             # Les faltan agujeros: se corrige la que hay, que por lo demás
             # está bien (pasó todo lo otro), con lo que falta en cifras. En
@@ -1743,7 +1788,8 @@ def reanudar(encargos: list[Encargo], corrida: Path, orden: list[str], freecadcm
             # F9.5 (parcial): la pieza se construyó y no cumple. Se corrige la
             # que hay con lo que se le midió, que trae las cifras: rehacerla
             # pedía otro concepto y salía otra pieza, sin saber por qué falló.
-            obra.corregir(proyecto, nodo, _lo_medido(proyecto, nodo))
+            obra.corregir(proyecto, nodo, "\n".join(filter(None, [
+                _lo_medido(proyecto, nodo), con_soportes.get(nodo, "")])))
             _corregir_las_de_encima_que_no_salieron(proyecto, nodo)
         else:
             obra.rehacer(proyecto, nodo)

@@ -650,7 +650,9 @@ def defectos_de_carcasa(carpeta: Path, nodo: str, resultado, step, freecadcmd: s
         if not suyo or r is None:
             continue    # si no la colocó, ya se lo dice `componentes_sin_colocar`
         de_quien = obra.nodo(d).nombre
-        ficha = cargar(O.id_de_ficha(d))
+        # Con las fichas del proyecto a mano: al juzgar nadie pone
+        # `INTELLIPRINT_FICHAS` (banco 1114-0023: el juez se cayó aquí).
+        ficha = cargar(O.id_de_ficha(d), extra=[O.carpeta_de_fichas(Path(carpeta))])
         solo = ficha.model_copy(update={
             "cuerpos": [c for c in ficha.cuerpos if c.monta in suyo],
             "despejar": [c for c in ficha.despejar if c.monta in suyo]})

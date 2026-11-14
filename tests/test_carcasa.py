@@ -166,6 +166,18 @@ def test_el_banco_dice_si_cada_carcasa_cubre_lo_suyo(backlog):
     assert r.estado == "cumple" and "«Carcasa del motor»" in r.detalle and "nema17" in r.detalle
 
 
+def test_el_juez_encuentra_las_fichas_del_proyecto_sin_que_nadie_se_las_diga(backlog, monkeypatch):
+    """La primera corrida del encargo 16 (banco 1114-0023) gastó sus 0,49 USD
+    y el juez se cayó al final: «no hay ficha de «obra-soporte»». Al diseñar,
+    `INTELLIPRINT_FICHAS` apunta a las fichas del proyecto; al juzgar no hay
+    quien la ponga, y la medida las buscaba solo ahí."""
+    from orchestrator.banco import carcasas_que_no_cubren
+    _lista(backlog, "carcasa", _carcasa())
+    monkeypatch.delenv("INTELLIPRINT_FICHAS")
+    r = carcasas_que_no_cubren(backlog, _freecadcmd(), MATERIAL)
+    assert r.estado == "cumple", r.detalle
+
+
 def test_una_carcasa_metida_en_el_motor_no_pasa_el_banco(backlog):
     from orchestrator.banco import carcasas_que_no_cubren
     _lista(backlog, "carcasa", _carcasa(dx=2.5))
@@ -235,3 +247,10 @@ def test_al_desglosador_se_le_dice_como_se_planea_una_carcasa():
     desglosa sabe que existe, y qué tiene que acompañarlo."""
     texto = Path("config/agents/desglosador.md").read_text(encoding="utf-8")
     assert "`cubre: [" in texto and "unión `fija`" in texto and "carcasa" in texto
+
+
+def test_el_resumen_del_plan_dice_que_cubre_la_carcasa(backlog):
+    """Encargo 16 (banco 1114-0023): DeepSeek puso `cubre` en el plan y el
+    resumen que lee la persona antes de aprobarlo no lo enseñaba."""
+    texto = (backlog / "obra.md").read_text(encoding="utf-8")
+    assert "cubre: nema17" in texto
