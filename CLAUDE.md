@@ -136,8 +136,14 @@ imprimir; lo que dejó abierto está abajo.
   juez encuentra las fichas, el resumen del plan dice qué cubre la
   carcasa y al reanudar se le dice a la pieza lo que dijo
   PrusaSlicer. Sin arreglar: vaciar una forma que se estrecha hasta
-  casi cerrarse, y una construcción de más de 180 s. Reanudar,
-  pidiéndole antes el «sí».
+  casi cerrarse, y una construcción de más de 180 s.
+- **Reanudado una vez, el encargo 16 sigue en 3 de 5** (0,40 USD
+  más: 0,89 de los 2; queda una reanudación). El acabado no se podía
+  cumplir: el modelo dibujó los arcos con tramos rectos, porque
+  quería un radio distinto delante y detrás y `rectangulo` solo
+  admitía uno, y una superficie de facetas no se redondea. Y el
+  aviso del encaje no decía dónde chocaba. Arreglado: un radio por
+  esquina, decírselo al diseñador, y el choque con su sitio.
 
 **2026-11-11 (noche): Fase 10, brazos con transmisión (ADR-021).** Decidido
 por él: **el brazo antes que el avión**; empezar por uno pequeño con servos;

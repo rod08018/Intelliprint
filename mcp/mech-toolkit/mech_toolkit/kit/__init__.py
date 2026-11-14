@@ -1159,31 +1159,51 @@ class Kit:
 
     def rectangulo(self, ancho, alto, radio=0) -> Seccion:
         """Sección rectangular centrada, de `ancho` en u y `alto` en v, con las
-        cuatro esquinas redondeadas a `radio`. La de casi todas las carcasas."""
-        a, b, r = float(ancho) / 2, float(alto) / 2, float(radio)
-        if r <= 0:
+        esquinas redondeadas a `radio`. La de casi todas las carcasas. `radio`
+        es un número para las cuatro, o cuatro —uno por esquina, en el orden
+        (-u, -v), (+u, -v), (+u, +v), (-u, +v); 0 la deja viva—: para una
+        tapa con las esquinas de delante distintas de las de atrás. Los arcos
+        son arcos de verdad: no los dibujes tú con tramos rectos."""
+        a, b = float(ancho) / 2, float(alto) / 2
+        if isinstance(radio, (int, float)):
+            radios = [float(radio)] * 4
+        else:
+            radios = [float(r) for r in radio]
+            if len(radios) != 4:
+                raise KitError("`radio` es un número o cuatro, uno por esquina: "
+                               "(-u, -v), (+u, -v), (+u, +v), (-u, +v)")
+        if max(radios) <= 0:
             return self.seccion([(-a, -b), (a, -b), (a, b), (-a, b)])
-        if r >= min(a, b) - TOL:
-            raise KitError(f"el radio ({r:g}) tiene que ser menor que la mitad del lado corto "
-                           f"({min(a, b):g}); para un óvalo usa `kit.elipse`")
+        # Dos radios vecinos no pueden comerse entero el lado que comparten.
+        for (r0, r1), lado in zip(zip(radios, radios[1:] + radios[:1]), (2 * a, 2 * b) * 2):
+            if min(r0, r1) < 0 or r0 + r1 > lado - TOL:
+                raise KitError(f"los radios ({r0:g} y {r1:g}) no caben en un lado de {lado:g}: "
+                               "tienen que sumar menos que él; para un óvalo usa `kit.elipse`")
 
         def hacer(centro, u, v):
             def p(x, y):
                 return centro + u * x + v * y
 
-            def arco(cx, cy, desde):
-                g = [math.radians(desde + k) for k in (0, 45, 90)]
-                return Part.Arc(*(p(cx + r * math.cos(t), cy + r * math.sin(t))
-                                  for t in g)).toShape()
-
-            def lado(p0, p1):
-                return Part.LineSegment(p(*p0), p(*p1)).toShape()
-
-            return Part.Wire([
-                lado((-a + r, -b), (a - r, -b)), arco(a - r, -b + r, -90),
-                lado((a, -b + r), (a, b - r)), arco(a - r, b - r, 0),
-                lado((a - r, b), (-a + r, b)), arco(-a + r, b - r, 90),
-                lado((-a, b - r), (-a, -b + r)), arco(-a + r, -b + r, 180)])
+            esquinas = [(-a, -b), (a, -b), (a, b), (-a, b)]
+            # Hacia dónde queda el centro del arco desde cada esquina, y el
+            # ángulo en el que el arco empieza recorriendo el contorno.
+            dentro = [(1, 1), (-1, 1), (-1, -1), (1, -1)]
+            empieza = [180, 270, 0, 90]
+            tramos, puntos = [], []
+            for (x, y), (sx, sy), g0, r in zip(esquinas, dentro, empieza, radios):
+                if r <= 0:
+                    puntos.append(((x, y), None, (x, y)))
+                    continue
+                cx, cy = x + sx * r, y + sy * r
+                g = [math.radians(g0 + k) for k in (0, 45, 90)]
+                pts = [(cx + r * math.cos(t), cy + r * math.sin(t)) for t in g]
+                puntos.append((pts[0], pts, pts[2]))
+            for i, (entra, arco, sale) in enumerate(puntos):
+                if arco is not None:
+                    tramos.append(Part.Arc(*(p(*q) for q in arco)).toShape())
+                siguiente = puntos[(i + 1) % 4][0]
+                tramos.append(Part.LineSegment(p(*sale), p(*siguiente)).toShape())
+            return Part.Wire(tramos)
         return Seccion(hacer)
 
     def elipse(self, ancho, alto) -> Seccion:

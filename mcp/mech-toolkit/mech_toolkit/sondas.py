@@ -496,10 +496,17 @@ def _entra_paso_a_paso(forma, p, d, largo):
         movida = s.translated(FreeCAD.Vector(*d) * t)
         if not movida.BoundBox.intersect(caja):
             return None
-        v = forma.common(movida).Volume
+        comun = forma.common(movida)
+        v = comun.Volume
         if v > TOL_CHOQUE_MM3:
-            return (f"«{p['nombre']}» choca con {v:.0f} mm³ de pieza cuando le faltan "
-                    f"{t:.1f} mm para llegar a su sitio")
+            # Dónde, en el marco de la pieza, y sin escribir un volumen
+            # pequeño como «0 mm³»: a la carcasa del encargo 16 (banco
+            # 1114-0023) se le dijo así diez veces y no supo qué apartar.
+            b = comun.BoundBox
+            return (f"«{p['nombre']}» choca con {v:.2g} mm³ de pieza cuando le faltan "
+                    f"{t:.1f} mm para llegar a su sitio (en x de {b.XMin:.1f} a {b.XMax:.1f}, "
+                    f"y de {b.YMin:.1f} a {b.YMax:.1f} y z de {b.ZMin:.1f} a {b.ZMax:.1f}: "
+                    "ahí la pieza se cruza en su camino)")
         t += PASO_ENTRA_MM
     return None
 

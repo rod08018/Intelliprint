@@ -288,6 +288,24 @@ def test_una_pieza_impresa_entra_solo_por_donde_hay_camino(tmp_path, monkeypatch
     assert (mete.estado == "cumple") == entra, mete.detalle
 
 
+def test_el_choque_al_entrar_dice_donde_y_no_cero_milimetros_cubicos(tmp_path, monkeypatch):
+    """Encargo 16 (banco 1114-0023): a la carcasa se le dijo diez veces
+    «choca con 0 mm³ de pieza cuando le faltan 3.0 mm». Eran 0,08 mm³ en una
+    franja de su borde delantero, y sin saber dónde fue cambiando de lado
+    por donde entrar sin acertar. El aviso dice dónde, en el marco de la
+    pieza, y un volumen pequeño no se escribe como cero."""
+    import re
+    f = _fichar(tmp_path, monkeypatch, PASADOR, "pasador", "Pasador impreso")
+    _construir(BLOQUE, tmp_path / "bloque", "bloque")
+    [mete] = medir_sondas(tmp_path / "bloque" / "bloque.step", [
+        ComponenteEntra(tipo="componente_entra", ficha=f.model_dump(), en=[0, 0, 0],
+                        entra_por="+z")], _freecadcmd(), MATERIAL)
+    assert mete.estado == "no_cumple"
+    assert re.search(r"en x de -?[\d.]+ a -?[\d.]+, y de -?[\d.]+ a -?[\d.]+ y z de "
+                     r"-?[\d.]+ a -?[\d.]+", mete.detalle), mete.detalle
+    assert " 0 mm³" not in mete.detalle
+
+
 def test_el_hueco_largo_de_una_pieza_vecina_se_resta_sin_romper_freecad(tmp_path, monkeypatch):
     """Banco 1110-0313: la plataforma del pan-tilt no se construyó en cinco
     intentos, todos con «Null shape» al restar el hueco del soporte de giro.

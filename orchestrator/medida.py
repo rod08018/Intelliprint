@@ -606,6 +606,16 @@ def defectos_de_alcance(carpeta: Path, nodo: str) -> list[str]:
     return fallos
 
 
+COMO_ACABAR = (
+    "Termina con `return pieza.acabar()`, que redondea todas las esquinas sin rellenar los "
+    "rincones; si una pared es fina, `acabar(radio=0.5)`. Si ya lo haces y siguen vivas, es "
+    "que dibujaste una curva con un polígono de muchos lados: una superficie de facetas no "
+    "se puede redondear. Haz las esquinas con `kit.rectangulo(ancho, alto, radio=...)` (un "
+    "radio por esquina si son distintas), `kit.elipse` o `kit.seccion(puntos, curva=True)`")
+"""Lo que se le dice al diseñador cuando le quedan aristas vivas. La segunda
+mitad viene del encargo 16 (banco 1114-0023): la carcasa terminaba con
+`acabar()` y volvió diez veces con «quedan vivas» sin saber por qué."""
+
 HOLGURA_DE_CARCASA_MM = 1.0
 """Lo que una carcasa deja, como poco, entre su pared y lo que cubre. Una
 pared impresa a menos de eso de un motor acaba rozándolo. Lo decidió el
@@ -1096,9 +1106,7 @@ def defectos_de_la_pieza(requisitos, resultado, step, freecadcmd: str,
         elif isinstance(sonda, AristasVivas):
             # Antes decía `redondear(1, aristas="todas")`: redondea también los
             # rincones, y en el SG90 del banco eso cerró la ventana del servo.
-            fallos.append(f"{ACABADO}: {medida.detalle}. Termina con `return pieza.acabar()`, "
-                          "que redondea todas las esquinas sin rellenar los rincones; si "
-                          "una pared es fina, `acabar(radio=0.5)`")
+            fallos.append(f"{ACABADO}: {medida.detalle}. {COMO_ACABAR}")
         elif isinstance(sonda, ComponenteCabe):
             fallos.append(f"{medida.detalle}. Resta a la pieza el `hueco()` del componente "
                           "(`pieza.quitar(\"...\", componente.hueco())`), y si lo que choca "

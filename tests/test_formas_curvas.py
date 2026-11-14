@@ -64,6 +64,38 @@ def construir(kit):
     assert r.volume_mm3 == pytest.approx((600 - (4 - math.pi) * 25) * 10, rel=1e-4)
 
 
+def test_cada_esquina_de_un_rectangulo_puede_llevar_su_radio(tmp_path):
+    """Encargo 16 (banco 1114-0023): el modelo quería las esquinas de delante
+    a 1,5 y las de atrás a 10. `rectangulo` solo admitía un radio, así que
+    se escribió su propia función y dibujó los arcos con tramos rectos: una
+    superficie de facetas que `acabar` no puede redondear, y diez intentos
+    con «quedan vivas» sin poder cumplirlo.
+
+    A mano: dos esquinas a 5 y dos vivas quitan 2·(1 − π/4)·25 al 30 × 20."""
+    r = _construir("""
+def construir(kit):
+    s = kit.rectangulo(30, 20, radio=(5, 5, 0, 0))
+    return kit.transicion([(s, 0), (s, 10)])
+""", tmp_path / "dos")
+    assert r.volume_mm3 == pytest.approx((600 - 2 * (1 - math.pi / 4) * 25) * 10, rel=1e-4)
+    assert r.bbox_mm == pytest.approx([30, 20, 10], abs=0.01)
+    with pytest.raises(ConstruccionFallida, match="cuatro"):
+        _construir("""
+def construir(kit):
+    s = kit.rectangulo(30, 20, radio=(5, 5))
+    return kit.transicion([(s, 0), (s, 10)])
+""", tmp_path / "mal")
+
+
+def test_al_disenador_se_le_dice_que_una_curva_de_muchos_lados_no_se_redondea():
+    """Lo mismo, por el otro lado: que no lo intente, y que si le vuelve el
+    acabado sepa por qué."""
+    from orchestrator.medida import COMO_ACABAR
+    assert "muchos lados" in COMO_ACABAR and "kit.rectangulo" in COMO_ACABAR
+    reglas = Path("config/agents/disenador_kit.md").read_text(encoding="utf-8")
+    assert "muchos puntos" in reglas and "facetas" in reglas
+
+
 def test_una_elipse_tiene_el_area_de_sus_semiejes(tmp_path):
     """π·a·b con a = 15 y b = 5, por 8 de alto."""
     r = _construir("""
