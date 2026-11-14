@@ -123,6 +123,81 @@ def test_una_pieza_que_no_cubre_nada_no_se_mide(backlog):
     assert defectos_de_carcasa(backlog, "soporte", None, None, _freecadcmd(), MATERIAL) == []
 
 
+# --- lo que tiene que quedar dentro es el cuerpo, no todo ---------------------------------------
+
+EJE_FUERA = """
+def construir(kit):
+    kit.componente("obra-soporte", en=(0, 0, 0), entra_por="-z")
+    seccion = kit.rectangulo(49.3, 56.3, radio=3)
+    c = kit.transicion([(seccion, 0), (seccion, 45.5)], en=(0, -3.5, 5))
+    c = c.vaciar(2, abierta="-z")
+    c = c.quitar("ventana_cable", kit.caja(20, 20, 16, en=(-10, -45, 5)))
+    return c.taladrar("paso_eje", 8, en=(0, 0, 50.5), eje="-z")
+"""
+"""La carcasa de un motor casi nunca tapa su eje: acaba 2 mm por encima del
+resalte (z = 48,5 por dentro) y el eje, de Ø5, sale por un agujero de Ø8."""
+
+
+def test_basta_con_envolver_el_cuerpo_si_el_eje_sale_por_su_agujero(backlog):
+    """Al preparar el encargo 16 (2026-11-13): un motor atornillado por su
+    cara lleva el eje al otro lado de la placa, y ninguna carcasa lo cubre
+    «entero». Lo que la carcasa envuelve es el cuerpo, lo más grande de lo
+    que cubre; a lo demás —el eje, el resalte— se le mide lo de siempre: que
+    no se meta en ello y que le deje el milímetro (aquí, 1,5 alrededor del
+    eje)."""
+    assert _medida(backlog, EJE_FUERA) == []
+
+
+def test_con_el_agujero_del_eje_justo_pide_el_milimetro(backlog):
+    """Ø5,6 para un eje de Ø5: 0,3 mm alrededor."""
+    [d] = _medida(backlog, EJE_FUERA.replace('"paso_eje", 8', '"paso_eje", 5.6'))
+    assert "0.3 mm" in d and "al menos 1 mm" in d
+
+
+# --- la exigencia del banco -------------------------------------------------------------------------
+
+def test_el_banco_dice_si_cada_carcasa_cubre_lo_suyo(backlog):
+    """Encargo 16: «cubre» se juzga en lo construido, con la misma medida que
+    el bucle de la pieza, para que una carcasa dada por lista con defectos
+    no pase."""
+    from orchestrator.banco import carcasas_que_no_cubren
+    _lista(backlog, "carcasa", _carcasa())
+    r = carcasas_que_no_cubren(backlog, _freecadcmd(), MATERIAL)
+    assert r.estado == "cumple" and "«Carcasa del motor»" in r.detalle and "nema17" in r.detalle
+
+
+def test_una_carcasa_metida_en_el_motor_no_pasa_el_banco(backlog):
+    from orchestrator.banco import carcasas_que_no_cubren
+    _lista(backlog, "carcasa", _carcasa(dx=2.5))
+    r = carcasas_que_no_cubren(backlog, _freecadcmd(), MATERIAL)
+    assert r.estado == "no_cumple" and "choca" in r.detalle
+
+
+def test_si_el_plan_no_tiene_ninguna_carcasa_el_banco_lo_dice(tmp_path):
+    """Pedir una carcasa y que el plan no declare ninguna no puede pasar por
+    no haber nada que medir."""
+    from orchestrator import obra as O
+    from orchestrator.banco import carcasas_que_no_cubren
+    (tmp_path / "request.md").write_text("un motor con su carcasa", encoding="utf-8")
+    O.guardar(tmp_path, Obra(titulo="t", nodos=[NODOS[0]]), por="prueba")
+    r = carcasas_que_no_cubren(tmp_path, _freecadcmd(), MATERIAL)
+    assert r.estado == "no_cumple" and "ninguna pieza" in r.detalle
+
+
+def test_el_encargo_16_pide_lo_que_dice_su_peticion():
+    from orchestrator.banco import cargar_encargos
+    from orchestrator.componentes import mencionados
+    [e] = [e for e in cargar_encargos(Path("tests/banco/encargos"))
+           if e.nombre == "motor_con_carcasa"]
+    assert e.obra and mencionados(e.peticion) == ["nema17"]
+    tipos = [a.tipo for a in e.oraculo]
+    assert {"componente", "encaje", "cubre", "sin_soportes"} <= set(tipos)
+    [t] = [a for a in e.oraculo if a.tipo == "tornillos"]
+    # «con sus cuatro tornillos M3»: los de la ficha del motor.
+    assert (t.sujetan, t.metrica, t.cuantos) == ("nema17", "M3", 4)
+    assert "carcasa" in e.peticion and "cubr" in e.peticion
+
+
 # --- el plan y lo que se le dice al diseñador -------------------------------------------------
 
 def _errores(nodos=NODOS, uniones=UNIONES) -> list[str]:

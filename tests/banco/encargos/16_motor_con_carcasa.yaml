@@ -1,0 +1,26 @@
+nombre: motor_con_carcasa
+categoria: robots
+obra: true
+peticion: >
+  Un soporte para un motor NEMA 17 con su carcasa. El soporte es una escuadra:
+  el motor va atornillado por su cara a la pared de la escuadra con sus cuatro
+  tornillos M3, con el eje saliendo por el otro lado, y el pie se atornilla a
+  un tablero con cuatro tornillos M3. La carcasa cubre el cuerpo del motor: es
+  una tapa abombada, de pared fina, atornillada al soporte con cuatro
+  tornillos M3, y deja salir el cable. Las dos piezas se imprimen sin soportes.
+oraculo:
+  - tipo: componente
+    ficha: nema17
+    cuantos: 1
+  - tipo: encaje
+  # «La carcasa cubre el cuerpo del motor (…) y deja salir el cable»:
+  # F11.4 (cubre). Envuelve el cuerpo, no se mete en nada del motor, no le
+  # tapa la clavija y le deja 1 mm.
+  - tipo: cubre
+  - tipo: sin_soportes
+  # «con sus cuatro tornillos M3»: los cuatro M3 de la cara del motor, los de
+  # su ficha.
+  - tipo: tornillos
+    sujetan: nema17
+    metrica: M3
+    cuantos: 4

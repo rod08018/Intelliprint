@@ -628,9 +628,12 @@ def defectos_de_carcasa(carpeta: Path, nodo: str, resultado, step, freecadcmd: s
     (`cubre`, en el plan): que lo envuelve, que no se mete en ello ni le tapa
     lo que su ficha pide libre, y que le deja `HOLGURA_DE_CARCASA_MM`.
 
-    Que lo envuelve se mide con cajas: la de cada cuerpo de lo cubierto
-    tiene que caer dentro de la de la carcasa. No dice que esté cerrada: una
-    jaula de barrotes también pasaría."""
+    Que lo envuelve se mide con cajas, y solo en el cuerpo más grande de
+    cada cosa que cubre: la caja del cuerpo del motor tiene que caer dentro
+    de la de la carcasa. Su eje casi nunca: un motor atornillado por su cara
+    lo lleva al otro lado de la placa (encargo 16). A lo demás se le mide que
+    no se meta en ello y la holgura. No dice que esté cerrada: una jaula de
+    barrotes también pasaría."""
     from orchestrator import obra as O
     from orchestrator.banco import ComponenteCabe, medir_sondas
     from orchestrator.componentes import cargar, primitivas
@@ -653,19 +656,28 @@ def defectos_de_carcasa(carpeta: Path, nodo: str, resultado, step, freecadcmd: s
             "despejar": [c for c in ficha.despejar if c.monta in suyo]})
         donde = {"en": r["en"], "giros": r.get("giros") or []}
         fuera: dict[str, float] = {}
-        for p in primitivas(solo, donde["en"], donde["giros"]):
-            lo, hi = _caja_de(p)
+        for c in suyo:
+            # El mayor de sus cuerpos: del motor, el cuerpo y no el eje.
+            suyos = [p for p, q in zip(primitivas(solo, donde["en"], donde["giros"]),
+                                       solo.cuerpos) if q.monta == c]
+            if not suyos:
+                continue
+
+            def tamano(p):
+                lo, hi = _caja_de(p)
+                return math.prod(b - a for a, b in zip(lo, hi))
+            mayor = max(suyos, key=tamano)
+            lo, hi = _caja_de(mayor)
             sale = max(max(a - b for a, b in zip(resultado.bbox_min, lo)),
                        max(a - b for a, b in zip(hi, resultado.bbox_max)))
             if sale > 0.05:
-                fuera[p["nombre"]] = sale
+                fuera[mayor["nombre"]] = sale
         if fuera:
             peor = max(fuera, key=fuera.get)
             fallos.append(
                 f"carcasa: no cubre lo de «{de_quien}»: «{peor}» sobresale {fuera[peor]:.1f} mm "
-                f"de tu pieza" + (f", y {len(fuera) - 1} cuerpo(s) más" if len(fuera) > 1 else "")
-                + f". Una carcasa envuelve lo que cubre ({', '.join(suyo)}): llévala hasta "
-                f"ahí, con {HOLGURA_DE_CARCASA_MM:g} mm de holgura alrededor")
+                f"de tu pieza. Una carcasa envuelve lo que cubre ({', '.join(suyo)}): llévala "
+                f"hasta ahí, con {HOLGURA_DE_CARCASA_MM:g} mm de holgura alrededor")
             continue
         [m] = medir_sondas(step, [ComponenteCabe(tipo="componente_cabe", ficha=solo.model_dump(),
                                                  **donde)], freecadcmd, material)

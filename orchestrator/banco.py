@@ -344,6 +344,18 @@ class Pendiente(BaseModel):
         return []
 
 
+class Cubre(BaseModel):
+    """Obras (F11.4 (cubre)): cada carcasa del plan envuelve lo que dice que
+    cubre, sin meterse en ello, sin taparle lo que su ficha pide libre y
+    dejándole la holgura. Se mide en lo construido, con la medida del bucle
+    de la pieza (`medida.defectos_de_carcasa`)."""
+
+    tipo: Literal["cubre"]
+
+    def cotas_de_la_peticion(self) -> list[float]:
+        return []
+
+
 class Encaje(BaseModel):
     """Obras (F7.5 (obras)): cada pieza cabe y entra en la que se diseñó
     contra ella. Se sondea su forma construida (la ficha que dejó «está bien,
@@ -388,7 +400,7 @@ class Articulaciones(BaseModel):
 Asercion = Annotated[Agujeros | Cilindro | Envolvente | SinSoportes | Pendiente | AristasVivas
                      | Resistencia | Ventana | Coaxiales | PasoLibre | ParedMinima | Ranura
                      | Retencion | ComponenteCabe | ComponenteEntra | AccesoTornillo | ZonaLibre
-                     | CaraQueSeOrienta | SeOrienta | Tornillos | Componente | Encaje
+                     | CaraQueSeOrienta | SeOrienta | Tornillos | Componente | Encaje | Cubre
                      | ConjuntoLibre | Articulaciones | Alcance | Carga | Conserva | Reduccion,
                      Field(discriminator="tipo")]
 
@@ -1000,7 +1012,7 @@ def juzgar_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
     de_pieza = [a for a in encargo.oraculo
                 if not isinstance(a, (Componente, Encaje, ConjuntoLibre, Articulaciones,
                                       SeOrienta, Tornillos, Alcance, Carga, Conserva,
-                                      Reduccion))]
+                                      Reduccion, Cubre))]
     # Solo se sondea lo que el oráculo pregunta: cada sonda es FreeCAD.
     pedidos = {a.ficha for a in encargo.oraculo if isinstance(a, Componente)}
     encaje = any(isinstance(a, Encaje) for a in encargo.oraculo)
@@ -1066,6 +1078,8 @@ def juzgar_obra(encargo: Encargo, carpeta: Path, freecadcmd: str,
             salida.append(_tornillos(a, proyecto, piezas))
         elif isinstance(a, Conserva):
             salida.append(_conserva(a, proyecto, piezas))
+        elif isinstance(a, Cubre):
+            salida.append(carcasas_que_no_cubren(proyecto, freecadcmd, material))
         elif isinstance(a, Reduccion):
             salida.append(_reduccion(a, proyecto, piezas))
         elif isinstance(a, (Alcance, Carga)):
@@ -1250,6 +1264,41 @@ def _reduccion(a: Reduccion, proyecto: Path, piezas: dict) -> Resultado:
             return r
         peor = peor or r
     return peor
+
+
+def carcasas_que_no_cubren(proyecto: Path, freecadcmd: str,
+                           material: dict | None = None) -> Resultado:
+    """Si cada pieza del plan que dice `cubre` lo cumple en lo construido."""
+    from types import SimpleNamespace
+
+    from orchestrator import obra as O
+    from orchestrator.medida import defectos_de_carcasa
+
+    proyecto = Path(proyecto)
+    carcasas = [n for n in O.cargar_obra(proyecto).nodos if n.cubre]
+    if not carcasas:
+        return Resultado(estado="no_cumple", detalle=(
+            "ninguna pieza del plan dice que cubre nada: no hay carcasa que medir"))
+    bien, mal = [], []
+    for n in carcasas:
+        parte = next(iter(sorted((proyecto / O.NODOS / n.id / "parts").glob("*/rasgos.json"))),
+                     None)
+        if parte is None:
+            mal.append(f"«{n.nombre}» no se construyó")
+            continue
+        caja = json.loads((parte.parent / "envolvente.json").read_text(encoding="utf-8"))
+        hecha = SimpleNamespace(rasgos=json.loads(parte.read_text(encoding="utf-8")),
+                                bbox_min=caja["min"], bbox_max=caja["max"])
+        step = next(iter(sorted(parte.parent.glob("*.step"))))
+        fallos = defectos_de_carcasa(proyecto, n.id, hecha, step, freecadcmd, material or {})
+        if not any(r.get("ficha", "").startswith("obra-") for r in hecha.rasgos
+                   if r.get("tipo") == "componente"):
+            fallos.append("no colocó la pieza que cubre: no se puede medir")
+        (mal if fallos else bien).extend(
+            [f"«{n.nombre}»: {f}" for f in fallos] or [f"«{n.nombre}» cubre {', '.join(n.cubre)}"])
+    if mal:
+        return Resultado(estado="no_cumple", detalle="; ".join(mal))
+    return Resultado(estado="cumple", detalle="; ".join(bien) + ", sin tocarlo")
 
 
 def _tornillos(a: Tornillos, proyecto: Path, piezas: dict) -> Resultado:

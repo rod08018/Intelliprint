@@ -120,8 +120,13 @@ imprimir; lo que dejó abierto está abajo.
   pieza y lo que se ve son la polea y la correa, que no tienen
   cuerpo en el sistema. No mide que esté cerrada ni que no roce con
   lo que gira.
-- **Por decidir con él: qué carcasa se mide en F11.6.** La del
-  antebrazo no se puede medir bien hoy; un motor con su carcasa, sí.
+- **Decidido por él el 2026-11-13 («Sí, con 2 USD»): F11.6 se mide
+  con el encargo 16**, un NEMA 17 en una escuadra con su carcasa
+  atornillada; tope de 2 USD, una corrida y hasta dos reanudaciones.
+  El banco tiene la exigencia nueva `cubre`. Hecho a mano, sin
+  modelo, pasa 5 de 5 (a la segunda: la carcasa se imprime boca
+  abajo, con bridas en vez de orejas). La carcasa del antebrazo
+  queda para cuando la polea y la correa tengan cuerpo.
 
 **2026-11-11 (noche): Fase 10, brazos con transmisión (ADR-021).** Decidido
 por él: **el brazo antes que el avión**; empezar por uno pequeño con servos;
