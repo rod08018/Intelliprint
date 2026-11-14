@@ -11,11 +11,13 @@ El brazo es UN proyecto, con la muñeca dentro: el usuario lo dijo ese mismo
 día al ver la muñeca medida aparte («no veo por qué son proyectitos
 separados»).
 
-Tramos: del hombro al codo 260 mm, del codo al cabeceo 215 y del cabeceo a
-la punta de la brida 125. No son los 240 y 100 de la tabla aprobada: hecha a
-mano, de la muñeca a la brida no cabe un NEMA 17 con su reductora en menos
-de 125. Desde la punta: el hombro a 600, el codo a 340, el giro del
-antebrazo (J4) a 225 —115 mm más allá del codo—, y el cabeceo (J5) a 125. El
+Tramos: del hombro al codo 190 mm, del codo al cabeceo 285 y del cabeceo a
+la punta de la brida 125. No son los 260, 240 y 100 de la tabla aprobada:
+hecha a mano, de la muñeca a la brida no cabe un NEMA 17 con su reductora en
+menos de 125, y un tramo de 260 entre ejes da una pieza de más de 300, que
+no entra en una impresora de 250 de alto. Desde la punta: el hombro a 600,
+el codo a 410, el giro del antebrazo (J4) a 225 —185 mm más allá del codo—,
+y el cabeceo (J5) a 125. El
 giro de la herramienta (J6) no dice dónde está: lo que lleva la mano se
 cuenta en la punta, que es lo peor. Cada giro va sobre un solo componente:
 los rodamientos de apoyo de la tabla no entran todavía en el plan. Lo
@@ -26,15 +28,15 @@ comprado que lleva cada pieza va en el eje del giro siguiente:
 - giro: lo del J5, 335 g.
 - mano: lo del J6, 335 g.
 
-Hombro (a 600): la carga, 2000 × 600 = 1 200 000; su tramo, 52 g a 130,
-6 760; lo del brazo a 260, 416 000; el tramo del codo, 23 g a 317,5,
-7 302,5; lo del antebrazo a 375, 125 625; el tramo del J4, 20 g a 425,
+Hombro (a 600): la carga, 2000 × 600 = 1 200 000; su tramo, 38 g a 95,
+3 610; lo del brazo a 190, 304 000; el tramo del codo, 37 g a 282,5,
+10 452,5; lo del antebrazo a 375, 125 625; el tramo del J4, 20 g a 425,
 8 500; lo del giro a 475, 159 125; el tramo del J5, 25 g a 537,5, 13 437,5;
-lo de la mano a 600, 201 000. Suma 2 137 750.
+lo de la mano a 600, 201 000. Suma 2 025 750.
 
-Codo (a 340): 680 000 + 23 g a 57,5 (1 322,5) + 335 a 115 (38 525) + 20 g a
-165 (3 300) + 335 a 215 (72 025) + 25 g a 277,5 (6 937,5) + 335 a 340
-(113 900) = 916 010.
+Codo (a 410): 820 000 + 37 g a 92,5 (3 422,5) + 335 a 185 (61 975) + 20 g a
+235 (4 700) + 335 a 285 (95 475) + 25 g a 347,5 (8 687,5) + 335 a 410
+(137 350) = 1 131 610.
 
 J5 (a 125): 250 000 + 25 g a 62,5 (1 562,5) + 335 a 125 (41 875) =
 293 437,5.
@@ -63,7 +65,7 @@ PLAN = {
          "compra": ["6810-2rs", "nema23"]},
         {"id": "torreta", "nombre": "Torreta", "que_hace": "gira sobre la base y aloja el hombro",
          "compra": ["nema23-pg47-76"], "depende_de": ["base"]},
-        {"id": "brazo", "nombre": "Brazo", "que_hace": "del hombro al codo, 260 mm",
+        {"id": "brazo", "nombre": "Brazo", "que_hace": "del hombro al codo, 190 mm",
          "compra": ["nema23-pg47-56"], "depende_de": ["torreta"]},
         {"id": "antebrazo", "nombre": "Antebrazo", "que_hace": "sale del codo y aloja el giro",
          "compra": ["nema17", "cicloidal-nema17-28"], "depende_de": ["brazo"]},
@@ -86,8 +88,8 @@ PLAN = {
          "componente": "nema23-pg47-76", "recorrido_grados": 180, "radio_libre_mm": 610,
          "eje": "horizontal", "brazo_mm": 600},
         {"tipo": "gira", "id": "u4", "gira": "antebrazo", "sobre": "brazo",
-         "componente": "nema23-pg47-56", "recorrido_grados": 180, "radio_libre_mm": 350,
-         "eje": "horizontal", "brazo_mm": 340},
+         "componente": "nema23-pg47-56", "recorrido_grados": 180, "radio_libre_mm": 420,
+         "eje": "horizontal", "brazo_mm": 410},
         {"tipo": "gira", "id": "u5", "gira": "giro", "sobre": "antebrazo",
          "componente": "cicloidal-nema17-28", "recorrido_grados": 180, "radio_libre_mm": 135,
          "eje": "horizontal", "brazo_mm": 225, "a_lo_largo": True, "movido_por": CICLOIDAL_28},
@@ -117,9 +119,9 @@ def test_cada_motor_que_levanta_puede_con_lo_suyo():
     from orchestrator.dimensionar import pares
     hombro, codo, j4, j5 = pares(Obra(**PLAN))
     assert [p["union"] for p in (hombro, codo, j4, j5)] == ["u3", "u4", "u5", "u6"]
-    assert hombro["pide_Nm"] == pytest.approx(2137750 * G) == pytest.approx(20.964, abs=1e-3)
+    assert hombro["pide_Nm"] == pytest.approx(2025750 * G) == pytest.approx(19.866, abs=1e-3)
     assert hombro["da_Nm"] == pytest.approx(32.186, abs=1e-3)
-    assert codo["pide_Nm"] == pytest.approx(916010 * G) == pytest.approx(8.983, abs=1e-3)
+    assert codo["pide_Nm"] == pytest.approx(1131610 * G) == pytest.approx(11.097, abs=1e-3)
     assert codo["da_Nm"] == pytest.approx(21.287, abs=1e-3)
     assert j5["pide_Nm"] == pytest.approx(293437.5 * G) == pytest.approx(2.878, abs=1e-3)
     assert j5["da_Nm"] == pytest.approx(3.64)
@@ -249,7 +251,7 @@ def test_el_encargo_17_pide_lo_que_dice_su_peticion():
 def test_el_encargo_18_es_el_brazo_entero_en_un_solo_proyecto():
     """El brazo completo, con la muñeca dentro: un solo encargo y un solo
     proyecto, como lo pidió el usuario el 2026-11-14. De su petición: 600 mm
-    del hombro a la punta (260 + 215 + 125), 2000 g, seis ejes (el primero
+    del hombro a la punta (190 + 285 + 125), 2000 g, seis ejes (el primero
     vertical), correa 5:1 en la base, cicloidales de 28:1 y 10:1 en la
     muñeca, y lo comprado por su nombre."""
     from pathlib import Path
@@ -262,7 +264,7 @@ def test_el_encargo_18_es_el_brazo_entero_en_un_solo_proyecto():
     assert sorted(a.relacion for a in e.oraculo if a.tipo == "reduccion") == [5, 10, 28]
     por_tipo = {a.tipo: a for a in e.oraculo}
     assert por_tipo["articulaciones"].ejes == ["vertical"] + ["horizontal"] * 5
-    assert por_tipo["alcance"].minimo_mm == 600 == 260 + 215 + 125
+    assert por_tipo["alcance"].minimo_mm == 600 == 190 + 285 + 125
     assert por_tipo["carga"].minimo_g == 2000
     comprado = {a.ficha: a.cuantos for a in e.oraculo if a.tipo == "componente"}
     assert comprado == {"nema17": 3, "nema23": 1, "nema23-pg47-76": 1, "nema23-pg47-56": 1,
@@ -270,7 +272,7 @@ def test_el_encargo_18_es_el_brazo_entero_en_un_solo_proyecto():
     tornillos = {a.sujetan: (a.metrica, a.cuantos) for a in e.oraculo if a.tipo == "tornillos"}
     assert tornillos == {"nema17": ("M3", 12), "nema23": ("M4", 4),
                          "nema23-pg47-76": ("M5", 4), "nema23-pg47-56": ("M5", 4)}
-    for texto in ("260 mm", "215 mm", "125 mm", "600 mm", "2000 g", "5:1", "a lo largo"):
+    for texto in ("190 mm", "285 mm", "125 mm", "600 mm", "2000 g", "5:1", "a lo largo"):
         assert texto in e.peticion, texto
     assert set(comprado) | {"cicloidal-nema17-10", "cicloidal-nema17-28"} <= set(
         mencionados(e.peticion))

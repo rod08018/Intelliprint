@@ -9,14 +9,14 @@ peticion: >
   horizontal: el hombro gira directamente en el eje de salida de un motor con
   su reductora planetaria ya montada, el 23HS30-2804S-PG47, y el codo en el de
   otro, el 23HS22-2804S-PG47. La muñeca tiene tres ejes con motores NEMA 17,
-  cada uno sobre una reductora cicloidal. El primero, 115 mm más allá del
+  cada uno sobre una reductora cicloidal. El primero, 185 mm más allá del
   codo, gira el antebrazo sobre sí mismo (su eje va a lo largo del antebrazo),
   sobre una reductora cicloidal 28:1. El segundo, 100 mm más allá, cabecea la
   mano, con el eje horizontal, sobre otra reductora cicloidal 28:1. El tercero
   gira la brida de la herramienta sobre sí misma (su eje va a lo largo de la
   mano), sobre una reductora cicloidal 10:1. Cada eje recorre 180° (90° a cada
-  lado) sin que nada choque. Del hombro al codo hay 260 mm, del codo al eje
-  del cabeceo 215 mm y del cabeceo a la punta de la brida 125 mm: con el brazo
+  lado) sin que nada choque. Del hombro al codo hay 190 mm, del codo al eje
+  del cabeceo 285 mm y del cabeceo a la punta de la brida 125 mm: con el brazo
   estirado la punta llega a 600 mm del eje del hombro. Las piezas se imprimen
   sin soportes.
 oraculo:
@@ -55,12 +55,14 @@ oraculo:
     relacion: 28
   - tipo: reduccion
     relacion: 10
-  # «la punta llega a 600 mm del eje del hombro»: 260 + 215 + 125.
+  # «la punta llega a 600 mm del eje del hombro»: 190 + 285 + 125. El tramo
+  # del hombro al codo es corto porque la pieza entera tiene que caber en una
+  # impresora de 250 mm de alto: con 260 entre ejes pasaba de 300.
   - tipo: alcance
     minimo_mm: 600
   # «levanta 2000 g». Que se puede, a mano (`tests/test_brazo_grande.py`),
   # pidiéndole a cada motor la mitad de su par y con lo impreso a 0,2 g/mm: el
-  # hombro pide 20,96 N·m de 32,19; el codo, 8,98 de 21,29; el giro del
+  # hombro pide 19,87 N·m de 32,19; el codo, 11,10 de 21,29; el giro del
   # antebrazo y el cabeceo, 2,88 de 3,64.
   - tipo: carga
     minimo_g: 2000

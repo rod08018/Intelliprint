@@ -274,6 +274,14 @@ imprimir; lo que dejó abierto está abajo.
   del motor de la brida se contaban como del motor del antebrazo, a
   285 mm). No cambia ningún tornillo de las ocho corridas anteriores.
   La muñeca del encargo va sin rodamientos de apoyo.
+- **La muñeca, medida con modelo: 8 de 10 a la primera y 10 de 10
+  con una reanudación** (corrida `1114-1856`, 1,16 USD; 1,28 de los
+  5 con los tests de pago: quedan 3,72 sin usar, y eran para la
+  muñeca). A la primera falló solo la «Mano»: soportes, y los M3 de
+  su motor taladrados desde el lado del motor. El aviso que recibía
+  era engañoso («más estrecho»); ahora dice que van al revés. Las
+  cuatro piezas pasan su bucle. Sin el resto del brazo, sin
+  rodamientos de apoyo y sin imprimir.
 - **Dicho por él el 2026-11-14, al ver la muñeca medida aparte:**
   «no veo por qué son proyectitos separados, cada proyecto puede
   tener mecanismos completos como la muñeca del brazo», y «termina,
