@@ -392,3 +392,50 @@ def test_el_encargo_14_pide_lo_que_dice_su_peticion():
     assert por_tipo["reduccion"].relacion == 4
     assert por_tipo["carga"].minimo_g == 300 and por_tipo["alcance"].minimo_mm == 150
     assert "4:1" in e.peticion and "300 g" in e.peticion and "150 mm" in e.peticion
+
+
+# --- la polea del motor es la de SU eje (F12.1 (fichas)) -------------------------------------
+
+def test_la_polea_del_nema23_tiene_el_agujero_de_su_eje():
+    """Motedis TP-GT2-6-20T-6.35B, leída el 2026-11-14: «20 teeth», «6,35mm
+    bore», «Diameter 16mm», «Length 16mm», «fits all common Nema 23 stepping
+    motors». El eje del NEMA 23 de la biblioteca mide 6,35; el del NEMA 17,
+    5, y en él la de siempre."""
+    from orchestrator.componentes import cargar, envolvente
+    f = cargar("polea-gt2-20-635")
+    assert envolvente(f) == ([-8, -8, 0], [8, 8, 16])
+    eje = next(c for c in cargar("nema23").cuerpos if c.nombre == "eje")
+    assert f.cuerpos[0].cilindro.interior == 6.35 == eje.cilindro.diametro
+    assert not f.da_par()
+
+
+def test_cada_motor_lleva_la_polea_de_su_eje():
+    """La polea comprada del sistema era una sola, la de eje de 5 mm. En la
+    base del brazo de 2 kg el motor es un NEMA 23, de 6,35: la lista de
+    materiales pedía una polea que no entra (visto al hacerlo a mano)."""
+    from orchestrator.transmision import polea_del_motor
+    assert polea_del_motor("nema17") == "polea-gt2-20"
+    assert polea_del_motor("nema23") == "polea-gt2-20-635"
+
+
+def test_con_un_nema23_se_compra_la_polea_de_635(tmp_path):
+    """La articulación de `_con_correa`, con un NEMA 23 en el sitio del
+    NEMA 17: en las compras sale la polea de su eje, y no la otra."""
+    import json
+
+    from orchestrator.materiales import materiales
+    carpeta = _con_correa(tmp_path)
+    rasgos = carpeta / "nodos" / "soporte" / "parts" / "soporte" / "rasgos.json"
+    suyos = json.loads(rasgos.read_text(encoding="utf-8"))
+    suyos[1].update(ficha="nema23", nombre="nema23")
+    rasgos.write_text(json.dumps(suyos), encoding="utf-8")
+    plan = json.loads((carpeta / "obra.json").read_text(encoding="utf-8"))
+    for n in plan["nodos"]:
+        n["compra"] = ["nema23" if c == "nema17" else c for c in n.get("compra", [])]
+    for u in plan["uniones"]:
+        if u.get("movido_por"):
+            u["movido_por"]["motor"] = "nema23"
+    (carpeta / "obra.json").write_text(json.dumps(plan), encoding="utf-8")
+    comprado = {c["id"]: c for c in materiales(carpeta)["comprado"]}
+    assert comprado["polea-gt2-20-635"]["cuantos"] == 1
+    assert "polea-gt2-20" not in comprado

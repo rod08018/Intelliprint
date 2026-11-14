@@ -30,6 +30,9 @@ ENTRE_POLEAS = 2.0
 """Lo menos que se separan las dos poleas, de pestaña a pestaña. Es un
 criterio, no una medida: lo justo para que no se rocen."""
 POLEA_DEL_MOTOR = "polea-gt2-20"
+POLEAS_DEL_MOTOR = (POLEA_DEL_MOTOR, "polea-gt2-20-635")
+"""Las poleas de 20 dientes que se compran, una por diámetro de eje. Todas
+miden lo mismo por fuera: lo que cambia es el agujero."""
 DE_CUANTO_EN_CUANTO = 5
 """Las correas que se ofrecen van de 5 en 5 dientes (10 mm): las cerradas
 se venden en muchos largos, pero no en todos, y nadie ha comprobado cuáles
@@ -52,6 +55,21 @@ def dientes(u: Gira) -> tuple[int, int]:
     """(los de la polea del motor, los de la que lleva la pieza que gira)."""
     return T.DIENTES_DEL_MOTOR, T.dientes_de_la_conducida(T.DIENTES_DEL_MOTOR,
                                                           u.movido_por.relacion)
+
+
+def polea_del_motor(motor: str, extra=()) -> str:
+    """La polea comprada que entra en el eje de `motor`: la de su diámetro.
+    Era una sola, la de eje de 5 mm del NEMA 17, y la base del brazo de 2 kg
+    (hecha a mano el 2026-11-14) la pedía para un NEMA 23, de 6,35. Si el
+    motor no tiene ficha, o ninguna polea es de su eje, la de siempre."""
+    from orchestrator.componentes import cargar
+    try:
+        eje = next(c.cilindro.diametro for c in cargar(motor, extra).cuerpos
+                   if c.nombre == "eje" and c.cilindro)
+    except (KeyError, StopIteration):
+        return POLEA_DEL_MOTOR
+    return next((p for p in POLEAS_DEL_MOTOR
+                 if abs(cargar(p).cuerpos[0].cilindro.interior - eje) < 0.01), POLEA_DEL_MOTOR)
 
 
 def _diametro_de_la_del_motor() -> float:

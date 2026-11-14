@@ -1,0 +1,27 @@
+# Polea GT2 de 20 dientes para eje de 6,35 mm (F12.1 (fichas)): la que va en
+# el eje de un NEMA 23. La de eje de 5 mm (`polea-gt2-20`) no entra en él: la
+# base del brazo de 2 kg, hecha a mano el 2026-11-14, la pedía en sus compras.
+id: polea-gt2-20-635
+nombre: Polea GT2 de 20 dientes (correa de 6 mm, eje de 6,35)
+alias: ["polea GT2 de 20 dientes para eje de 6,35", "TP-GT2-6-20T-6.35B"]
+verificado: false
+fuentes:
+  - url: https://www.motedis.es/en/GT2-pulley-20-teeth-635mm-bore-for-6mm-belt
+    cita: "GT2 pulley 20 teeth 6.35mm bore for 6mm belt: 20 teeth, 6,35mm bore, Diameter 16mm, Length 16mm, Pitch: 2mm, Material: aluminium"
+  - url: https://www.motedis.es/en/GT2-pulley-20-teeth-635mm-bore-for-6mm-belt
+    cita: "fixed with the aid of 2 M4X4 head screws; fits all common Nema 23 stepping motors"
+marco: >
+  Origen en el centro de una de sus caras, con el eje del agujero en z: la
+  polea ocupa de z=0 a z=16.
+mira: "+z"
+# Como la de eje de 5: la fuente da el largo y el diámetro mayor, no dónde
+# quedan los dientes dentro de los 16 mm. Se pone el cilindro entero.
+cuerpos:
+  - nombre: polea
+    cilindro: {diametro: 16, interior: 6.35, alto: 16, eje: "+z"}
+    en: [0, 0, 0]
+    porque: "es un anillo: por el agujero de 6,35 pasa el eje del motor"
+notas: >
+  Se fija al eje con dos prisioneros M4 y se puede correr a lo largo de él:
+  su altura se ajusta al montar para que la correa quede en línea con la
+  polea grande. La tienda no da su peso.

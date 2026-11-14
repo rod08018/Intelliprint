@@ -106,9 +106,11 @@ def materiales(carpeta: Path) -> dict:
         # cuál es, y no se inventa.
         from orchestrator import transmision as TR
         medidas = TR.medidas(carpeta)
-        comprado[TR.POLEA_DEL_MOTOR] = max(comprado[TR.POLEA_DEL_MOTOR], len(medidas))
-        if not medidas:
-            del comprado[TR.POLEA_DEL_MOTOR]
+        # Una polea por correa, la del eje de SU motor: la de un NEMA 17 no
+        # entra en un NEMA 23.
+        poleas = Counter(TR.polea_del_motor(u.movido_por.motor, fichas) for u, _ in medidas)
+        for polea, cuantas in poleas.items():
+            comprado[polea] = max(comprado[polea], cuantas)
         for _, m in medidas:
             if m["correa"]:
                 correas[f"Correa GT2 cerrada de {TR.ANCHO_DE_CORREA:g} mm de ancho, "

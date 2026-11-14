@@ -289,8 +289,18 @@ imprimir; lo que dejó abierto está abajo.
   eso». **El brazo es UN proyecto, con la muñeca dentro.** La corrida
   de la muñeca (`1114-1856`) se deja terminar como ensayo. Escrito el
   encargo 18, el brazo entero (`brazo_seis_ejes_2kg`), con tramos de
-  260 + 215 + 125 mm; su plan a mano vale (el hombro pide 20,96 N·m
-  de 32,19). **Sin correr: su tope de gasto no está acordado.**
+  190 + 285 + 125 mm (la impresora admite 250 y con 260 del hombro
+  al codo la pieza no cabía); su plan a mano vale (el hombro pide
+  19,87 N·m de 32,19). **Hecho a mano pasa 14 de 18** y los seis
+  ejes se mueven sin chocar en lo probado; lo que falta está en
+  F12.5 de `PLAN_PROYECTO.md` (el encaje en el rodamiento de la
+  base, dos piezas con soportes, el alcance medido en el canto de
+  la brida y la placa del brazo, que el estudio da por rota).
+  **Por decidir con él:** dibujarlo en reposo hacia arriba, porque
+  tumbado el hombro lo baja bajo la mesa. Hecha la polea de 6,35
+  para el NEMA 23. **Sin correr: su tope de gasto no está acordado**
+  (se le preguntó; quedan 3,72 USD de los 5, que eran para la
+  muñeca).
   Entendido así (interpretación del asistente): querría además
   aprovechar un mecanismo ya diseñado dentro del proyecto grande;
   hoy cada encargo se diseña de cero y «ampliar» solo añade por
