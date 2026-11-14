@@ -216,6 +216,30 @@ def test_deepseek_pone_el_motorreductor_en_el_eje_y_sin_movido_por():
     assert obra.nodo(giro.sobre).compra == ["nema23-pg47-76"]
 
 
+def test_el_encargo_17_pide_lo_que_dice_su_peticion():
+    """La muñeca sola, que es lo que el usuario aprobó medir el 2026-11-14
+    («Sí, la muñeca»). De su petición: tres NEMA 17, cicloidales de 28:1 (dos)
+    y 10:1, tres ejes horizontales de 180°, 125 mm del cabeceo a la punta y
+    2 kg. Tres motores con cuatro M3 cada uno: doce."""
+    from pathlib import Path
+
+    from orchestrator.banco import cargar_encargos
+    from orchestrator.componentes import mencionados
+    [e] = [e for e in cargar_encargos(Path("tests/banco/encargos"))
+           if e.nombre == "muneca_tres_ejes_nema17"]
+    assert sorted(a.relacion for a in e.oraculo if a.tipo == "reduccion") == [10, 28]
+    por_tipo = {a.tipo: a for a in e.oraculo}
+    assert por_tipo["componente"].ficha == "nema17" and por_tipo["componente"].cuantos == 3
+    assert por_tipo["articulaciones"].ejes == ["horizontal"] * 3
+    assert por_tipo["articulaciones"].recorrido_grados == 180
+    assert por_tipo["alcance"].minimo_mm == 125 and por_tipo["carga"].minimo_g == 2000
+    assert por_tipo["tornillos"].cuantos == 12 == 3 * 4
+    assert {"sin_soportes", "encaje", "conjunto_libre"} <= set(por_tipo)
+    for texto in ("28:1", "10:1", "125 mm", "2 kg", "180 mm", "a lo largo", "sin soportes"):
+        assert texto in e.peticion, texto
+    assert {"nema17", "cicloidal-nema17-10", "cicloidal-nema17-28"} <= set(mencionados(e.peticion))
+
+
 def test_el_sitio_de_un_giro_a_lo_largo_no_es_lo_que_mide_el_brazo():
     """El radio libre de un giro es lo que barre la pieza alrededor de su
     eje. La que cabecea llega a 100 mm de su eje y necesita más de eso; la

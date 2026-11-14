@@ -385,8 +385,27 @@ def _en_los_acoples(piezas: list[_Pieza], fichas: list[Path],
     return nuevos
 
 
+def _separados(a: _Tramo, b: _Tramo) -> float:
+    """Lo que queda entre los dos tramos a lo largo de la recta de `a`; 0 si
+    se tocan o se solapan."""
+    d = _unit(a.eje)
+
+    def tramo(t):
+        x, y = _punto(t.en, d), _punto([p + t.largo * e for p, e in zip(t.en, t.eje)], d)
+        return min(x, y), max(x, y)
+
+    (a0, a1), (b0, b1) = tramo(a), tramo(b)
+    return max(0.0, max(a0, b0) - min(a1, b1))
+
+
 def _en_la_recta(a: _Tramo, b: _Tramo, libre=None) -> bool:
     if _norma(_cruz(a.eje, b.eje)) > 0.05:
+        return False
+    # Ningún tornillo salva más que el más largo del catálogo. En la muñeca
+    # de tres ejes hecha a mano (2026-11-14) el motor de la brida quedaba en
+    # la recta del motor del antebrazo, 285 mm más allá, y sus cuatro M3 se
+    # contaban como los del otro: «tornillos» de 302 mm y 8 de 12.
+    if _separados(a, b) > LARGOS_MM[-1]:
         return False
     w = _resta(b.en, a.en)
     for d in [a.eje] + ([libre] if libre else []):

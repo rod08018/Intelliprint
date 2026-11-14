@@ -260,6 +260,20 @@ imprimir; lo que dejó abierto está abajo.
   petición, una corrida); los 14 tests del host pasan. **Gastado:
   0,12 USD**, medido en el saldo de DeepSeek. El gasto del banco
   para el brazo sigue por acordar.
+- **Acordado con él el 2026-11-14 («Sí, la muñeca»): lo que queda
+  de esos 5 USD (4,88) es para medir la muñeca sola en el banco**,
+  el encargo 17: una corrida y las reanudaciones que quepan, y parar
+  ahí. Antes, construirla a mano y escribir su encargo.
+- **La muñeca hecha a mano, sin modelo, pasa 10 de 10** (2026-11-14;
+  está en `workspace/projects/2026-11-14-muneca-a-mano-sin-modelo`
+  para verla en la web: él preguntó por qué no salía nada del brazo).
+  **Hay que decírselo:** de la muñeca a la brida no caben 100 mm,
+  hacen falta unos 125 (los tramos del brazo se rehacen con él); y
+  **una medida del banco cambiada que no ha visto**: dos agujeros en
+  la misma recta a más de 100 mm ya no son el mismo tornillo (los
+  del motor de la brida se contaban como del motor del antebrazo, a
+  285 mm). No cambia ningún tornillo de las ocho corridas anteriores.
+  La muñeca del encargo va sin rodamientos de apoyo.
 - **Decidido por él el 2026-11-14: «Ambas compradas y en los bom
   agrega el link de compra de la reductora».** Las reductoras del
   hombro y del codo se compran y F12.2 (reductora) no se hace. Hechas

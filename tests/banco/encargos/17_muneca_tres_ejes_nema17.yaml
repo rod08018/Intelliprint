@@ -1,0 +1,52 @@
+nombre: muneca_tres_ejes_nema17
+categoria: robots
+obra: true
+peticion: >
+  Una muñeca de robot de tres ejes con motores NEMA 17, cada eje sobre una
+  reductora cicloidal. La primera pieza se atornilla a un tablero con cuatro
+  tornillos M3 y lleva el primer eje, horizontal: gira el antebrazo sobre sí
+  mismo (su eje va a lo largo del antebrazo), sobre una reductora cicloidal
+  28:1. El segundo eje, 180 mm más allá, cabecea la mano, con el eje horizontal
+  y cruzado con el primero, sobre otra reductora cicloidal 28:1. El tercero
+  gira la brida de la herramienta sobre sí misma (su eje va a lo largo de la
+  mano), sobre una reductora cicloidal 10:1. Cada eje recorre 180° (90° a cada
+  lado) sin que nada choque. Del eje del cabeceo a la punta de la brida hay
+  125 mm, y la punta levanta 2000 g (2 kg). Las piezas se imprimen sin soportes.
+oraculo:
+  - tipo: componente
+    ficha: nema17
+    cuantos: 3
+  - tipo: encaje
+  - tipo: conjunto_libre
+  # «lleva el primer eje, horizontal», «cabecea la mano, con el eje
+  # horizontal»; el tercero va a lo largo de la mano, que en reposo sigue al
+  # antebrazo. Tres giros en serie, dos de ellos a lo largo (F12.4 (muñeca)).
+  - tipo: articulaciones
+    ejes: [horizontal, horizontal, horizontal]
+    recorrido_grados: 180
+  - tipo: sin_soportes
+  # Las reductoras que nombra la petición: «cicloidal 28:1» (dos) y «10:1».
+  - tipo: reduccion
+    relacion: 28
+  - tipo: reduccion
+    relacion: 10
+  # «Del eje del cabeceo a la punta de la brida hay 125 mm». El banco mide el
+  # alcance desde el primer giro que no es vertical, en perpendicular a su
+  # eje: aquí es el del antebrazo, y con la mano doblada 90° la punta queda a
+  # esos 125 mm de él. No son 100, como en la tabla que aprobó el usuario:
+  # hecha a mano, un NEMA 17 con su reductora en línea no cabe en menos
+  # (39,5 del motor, 6 de pared, 24,3 de reductora, y los 38 de radio de la
+  # reductora del cabeceo que hay que librar).
+  - tipo: alcance
+    minimo_mm: 125
+  # «y la punta levanta 2 kg». Que se puede, a mano, con el 17HS4401 a
+  # 0,400 N·m, la cicloidal 28:1 con 0,65 de rendimiento y pidiéndole la
+  # mitad, 3,64 N·m: 2000 g a 125 mm son 2,45 N·m, y el motor y la reductora
+  # de la brida (335 g a unos 95 mm), otros 0,31.
+  - tipo: carga
+    minimo_g: 2000
+  # Tres NEMA 17, cada uno con sus cuatro M3.
+  - tipo: tornillos
+    sujetan: nema17
+    metrica: M3
+    cuantos: 12

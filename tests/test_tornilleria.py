@@ -136,3 +136,33 @@ def test_un_agujero_sin_metrica_ni_ficha_no_es_un_tornillo(tmp_path):
     carpeta = _obra(tmp_path, {"soporte": ([], [
         _agujero("hueco_central", (0, 0, -1), eje=(0, 0, 1), d=8)], ([-28, -17, 0], [28, 17, 31]))})
     assert tornillos(carpeta) == []
+
+
+def test_dos_motores_en_la_misma_recta_y_lejos_no_comparten_tornillos(tmp_path):
+    """La muñeca de tres ejes hecha a mano (2026-11-14): el motor del giro de
+    la brida queda en la misma recta que el del giro del antebrazo, 285 mm
+    más allá, porque los dos ejes coinciden con la muñeca recta. Los cuatro
+    M3 de cada uno caían en las mismas cuatro rectas, y salían cuatro
+    «tornillos» de 302 mm que sujetaban un solo motor: 8 de 12.
+
+    Aquí, dos placas de 5 mm (de z = 5 a z = 10), cada una con su NEMA 17
+    colgado debajo y sus cuatro M3 desde arriba; la segunda, 300 mm por
+    encima de la primera. A mano: cada tornillo va de la cara de arriba de
+    su placa (z = 10) hasta 4,5 mm dentro de su motor, cuya cara está en
+    z = 5: 9,5 mm. Son ocho, cuatro por motor."""
+    def placa(*antes):
+        return ([*antes, {"nombre": "nema17", "tipo": "componente", "ficha": "nema17",
+                          "en": [30, 30, 5], "giros": [], "entra_por": "-z"},
+                 *(_agujero(f"m{n}", (30 + x, 30 + y, 10), metrica="M3")
+                   for n, (x, y) in enumerate([(-15.5, -15.5), (15.5, -15.5),
+                                               (-15.5, 15.5), (15.5, 15.5)]))],
+                ([0, 0, 5], [60, 60, 10]))
+    carpeta = _obra(tmp_path, {
+        "abajo": ([], *placa()),
+        "arriba": (["abajo"], *placa(_sobre("abajo", (0, 0, -300)))),
+    })
+    ts = tornillos(carpeta)
+    assert len(ts) == 8
+    assert sorted(t.lo_monta for t in ts) == ["abajo"] * 4 + ["arriba"] * 4
+    assert all(t.largo_mm == pytest.approx(9.5) and t.componente == "nema17" for t in ts)
+    assert all(t.piezas == [t.lo_monta] for t in ts)
