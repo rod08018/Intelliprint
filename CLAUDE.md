@@ -240,10 +240,21 @@ imprimir; lo que dejó abierto está abajo.
   NEMA 17 con las cicloidales de hoy (28, 28 y 10 a 1). Rodamientos:
   2 × 6810-2RS en la base, 6806-2RS en hombro, codo, J4 y J6, y
   608ZZ en el cabeceo. Las masas de lo impreso son estimaciones del
-  asistente. Hechas las fichas `6806-2rs` y `6810-2rs`. **La tabla
-  no tiene su visto bueno salvo las reductoras**, y falta el tope
-  de gasto del brazo. Un giro del plan va sobre un solo componente:
-  nada dice todavía que una articulación lleva dos rodamientos.
+  asistente. Hechas las fichas `6806-2rs` y `6810-2rs`. **Aprobada
+  por él el 2026-11-14 («Sí, apruebo»).** Falta el tope de gasto del
+  brazo. Un giro del plan va sobre un solo componente: nada dice
+  todavía que una articulación lleva dos rodamientos. Y la polea
+  comprada del sistema es para eje de 5 mm: en el NEMA 23 de la
+  base (6,35) no entra; falta su ficha.
+- **Hecha a medias: F12.4 (muñeca)** (2026-11-14). Un giro dice
+  `a_lo_largo` si su eje sigue al brazo (el del antebrazo, el de la
+  herramienta): se le pide lo que al siguiente giro doblado 90°, y
+  a su punta se le mide a lo largo del eje. El plan del brazo
+  entero, escrito a mano, vale (`tests/test_brazo_grande.py`): el
+  hombro pide 21,3 N·m de 32,2 con lo impreso a 0,2 g/mm. **Falta:**
+  nada está construido a mano (no se sabe si la muñeca choca), y el
+  desglosador no sabe escribir `a_lo_largo`: tocar su prompt pide
+  los tests de pago, por acordar.
 - **Decidido por él el 2026-11-14: «Ambas compradas y en los bom
   agrega el link de compra de la reductora».** Las reductoras del
   hombro y del codo se compran y F12.2 (reductora) no se hace. Hechas

@@ -279,6 +279,34 @@ def test_el_alcance_de_la_punta_se_mide_donde_va_la_carga(tmp_path, monkeypatch)
     assert defectos_de_alcance(carpeta, "mano") == []
 
 
+def test_a_la_punta_que_gira_a_lo_largo_se_le_mide_a_lo_largo_de_su_eje(tmp_path):
+    """F12.4 (muñeca): la brida de la herramienta gira sobre un eje que va a
+    lo largo del brazo, y su punta está sobre ese eje, no a un lado. Medida
+    como las demás, del eje hacia fuera, una brida de 10 × 10 da 7,1 mm y
+    «le faltan 73».
+
+    A mano: el eje de la mano sale de (100, 0, 25) hacia -y. Una pieza de
+    y = -1 a y = -85 llega a 85 mm a lo largo de él: si el plan pide 80,
+    vale; si pide 100, le faltan 15."""
+    import json
+
+    from orchestrator.medida import defectos_de_alcance
+    from orchestrator.obra import uniones_del_nodo
+    carpeta = _dos_tramos_en_fila(tmp_path, ((95, -85, 20), (105, -1, 30)))
+    plan = json.loads((carpeta / "obra.json").read_text(encoding="utf-8"))
+    plan["uniones"][1].update(a_lo_largo=True, brazo_mm=80)
+    (carpeta / "obra.json").write_text(json.dumps(plan), encoding="utf-8")
+    assert defectos_de_alcance(carpeta, "mano") == []
+    # Y se le dice antes de dibujar hacia dónde es, no «alejándose del eje».
+    [texto] = [u["texto"] for u in uniones_del_nodo(carpeta, "mano")]
+    assert "a lo largo de ese eje" in texto and "80 mm" in texto
+    assert "alejándose del eje" not in texto
+    plan["uniones"][1]["brazo_mm"] = 100
+    (carpeta / "obra.json").write_text(json.dumps(plan), encoding="utf-8")
+    [d] = defectos_de_alcance(carpeta, "mano")
+    assert "u2" in d and "85.0 mm" in d and "100" in d and "15.0 mm" in d and "a lo largo" in d
+
+
 # --- con el modelo de verdad --------------------------------------------------------------------
 
 @pytest.mark.llm

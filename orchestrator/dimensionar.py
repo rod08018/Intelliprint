@@ -48,7 +48,13 @@ def pares(obra: Obra, extra: Sequence[Path] = ()) -> list[dict]:
     estirado en horizontal y la carga en la punta, y lo que da su motor:
     [{"union", "pide_Nm", "da_Nm", "brazo_mm", "cuelga_g"}], en el orden
     del plan. Solo los giros con `brazo_mm`, y solo si el plan trae la
-    carga; uno de eje vertical no carga peso y no sale."""
+    carga; uno de eje vertical no carga peso y no sale.
+
+    Un giro `a_lo_largo` del brazo (F12.4 (muñeca)) tampoco levanta nada
+    con el brazo estirado: lo peor para él es que el primer giro que
+    levanta más allá se doble 90°, y entonces lo que cuelga de ese queda
+    igual de lejos de su eje. Pide lo mismo que él, y lleva en `doblado` de
+    cuál es; si más allá no hay ninguno, no sale."""
     giros = [u for u in obra.uniones if isinstance(u, Gira)]
     if obra.carga_g is None:
         return []
@@ -62,9 +68,17 @@ def pares(obra: Obra, extra: Sequence[Path] = ()) -> list[dict]:
                 suyos += mas_alla(otro)
         return suyos
 
+    def levanta(u: Gira) -> bool:
+        return u.brazo_mm is not None and u.eje != "vertical" and not u.a_lo_largo
+
     salida = []
     for u in giros:
         if u.brazo_mm is None or u.eje == "vertical":
+            continue
+        if u.a_lo_largo:
+            # Se rellena abajo, con lo que pida el que se dobla.
+            salida.append({"union": u.id, "doblado": next(
+                (k.id for k in mas_alla(u)[1:] if levanta(k)), None)})
             continue
         momento, cuelga = obra.carga_g * u.brazo_mm, 0.0       # en g·mm
         for k in mas_alla(u):
@@ -90,7 +104,18 @@ def pares(obra: Obra, extra: Sequence[Path] = ()) -> list[dict]:
         salida.append({"union": u.id, "pide_Nm": momento * 1e-6 * G,
                        "da_Nm": _disponible(u, extra) if de.get(u.gira) is u else None,
                        "brazo_mm": u.brazo_mm, "cuelga_g": cuelga})
-    return salida
+    de_cada = {p["union"]: p for p in salida if "pide_Nm" in p}
+    completa = []
+    for p in salida:
+        if "pide_Nm" not in p:
+            suyo = de_cada.get(p["doblado"])
+            if suyo is None:
+                continue
+            u = next(g for g in giros if g.id == p["union"])
+            p = {**suyo, "union": u.id, "doblado": p["doblado"],
+                 "da_Nm": _disponible(u, extra) if de.get(u.gira) is u else None}
+        completa.append(p)
+    return completa
 
 
 def errores(obra: Obra, extra: Sequence[Path] = ()) -> list[str]:
@@ -98,6 +123,16 @@ def errores(obra: Obra, extra: Sequence[Path] = ()) -> list[str]:
     fallos = []
     for p in pares(obra, extra):
         if p["da_Nm"] is None or p["pide_Nm"] <= p["da_Nm"] + 1e-9:
+            continue
+        if p.get("doblado"):
+            fallos.append(
+                f"unión «{p['union']}»: el motor no alcanza. Gira a lo largo del brazo, y con "
+                f"«{p['doblado']}» doblado 90° la gravedad le pide {p['pide_Nm']:.3f} N·m "
+                f"({obra.carga_g:g} g de carga a {p['brazo_mm']:g} mm de su eje, más unos "
+                f"{p['cuelga_g']:.0f} g de lo que cuelga) y lo que lo mueve da "
+                f"{p['da_Nm']:.3f} N·m en el eje (el {MARGEN_SERVO:.0%} de su par). Pon un "
+                "motor con más par, muévelo por una transmisión con más relación "
+                "(`movido_por`), o acorta lo que cuelga de ese giro")
             continue
         fallos.append(
             f"unión «{p['union']}»: el motor no alcanza. Con el brazo estirado en horizontal "

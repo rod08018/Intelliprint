@@ -598,6 +598,21 @@ def defectos_de_alcance(carpeta: Path, nodo: str) -> list[str]:
     if yo is None or yo.padre != suyo.sobre:
         return []
     fallos = []
+    if suyo.a_lo_largo:
+        # La punta está sobre el eje, no a un lado: lo que llega se mide a lo
+        # largo de él, desde la cara por donde sale (F12.4 (muñeca)). Medida
+        # del eje hacia fuera, una brida de 10 × 10 «llegaba» a 7 mm.
+        for s in _salidas_del_giro(piezas, suyo)[:1]:
+            n = math.sqrt(sum(c * c for c in s["eje"]))
+            llega = max(sum((c - p) * e / n for c, p, e in zip(q, s["punto"], s["eje"]))
+                        for q in _esquinas(yo.envolvente, yo.al_padre))
+            if llega < suyo.brazo_mm - 0.05:
+                fallos.append(
+                    f"alcance (unión {suyo.id}): esta pieza llega a {llega:.1f} mm de la cara "
+                    f"por donde sale el eje sobre el que gira, a lo largo de él, y tiene que "
+                    f"llegar a {suyo.brazo_mm:g}: le faltan {suyo.brazo_mm - llega:.1f} mm. "
+                    "Alárgala siguiendo ese eje, sin mover dónde se acopla")
+        return fallos
     for s in _salidas_del_giro(piezas, suyo)[:1]:
         # Donde se monta lo de fuera va la carga, y hasta ahí mide el banco
         # lo que llega el brazo (`estudio._punto_de_carga`). La muñeca del

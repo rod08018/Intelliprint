@@ -804,15 +804,25 @@ def uniones_del_nodo(carpeta: Path, nodo: str) -> list[dict]:
                        # tornillos de la herramienta estaban a 70; 340 de 350.
                        " Si lleva tornillos para montar algo, son ellos los que tienen que "
                        "quedar a esa distancia: ahí va la carga."
-                       if u.brazo_mm and not any(isinstance(o, type(u)) and o.sobre == nodo
-                                                 for o in obra.uniones) else "")
+                       if u.brazo_mm and not u.a_lo_largo
+                       and not any(isinstance(o, type(u)) and o.sobre == nodo
+                                   for o in obra.uniones) else "")
+                    # F12.4 (muñeca): la brida de la herramienta gira sobre
+                    # un eje que sigue al brazo, y su punta está en él.
+                    + (f" Este eje va a lo largo del brazo: dibuja la pieza siguiéndolo, con "
+                       f"la punta sobre él. Tiene que llegar a {u.brazo_mm:g} mm de la cara "
+                       "por donde sale, a lo largo de ese eje. Al construir se mide."
+                       if u.brazo_mm and u.a_lo_largo
+                       and not any(isinstance(o, type(u)) and o.sobre == nodo
+                                   for o in obra.uniones) else "")
                     # La muñeca del brazo mediano (banco 1113-1330) se dibujó
                     # doblada hacia el codo y el brazo no podía estirarse.
                     + (f" Dibújala siguiendo recto: con la punta alejándose del eje sobre el "
                        f"que gira {nombre(u.sobre)}. Un giro se mueve la mitad a cada lado de "
                        "como se dibuja, así que doblada hacia atrás el brazo no se estira."
-                       if u.brazo_mm and any(isinstance(o, type(u)) and o.gira == u.sobre
-                                             for o in obra.uniones)
+                       if u.brazo_mm and not u.a_lo_largo
+                       and any(isinstance(o, type(u)) and o.gira == u.sobre
+                               for o in obra.uniones)
                        and not any(isinstance(o, type(u)) and o.sobre == nodo
                                    for o in obra.uniones) else "")
                     + (para_quien_gira(u, nombre(u.sobre))

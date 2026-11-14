@@ -124,7 +124,9 @@ def validar_plan(obra: Obra, agujeros: dict, extra: Sequence[Path] = (),
                 f"unión «{u.id}»: falta `radio_libre_mm`: cuánto sitio necesita «{u.gira}» "
                 f"alrededor del eje de «{u.componente}» para girar sin tocar nada. Es lo que "
                 "mide la pieza que gira desde su eje hasta su punta más lejana")
-        if (u.radio_libre_mm is not None and u.brazo_mm is not None
+        # Si gira a lo largo del brazo, su punta está sobre el eje: lo que
+        # barre alrededor no tiene que ver con lo que mide (F12.4 (muñeca)).
+        if (u.radio_libre_mm is not None and u.brazo_mm is not None and not u.a_lo_largo
                 and u.radio_libre_mm < u.brazo_mm + SITIO_PARA_LA_PUNTA - 1e-6):
             errores.append(
                 f"unión «{u.id}»: reservas {u.radio_libre_mm:g} mm de radio libre para una "

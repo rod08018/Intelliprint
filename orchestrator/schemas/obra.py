@@ -109,6 +109,13 @@ class Gira(BaseModel):
     reposo, si la petición lo dice. La articulación del banco 1113-0216
     pedía «con el eje horizontal» y su soporte se dibujó tumbado, como se
     imprime, con el eje hacia arriba: pasó su bucle y falló el banco."""
+    a_lo_largo: bool = False
+    """El eje va a lo largo del brazo estirado: el giro del antebrazo sobre
+    sí mismo, el de la herramienta (F12.4 (muñeca)). La punta queda sobre el
+    eje y no a un lado, así que `brazo_mm` se mide a lo largo de él, y la
+    gravedad solo le pide par por lo que se doble más allá. Sin esto, el
+    giro del antebrazo del brazo de 2 kg se contaba como uno que levanta la
+    carga a 280 mm y «pedía» 7,1 N·m en vez de 2,2."""
     movido_por: Transmision | None = None
     """Si no la mueve el propio `componente` (un servo), sino un motor que
     está al lado. Los planes de antes del 2026-11-12 no lo tienen."""
