@@ -1,0 +1,166 @@
+id: obra-antebrazo-proximal
+nombre: Antebrazo proximal
+origen: impreso
+proyecto: 2026-11-15-052303-un_brazo_robot_de_seis_ejes_que_levanta
+verificado: false
+fuentes:
+- url: proyecto 2026-11-15-052303-un_brazo_robot_de_seis_ejes_que_levanta
+  cita: construida por Intelliprint (antebrazo_proximal)
+marco: 'El de la pieza construida: el mismo origen y los mismos ejes que su programa.'
+mira: +z
+cuerpos:
+- nombre: Antebrazo proximal
+  en:
+  - 0
+  - 0
+  - 0
+  step:
+    ruta: obra-antebrazo-proximal.step
+    min:
+    - 195.0
+    - -45.0
+    - 338.98454599999997
+    max:
+    - 300.0
+    - 45.0
+    - 479.05814474766373
+- nombre: 'nema17: cuerpo'
+  en:
+  - 228.85
+  - -21.15
+  - 435.558145
+  caja:
+  - 42.3
+  - 42.3
+  - 39.5
+  monta: nema17
+- nombre: 'nema17: resalte'
+  en:
+  - 250.0
+  - 0.0
+  - 475.058145
+  cilindro:
+    diametro: 22.0
+    alto: 2.0
+    eje: +z
+  porque: 'centra el motor: el agujero de la pieza tiene que dejarlo pasar'
+  monta: nema17
+- nombre: 'nema17: eje'
+  en:
+  - 250.0
+  - 0.0
+  - 475.058145
+  cilindro:
+    diametro: 5.0
+    alto: 24.0
+    eje: +z
+  porque: '23 ± 1 desde la cara: se toma 24'
+  monta: nema17
+- nombre: 'nema17: conector'
+  en:
+  - 242.0
+  - -28.15
+  - 435.558145
+  caja:
+  - 16.0
+  - 7.0
+  - 9.6
+  monta: nema17
+- nombre: 'cicloidal-nema17-28: carcasa'
+  en:
+  - 250.0
+  - 0.0
+  - 479.058145
+  cilindro:
+    diametro: 76.0
+    alto: 23.3
+    eje: +z
+  monta: cicloidal-nema17-28
+despejar:
+- nombre: 'nema17: clavija y cable'
+  en:
+  - 242.0
+  - -43.15
+  - 435.558145
+  caja:
+  - 16.0
+  - 15.0
+  - 12.0
+  porque: la clavija JST PH de 6 pines y el cable que sale de ella
+  monta: nema17
+fijacion:
+- nombre: m3_mamparo_1
+  diametro: 3.3
+  en:
+  - 234.5
+  - -15.5
+  - 479.058145
+  eje: -z
+  tornillo: M3
+- nombre: m3_mamparo_2
+  diametro: 3.3
+  en:
+  - 265.5
+  - -15.5
+  - 479.058145
+  eje: -z
+  tornillo: M3
+- nombre: m3_mamparo_3
+  diametro: 3.3
+  en:
+  - 234.5
+  - 15.5
+  - 479.058145
+  eje: -z
+  tornillo: M3
+- nombre: m3_mamparo_4
+  diametro: 3.3
+  en:
+  - 265.5
+  - 15.5
+  - 479.058145
+  eje: -z
+  tornillo: M3
+- nombre: eje_codo
+  diametro: 12.2
+  en:
+  - 195.0
+  - 0.0
+  - 363.984546
+  eje: +x
+salidas:
+- nombre: 'nema17: eje'
+  en:
+  - 250.0
+  - 0.0
+  - 475.058145
+  eje: +z
+  recorrido:
+  - 0.0
+  - 360.0
+  largo: 24.0
+  porque: la salida «eje» del nema17 que monta esta pieza
+- nombre: 'cicloidal-nema17-28: salida'
+  en:
+  - 250.0
+  - 0.0
+  - 503.358145
+  eje: +z
+  recorrido:
+  - 0.0
+  - 360.0
+  largo: 0.0
+  acople:
+    nombre: plato de salida
+    cubo_diametro: 6.5
+    cubo_alto: 0.1
+    grosor: 1.0
+    brazos: 4
+    de_punta_a_punta: 52.0
+    agujeros:
+    - radio: 20.0
+      diametro: 3.0
+    tornillo: M3
+    fondo_mm: 7.0
+    porque: cuatro agujeros para rosca de M3, de 7 mm de fondo
+  porque: la salida «salida» del cicloidal-nema17-28 que monta esta pieza

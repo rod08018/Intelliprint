@@ -931,6 +931,13 @@ class Componente:
         from mech_toolkit.componentes import EJES, barrido, primitivas, solido
 
         d = EJES[self._entra_por]
+        # Lo comprado que una pieza del invento lleva MONTADO llega puesto
+        # con ella: no entra por esta pieza, y no se le abre camino. Banco
+        # 1115-0523: el antebrazo distal restó el hueco del proximal, y el
+        # camino del motor y la reductora de este, de 2 m y 111 × 97 mm, le
+        # atravesó el tubo de punta a punta y se llevó la brida de los
+        # tornillos; cuatro intentos con «union_u5_1 no toca la pieza».
+        llega_puesto = self._ficha.get("origen") == "impreso"
         formas = []
         for c in primitivas(self._ficha, self._en, self._giros, "cuerpos"):
             if c["tipo"] == "step":
@@ -951,7 +958,7 @@ class Componente:
                 c = {**c, "interior": None, "diametro": c["diametro"] + h,
                      "alto": c["alto"] + lo + hi,
                      "base": [b - e * lo for b, e in zip(c["base"], c["eje"])]}
-            formas.append(barrido(c, d, LARGO))
+            formas.append(solido(c) if llega_puesto else barrido(c, d, LARGO))
         # Las caras de lo que gira (`gira_con`) no se tallan: tallar las de los
         # dos aros dejaría el rodamiento sin apoyo; cuál se libra lo decide
         # el diseño, y la sonda lo comprueba.

@@ -1,0 +1,101 @@
+ALTURA_EJES = 140.0  # R1: va del primer eje de muñeca al eje del cabeceo, 140 mm
+GIRO = 180.0  # R2: gira sobre sí mismo 180° con eje vertical en reposo
+
+ANCHO = 96.0  # Concepto: 96 mm de ancho por fuera
+FONDO = 84.0  # Concepto: 84 mm de fondo por fuera
+PARED = 3.0   # Concepto: pared de 3 mm
+RADIO = 10.0  # Concepto: sección ovalada redondeada
+T_WALL = 6.0  # Concepto: pared frontal engrosada para el tabique de montaje (M3x14: 14 - 3.5 - 4.5 = 6)
+Z_FLANGE = 6.0  # Brida inferior maciza
+Z_SHOULDER = 190.0
+TOP_SIZE = 12.0
+Z_TOP = Z_SHOULDER + (ANCHO - TOP_SIZE) / 2.0  # Pirámide superior a 45°
+Z_TAPER_INNER_START = 180.0
+Z_INNER_TOP = Z_TOP - 3.0
+
+ANCHO_INT = ANCHO - 2 * PARED
+FONDO_INT = FONDO - PARED - T_WALL
+Y_INT_CENTER = (-FONDO / 2 + PARED + (FONDO / 2 - T_WALL)) / 2
+RADIO_INT = RADIO - PARED
+
+Y_WALL_FRONT = FONDO / 2
+Y_WALL_BACK = Y_WALL_FRONT - T_WALL
+Y_OUTER_BACK = -FONDO / 2
+Y_INNER_BACK = Y_OUTER_BACK + PARED
+
+def construir(kit):
+    # Cuerpo exterior
+    sec_out = kit.rectangulo(ANCHO, FONDO, radio=RADIO)
+    sec_top = kit.rectangulo(TOP_SIZE, TOP_SIZE, radio=3.0)
+    pieza = kit.transicion([
+        (sec_out, 0.0),
+        (sec_out, Z_SHOULDER),
+        (sec_top, Z_TOP)
+    ], recta=True)
+
+    # Hueco interior
+    sec_in_base = kit.rectangulo(ANCHO_INT, FONDO_INT, radio=RADIO_INT)
+    sec_in_top = kit.rectangulo(8.0, 8.0, radio=2.0)
+    dentro = kit.transicion([
+        (sec_in_base, Z_FLANGE),
+        (sec_in_base, Z_TAPER_INNER_START),
+        (sec_in_top, Z_INNER_TOP)
+    ], recta=True)
+    dentro = dentro.mover(dy=Y_INT_CENTER)
+    pieza = pieza.quitar('interior', dentro)
+
+    # Ventana de servicio trasera con dintel a 45°
+    ventana_points = [(-45.0, 110.0), (-39.0, 110.0), (-39.0, 165.0), (-45.0, 159.0)]
+    ventana = kit.extruir(ventana_points, 55.0, plano='yz', desde=-30.0)
+    pieza = pieza.quitar('ventana_servicio', ventana)
+
+    # Antebrazo proximal existente, con su salida en el origen
+    prox = kit.componente('obra-antebrazo-proximal', en=(-250.0, 0.0, -503.358), girar=(), entra_por='+z')
+    pieza = pieza.quitar('alojamiento_proximal', prox.hueco(holgura='clearance'))
+
+    # NEMA 17 dentro del tubo, contra la cara trasera de la pared frontal
+    motor = kit.componente(
+        'nema17',
+        en=(0.0, Y_WALL_BACK, ALTURA_EJES),
+        girar=[('x', -90), ('y', -90)],
+        entra_por='-y'
+    )
+    pieza = pieza.quitar('alojamiento_nema17', motor.hueco(holgura='clearance'))
+
+    # Reductora cicloidal por delante de la pared frontal
+    ciclo = kit.componente(
+        'cicloidal-nema17-28',
+        en=(0.0, Y_WALL_FRONT, ALTURA_EJES),
+        girar=[('x', -90), ('y', -90)],
+        entra_por='+y'
+    )
+    pieza = pieza.quitar('alojamiento_cicloidal', ciclo.hueco(holgura='clearance'))
+
+    # Tornillos M3 del motor a través de la pared frontal
+    for i, ag in enumerate(motor.agujeros()):
+        x, y, z = ag['en']
+        pieza = pieza.tornillo(
+            f'motor_m3_{i+1}', 'M3',
+            en=(x, Y_WALL_FRONT + 0.05, z),
+            eje='-y',
+            tipo='pasante',
+            profundidad=T_WALL + 1.0,
+            lagrima=True
+        )
+
+    # Tornillos M3 de unión u5 a la salida del cicloidal del proximal
+    salida_prox = prox.salida('cicloidal-nema17-28: salida')
+    acople = salida_prox['acople']
+    radio_u5 = acople['agujeros'][0]['radio']
+    for i, (dx, dy) in enumerate([(1, 0), (0, 1), (-1, 0), (0, -1)]):
+        x = radio_u5 * dx
+        y = radio_u5 * dy
+        pieza = pieza.tornillo(
+            f'union_u5_{i+1}', 'M3',
+            en=(x, y, Z_FLANGE + 0.05),
+            eje='-z',
+            tipo='pasante',
+            profundidad=Z_FLANGE + 1.0
+        )
+
+    return pieza.acabar()

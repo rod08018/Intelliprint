@@ -90,7 +90,7 @@ Límite conocido: solo se describen **árboles de giros** sobre la salida de alg
 
 Nadie asigna posiciones de antemano; la resolución de interfaces que lo hacía no existe. Una pieza terminada se convierte en una **ficha** (`obra.fichar`, ADR-018): su forma construida, sus agujeros con nombre y las salidas de lo comprado que monta. La pieza siguiente se diseña contra esa ficha y la coloca en su propio programa con `kit.componente`, igual que colocaría un rodamiento comprado. La posición de cada pieza en el conjunto sale de encadenar esas colocaciones (`conjunto.poses`).
 
-Límites: el hueco que una pieza impresa deja en otra es su caja envolvente, y a la ficha solo pasan los agujeros de eje alineado con x, y o z.
+Límites: el hueco que una pieza impresa deja en otra es su forma con holgura, y la de lo comprado que lleva montado, sin camino de entrada (lo que monta llega puesto con ella; si de verdad entra lo mide `componente_entra`), y a la ficha solo pasan los agujeros de eje alineado con x, y o z.
 
 ### 3.3 Qué se mide y con qué
 

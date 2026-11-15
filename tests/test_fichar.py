@@ -362,6 +362,58 @@ def test_el_antebrazo_se_construye_aunque_occ_no_sepa_crecer_el_brazo_superior(
     assert r.solids == 1
 
 
+SOBRE_EL_MOTOR_DE_LA_VECINA = """
+def construir(kit):
+    vecina = kit.componente("obra-con-motor", en=(0, 0, 0), entra_por="+z")
+    bloque = kit.caja(40, 20, 20, en=(-20, -10, 0))
+    return bloque.quitar("vecina", vecina.hueco(holgura=0.4))
+"""
+"""Un bloque apoyado encima del motor que lleva montado la pieza vecina."""
+
+
+def test_el_hueco_de_una_pieza_vecina_no_abre_camino_a_lo_que_lleva_montado(
+        tmp_path, monkeypatch):
+    """Banco 1115-0523: el antebrazo distal perdió cuatro de cinco intentos
+    con «union_u5_1 no toca la pieza». Restaba el hueco del antebrazo
+    proximal, y con él el camino de entrada, de 2 m, del motor y la
+    reductora que esa pieza YA lleva montados: un túnel de 111 × 97 mm a lo
+    largo de un tubo de 96 × 84, que se llevaba la brida donde iban los
+    tornillos. Lo que monta la vecina no entra por esta pieza: llega puesto.
+    Su hueco es su forma con holgura, como el de la vecina.
+
+    A mano: el motor de la vecina es una caja de 10 × 10 × 10 bajo el bloque
+    (z de -10 a 0) y solo lo toca por arriba, donde apoya: no le quita nada,
+    y el bloque queda entero, 40 × 20 × 20. Con el camino de entrada le
+    abría un pozo de 10.4 × 10.4 × 20 = 2163 mm³."""
+    fichas = tmp_path / "fichas"
+    fichas.mkdir()
+    (fichas / "obra-con-motor.yaml").write_text(
+        "id: obra-con-motor\nnombre: Vecina con motor\norigen: impreso\n"
+        "fuentes: [{url: p, cita: construida}]\nmarco: el suyo\nmira: '+z'\n"
+        "cuerpos: [{nombre: 'motor: cuerpo', caja: [10, 10, 10], en: [-5, -5, -10], "
+        "monta: motor}]\n", encoding="utf-8")
+    monkeypatch.setenv("INTELLIPRINT_FICHAS", str(fichas))
+    r = build_part(Programa(part="bloque", codigo=SOBRE_EL_MOTOR_DE_LA_VECINA), None,
+                   tmp_path / "bloque", _freecadcmd(), perfil=PERFIL)
+    assert r.volume_mm3 == pytest.approx(16000, abs=0.01)
+
+
+def test_el_antebrazo_distal_conserva_la_brida_donde_se_atornilla(tmp_path, monkeypatch):
+    """El mismo fallo con el programa tal cual lo escribió el diseñador (su
+    quinto intento) y la ficha del antebrazo proximal de esa corrida: los
+    cuatro M3 de la unión con la reductora de la vecina, a 20 mm del eje,
+    tienen plástico que taladrar."""
+    import shutil
+    origen = Path("tests/kit_regresiones/antebrazo_distal_tubo")
+    fichas = tmp_path / "fichas"
+    shutil.copytree(origen, fichas)
+    monkeypatch.setenv("INTELLIPRINT_FICHAS", str(fichas))
+    r = build_part(Programa(part="distal", codigo=(origen / "programa.txt").read_text(
+        encoding="utf-8")), None, tmp_path / "distal", _freecadcmd(), perfil=PERFIL)
+    assert r.solids == 1
+    assert sum(1 for g in r.rasgos if g["nombre"].startswith("union_u5_")) == 4
+
+
 def _brazo_superior_de_tubo(tmp_path, monkeypatch, programa):
     """El brazo superior del brazo de tubos (banco 1115-0523), con la ficha
     de la plataforma de giro de esa corrida."""
@@ -391,14 +443,21 @@ def test_una_union_que_occ_devuelve_rota_se_repara_y_el_programa_sigue(tmp_path,
     """La misma pieza perdió su primer intento con «la unión (+) dio un
     sólido no válido», al sumar el cubo del hombro al tubo. Repetirla no
     basta; reparada por OCC (`fix`) es válida. El programa sigue entonces
-    hasta su propio error, que sí es del dibujo y sí se puede corregir: el
-    alojamiento de la plataforma «se lleva la pieza entera». Es su primer
-    programa, sin tocar."""
+    hasta su propio error, que sí es del dibujo y sí se puede corregir: un
+    recorte plano, «base_plana_hombro», puesto por debajo de la pieza. Es
+    su primer programa, sin tocar.
+
+    Hasta el 2026-11-15 moría antes, en «el alojamiento de la plataforma se
+    lleva la pieza entera», y se dio por error del dibujo. No lo era: la
+    plataforma lleva montado el motor del hombro, y su hueco abría el
+    camino de entrada de ese motor a través del brazo (ver
+    `test_el_hueco_de_una_pieza_vecina_no_abre_camino_a_lo_que_lleva_montado`)."""
     from orchestrator.build import ConstruccionFallida
     with pytest.raises(ConstruccionFallida) as fallo:
         _brazo_superior_de_tubo(tmp_path, monkeypatch, "programa_union.txt")
     assert "unión (+)" not in str(fallo.value)
-    assert "se lleva la pieza entera" in str(fallo.value)
+    assert "se lleva la pieza entera" not in str(fallo.value)
+    assert "«base_plana_hombro» no toca la pieza" in str(fallo.value)
 
 
 def test_un_agujero_del_perfil_se_puede_pedir_con_su_nombre_entero(tmp_path):
