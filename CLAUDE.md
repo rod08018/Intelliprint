@@ -376,6 +376,40 @@ imprimir; lo que dejó abierto está abajo.
   eso pide cáscaras partidas en dos, que son más piezas por tramo. Los
   3 mm de pared mínima del prompt son criterio del asistente. El banco
   no mide la forma: que salga redondo se ve, no se puntúa.
+- **El brazo de tubos, en marcha la noche del 14 al 15** (todo con el
+  modelo; nada dibujado a mano). La `1115-0432` se paró a mano en su
+  primera pieza (0,52 USD): el ingeniero sujetaba el motor bajo orejas
+  de 7,5 mm «porque es menos que el puente de 10»; ahora sabe que un
+  alero aguanta la mitad. La `1115-0523`, desde cero: la base pasó; la
+  plataforma de giro y el brazo superior gastaron sus cinco intentos
+  (1,48 USD las tres). **El brazo superior ya es un tubo ovalado hueco
+  con una cuna para el motor del codo**: se le mandó foto. Dos de sus
+  intentos murieron en OCC (una unión y un taladro «no válidos» sobre
+  la cáscara curva): arreglado en el kit (`_booleana`, `limpia` sólido
+  a sólido). **Sin arreglar:** el diseñador vuelve a colocar lo
+  comprado que ya monta la pieza de abajo y pierde el intento (tres
+  entre dos piezas); el perfil no tiene tuerca cautiva de M5 (lo
+  apunta él en «Impresora»).
+- **Reanudada, el brazo de tubos se queda en 0 de 18 con dos piezas
+  buenas de siete, y los 4 USD están gastados** (`banco_reanudado.md`;
+  3,07 USD la corrida `1115-0523`; con la `1115-0432` y los tests de
+  pago, 3,83 de los 4: **no se reanuda más sin acordarlo**). La nota
+  es 0 porque el banco solo puntúa el invento entero y faltan tres
+  piezas. Cumplen la base y **el brazo superior, que pasó a la primera
+  corrección**. La plataforma de giro solo falla el acabado: FreeCAD se
+  cae al redondearla y se entrega con las aristas vivas (sin arreglar:
+  es una caída de OCC, no una excepción). El antebrazo proximal se
+  construyó y no cumple (soportes, una pared de 0,07 mm y dibujado
+  encima del motor del codo): es del diseño. El antebrazo distal no se
+  construyó, y **cuatro de sus cinco intentos los tumbó el kit**: al
+  restar el hueco de la pieza vecina le abría además el camino de
+  entrada, de 2 m, al motor que esa vecina ya lleva montado, y el túnel
+  se llevaba la brida de los tornillos. Arreglado sin corrida (lo que
+  monta una vecina llega puesto: su hueco es su forma con holgura);
+  repetidos sin modelo, esos cuatro programas se construyen. **Cambia
+  lo que construye el kit, no lo que mide el banco.** El vigilante se
+  puso en 2,75 y la corrida llegó a 3,07: solo mira entre pieza y
+  pieza, y la penúltima acabó en 2,745. Mano y brida, sin empezar.
 - **Pedido por él el 2026-11-14: que las pruebas tarden menos** («dura
   demasiado tiempo actualmente»). Hecho para la suite: corre en doce
   procesos (`pytest-xdist`, en la imagen) y baja de 7 min 42 s a
