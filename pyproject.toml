@@ -23,6 +23,9 @@ render = [
 ]
 dev = [
     "pytest>=8.0",
+    # La suite en paralelo: 1 375 tests en 1 min 48 s con doce procesos, en
+    # vez de 7 min 42 s de uno en uno (2026-11-14). La mayoría lanza FreeCAD.
+    "pytest-xdist>=3.5",
 ]
 # La interfaz web (F5.5 (web)): lista de proyectos, descarga en zip y abrir
 # las piezas en el PrusaSlicer del escritorio.

@@ -53,7 +53,10 @@ services:
   suite:
     extends:
       service: orchestrator
-    entrypoint: ["python3", "-m", "pytest"]
+    # En doce procesos y no en los 24 núcleos: la suite se corre a veces con
+    # el banco en marcha, y cada construcción de FreeCAD del banco tiene un
+    # tope de 180 s. Para ir de uno en uno, `-n 0` al final de la orden.
+    entrypoint: ["python3", "-m", "pytest", "-n", "12"]
     volumes:
       - ./workspace:/workspace
       - ./config:/app/config:ro

@@ -42,7 +42,7 @@ Windows caen 9 tests que no son del código, sino de que `/bin/sh` y los proceso
 zombi no existen igual.
 
 ```bash
-docker compose run --rm suite                       # la suite rápida
+docker compose run --rm suite                       # la suite rápida: 2 min, en 12 procesos
 docker compose run --rm orchestrator pieza peticion.md --archivo
 docker compose run --rm orchestrator animar <carpeta-del-proyecto>
 docker compose up -d web                            # http://localhost:8080
@@ -374,7 +374,13 @@ imprimir; lo que dejó abierto está abajo.
   3 mm de pared mínima del prompt son criterio del asistente. El banco
   no mide la forma: que salga redondo se ve, no se puntúa.
 - **Pedido por él el 2026-11-14: que las pruebas tarden menos** («dura
-  demasiado tiempo actualmente»): la suite entera son unos 7,5 min.
+  demasiado tiempo actualmente»). Hecho para la suite: corre en doce
+  procesos (`pytest-xdist`, en la imagen) y baja de 7 min 42 s a
+  1 min 51 s con los mismos tests. Un test suelto se pide igual que
+  antes; para ir de uno en uno, `-n 0`. **El vigilante de gasto del
+  banco para todos los contenedores `suite`**: una suite lanzada con el
+  banco en marcha muere si el banco llega a su tope. Los 14 tests del
+  host (`gui or llm`) siguen tardando 12 min: sin hacer.
 - **Pedido por él el 2026-11-14, «es importante»: administrar la web
   pieza a pieza**: girar cada pieza y escribirle («agrega una
   rendija que permita el flujo de aire»). Hecho en la página de un
