@@ -312,3 +312,24 @@ def test_el_sitio_de_un_giro_a_lo_largo_no_es_lo_que_mide_el_brazo():
     plan["uniones"][5]["radio_libre_mm"] = 90          # el J5, que sí levanta
     errores, _ = validar_plan(Obra(**plan), AGUJEROS)
     assert any("u6" in e and "radio libre" in e for e in errores)
+
+
+def test_un_giro_no_puede_quedar_tan_lejos_de_la_punta_como_el_que_lo_lleva():
+    """El plan que escribió DeepSeek para el brazo entero (banco 1114-2326):
+    a la brida, que gira a lo largo sobre la mano, le puso `brazo_mm` 125,
+    lo mismo que al cabeceo que la lleva. La petición dice «del cabeceo a la
+    punta 125 mm» y no dice dónde queda el giro de la brida. Con ese plan a
+    la brida se le pide medir 125 mm, y la punta acaba a más de 230 del
+    cabeceo: la muñeca no puede con los 2 kg.
+
+    Un giro va más allá del que lo lleva, así que está más cerca de la
+    punta: 125 después de 125 no puede ser, y el error dice las dos salidas."""
+    plan = copy.deepcopy(PLAN)
+    plan["uniones"][6]["brazo_mm"] = 125
+    errores, _ = validar_plan(Obra(**plan), AGUJEROS)
+    [error] = errores
+    assert "u7" in error and "u6" in error and "125" in error
+    assert "quita" in error and "brazo_mm" in error
+    # Más cerca de la punta que el que lo lleva, vale.
+    plan["uniones"][6]["brazo_mm"] = 14
+    assert validar_plan(Obra(**plan), AGUJEROS)[0] == []

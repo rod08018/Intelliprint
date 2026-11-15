@@ -133,6 +133,20 @@ def validar_plan(obra: Obra, agujeros: dict, extra: Sequence[Path] = (),
                 f"pieza que tiene que llegar a {u.brazo_mm:g} mm del eje: no puede llegar sin "
                 f"pasarse. El radio libre es lo que mide con su ancho: pon al menos "
                 f"{u.brazo_mm + SITIO_PARA_LA_PUNTA:g}")
+        # Un giro va más allá del que lo lleva: está más cerca de la punta.
+        # El plan del brazo entero (banco 1114-2326) le puso a la brida los
+        # mismos 125 mm que al cabeceo que la lleva, porque la petición no
+        # decía dónde quedaba su giro: a la brida se le habría pedido medir
+        # 125 mm y la muñeca no habría podido con la carga.
+        lo_lleva = next((p for p in obra.uniones if isinstance(p, Gira) and p.gira == u.sobre
+                         and p.brazo_mm is not None), None)
+        if u.brazo_mm is not None and lo_lleva and u.brazo_mm >= lo_lleva.brazo_mm - 1e-6:
+            errores.append(
+                f"unión «{u.id}»: dice que queda a {u.brazo_mm:g} mm de la punta, y «{lo_lleva.id}», "
+                f"que la lleva, a {lo_lleva.brazo_mm:g}: un giro va más allá del que lo lleva, "
+                "así que queda más cerca de la punta. Si la petición no dice dónde queda este "
+                f"giro, quita su `brazo_mm`; si lo dice, pon esa distancia, menor que "
+                f"{lo_lleva.brazo_mm:g}")
         en_cada_salida.setdefault((u.sobre, u.componente, salida.nombre), []).append(u.id)
     for (sobre, componente, _), ids in en_cada_salida.items():
         hay = obra.nodo(sobre).compra.count(componente)

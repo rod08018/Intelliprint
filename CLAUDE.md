@@ -315,8 +315,12 @@ imprimir; lo que dejó abierto está abajo.
   del peso que va de través (daba «0 g» en la placa del brazo); solo
   puede subir una carga. Y `dimensionar` ya no salta un giro a lo
   largo por ser vertical. La reserva de sitio de cada giro avisa
-  por posturas bajo la mesa y tarda mucho con cinco giros: sin
-  arreglar.
+  por posturas bajo la mesa: sin arreglar. Que tardara (2,5
+  millones de posturas con cinco giros debajo) sí: ahora se mide en
+  la rejilla del barrido.
+- **Acordado con él el 2026-11-14 («Sí, con 3,72»): el brazo entero
+  se corre en el banco con los 3,72 USD que quedaban**: una corrida
+  y lo que quepa, y parar ahí. Lanzado con el vigilante en 3,2.
   Entendido así (interpretación del asistente): querría además
   aprovechar un mecanismo ya diseñado dentro del proyecto grande;
   hoy cada encargo se diseña de cero y «ampliar» solo añade por

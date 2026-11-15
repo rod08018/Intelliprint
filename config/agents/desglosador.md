@@ -79,10 +79,14 @@ El eje de un servo, el aro de un rodamiento.
   cruzarlo: el antebrazo que gira sobre sí mismo, la herramienta que gira
   sobre su propio eje («su eje va a lo largo del antebrazo», «gira sobre sí
   mismo», «rota la herramienta»). Un giro así no levanta la carga, la hace
-  rodar: no se le pide el par de un giro que cabecea. Lleva su `brazo_mm`
-  igual que los demás —de la cara por donde sale su eje a la punta, a lo
-  largo de él— para saber dónde está. Los giros que levantan o cabecean no
-  lo llevan.
+  rodar: no se le pide el par de un giro que cabecea. Su `brazo_mm` se cuenta
+  igual que en los demás giros, **hasta la punta donde va la carga** y con
+  todo estirado: si el antebrazo gira sobre sí mismo 180 mm antes del
+  cabeceo, y del cabeceo a la punta hay 100, son 280. Un giro queda siempre
+  más cerca de la punta que el que lo lleva. Solo si la petición no dice
+  dónde queda ese giro (el de la brida de la herramienta, cuando no da su
+  distancia), deja su `brazo_mm` sin poner: nunca repitas la distancia del
+  giro anterior. Los giros que levantan o cabecean no llevan `a_lo_largo`.
 - Cada actuador mueve una sola pieza, y cada pieza gira sobre uno solo.
 
 #### `movido_por`: cuando el motor no está en el eje
