@@ -1,0 +1,205 @@
+[
+ {
+  "nombre": "obra-base-fija",
+  "tipo": "componente",
+  "ficha": "obra-base-fija",
+  "en": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "giros": [],
+  "entra_por": "-z"
+ },
+ {
+  "nombre": "alojamiento_base_fija",
+  "tipo": "hueco",
+  "desde": [
+   -60.00000000000032,
+   -65.00000000000033,
+   -2056.1
+  ],
+  "hasta": [
+   125.00000000000033,
+   65.10000000000032,
+   21.100000000000136
+  ]
+ },
+ {
+  "nombre": "polea",
+  "tipo": "polea_gt2",
+  "dientes": 100,
+  "centro": [
+   0.0,
+   0.0,
+   13.0
+  ],
+  "eje": [
+   0.0,
+   0.0,
+   1.0
+  ],
+  "ancho_mm": 7.0,
+  "alto_mm": 10.0,
+  "primitivo_mm": 63.66197723675813,
+  "exterior_mm": 63.15397723675813,
+  "correa_mm": 6.0
+ },
+ {
+  "nombre": "paso_cables_polea",
+  "tipo": "hueco",
+  "desde": [
+   -19.0,
+   -19.0,
+   8.0
+  ],
+  "hasta": [
+   19.0,
+   19.0,
+   28.0
+  ]
+ },
+ {
+  "nombre": "paso_cables",
+  "tipo": "hueco",
+  "desde": [
+   -19.0,
+   -19.0,
+   0.0
+  ],
+  "hasta": [
+   19.0,
+   19.0,
+   194.0
+  ]
+ },
+ {
+  "nombre": "nema23-pg47-76",
+  "tipo": "componente",
+  "ficha": "nema23-pg47-76",
+  "en": [
+   0.0,
+   45.0,
+   150.0
+  ],
+  "giros": [
+   [
+    "x",
+    270.0
+   ]
+  ],
+  "entra_por": "-y"
+ },
+ {
+  "nombre": "alojamiento_reductor",
+  "tipo": "hueco",
+  "desde": [
+   -30.0,
+   -2103.1,
+   119.9
+  ],
+  "hasta": [
+   30.0,
+   75.10000000000014,
+   195.0
+  ]
+ },
+ {
+  "nombre": "paso_central_reductor",
+  "tipo": "agujero",
+  "diametro_mm": 32.35,
+  "entrada": [
+   0.0,
+   48.0,
+   150.0
+  ],
+  "eje": [
+   0.0,
+   -1.0,
+   0.0
+  ],
+  "profundidad_mm": null,
+  "lagrima": true,
+  "avellanado_mm": null
+ },
+ {
+  "nombre": "reductor_m5_1",
+  "tipo": "agujero",
+  "diametro_mm": 5.5,
+  "entrada": [
+   -15.91,
+   48.0,
+   165.91
+  ],
+  "eje": [
+   0.0,
+   -1.0,
+   0.0
+  ],
+  "profundidad_mm": null,
+  "lagrima": true,
+  "avellanado_mm": 9.0,
+  "tornillo": "M5",
+  "uso": "pasante"
+ },
+ {
+  "nombre": "reductor_m5_2",
+  "tipo": "agujero",
+  "diametro_mm": 5.5,
+  "entrada": [
+   15.91,
+   48.0,
+   165.91
+  ],
+  "eje": [
+   0.0,
+   -1.0,
+   0.0
+  ],
+  "profundidad_mm": null,
+  "lagrima": true,
+  "avellanado_mm": 9.0,
+  "tornillo": "M5",
+  "uso": "pasante"
+ },
+ {
+  "nombre": "reductor_m5_3",
+  "tipo": "agujero",
+  "diametro_mm": 5.5,
+  "entrada": [
+   -15.91,
+   48.0,
+   134.09
+  ],
+  "eje": [
+   0.0,
+   -1.0,
+   0.0
+  ],
+  "profundidad_mm": null,
+  "lagrima": true,
+  "avellanado_mm": 9.0,
+  "tornillo": "M5",
+  "uso": "pasante"
+ },
+ {
+  "nombre": "reductor_m5_4",
+  "tipo": "agujero",
+  "diametro_mm": 5.5,
+  "entrada": [
+   15.91,
+   48.0,
+   134.09
+  ],
+  "eje": [
+   0.0,
+   -1.0,
+   0.0
+  ],
+  "profundidad_mm": null,
+  "lagrima": true,
+  "avellanado_mm": 9.0,
+  "tornillo": "M5",
+  "uso": "pasante"
+ }
+]

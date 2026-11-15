@@ -516,8 +516,9 @@ def defectos_de_giro(carpeta: Path, nodo: str) -> list[str]:
     - la que GIRA: coloca la pieza sobre la que gira, llega al eje, va por
       delante de la cara de salida y no pasa del radio."""
     from orchestrator import obra as O
-    from orchestrator.conjunto import (ALCANCE_MM, _a_la_recta, _caja_en, _esquinas, _que,
-                                       _salida_a_la_caja, radio_libre)
+    from orchestrator.conjunto import (ALCANCE_MM, MARGEN_DEL_SECTOR, _a_la_recta, _caja_en,
+                                       _esquinas, _que, _salida_a_la_caja, radio_libre,
+                                       sector_libre)
 
     carpeta = Path(carpeta)
     obra, piezas, arts, giros = _giros_de(carpeta, nodo)
@@ -530,6 +531,15 @@ def defectos_de_giro(carpeta: Path, nodo: str) -> list[str]:
             gira = obra.nodo(u.gira).nombre
             for s in _salidas_del_giro(piezas, u):
                 libre, que = radio_libre(piezas, arts, nodo, s)
+                # Un brazo (el plan le da `brazo_mm`) sale del eje hacia un
+                # lado: le basta un sector libre tan ancho como lo que gira,
+                # no el círculo entero. A la torreta del banco 1115-0138 se
+                # le pedían 605 mm libres con la base a 105, y no podía.
+                if (libre < radio - 0.05 and u.brazo_mm is not None
+                        and u.recorrido_grados + MARGEN_DEL_SECTOR <= 360
+                        and sector_libre(piezas, arts, nodo, s, radio)
+                        >= u.recorrido_grados + MARGEN_DEL_SECTOR):
+                    continue
                 if libre < radio - 0.05:
                     fallos.append(
                         f"sitio para girar (unión {u.id}): «{gira}» necesita {radio:g} mm "

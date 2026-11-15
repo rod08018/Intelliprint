@@ -482,3 +482,54 @@ def test_a_quien_disena_un_giro_corto_se_le_dice_desde_donde_se_cuenta(tmp_path)
     assert "30° a cada lado" in gira["texto"]
     sobre = {u["papel"]: u["texto"] for u in O.uniones_del_nodo(carpeta, "soporte")}["sobre"]
     assert "30° a cada lado" in sobre
+
+
+# --- un brazo no barre el círculo entero (banco 1115-0138) -----------------------------------
+
+TORRETA = "tests/giro_regresiones/torreta_1115_0138"
+
+
+def _torreta_del_brazo(tmp_path, **cambios_del_hombro):
+    """La base y la torreta del brazo de seis ejes, con sus rasgos y sus
+    cajas tal como quedaron en esa corrida, y su plan."""
+    import shutil
+    from pathlib import Path
+    carpeta = tmp_path / "brazo"
+    shutil.copytree(TORRETA, carpeta)
+    for parte in (carpeta / "nodos").glob("*/parts/*"):
+        (parte / f"{parte.name}.step").write_text("STEP", encoding="utf-8")
+    plan = json.loads((carpeta / "obra.json").read_text(encoding="utf-8"))
+    [hombro] = [u for u in plan["uniones"] if u["id"] == "u3"]
+    hombro.update(cambios_del_hombro)
+    (carpeta / "obra.json").write_text(json.dumps(plan), encoding="utf-8")
+    return Path(carpeta)
+
+
+def test_a_la_torreta_no_se_le_pide_el_circulo_entero_para_un_brazo_que_gira_medio(tmp_path):
+    """El brazo de seis ejes (banco 1115-0138, 0 de 18): la torreta gastó
+    sus cinco intentos con un defecto que no podía cumplir, «necesita 605 mm
+    libres alrededor del eje… y solo hay 105.5: sube el motor 499.5 mm más»,
+    y al brazo superior le pasó lo mismo con el codo. El plan reserva de
+    radio lo que mide el brazo estirado, y se le pedía libre el círculo
+    entero, como a la plataforma de un pan-tilt.
+
+    Pero un brazo sale del eje hacia un lado, y este gira 180°: barre medio
+    círculo. El hombro está a 150 mm de alto y todo lo de la base queda más
+    de 100 mm por debajo de él: el brazo, que en reposo apunta hacia arriba
+    (lo dice la petición), no baja nunca hasta ahí."""
+    assert defectos_de_giro(_torreta_del_brazo(tmp_path), "torreta") == []
+
+
+def test_si_el_brazo_da_la_vuelta_entera_si_necesita_el_circulo(tmp_path):
+    """El mismo hombro, pero girando 360°: entonces sí pasa por abajo, y el
+    defecto es el de siempre, con las cifras que dio la corrida."""
+    [defecto] = defectos_de_giro(_torreta_del_brazo(tmp_path, recorrido_grados=360), "torreta")
+    assert "605 mm" in defecto and "105.5 mm" in defecto
+
+
+def test_lo_que_no_es_un_brazo_sigue_necesitando_el_circulo(tmp_path):
+    """Sin `brazo_mm` el plan no dice que la pieza salga hacia un lado: una
+    plataforma centrada en su eje, girando 180°, barre el círculo entero
+    (el pan-tilt del banco 1110-0313)."""
+    [defecto] = defectos_de_giro(_torreta_del_brazo(tmp_path, brazo_mm=None), "torreta")
+    assert "605 mm" in defecto

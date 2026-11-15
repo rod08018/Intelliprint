@@ -144,13 +144,40 @@ def crecida(forma, d):
             pass
     # Una a una y no con `multiFuse`: con la base del pan-tilt, `multiFuse`
     # tardó 114 s y dejó una forma rota; uniéndolas de una en una, 4 s.
-    grande = forma
-    for n in range(3):
-        for s in (-d, d):
-            copia = forma.copy()
-            copia.translate(FreeCAD.Vector(*[s if k == n else 0 for k in range(3)]))
-            grande = grande.fuse(copia)
-    return limpia(grande)
+    def unida(saltando):
+        grande = forma
+        for n in range(3):
+            for s in (-d, d):
+                copia = forma.copy()
+                copia.translate(FreeCAD.Vector(*[s if k == n else 0 for k in range(3)]))
+                if not saltando:
+                    grande = grande.fuse(copia)
+                    continue
+                try:
+                    nueva = grande.fuse(copia)
+                except Exception:   # OCC lanza Part.OCCError, ValueError o RuntimeError
+                    continue
+                if not nueva.isNull() and nueva.isValid() and nueva.Volume >= grande.Volume:
+                    grande = nueva
+        return limpia(grande)
+
+    # Si OCC no sabe unir una copia, se repite dejando las que no salgan: la
+    # forma crece por donde se pueda. Con el brazo superior del brazo de seis
+    # ejes (banco 1115-0138) una de las seis uniones lanzaba «Null shape», y
+    # el antebrazo perdió así dos de sus cinco construcciones y la corrida
+    # entera: nada de lo que el diseñador escribiera lo arreglaba. Lo que le
+    # falte de holgura por ese lado se le mide después, con las formas reales
+    # (el encaje y el barrido).
+    #
+    # Solo si lanza. Dejar siempre las uniones que salen rotas o encogidas
+    # parecía más prudente y rompió la carcasa del encargo 16: con su
+    # escuadra una unión intermedia sale mal, la final bien, y sin la
+    # intermedia el hueco ya no se dejaba restar. Lo que funcionaba se queda
+    # como estaba.
+    try:
+        return unida(saltando=False)
+    except Exception:   # OCC lanza Part.OCCError, ValueError o RuntimeError
+        return unida(saltando=True)
 
 
 def solido(p, crecer=0.0):

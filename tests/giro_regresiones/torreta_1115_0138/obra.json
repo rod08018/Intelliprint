@@ -1,0 +1,242 @@
+{
+  "titulo": "Brazo robot de seis ejes con carga de 2 kg",
+  "nodos": [
+    {
+      "id": "base-fija",
+      "nombre": "Base fija al tablero",
+      "tipo": "pieza",
+      "que_hace": "Se atornilla a un tablero con cuatro tornillos M4. Aloja el rodamiento 6810-2RS y el NEMA 23 del giro de base, con el motor al lado para correa 5:1. El giro de base tiene eje vertical. Impresa sin soportes.",
+      "compra": [
+        "6810-2rs",
+        "nema23"
+      ],
+      "depende_de": [],
+      "ofrece": [],
+      "necesita": [],
+      "cubre": []
+    },
+    {
+      "id": "torreta",
+      "nombre": "Torreta de giro de base",
+      "tipo": "pieza",
+      "que_hace": "Gira el brazo 180° sobre el rodamiento 6810-2RS con eje vertical, movida por el NEMA 23 mediante correa 5:1. Aloja la reductora 23HS30-2804S-PG47 del hombro. Se dibuja en reposo con el brazo apuntando hacia arriba. Impresa sin soportes.",
+      "compra": [
+        "nema23-pg47-76"
+      ],
+      "depende_de": [
+        "base-fija"
+      ],
+      "ofrece": [],
+      "necesita": [],
+      "cubre": []
+    },
+    {
+      "id": "brazo-superior",
+      "nombre": "Brazo superior hombro-codo",
+      "tipo": "pieza",
+      "que_hace": "Gira 180° sobre la salida de la reductora 23HS30-2804S-PG47, con eje horizontal. Une el eje del hombro con el del codo: 190 mm entre ejes. Aloja la reductora 23HS22-2804S-PG47 del codo. Sostiene el brazo que levanta 2000 g a 600 mm del hombro. En reposo se dibuja apuntando hacia arriba. Impreso sin soportes.",
+      "compra": [
+        "nema23-pg47-56"
+      ],
+      "depende_de": [
+        "torreta"
+      ],
+      "ofrece": [],
+      "necesita": [],
+      "cubre": []
+    },
+    {
+      "id": "antebrazo",
+      "nombre": "Antebrazo codo-primer eje de muñeca",
+      "tipo": "pieza",
+      "que_hace": "Gira 180° sobre la salida de la reductora 23HS22-2804S-PG47, con eje horizontal. Va del codo al primer eje de muñeca: 145 mm entre ejes. Aloja la reductora cicloidal 28:1 del primer eje de muñeca. En reposo se dibuja apuntando hacia arriba. Impreso sin soportes.",
+      "compra": [
+        "cicloidal-nema17-28",
+        "nema17"
+      ],
+      "depende_de": [
+        "brazo-superior"
+      ],
+      "ofrece": [],
+      "necesita": [],
+      "cubre": []
+    },
+    {
+      "id": "soporte-muneca",
+      "nombre": "Soporte de muñeca del primer giro",
+      "tipo": "pieza",
+      "que_hace": "Rota 180° sobre el eje longitudinal del antebrazo, vertical en reposo, sobre la salida de una reductora cicloidal 28:1. Va del primer eje de muñeca al eje de cabeceo: 140 mm entre ejes. Aloja la segunda reductora cicloidal 28:1 del cabeceo. En reposo se dibuja apuntando hacia arriba. Impreso sin soportes.",
+      "compra": [
+        "cicloidal-nema17-28",
+        "nema17"
+      ],
+      "depende_de": [
+        "antebrazo"
+      ],
+      "ofrece": [],
+      "necesita": [],
+      "cubre": []
+    },
+    {
+      "id": "mano",
+      "nombre": "Mano",
+      "tipo": "pieza",
+      "que_hace": "Cabecea 180° sobre la salida de la segunda reductora cicloidal 28:1, con eje horizontal. Aloja la reductora cicloidal 10:1 del giro de brida. Del eje de cabeceo a la punta de la brida hay 125 mm. En reposo se dibuja apuntando hacia arriba. Impresa sin soportes.",
+      "compra": [
+        "cicloidal-nema17-10",
+        "nema17"
+      ],
+      "depende_de": [
+        "soporte-muneca"
+      ],
+      "ofrece": [],
+      "necesita": [],
+      "cubre": []
+    },
+    {
+      "id": "brida",
+      "nombre": "Brida de herramienta",
+      "tipo": "pieza",
+      "que_hace": "Gira 180° sobre la salida de la reductora cicloidal 10:1, con eje vertical en reposo, a lo largo de la mano. Lleva cuatro agujeros pasantes M3 para atornillar la herramienta. En reposo se dibuja apuntando hacia arriba. Impresa sin soportes.",
+      "compra": [],
+      "depende_de": [
+        "mano"
+      ],
+      "ofrece": [],
+      "necesita": [],
+      "cubre": []
+    },
+    {
+      "id": "brazo-robot",
+      "nombre": "Brazo robot de seis ejes",
+      "tipo": "conjunto",
+      "que_hace": "Ensambla el brazo robot de seis ejes: levanta 2000 g a 600 mm del hombro, en reposo apunta hacia arriba y cada eje recorre 180° sin que nada choque.",
+      "compra": [],
+      "depende_de": [
+        "base-fija",
+        "torreta",
+        "brazo-superior",
+        "antebrazo",
+        "soporte-muneca",
+        "mano",
+        "brida"
+      ],
+      "ofrece": [],
+      "necesita": [],
+      "cubre": []
+    }
+  ],
+  "uniones": [
+    {
+      "tipo": "fija",
+      "id": "u1",
+      "cabeza": "base-fija",
+      "agarra": "exterior",
+      "metrica": "M4",
+      "cantidad": 4,
+      "agarre": null,
+      "grosor_exterior_mm": null
+    },
+    {
+      "tipo": "gira",
+      "id": "u2",
+      "gira": "torreta",
+      "sobre": "base-fija",
+      "componente": "6810-2rs",
+      "salida": "",
+      "recorrido_grados": 180.0,
+      "radio_libre_mm": null,
+      "brazo_mm": null,
+      "eje": "vertical",
+      "a_lo_largo": false,
+      "movido_por": {
+        "motor": "nema23",
+        "tipo": "correa",
+        "relacion": 5.0
+      }
+    },
+    {
+      "tipo": "gira",
+      "id": "u3",
+      "gira": "brazo-superior",
+      "sobre": "torreta",
+      "componente": "nema23-pg47-76",
+      "salida": "",
+      "recorrido_grados": 180.0,
+      "radio_libre_mm": 605.0,
+      "brazo_mm": 600.0,
+      "eje": "horizontal",
+      "a_lo_largo": false,
+      "movido_por": null
+    },
+    {
+      "tipo": "gira",
+      "id": "u4",
+      "gira": "antebrazo",
+      "sobre": "brazo-superior",
+      "componente": "nema23-pg47-56",
+      "salida": "",
+      "recorrido_grados": 180.0,
+      "radio_libre_mm": 415.0,
+      "brazo_mm": 410.0,
+      "eje": "horizontal",
+      "a_lo_largo": false,
+      "movido_por": null
+    },
+    {
+      "tipo": "gira",
+      "id": "u5",
+      "gira": "soporte-muneca",
+      "sobre": "antebrazo",
+      "componente": "cicloidal-nema17-28",
+      "salida": "",
+      "recorrido_grados": 180.0,
+      "radio_libre_mm": 125.0,
+      "brazo_mm": 265.0,
+      "eje": "vertical",
+      "a_lo_largo": true,
+      "movido_por": {
+        "motor": "nema17",
+        "tipo": "reductora",
+        "relacion": 28.0
+      }
+    },
+    {
+      "tipo": "gira",
+      "id": "u6",
+      "gira": "mano",
+      "sobre": "soporte-muneca",
+      "componente": "cicloidal-nema17-28",
+      "salida": "",
+      "recorrido_grados": 180.0,
+      "radio_libre_mm": 130.0,
+      "brazo_mm": 125.0,
+      "eje": "horizontal",
+      "a_lo_largo": false,
+      "movido_por": {
+        "motor": "nema17",
+        "tipo": "reductora",
+        "relacion": 28.0
+      }
+    },
+    {
+      "tipo": "gira",
+      "id": "u7",
+      "gira": "brida",
+      "sobre": "mano",
+      "componente": "cicloidal-nema17-10",
+      "salida": "",
+      "recorrido_grados": 180.0,
+      "radio_libre_mm": 40.0,
+      "brazo_mm": null,
+      "eje": "vertical",
+      "a_lo_largo": true,
+      "movido_por": {
+        "motor": "nema17",
+        "tipo": "reductora",
+        "relacion": 10.0
+      }
+    }
+  ],
+  "carga_g": 2000.0
+}

@@ -925,11 +925,31 @@ def _por_delante_a_la_caja(caja, punto, eje) -> float:
 
     La caja se corta por ese plano y lo que queda delante se mira de frente,
     a lo largo del eje: es un polígono convexo, y el eje es su origen."""
-    from orchestrator.estudio import _envolvente_convexa, margen_de_vuelco
+    from orchestrator.estudio import margen_de_vuelco
     from orchestrator.tornilleria import _cruz, _unit
-    lo, hi = caja
     n = math.sqrt(sum(c * c for c in eje))
     e = [c / n for c in eje]
+    # Dos direcciones perpendiculares al eje, para mirarlo de frente.
+    k = min(range(3), key=lambda i: abs(e[i]))
+    u = _unit(_cruz(e, [1.0 if i == k else 0.0 for i in range(3)]))
+    planos = _de_frente(caja, punto, e, u, _cruz(e, u))
+    if not planos:
+        return math.inf
+    if len(planos) >= 3:
+        return max(0.0, -margen_de_vuelco((0.0, 0.0), planos))
+    (ax, ay), (bx, by) = planos[0], planos[-1]
+    largo2 = (bx - ax) ** 2 + (by - ay) ** 2
+    t = max(0.0, min(1.0, -(ax * (bx - ax) + ay * (by - ay)) / largo2)) if largo2 else 0.0
+    return math.hypot(ax + t * (bx - ax), ay + t * (by - ay))
+
+
+def _de_frente(caja, punto, e, u, v) -> list:
+    """Lo que de la caja queda por delante del plano que pasa por `punto`
+    (perpendicular a `e`, unitario), visto a lo largo del eje: los vértices
+    de un polígono convexo en las direcciones `u` y `v`, con el eje en el
+    origen. Vacío si la caja queda entera detrás."""
+    from orchestrator.estudio import _envolvente_convexa
+    lo, hi = caja
     esquinas = [[x, y, z] for x in (lo[0], hi[0]) for y in (lo[1], hi[1]) for z in (lo[2], hi[2])]
     delante =[sum((q - p) * d for q, p, d in zip(c, punto, e)) for c in esquinas]
     puntos = [c for c, s in zip(esquinas, delante) if s >= 0]
@@ -941,21 +961,105 @@ def _por_delante_a_la_caja(caja, punto, eje) -> float:
                     and delante[i] * delante[j] < 0:
                 t = delante[i] / (delante[i] - delante[j])
                 puntos.append([a + t * (b - a) for a, b in zip(esquinas[i], esquinas[j])])
-    if not puntos:
-        return math.inf
-    # Dos direcciones perpendiculares al eje, para mirarlo de frente.
-    k = min(range(3), key=lambda i: abs(e[i]))
-    u = _unit(_cruz(e, [1.0 if i == k else 0.0 for i in range(3)]))
-    v = _cruz(e, u)
-    planos = _envolvente_convexa(
+    return _envolvente_convexa(
         (round(sum((q - p) * d for q, p, d in zip(c, punto, u)), 6),
          round(sum((q - p) * d for q, p, d in zip(c, punto, v)), 6)) for c in puntos)
-    if len(planos) >= 3:
-        return max(0.0, -margen_de_vuelco((0.0, 0.0), planos))
-    (ax, ay), (bx, by) = planos[0], planos[-1]
-    largo2 = (bx - ax) ** 2 + (by - ay) ** 2
-    t = max(0.0, min(1.0, -(ax * (bx - ax) + ay * (by - ay)) / largo2)) if largo2 else 0.0
-    return math.hypot(ax + t * (bx - ax), ay + t * (by - ay))
+
+
+MARGEN_DEL_SECTOR = 20.0
+"""Los grados de más que tiene que haber libres sobre lo que gira un brazo:
+10° a cada lado, porque el brazo tiene ancho y aquí solo se mira su eje.
+**Criterio del asistente**, sin validar; la medida exacta es el barrido."""
+
+
+def _tapar(tapado: list, planos: list, radio: float) -> None:
+    """Marca en `tapado` (360 casillas de 1°) las direcciones en las que el
+    polígono `planos` queda a menos de `radio` del origen."""
+    from orchestrator.estudio import margen_de_vuelco
+    if not planos:
+        return
+    if len(planos) >= 3 and margen_de_vuelco((0.0, 0.0), planos) >= 0:
+        tapado[:] = [True] * 360          # el eje lo atraviesa
+        return
+    n = len(planos)
+    for i in range(n if n > 2 else n - 1 or 1):
+        (ax, ay), (bx, by) = planos[i], planos[(i + 1) % n]
+        # Un rayo que sale del eje entra al polígono por su borde: basta
+        # mirar el borde. De cada lado, el trozo que cae dentro del radio
+        # (donde |a + t·(b − a)| < radio, una ecuación de segundo grado) tapa
+        # el arco que va de una punta de ese trozo a la otra.
+        dx, dy = bx - ax, by - ay
+        A, B, C = dx * dx + dy * dy, 2 * (ax * dx + ay * dy), ax * ax + ay * ay - radio * radio
+        if A < 1e-12:
+            t0 = t1 = 0.0
+            if C >= 0:
+                continue
+        else:
+            dentro = B * B - 4 * A * C
+            if dentro <= 0:
+                continue
+            t0 = max(0.0, (-B - math.sqrt(dentro)) / (2 * A))
+            t1 = min(1.0, (-B + math.sqrt(dentro)) / (2 * A))
+            if t0 >= t1:
+                continue
+        desde, hasta = (int(math.degrees(math.atan2(ay + dy * t, ax + dx * t)) % 360) % 360
+                        for t in (t0, t1))
+        # El lado no pasa por el eje (eso es «lo atraviesa», arriba), así
+        # que visto desde él abarca menos de 180°: el arco corto.
+        salto = (hasta - desde + 540) % 360 - 180
+        for s in range(abs(salto) + 1):
+            tapado[(desde + (s if salto > 0 else -s)) % 360] = True
+
+
+def sector_libre(piezas: dict[str, Pieza], arts: dict[str, Articulacion], pieza: str,
+                 salida: dict, radio: float, paso: float = PASO) -> float:
+    """Los grados del mayor sector, alrededor de `salida`, en el que nada de
+    lo que hay DEBAJO de `pieza` queda a menos de `radio` del eje por delante
+    de la cara de salida. 360 si no estorba nada; 0 si el eje lo atraviesa.
+
+    Un brazo no es un disco. `radio_libre` pide el círculo entero, que es lo
+    que barre una plataforma centrada en su eje; a la torreta del brazo de
+    seis ejes (banco 1115-0138) le pidió 605 mm libres alrededor del hombro
+    con la base a 105, cinco intentos seguidos, y al brazo superior lo mismo
+    con el codo. Un brazo sale del eje hacia un lado, y si gira 180° barre
+    medio círculo: lo que queda al otro lado no le estorba.
+
+    Hacia dónde apunta el brazo no se sabe todavía —lo decide la pieza que
+    gira, que aún no existe—, así que solo se mira si hay hueco para algún
+    sector. Como `radio_libre`: con cajas, en la rejilla del barrido y en
+    todos los giros de lo de abajo. La medida exacta sigue siendo el barrido."""
+    from orchestrator.tornilleria import _cruz, _unit
+    e0 = _unit(salida["eje"])
+    k = min(range(3), key=lambda i: abs(e0[i]))
+    u0 = _unit(_cruz(e0, [1.0 if i == k else 0.0 for i in range(3)]))
+    v0 = _cruz(e0, u0)
+    debajo, j = [], piezas[pieza].padre
+    while j is not None:
+        debajo.append(j)
+        j = piezas[j].padre
+    tapado = [False] * 360
+    juntas = [j for j in _hasta_la_raiz(piezas, pieza) if j in arts]
+    combos, _ = rejilla_de_poses({j: arts[j].recorrido for j in juntas}, paso)
+    for combo in combos:
+        mundo = poses(piezas, arts, combo)
+        for a in debajo:
+            # Las direcciones se cuentan en el marco de `pieza`, que es el de
+            # la salida: el mismo sector tiene que valer en todas las poses.
+            r, t = _componer(_inversa(mundo[a]), mundo[pieza])
+            punto = [x + y for x, y in zip(_mv(r, salida["punto"]), t)]
+            e, u, v = _mv(r, e0), _mv(r, u0), _mv(r, v0)
+            for caja in [piezas[a].envolvente] + [_caja_del_montado(m)
+                                                  for m in piezas[a].montados]:
+                _tapar(tapado, _de_frente(caja, punto, e, u, v), radio)
+        if all(tapado):
+            return 0.0
+    if not any(tapado):
+        return 360.0
+    mayor = racha = 0
+    for ocupado in tapado + tapado:
+        racha = 0 if ocupado else racha + 1
+        mayor = max(mayor, racha)
+    return float(min(mayor, 360))
 
 
 def radio_libre(piezas: dict[str, Pieza], arts: dict[str, Articulacion], pieza: str,

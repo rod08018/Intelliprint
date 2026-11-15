@@ -1092,7 +1092,9 @@ class Kit:
     def agujero_mm(self, nombre) -> float:
         """Un diámetro de la tabla `holes` del perfil: «M3_through», «M3_insert»…"""
         tabla = self.perfil.get("holes", {})
-        clave = f"{nombre}_mm"
+        # Con o sin el «_mm» con que se llama en el perfil: el antebrazo del
+        # banco 1115-0138 perdió un intento por pedir «M4_through_mm».
+        clave = f"{str(nombre).removesuffix('_mm')}_mm"
         if clave not in tabla:
             raise KitError(f"el perfil no tabula {nombre!r}; tiene: "
                            f"{', '.join(sorted(k[:-3] for k in tabla)) or 'nada'}")

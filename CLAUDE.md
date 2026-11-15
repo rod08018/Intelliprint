@@ -321,10 +321,46 @@ imprimir; lo que dejó abierto está abajo.
 - **Acordado con él el 2026-11-14 («Sí, con 3,72»): el brazo entero
   se corre en el banco con los 3,72 USD que quedaban**: una corrida
   y lo que quepa, y parar ahí. Lanzado con el vigilante en 3,2.
+  **La primera (`1114-2326`) se cortó al reiniciarse su PC**, con
+  solo el plan (0,16 USD). Ese plan le ponía a la brida los mismos
+  125 mm hasta la punta que al cabeceo: no se reanudó. Arreglado
+  (el plan ya no vale así, y el prompt del desglosador lo explica;
+  0,18 USD en tests de pago) y **lanzada de nuevo desde el plan**,
+  con el vigilante en 2,9: 0,34 de los 3,72 ya gastados.
   Entendido así (interpretación del asistente): querría además
   aprovechar un mecanismo ya diseñado dentro del proyecto grande;
   hoy cada encargo se diseña de cero y «ampliar» solo añade por
   encima.
+- **El brazo entero, medido con modelo, se queda en 0 de 18 y se paró
+  solo** (corrida `1115-0138`, 1,44 USD; 1,78 de los 3,72: **quedan
+  1,94, sin reanudar**). El plan salió bien. De siete piezas se
+  construyeron tres: la base pasó; la torreta y el brazo superior
+  gastaron sus cinco intentos con un «sitio para girar» imposible
+  (605 mm libres alrededor del hombro con la base a 105); el antebrazo
+  no se construyó y sin él no hubo muñeca. Dos de sus cinco intentos
+  murieron en FreeCAD («Null shape» al darle holgura al brazo superior)
+  y uno por pedir `M4_through_mm`. Arreglado, sin corrida: a un brazo
+  (el plan le da `brazo_mm`) le basta un sector libre tan ancho como lo
+  que gira más 20° (**el margen lo puso el asistente; cambia lo que se
+  le mide a la pieza en su bucle, no lo que juzga el banco**); la forma
+  que OCC no sabe hacer crecer crece por donde se pueda; y el agujero
+  del perfil se puede pedir con su «_mm». Sin arreglar: la torreta no
+  tiene cara para imprimirse sin soportes, y `conjunto._sin_sitio` (a
+  quién se culpa de un choque) sigue pidiendo el círculo entero.
+- **Dicho por él el 2026-11-14, al ver el brazo «a mano» en la web:**
+  «es fea la estructura, demasiado simple… ¿estructuras planas? ¿por
+  qué no impresiones cilíndricas como Arctos o como un KUKA? Es un
+  brazo a base de paletas y tornillos». Y después: «lo que me cuesta
+  entender cuando hablas es si realmente lo estamos haciendo bien o
+  estás metiendo mano». **Lo hecho a mano por el asistente no es nota
+  del sistema y hay que decirlo cada vez.** El sistema también dibuja
+  placas: el brazo superior de la `1115-0138` es una «placa-viga de
+  20 mm», y el prompt del ingeniero dice «donde una placa basta, no la
+  compliques». Entendido así (interpretación del asistente): quiere
+  que cada tramo sea un cuerpo hueco y redondo con el motor dentro.
+  **Propuesto, por aprobar:** decirlo en el encargo 18 y en los
+  prompts del ingeniero y del diseñador, y volver a correr; el gasto
+  está por acordar.
 - **Pedido por él el 2026-11-14, «es importante»: administrar la web
   pieza a pieza**: girar cada pieza y escribirle («agrega una
   rendija que permita el flujo de aire»). Hecho en la página de un

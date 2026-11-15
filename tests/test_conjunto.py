@@ -478,6 +478,35 @@ def test_lo_que_no_tiene_nada_debajo_tiene_todo_el_sitio():
     assert radio_libre(piezas, arts, "base", salida) == (math.inf, None)
 
 
+@pytest.mark.parametrize("radio, libre", [(100, 223.6), (30, 263.6), (20, 360.0)])
+def test_el_sector_libre_de_un_giro_son_los_grados_en_que_nada_estorba(radio, libre):
+    """Un brazo no es un disco: con 180° de recorrido barre medio círculo, y
+    lo que queda al otro lado del eje no le estorba (banco 1115-0138).
+
+    A mano, mirando de frente el eje, que sale a 50 de altura: la base va de
+    x = −50 a 50 y su cara de arriba queda 20 mm por debajo del eje.
+
+    - Con 100 mm de radio la tapan todas las direcciones que bajan más que
+      sus esquinas de arriba, (±50, −20): atan(20 / 50) = 21.8° bajo la
+      horizontal a cada lado. Libres, 180 + 2 × 21.8 = 223.6°.
+    - Con 30 mm solo llega a la cara de arriba entre x = ±√(30² − 20²) =
+      ±22.36: atan(20 / 22.36) = 41.8° a cada lado. Libres, 263.6°.
+    - Con 20 mm no llega a nada: los 360°.
+
+    Se mide en casillas de 1°, así que puede quedarse hasta 2° corto."""
+    from orchestrator.conjunto import sector_libre
+    piezas, arts, salida = _torre(50)
+    assert libre - 2.5 <= sector_libre(piezas, arts, "torre", salida, radio) <= libre + 0.01
+
+
+def test_si_el_eje_atraviesa_lo_de_abajo_no_hay_sector_libre():
+    """El eje sale a 20 de altura, dentro de la base (que acaba en 30): mire
+    a donde mire, lo que gira da con ella."""
+    from orchestrator.conjunto import sector_libre
+    piezas, arts, salida = _torre(20)
+    assert sector_libre(piezas, arts, "torre", salida, 100) == 0.0
+
+
 def test_el_soporte_del_pan_tilt_dejaba_12_7_mm_para_inclinar(tmp_path):
     """Las piezas del pan-tilt del banco 1110-0313, con sus rasgos tal como
     quedaron. A mano: el SG90 del soporte saca su eje a z = 12.2 del soporte;

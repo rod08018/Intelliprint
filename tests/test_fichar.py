@@ -343,6 +343,41 @@ def test_el_brazo_se_construye_aunque_occ_se_caiga_al_crecer_el_plato(tmp_path, 
     assert r.solids == 1
 
 
+def test_el_antebrazo_se_construye_aunque_occ_no_sepa_crecer_el_brazo_superior(
+        tmp_path, monkeypatch):
+    """Banco 1115-0138, el brazo de seis ejes: 0 de 18. El antebrazo no se
+    construyó en cinco intentos y sin él no se hizo nada de la muñeca. Dos
+    de los cinco murieron en `brazo.hueco()` con «ValueError: Null shape»:
+    al crecer la forma del brazo superior para darle holgura, OCC no sabe
+    desplazarla ni unir una de sus seis copias movidas. No hay nada que el
+    diseñador pueda escribir distinto. Es su quinto programa tal cual, con
+    la ficha del brazo superior de esa corrida."""
+    import shutil
+    origen = Path("tests/kit_regresiones/antebrazo_brazo_de_seis_ejes")
+    fichas = tmp_path / "fichas"
+    shutil.copytree(origen, fichas)
+    monkeypatch.setenv("INTELLIPRINT_FICHAS", str(fichas))
+    r = build_part(Programa(part="antebrazo", codigo=(origen / "programa.txt").read_text(
+        encoding="utf-8")), None, tmp_path / "antebrazo", _freecadcmd(), perfil=PERFIL)
+    assert r.solids == 1
+
+
+def test_un_agujero_del_perfil_se_puede_pedir_con_su_nombre_entero(tmp_path):
+    """El primer intento de ese antebrazo se fue en esto: pidió
+    `kit.agujero_mm("M4_through_mm")`, que es como se llama en el perfil, y
+    el kit, que añade el «_mm» él, contestó que no tabula «M4_through_mm» y
+    que sí tiene «M4_through». Se entiende lo que pide.
+
+    A mano: el perfil da 4.5 mm para un M4 pasante. Una caja de 20 × 20 × 10
+    atravesada pierde π · 2.25² · 10 = 159.04 mm³: quedan 3 840.96."""
+    r = build_part(Programa(part="caja", codigo="""
+def construir(kit):
+    return kit.caja(20, 20, 10).taladrar("paso", kit.agujero_mm("M4_through_mm"),
+                                         en=(10, 10, 10), eje="-z")
+"""), None, tmp_path, _freecadcmd(), perfil=PERFIL)
+    assert r.volume_mm3 == pytest.approx(3840.96, abs=0.05)
+
+
 def test_si_freecad_se_cae_al_redondear_la_pieza_se_entrega_sin_redondear(tmp_path, monkeypatch):
     """Encargo 16 (banco 1114-0631): dos de los cinco intentos de la carcasa
     acabaron con FreeCAD caído por un fallo de segmentación de OCC en

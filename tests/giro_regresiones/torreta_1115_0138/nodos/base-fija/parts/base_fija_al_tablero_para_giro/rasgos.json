@@ -1,0 +1,264 @@
+[
+ {
+  "nombre": "6810-2rs",
+  "tipo": "componente",
+  "ficha": "6810-2rs",
+  "en": [
+   0.0,
+   0.0,
+   5.0
+  ],
+  "giros": [],
+  "entra_por": "+z"
+ },
+ {
+  "nombre": "alojamiento_6810",
+  "tipo": "hueco",
+  "desde": [
+   -32.55,
+   -32.55,
+   4.95
+  ],
+  "hasta": [
+   32.55,
+   32.55,
+   2012.05
+  ]
+ },
+ {
+  "nombre": "paso_aro_interior_6810",
+  "tipo": "agujero",
+  "diametro_mm": 61.0,
+  "entrada": [
+   0.0,
+   0.0,
+   20.0
+  ],
+  "eje": [
+   0.0,
+   0.0,
+   -1.0
+  ],
+  "profundidad_mm": null,
+  "lagrima": false,
+  "avellanado_mm": null
+ },
+ {
+  "nombre": "entrada_6810",
+  "tipo": "hueco",
+  "desde": [
+   -34.5,
+   -34.5,
+   10.0
+  ],
+  "hasta": [
+   34.5,
+   34.5,
+   12.0
+  ]
+ },
+ {
+  "nombre": "nema23",
+  "tipo": "componente",
+  "ficha": "nema23",
+  "en": [
+   64.9,
+   0.0,
+   0.0
+  ],
+  "giros": [],
+  "entra_por": "-z"
+ },
+ {
+  "nombre": "alojamiento_nema23",
+  "tipo": "hueco",
+  "desde": [
+   36.525000000000006,
+   -43.2,
+   -2056.175
+  ],
+  "hasta": [
+   93.275,
+   28.375,
+   21.174999999999955
+  ]
+ },
+ {
+  "nombre": "paso_libre_motor_nema23",
+  "tipo": "agujero",
+  "diametro_mm": 38.45,
+  "entrada": [
+   64.9,
+   0.0,
+   20.0
+  ],
+  "eje": [
+   0.0,
+   0.0,
+   -1.0
+  ],
+  "profundidad_mm": null,
+  "lagrima": false,
+  "avellanado_mm": null
+ },
+ {
+  "nombre": "motor_m4_1",
+  "tipo": "agujero",
+  "diametro_mm": 4.5,
+  "entrada": [
+   41.35000000000001,
+   -23.55,
+   5.0
+  ],
+  "eje": [
+   0.0,
+   0.0,
+   -1.0
+  ],
+  "profundidad_mm": null,
+  "lagrima": false,
+  "avellanado_mm": null,
+  "tornillo": "M4",
+  "uso": "pasante"
+ },
+ {
+  "nombre": "motor_m4_2",
+  "tipo": "agujero",
+  "diametro_mm": 4.5,
+  "entrada": [
+   88.45,
+   -23.55,
+   5.0
+  ],
+  "eje": [
+   0.0,
+   0.0,
+   -1.0
+  ],
+  "profundidad_mm": null,
+  "lagrima": false,
+  "avellanado_mm": null,
+  "tornillo": "M4",
+  "uso": "pasante"
+ },
+ {
+  "nombre": "motor_m4_3",
+  "tipo": "agujero",
+  "diametro_mm": 4.5,
+  "entrada": [
+   41.35000000000001,
+   23.55,
+   5.0
+  ],
+  "eje": [
+   0.0,
+   0.0,
+   -1.0
+  ],
+  "profundidad_mm": null,
+  "lagrima": false,
+  "avellanado_mm": null,
+  "tornillo": "M4",
+  "uso": "pasante"
+ },
+ {
+  "nombre": "motor_m4_4",
+  "tipo": "agujero",
+  "diametro_mm": 4.5,
+  "entrada": [
+   88.45,
+   23.55,
+   5.0
+  ],
+  "eje": [
+   0.0,
+   0.0,
+   -1.0
+  ],
+  "profundidad_mm": null,
+  "lagrima": false,
+  "avellanado_mm": null,
+  "tornillo": "M4",
+  "uso": "pasante"
+ },
+ {
+  "nombre": "tablero_1",
+  "tipo": "agujero",
+  "diametro_mm": 4.5,
+  "entrada": [
+   -48.0,
+   -53.0,
+   5.0
+  ],
+  "eje": [
+   0.0,
+   0.0,
+   -1.0
+  ],
+  "profundidad_mm": null,
+  "lagrima": false,
+  "avellanado_mm": null,
+  "tornillo": "M4",
+  "uso": "pasante"
+ },
+ {
+  "nombre": "tablero_2",
+  "tipo": "agujero",
+  "diametro_mm": 4.5,
+  "entrada": [
+   -48.0,
+   53.0,
+   5.0
+  ],
+  "eje": [
+   0.0,
+   0.0,
+   -1.0
+  ],
+  "profundidad_mm": null,
+  "lagrima": false,
+  "avellanado_mm": null,
+  "tornillo": "M4",
+  "uso": "pasante"
+ },
+ {
+  "nombre": "tablero_3",
+  "tipo": "agujero",
+  "diametro_mm": 4.5,
+  "entrada": [
+   113.0,
+   -53.0,
+   5.0
+  ],
+  "eje": [
+   0.0,
+   0.0,
+   -1.0
+  ],
+  "profundidad_mm": null,
+  "lagrima": false,
+  "avellanado_mm": null,
+  "tornillo": "M4",
+  "uso": "pasante"
+ },
+ {
+  "nombre": "tablero_4",
+  "tipo": "agujero",
+  "diametro_mm": 4.5,
+  "entrada": [
+   113.0,
+   53.0,
+   5.0
+  ],
+  "eje": [
+   0.0,
+   0.0,
+   -1.0
+  ],
+  "profundidad_mm": null,
+  "lagrima": false,
+  "avellanado_mm": null,
+  "tornillo": "M4",
+  "uso": "pasante"
+ }
+]

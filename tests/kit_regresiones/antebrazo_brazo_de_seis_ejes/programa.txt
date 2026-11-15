@@ -1,0 +1,59 @@
+ENTRE_EJES = 145  # R1: 145 mm entre ejes
+
+def construir(kit):
+    PARED = 3
+    # Sección exterior del brazo
+    sec20 = kit.seccion([(-25, -15), (25, -15), (25, 38), (-25, 38)])
+    sec145 = kit.seccion([(-38, -38), (38, -38), (38, 38), (-38, 38)])
+    outer = kit.transicion([(sec20, 20), (sec145, ENTRE_EJES)], recta=True)
+
+    # Cavidad interior, dejando paredes de 3 mm y abierta por -y
+    sec25 = kit.seccion([(-22.52, -100), (22.52, -100), (22.52, 35), (-22.52, 35)])
+    sec142 = kit.seccion([(-34.688, -100), (34.688, -100), (34.688, 35), (-34.688, 35)])
+    inner = kit.transicion([(sec25, 25), (sec142, ENTRE_EJES - 3)], recta=True)
+    arm = outer.quitar('cavidad_canal', inner)
+
+    # Cubo del codo: bloque macizo
+    hub = kit.caja(50, 53, 50, en=(-25, -15, -20))
+    pieza = arm + hub
+
+    # Alojamiento del eje del codo
+    pieza = pieza.taladrar('alojamiento_eje_codo',
+                           12 + kit.holgura('slide'),
+                           en=(0, -15, 0), eje='+y', profundidad=30,
+                           lagrima=True)
+    # Rebaje para el resalte del reductor
+    pieza = pieza.taladrar('resalte_codo',
+                           32 + kit.holgura('clearance'),
+                           en=(0, -15, 0), eje='+y', profundidad=2)
+    # Prisionero M4 radial en el chavetero
+    pieza = pieza.taladrar('prisionero_codo',
+                           kit.agujero_mm('M4_through'),
+                           en=(25, -10, 0), eje='-x', profundidad=25,
+                           lagrima=True)
+
+    # Motor NEMA 17 debajo de la brida
+    motor = kit.componente('nema17', en=(0, 0, ENTRE_EJES - PARED), girar=(), entra_por='-z')
+    pieza = pieza.quitar('alojamiento_motor', motor.hueco(holgura='clearance'))
+
+    # Reductora cicloidal sobre la brida
+    cicloidal = kit.componente('cicloidal-nema17-28', en=(0, 0, ENTRE_EJES), girar=(), entra_por='+z')
+    pieza = pieza.quitar('alojamiento_reductora', cicloidal.hueco(holgura='clearance'))
+
+    # Agujeros M3 pasantes para los tornillos del motor/reductora
+    for i, h in enumerate(motor.agujeros()):
+        x, y, z = h['en']
+        pieza = pieza.tornillo(f'fijacion_motor_{i+1}', 'M3',
+                               en=(x, y, ENTRE_EJES), eje='-z',
+                               tipo='pasante', profundidad=PARED)
+
+    # Paso central Ø23 para el resalte y eje del motor
+    pieza = pieza.taladrar('paso_motor', 23,
+                           en=(0, 0, ENTRE_EJES - PARED), eje='+z',
+                           profundidad=PARED)
+
+    # Brazo superior para comprobar holguras
+    brazo = kit.componente('obra-brazo-superior', en=(0, -105, -340), girar=(), entra_por='-y')
+    pieza = pieza.quitar('alojamiento_brazo', brazo.hueco())
+
+    return pieza.acabar()
