@@ -514,3 +514,46 @@ def construir(kit):
 """, tmp_path)
     assert "«todo»" in str(fallo.value) and "pieza entera" in str(fallo.value)
     assert "Bnd_Box" not in str(fallo.value)
+
+
+# --- el tramo de un brazo es un tubo (2026-11-14) ------------------------------------------------
+
+def _tramo_del_prompt() -> str:
+    [tramo] = [e for e in _ejemplos_del_prompt() if "ENTRE_EJES" in e]
+    return tramo
+
+
+def test_al_ingeniero_y_al_disenador_se_les_dice_que_el_tramo_de_un_brazo_es_un_tubo():
+    """Dicho por el usuario al ver el brazo de seis ejes: «¿estructuras
+    planas? ¿por qué no impresiones cilíndricas como Arctos?… es un brazo a
+    base de paletas y tornillos». Y no era solo el dibujo a mano: en la
+    corrida 1115-0138 el sistema hizo el brazo superior como una «placa-viga
+    de 20 mm», porque al ingeniero se le decía «donde una placa basta, no la
+    compliques» y al diseñador solo se le enseñaban una escuadra y una
+    carcasa. Lo que no está en el prompt no se dibuja."""
+    ingeniero = Path("config/agents/ingeniero.md").read_text(encoding="utf-8")
+    assert "**El tramo de un brazo es un tubo, no una placa.**" in ingeniero
+    assert "sección cerrada" in ingeniero and "torsión" in ingeniero
+    reglas = Path("config/agents/disenador_kit.md").read_text(encoding="utf-8")
+    assert "**El tramo de un brazo se dibuja como un tubo" in reglas
+    tramo = _tramo_del_prompt()
+    assert "kit.transicion" in tramo and '.quitar("interior"' in tramo
+
+
+def test_el_tramo_del_prompt_es_redondo_y_hueco_y_se_imprime_sin_soportes(tmp_path):
+    """El ejemplo es lo que más copia el modelo: tiene que ser lo que se pide.
+
+    A mano, con sus cifras: por fuera es un tronco de cono de Ø64 a Ø52 en
+    148 mm (π·148·(32² + 32·26 + 26²)/3 = 392 423 mm³), una brida que se abre
+    hasta Ø76 en 14 mm (π·14·(26² + 26·38 + 38²)/3 = 45 566) y 4 mm de
+    cilindro de Ø76 (18 146): macizo, 456 135 mm³. Mide 76 × 76 × 166.
+    Hueco tiene que pesar bastante menos: se le pide menos del 55 %.
+
+    La brida se abre 12 mm en 14 de alto, 40,6° desde la vertical: de pie,
+    con el cubo macizo en la cama, no hay nada que pase de 45°."""
+    from orchestrator.voladizos import defecto_de_soportes
+    r = _construir(_tramo_del_prompt(), tmp_path)
+    assert r.solids == 1
+    assert r.bbox_mm == pytest.approx([76, 76, 166], abs=0.05)
+    assert 0.35 * 456_135 < r.volume_mm3 < 0.55 * 456_135
+    assert defecto_de_soportes(tmp_path / "p.stl", PERFIL) == []

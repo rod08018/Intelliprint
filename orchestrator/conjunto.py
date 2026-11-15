@@ -622,7 +622,8 @@ def mover_lo_construido(carpeta: Path, nodo: str, freecadcmd: str, min_gap_mm: f
     choques = _barrer(piezas, arts, duenos, solidos, steps, freecadcmd, min_gap_mm, paso,
                       solo=nodo)
     textos = correcciones(piezas, arts, choques, paso,
-                          presupuestos_del_plan(O.cargar_obra(carpeta)))
+                          presupuestos_del_plan(O.cargar_obra(carpeta)),
+                          brazos_del_plan(O.cargar_obra(carpeta)))
     # Lo que no es de esta pieza (falta sitio en la que monta el actuador)
     # se le dice igual: es lo que hay, y lo ve quien revise el proyecto.
     return {"choques": choques,
@@ -638,6 +639,14 @@ def presupuestos_del_plan(obra) -> dict[str, float] | None:
         return None
     return {u.gira: u.radio_libre_mm for u in obra.uniones
             if isinstance(u, Gira) and u.radio_libre_mm}
+
+
+def brazos_del_plan(obra) -> set[str]:
+    """Las piezas que el plan dice que son un brazo (su giro lleva
+    `brazo_mm`): salen del eje hacia un lado y les basta un sector libre
+    (`sector_libre`), no el círculo entero."""
+    from orchestrator.schemas.obra import Gira
+    return {u.gira for u in obra.uniones if isinstance(u, Gira) and u.brazo_mm is not None}
 
 
 def verificar_conjunto(carpeta: Path, conjunto: str, freecadcmd: str, min_gap_mm: float,
@@ -668,7 +677,8 @@ def verificar_conjunto(carpeta: Path, conjunto: str, freecadcmd: str, min_gap_mm
          "choques": choques, "resumen": _resumen(piezas, choques, paso),
          "muestreo": muestreo,
          "correcciones": correcciones(piezas, arts, choques, paso,
-                                      presupuestos_del_plan(O.cargar_obra(carpeta)))}
+                                      presupuestos_del_plan(O.cargar_obra(carpeta)),
+                          brazos_del_plan(O.cargar_obra(carpeta)))}
     dir_nodo = carpeta / O.NODOS / conjunto
     dir_nodo.mkdir(parents=True, exist_ok=True)
     build_assembly(steps, {}, {s: _placement(reposo[duenos[s]]) for s in duenos},
@@ -745,9 +755,13 @@ def _cerca_de_la_recta(caja, punto, eje) -> float:
     return _a_la_recta(p, punto, eje)
 
 
-def _sin_sitio(piezas, arts, j: str, radio: float, paso: float) -> tuple[str, str] | None:
+def _sin_sitio(piezas, arts, j: str, radio: float, paso: float,
+               brazo: bool = False) -> tuple[str, str] | None:
     """Si la pieza que monta el actuador de `j` no le dejó el radio que el
-    plan le reserva: (esa pieza, qué decirle). None si lo dejó."""
+    plan le reserva: (esa pieza, qué decirle). None si lo dejó. A un `brazo`
+    le basta el sector de lo que gira (`sector_libre`), como en su bucle
+    (`medida.defectos_de_giro`): si no, la culpa de cualquier choque suyo
+    iría a quien lo monta, por no dejarle un círculo que no necesita."""
     a = arts[j]
     salida = next((s for s in piezas[a.padre].salidas
                    if s["punto"] == a.punto and s["eje"] == a.eje), None)
@@ -755,6 +769,9 @@ def _sin_sitio(piezas, arts, j: str, radio: float, paso: float) -> tuple[str, st
         return None
     libre, que = radio_libre(piezas, arts, a.padre, salida, paso)
     if libre >= radio - 0.05:
+        return None
+    gira = a.recorrido[1] - a.recorrido[0] + MARGEN_DEL_SECTOR
+    if brazo and gira <= 360 and sector_libre(piezas, arts, a.padre, salida, radio, paso) >= gira:
         return None
     return a.padre, (
         f"No deja sitio para que gire «{piezas[j].nombre}»: el plan reserva {radio:g} mm "
@@ -767,7 +784,8 @@ def _sin_sitio(piezas, arts, j: str, radio: float, paso: float) -> tuple[str, st
 
 def correcciones(piezas: dict[str, Pieza], arts: dict[str, Articulacion],
                  choques: list[dict], paso: float = PASO,
-                 presupuestos: dict[str, float] | None = None) -> dict[str, str]:
+                 presupuestos: dict[str, float] | None = None,
+                 brazos: set[str] | None = None) -> dict[str, str]:
     """Qué decirle a cada pieza que choca, con cifras con las que se puede
     actuar: contra qué choca y en qué ángulos, hasta dónde llega girando
     alrededor de su eje y dónde empieza lo que choca. Así era la corrección
@@ -793,7 +811,7 @@ def correcciones(piezas: dict[str, Pieza], arts: dict[str, Articulacion],
         while j is not None and j not in arts:
             j = piezas[j].padre
         if j is not None and (presupuestos or {}).get(j):
-            falta = _sin_sitio(piezas, arts, j, presupuestos[j], paso)
+            falta = _sin_sitio(piezas, arts, j, presupuestos[j], paso, j in (brazos or ()))
             if falta is not None:
                 if falta[1] not in por_pieza.setdefault(falta[0], []):
                     por_pieza[falta[0]].append(falta[1])

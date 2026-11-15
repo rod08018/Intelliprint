@@ -18,8 +18,10 @@ peticion: >
   lleva cuatro agujeros pasantes M3 para atornillar la herramienta. Cada eje recorre 180° (90° a cada
   lado) sin que nada choque. Del hombro al codo hay 190 mm, del codo al eje
   del cabeceo 285 mm y del cabeceo a la punta de la brida 125 mm: con el brazo
-  estirado la punta llega a 600 mm del eje del hombro. Las piezas se imprimen
-  sin soportes.
+  estirado la punta llega a 600 mm del eje del hombro. Cada tramo del brazo
+  es un cuerpo hueco y redondeado, de sección cerrada, como en un brazo
+  industrial: un tubo que va de un eje al siguiente, no placas ni vigas
+  planas. Las piezas se imprimen sin soportes.
 oraculo:
   # Lo comprado, por su nombre en la petición. Cada giro va sobre un solo
   # componente: los rodamientos de apoyo de la tabla que aprobó el usuario no

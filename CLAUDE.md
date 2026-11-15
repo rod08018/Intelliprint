@@ -358,9 +358,23 @@ imprimir; lo que dejó abierto está abajo.
   20 mm», y el prompt del ingeniero dice «donde una placa basta, no la
   compliques». Entendido así (interpretación del asistente): quiere
   que cada tramo sea un cuerpo hueco y redondo con el motor dentro.
-  **Propuesto, por aprobar:** decirlo en el encargo 18 y en los
-  prompts del ingeniero y del diseñador, y volver a correr; el gasto
-  está por acordar.
+  **Aprobado por él ese día («Sí, con 4 USD»):** decirlo en el encargo
+  18 y en los prompts del ingeniero y del diseñador, y volver a correr
+  el brazo, con 4 USD de tope contando los tests de pago. Y después:
+  «mejóralo todo en modo automático y por favor no me pidas a mí nada,
+  yo ya te apruebo para que hagas el nuevo brazo luego de terminar los
+  tests». Entendido así (interpretación del asistente): dentro de esos
+  4 USD se corre y se reanuda sin preguntarle; al agotarlos se para.
+  Hecho: el encargo pide «un cuerpo hueco y redondeado, de sección
+  cerrada… no placas ni vigas planas»; al ingeniero y al diseñador se
+  les dice que el tramo de un brazo es un tubo, con un ejemplo que un
+  test construye y mide que se imprime sin soportes. **Lo que no hace
+  todavía:** meter los motores dentro de carcasas cerradas como Arctos;
+  eso pide cáscaras partidas en dos, que son más piezas por tramo. Los
+  3 mm de pared mínima del prompt son criterio del asistente. El banco
+  no mide la forma: que salga redondo se ve, no se puntúa.
+- **Pedido por él el 2026-11-14: que las pruebas tarden menos** («dura
+  demasiado tiempo actualmente»): la suite entera son unos 7,5 min.
 - **Pedido por él el 2026-11-14, «es importante»: administrar la web
   pieza a pieza**: girar cada pieza y escribirle («agrega una
   rendija que permita el flujo de aire»). Hecho en la página de un

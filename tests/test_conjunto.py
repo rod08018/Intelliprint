@@ -507,6 +507,44 @@ def test_si_el_eje_atraviesa_lo_de_abajo_no_hay_sector_libre():
     assert sector_libre(piezas, arts, "torre", salida, 100) == 0.0
 
 
+def _torre_con_brazo(h):
+    """La torre de `_torre` con un brazo que gira ±90° sobre su salida."""
+    from orchestrator.conjunto import I3, Pieza
+    piezas, arts, salida = _torre(h)
+    piezas["torre"].salidas = [salida]
+    piezas["brazo"] = Pieza("brazo", "Brazo", None, ([-10, 0, h - 10], [10, 10, h + 100]),
+                            padre="torre", al_padre=(I3, [0, 0, 0]))
+    arts["brazo"] = Articulacion("brazo", "torre", "sg90", salida["punto"], salida["eje"],
+                                 (-90, 90))
+    choque = {"a": "base", "b": "brazo", "solido_a": "base", "solido_b": "brazo",
+              "angulos": {"brazo": 90.0}, "hueco_mm": -3.0}
+    return piezas, arts, [choque]
+
+
+def test_de_un_choque_no_se_culpa_a_quien_dejo_el_sector_que_un_brazo_necesita():
+    """Al repartir la culpa de un choque se seguía pidiendo el círculo
+    entero: tras la corrida 1115-0138, cualquier choque del antebrazo habría
+    mandado corregir el brazo superior «porque no deja 415 mm», y una
+    reanudación de pago se habría ido en eso.
+
+    A mano, con 100 mm reservados: el eje sale a 50 y la base acaba en 30,
+    así que en círculo solo hay 20 y, si no se sabe que es un brazo, la
+    culpa es de la torre. Siendo un brazo que gira 180°, tiene 223.6° libres
+    (ver el test del sector) y le bastan 180 + 20: la torre cumplió y el que
+    se corrige es el brazo. Con el eje a 35, las esquinas de la base quedan
+    solo 5 mm por debajo: atan(5 / 50) = 5.7° a cada lado, 191.4° libres, y
+    no llegan: la culpa vuelve a ser de la torre."""
+    from orchestrator.conjunto import correcciones
+    piezas, arts, choques = _torre_con_brazo(50)
+    reserva = {"brazo": 100.0}
+    assert list(correcciones(piezas, arts, choques, presupuestos=reserva)) == ["torre"]
+    assert list(correcciones(piezas, arts, choques, presupuestos=reserva,
+                             brazos={"brazo"})) == ["brazo"]
+    piezas, arts, choques = _torre_con_brazo(35)
+    assert list(correcciones(piezas, arts, choques, presupuestos=reserva,
+                             brazos={"brazo"})) == ["torre"]
+
+
 def test_el_soporte_del_pan_tilt_dejaba_12_7_mm_para_inclinar(tmp_path):
     """Las piezas del pan-tilt del banco 1110-0313, con sus rasgos tal como
     quedaron. A mano: el SG90 del soporte saca su eje a z = 12.2 del soporte;

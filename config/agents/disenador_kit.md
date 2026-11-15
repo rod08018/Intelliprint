@@ -58,6 +58,38 @@ def construir(kit):
     return carcasa.acabar()
 ```
 
+Y el tramo de un brazo, un tubo hueco que va de un eje al siguiente:
+
+```python
+ENTRE_EJES = 160   # R1: "160 mm entre ejes"
+PARED = 3.0
+CUBO = 44          # abajo queda macizo: ahí agarra el eje
+
+def construir(kit):
+    # Un tubo, no una placa. Por fuera, un tronco de cono que acaba en una
+    # brida; `recta=True` va en línea recta de una sección a la siguiente, y
+    # así se sabe cuánto se abre: 12 mm en 14 de alto, menos de 45°. De pie,
+    # con el cubo macizo en la cama, se imprime sin soportes.
+    fuera = kit.transicion([(kit.elipse(64, 64), 0),
+                            (kit.elipse(52, 52), ENTRE_EJES - 12),
+                            (kit.elipse(76, 76), ENTRE_EJES + 2),
+                            (kit.elipse(76, 76), ENTRE_EJES + 6)], recta=True)
+    # Por dentro, otro cono PARED más adentro (a la altura del cubo el de
+    # fuera mide Ø60), desde encima del cubo hasta salir por arriba: queda
+    # hueco, y por ahí pasan los cables.
+    dentro = kit.transicion([(kit.elipse(60 - 2 * PARED, 60 - 2 * PARED), CUBO),
+                             (kit.elipse(44, 44), ENTRE_EJES + 7)], recta=True)
+    tramo = fuera.quitar("interior", dentro)
+    # El eje sobre el que gira, horizontal, atraviesa el cubo: en lágrima.
+    tramo = tramo.taladrar("eje", 12 + kit.holgura("slide"), en=(0, -40, CUBO / 2),
+                           eje="+y", lagrima=True)
+    # En la brida, la rosca de lo que se atornilla encima. Los agujeros, al final.
+    for i, (x, y) in enumerate([(31, 0), (0, 31), (-31, 0), (0, -31)]):
+        tramo = tramo.tornillo(f"brida_{i + 1}", "M3", en=(x, y, ENTRE_EJES + 6),
+                               eje="-z", tipo="rosca", profundidad=8)
+    return tramo.acabar()
+```
+
 ## Reglas
 
 1. **Las cotas del usuario, escritas tal cual y con nombre**: una constante por cota (`SEP = 60`) con un comentario que diga de qué requisito sale. El sistema comprueba que cada cota de la petición aparece escrita en el programa. No la calcules a partir de otras.
@@ -74,6 +106,7 @@ def construir(kit):
 12. **Un componente comprado se coloca con `kit.componente`, nunca se dibuja con cajas.** Si el concepto aloja un sensor, una placa, un servo, un motor, un perfil o un rodamiento, el encargo trae su ficha: su marco, lo que choca y lo que hay que dejar libre. Colócalo con `sensor = kit.componente("hc-sr04", en=..., girar=..., entra_por="+y")`: `en` es dónde va el origen del marco de la ficha y `entra_por`, desde dónde se mete. Después, `pieza = pieza.quitar("alojamiento_sensor", sensor.hueco())`: el hueco deja sitio a todo lo que choca con su holgura, abre el camino por donde entra y deja libre lo que la ficha pide (cable, haz, enchufes). Pon las paredes y los apoyos alrededor con `sensor.envolvente()` y los tornillos en `sensor.punto("...")`. Al construir se mete el componente real en la pieza: si algo choca o no se puede meter, vuelve con el nombre de lo que choca.
 13. **Una carcasa, una tapa o un carenado se dibujan con secciones, no con cajas.** Si el concepto pide una forma curva (abombada, que se estrecha, carenada) o una pared fina que cubre algo, di cómo es su corte en dos o tres alturas con `kit.rectangulo(ancho, alto, radio=...)`, `kit.elipse` o `kit.seccion(puntos, curva=True)`, únelas con `kit.transicion` y déjala hueca con `.vaciar(grosor, abierta=...)`. El orden importa: **se vacía recién hecha**, antes de sumarle orejas, nervios o pasacables, y los agujeros van al final. **No dibujes una curva con un polígono de muchos puntos** (un arco hecho a tramos rectos con un bucle): sale una superficie de facetas que `acabar()` no puede redondear, y vuelve como defecto de acabado. Los arcos los pone el kit: `kit.rectangulo` admite un radio por esquina, `radio=(r1, r2, r3, r4)`. Un tubo o un asa que dobla es `kit.barrer`; su camino no puede curvarse más cerrado que el ancho de lo que barres. Donde una caja basta —una escuadra, una placa—, sigue usando cajas y `extruir`.
 14. **Una pieza que no cabe en la impresora se parte en tramos, no se encoge.** Si tiene que medir más que la cama (`bed_mm` del perfil), dibújala entera y termina con `pieza.partir(eje="x", en=[200], lengueta=12)`: la corta por esos planos y pone en cada corte una unión a media madera, con la lengüeta de un tramo por dentro del labio del otro. Antes de partir, taladra en cada unión al menos un `tornillo(..., tipo="rosca")` desde fuera, perpendicular al eje del corte, con su `en` entre el corte y `lengueta` mm más allá: cruza el labio y la lengüeta y los cierra. Corta por donde la sección no cambie a lo largo de la lengüeta y la pared mida 2 mm o más. Cada tramo tiene que caber en la cama e imprimirse sin soportes, y se mide por separado; para todo lo demás la pieza sigue siendo una.
+15. **El tramo de un brazo se dibuja como un tubo, no con cajas.** Si el concepto pide un cuerpo hueco entre dos ejes (un brazo, un antebrazo, la columna de una torreta), dibuja su contorno de fuera con `kit.transicion` entre secciones redondas (`kit.elipse`, o `kit.rectangulo` con radio donde haga falta una cara plana para atornillar algo) y quítale el interior con otra transición más pequeña, `tramo.quitar("interior", dentro)`, dejando macizo solo el trozo donde agarra un eje o apoya un motor. Con `recta=True` va en línea recta de una sección a la siguiente: así sabes cuánto se abre cada tramo, y que no pasa de 45°. Una viga plana con un cilindro en cada punta no es un tubo: si el concepto pide sección cerrada, la sección es cerrada en todo el tramo. Los alojamientos de lo comprado y los agujeros, después, como siempre.
 
 Solo puedes usar lo que hay en el kit, aritmética, `for`, `if`, listas y las funciones `range`, `len`, `min`, `max`, `abs`, `round`, `enumerate`, `zip`, `sum`, `sqrt`, `sin`, `cos`, `tan`, `atan2`, `radians`, `degrees`, `hypot` y `pi`. Nada de `import`, `open`, clases ni `try`: un programa así se rechaza con la línea y el motivo.
 
