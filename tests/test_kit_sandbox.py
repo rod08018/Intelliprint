@@ -75,6 +75,9 @@ class _FormaQueNoSeDejaLimpiar:
 
 
 class _FormaLimpia:
+    def __init__(self, solidos=()):
+        self.Solids = list(solidos)
+
     def isNull(self):
         return False
 
@@ -82,9 +85,17 @@ class _FormaLimpia:
         return True
 
 
+class _SolidoRoto:
+    def isValid(self):
+        return False
+
+
 class _FormaQueSeLimpia:
+    def __init__(self, solidos=()):
+        self._solidos = solidos
+
     def removeSplitter(self):
-        return _FormaLimpia()
+        return _FormaLimpia(self._solidos)
 
 
 def test_si_occ_no_puede_unir_las_caras_la_forma_vale_como_esta():
@@ -92,6 +103,15 @@ def test_si_occ_no_puede_unir_las_caras_la_forma_vale_como_esta():
     rota = _FormaQueNoSeDejaLimpiar()
     assert limpia(rota) is rota
     assert isinstance(limpia(_FormaQueSeLimpia()), _FormaLimpia)
+
+
+def test_si_al_unir_las_caras_se_rompe_un_solido_la_forma_vale_como_estaba():
+    """Banco 1115-0523: tras `removeSplitter`, el compuesto era válido y el
+    sólido de dentro no. La limpieza se daba por buena y el corte de un
+    agujero, que estaba bien, volvía como «sólido no válido»."""
+    from mech_toolkit.componentes import limpia
+    forma = _FormaQueSeLimpia(solidos=[_SolidoRoto()])
+    assert limpia(forma) is forma
 
 
 def test_ninguna_booleana_del_kit_limpia_sin_red():

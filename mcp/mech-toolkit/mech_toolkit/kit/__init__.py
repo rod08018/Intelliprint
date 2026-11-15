@@ -150,6 +150,36 @@ def _valido(forma, que):
     return forma
 
 
+def _booleana(hacer):
+    """El resultado de una unión o una resta (`hacer()`), insistiendo si OCC
+    lo devuelve roto: otra vez la misma operación y, si tampoco, reparado.
+
+    El primer tramo de brazo dibujado como un tubo hueco (banco 1115-0523)
+    perdió dos de sus cinco intentos en esto, sin que el programa tuviera
+    nada mal: el corte de un agujero en la cáscara curva salía «no válido» y
+    el mismo corte, repetido, válido (OCC ajusta las tolerancias de la forma
+    al operar sobre ella); y la unión del cubo con el tubo no salía ni
+    repitiéndola, pero sí reparada con `fix`. La reparada solo vale si sigue
+    siendo la misma pieza: los mismos sólidos y el mismo volumen, al 1 %. Si
+    nada vale se devuelve la primera, y quien llama dice qué operación fue."""
+    forma = _un_solido(limpia(hacer()))
+    if forma.isValid():
+        return forma
+    try:
+        otra = _un_solido(limpia(hacer()))
+        if otra.isValid():
+            return otra
+        reparada = otra.copy()
+        reparada.fix(0.01, 0.01, 0.01)
+        reparada = _un_solido(reparada)
+        if (reparada.isValid() and len(reparada.Solids) == len(otra.Solids)
+                and abs(reparada.Volume - otra.Volume) <= 0.01 * abs(otra.Volume)):
+            return reparada
+    except Exception:   # OCC lanza Part.OCCError o RuntimeError según la versión
+        pass
+    return forma
+
+
 def _sin_repetidos(p3) -> list:
     """El contorno sin los puntos que repiten al anterior, ni el último si
     repite al primero. El modelo genera sus contornos con bucles y cierra el
@@ -368,13 +398,13 @@ class Cuerpo:
             return None
 
     def __add__(self, otro: "Cuerpo") -> "Cuerpo":
-        nuevo = self._nuevo(limpia(self._forma.fuse(otro._forma)), "la unión (+)")
+        nuevo = self._nuevo(_booleana(lambda: self._forma.fuse(otro._forma)), "la unión (+)")
         nuevo._suyos = (*self._suyos, *otro._suyos)
         return nuevo
 
     def __sub__(self, otro: "Cuerpo") -> "Cuerpo":
-        return self._nuevo(limpia(self._forma.cut(_herramienta(otro, self))),
-                           "la resta (-)")
+        herramienta = _herramienta(otro, self)
+        return self._nuevo(_booleana(lambda: self._forma.cut(herramienta)), "la resta (-)")
 
     def __and__(self, otro: "Cuerpo") -> "Cuerpo":
         return self._nuevo(limpia(self._forma.common(otro._forma)),
@@ -660,7 +690,11 @@ class Cuerpo:
         # puede, la resta vale igual. Con el intento 2 de esa carcasa la
         # resta salía bien y era `removeSplitter` el que lanzaba «Bnd_Box is
         # void»: un intento perdido por adecentar.
-        return limpia(resultado)
+        limpio = limpia(resultado)
+        if not _un_solido(limpio).isValid():
+            # Rota la resta o rota la limpieza: se insiste (`_booleana`).
+            limpio = _booleana(lambda: self._forma.cut(herramienta))
+        return limpio
 
     def partir(self, eje="x", en=(), lengueta=12.0, labio=None) -> "Cuerpo":
         """Para una pieza que NO CABE en la impresora: la corta en tramos por

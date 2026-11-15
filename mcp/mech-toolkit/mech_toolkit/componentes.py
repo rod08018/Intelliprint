@@ -111,7 +111,11 @@ def limpia(forma):
         limpio = forma.removeSplitter()
     except Exception:   # OCC lanza Part.OCCError o RuntimeError según la versión
         return forma
-    return limpio if not limpio.isNull() and limpio.isValid() else forma
+    # Sólido a sólido: un compuesto válido puede envolver un sólido que no lo
+    # es. Así se coló roto, tras unirle las caras, el corte de un agujero en
+    # el primer tramo de tubo (banco 1115-0523): la resta era buena.
+    bueno = not limpio.isNull() and limpio.isValid() and all(s.isValid() for s in limpio.Solids)
+    return limpio if bueno else forma
 
 
 def crecida(forma, d):

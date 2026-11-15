@@ -1,0 +1,94 @@
+def construir(kit):
+    MEDIDA_HOMBRO_CODO = 190.0  # R1
+    GIRO_HOMBRO = 180.0         # R3
+    TUBO_ANCHO = 66.0
+    TUBO_ALTO = 74.0
+    PARED = 3.0
+    CHAVETERO = 4.0
+    DIAM_EJE = 12.0
+    PLACA = 3.0
+
+    plataforma = kit.componente('obra-plataforma-giro', en=(0, 0, 0))
+    eje_sal = plataforma.salida('nema23-pg47-76: eje')
+    p_hombro = eje_sal['punto']
+    x0 = p_hombro[0]
+    y0 = p_hombro[1]
+    z0 = p_hombro[2]
+
+    x_tubo = x0 + 50.0
+    z_codo = z0 + MEDIDA_HOMBRO_CODO
+    x_motor = x_tubo + 40.0
+
+    x_hub_min = x0 + 12.0
+    hub_long = 18.0
+    hub = kit.cilindro(36.0, hub_long, en=(x_hub_min, 0, z0), eje='x')
+
+    z_tubo_sup = z_codo - 40.0
+    tubo_ext = kit.transicion([(kit.elipse(TUBO_ANCHO, TUBO_ALTO), z0),
+                               (kit.elipse(TUBO_ANCHO, TUBO_ALTO), z_tubo_sup)],
+                              en=(x_tubo, 0, 0))
+    tubo_int = kit.transicion([(kit.elipse(TUBO_ANCHO - 2*PARED, TUBO_ALTO - 2*PARED), z0 - 1.0),
+                               (kit.elipse(TUBO_ANCHO - 2*PARED, TUBO_ALTO - 2*PARED), z_tubo_sup + 1.0)],
+                              en=(x_tubo, 0, 0))
+
+    x_cuna_min = x_motor - 80.0
+    x_cuna_max = x_motor + PLACA
+    ancho_x_cuna = x_cuna_max - x_cuna_min
+    ancho_y_cuna = 66.0
+    z_cuna_min = z_tubo_sup - 10.0
+    z_cuna_max = z_codo + 33.0
+    alto_z_cuna = z_cuna_max - z_cuna_min
+    cuna = kit.caja(ancho_x_cuna, ancho_y_cuna, alto_z_cuna,
+                    en=(x_cuna_min, -ancho_y_cuna/2, z_cuna_min))
+
+    pieza = hub + tubo_ext + cuna
+
+    x_tubo_izq = x_tubo - TUBO_ANCHO/2.0
+    x_tubo_der = x_tubo + TUBO_ANCHO/2.0
+    z_faldon = z_tubo_sup - 10.0
+    faldon_izq = kit.extruir([(x_tubo_izq, z_faldon - 7.0),
+                              (x_tubo_izq, z_faldon),
+                              (x_cuna_min, z_faldon)], 66.0, plano='xz', desde=-33.0)
+    faldon_der = kit.extruir([(x_tubo_der, z_faldon - 7.0),
+                              (x_tubo_der, z_faldon),
+                              (x_cuna_max, z_faldon)], 66.0, plano='xz', desde=-33.0)
+    pieza = pieza + faldon_izq + faldon_der
+
+    pieza = pieza.quitar('interior_tubo', tubo_int)
+
+    P_motor = (x_motor, 0, z_codo)
+    motor = kit.componente('nema23-pg47-56', en=P_motor, girar=[('y', 90)], entra_por='+z')
+    pieza = pieza.quitar('alojamiento_motor_codo', motor.hueco(holgura='clearance'))
+
+    pieza = pieza.quitar('alojamiento_plataforma', plataforma.hueco(holgura='slide'))
+
+    chavetero = kit.caja(24.0, CHAVETERO, 3.5,
+                         en=(x0 + 10.0, -CHAVETERO/2.0, z0 + 5.0))
+    pieza = pieza.quitar('chavetero_hombro', chavetero)
+
+    hendidura = kit.caja(18.0, 2.0, 12.0,
+                         en=(x_hub_min, -1.0, z0 + 6.0))
+    pieza = pieza.quitar('hendidura_cubo', hendidura)
+
+    x_apriete = x_hub_min + 9.0
+    pieza = pieza.tornillo('apriete_hombro', 'M5',
+                           en=(x_apriete, -20.0, z0 + 12.0),
+                           eje='+y', tipo='pasante', lagrima=True)
+
+    caja_cables = kit.caja(60.0, 20.0, 40.0,
+                           en=(x_tubo - 30.0, -45.0, z_tubo_sup - 5.0))
+    pieza = pieza.quitar('salida_cables', caja_cables)
+
+    for i, ag in enumerate(motor.agujeros()):
+        p = ag['en']
+        en_hole = (p[0] + PLACA, p[1], p[2])
+        pieza = pieza.tornillo(f'fijacion_codo_{i+1}', 'M5',
+                               en=en_hole, eje='-x', tipo='pasante',
+                               avellanado=9.5)
+
+    z_flat = z0 - sqrt(18.0*18.0 - 10.0*10.0)
+    corte_base = kit.caja(200.0, 200.0, 50.0,
+                          en=(-100.0, -100.0, z_flat - 50.0))
+    pieza = pieza.quitar('base_plana_hombro', corte_base)
+
+    return pieza.acabar()

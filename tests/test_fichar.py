@@ -362,6 +362,45 @@ def test_el_antebrazo_se_construye_aunque_occ_no_sepa_crecer_el_brazo_superior(
     assert r.solids == 1
 
 
+def _brazo_superior_de_tubo(tmp_path, monkeypatch, programa):
+    """El brazo superior del brazo de tubos (banco 1115-0523), con la ficha
+    de la plataforma de giro de esa corrida."""
+    import shutil
+    origen = Path("tests/kit_regresiones/brazo_superior_tubo")
+    fichas = tmp_path / "fichas"
+    shutil.copytree(origen, fichas)
+    monkeypatch.setenv("INTELLIPRINT_FICHAS", str(fichas))
+    return build_part(Programa(part="brazo", codigo=(origen / programa).read_text(
+        encoding="utf-8")), None, tmp_path / "brazo", _freecadcmd(), perfil=PERFIL)
+
+
+def test_un_taladro_que_occ_devuelve_roto_se_repite_y_sale(tmp_path, monkeypatch):
+    """Banco 1115-0523: el primer tramo dibujado como un tubo hueco, que es
+    lo que pidió el usuario, perdió su tercer intento con «fijacion_codo_1
+    dio un sólido no válido». No era el programa: OCC devuelve roto el corte
+    de ese agujero en la cáscara curva, y el mismo corte, hecho otra vez,
+    sale válido (probado en FreeCAD con el programa tal cual: los cuatro
+    agujeros, a la segunda). Es su tercer programa, sin tocar."""
+    r = _brazo_superior_de_tubo(tmp_path, monkeypatch, "programa.txt")
+    assert r.solids == 1
+    assert {"fijacion_codo_1", "fijacion_codo_2", "fijacion_codo_3",
+            "fijacion_codo_4"} <= {x["nombre"] for x in r.rasgos}
+
+
+def test_una_union_que_occ_devuelve_rota_se_repara_y_el_programa_sigue(tmp_path, monkeypatch):
+    """La misma pieza perdió su primer intento con «la unión (+) dio un
+    sólido no válido», al sumar el cubo del hombro al tubo. Repetirla no
+    basta; reparada por OCC (`fix`) es válida. El programa sigue entonces
+    hasta su propio error, que sí es del dibujo y sí se puede corregir: el
+    alojamiento de la plataforma «se lleva la pieza entera». Es su primer
+    programa, sin tocar."""
+    from orchestrator.build import ConstruccionFallida
+    with pytest.raises(ConstruccionFallida) as fallo:
+        _brazo_superior_de_tubo(tmp_path, monkeypatch, "programa_union.txt")
+    assert "unión (+)" not in str(fallo.value)
+    assert "se lleva la pieza entera" in str(fallo.value)
+
+
 def test_un_agujero_del_perfil_se_puede_pedir_con_su_nombre_entero(tmp_path):
     """El primer intento de ese antebrazo se fue en esto: pidió
     `kit.agujero_mm("M4_through_mm")`, que es como se llama en el perfil, y

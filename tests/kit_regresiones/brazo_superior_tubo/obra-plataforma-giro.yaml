@@ -1,0 +1,134 @@
+id: obra-plataforma-giro
+nombre: Plataforma de giro
+origen: impreso
+proyecto: 2026-11-15-052303-un_brazo_robot_de_seis_ejes_que_levanta
+verificado: false
+fuentes:
+- url: proyecto 2026-11-15-052303-un_brazo_robot_de_seis_ejes_que_levanta
+  cita: construida por Intelliprint (plataforma_de_giro_del_hombro)
+marco: 'El de la pieza construida: el mismo origen y los mismos ejes que su programa.'
+mira: +z
+cuerpos:
+- nombre: Plataforma de giro
+  en:
+  - 0
+  - 0
+  - 0
+  step:
+    ruta: obra-plataforma-giro.step
+    min:
+    - -38.0
+    - -55.0
+    - 65.0
+    max:
+    - 120.0
+    - 55.0
+    - 268.62924322050213
+- nombre: 'nema23-pg47-76: reductora'
+  en:
+  - 38.0
+  - 0.0
+  - 228.629243
+  cilindro:
+    diametro: 56.0
+    alto: 72.0
+    eje: +x
+  porque: Ø56 × 72 REF; en su cara de delante van los cuatro M5
+  monta: nema23-pg47-76
+- nombre: 'nema23-pg47-76: motor'
+  en:
+  - -38.0
+  - -30.0
+  - 198.629243
+  caja:
+  - 76.0
+  - 60.0
+  - 60.0
+  porque: 'el motor, detrás de la reductora: 76 REF de largo'
+  monta: nema23-pg47-76
+- nombre: 'nema23-pg47-76: resalte'
+  en:
+  - 110.0
+  - 0.0
+  - 228.629243
+  cilindro:
+    diametro: 32.0
+    alto: 2.0
+    eje: +x
+  porque: 'centra la reductora: el agujero de la pieza tiene que dejarlo pasar'
+  monta: nema23-pg47-76
+- nombre: 'nema23-pg47-76: eje'
+  en:
+  - 110.0
+  - 0.0
+  - 228.629243
+  cilindro:
+    diametro: 12.0
+    alto: 30.0
+    eje: +x
+  porque: 30 ± 1 desde la cara; lleva un chavetero de 4 mm en sus últimos 20
+  monta: nema23-pg47-76
+despejar:
+- nombre: 'nema23-pg47-76: cables'
+  en:
+  - -38.0
+  - -45.0
+  - 221.629243
+  caja:
+  - 14.0
+  - 15.0
+  - 14.0
+  porque: los cuatro cables salen por ese lateral, junto a la tapa de atrás
+  monta: nema23-pg47-76
+fijacion:
+- nombre: agujero_motor
+  diametro: 34.0
+  en:
+  - 120.0
+  - 0.0
+  - 228.629243
+  eje: -x
+- nombre: motor_M5_1
+  diametro: 5.5
+  en:
+  - 120.0
+  - -15.91
+  - 244.539243
+  eje: -x
+  tornillo: M5
+- nombre: motor_M5_2
+  diametro: 5.5
+  en:
+  - 120.0
+  - -15.91
+  - 212.719243
+  eje: -x
+  tornillo: M5
+- nombre: motor_M5_3
+  diametro: 5.5
+  en:
+  - 120.0
+  - 15.91
+  - 244.539243
+  eje: -x
+  tornillo: M5
+- nombre: motor_M5_4
+  diametro: 5.5
+  en:
+  - 120.0
+  - 15.91
+  - 212.719243
+  eje: -x
+  tornillo: M5
+salidas:
+- nombre: 'nema23-pg47-76: eje'
+  en:
+  - 110.0
+  - 0.0
+  - 228.629243
+  eje: +x
+  recorrido:
+  - 0.0
+  - 360.0
+  largo: 30.0
+  porque: la salida «eje» del nema23-pg47-76 que monta esta pieza

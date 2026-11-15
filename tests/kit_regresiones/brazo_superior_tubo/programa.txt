@@ -1,0 +1,136 @@
+def construir(kit):
+    HOMBRO_CODO = 190.0  # R1: 190 mm del hombro al codo
+    GIRO_HOMBRO = 180.0  # R3: gira 180 grados en el hombro con eje horizontal
+
+    # Pieza ya terminada que queda detrás del hombro; solo su eje atraviesa el cubo.
+    plataforma = kit.componente('obra-plataforma-giro', en=(0, 0, 0), entra_por='-x')
+    eje_sal = plataforma.salida('nema23-pg47-76: eje')
+    p_hombro = eje_sal['punto']
+    x0, y0, z0 = p_hombro
+
+    TUBO_ANCHO = 66.0
+    TUBO_ALTO = 74.0
+    PARED = 3.0
+    PLACA = 3.0
+
+    X_TUBO = x0 + 44.0          # 154.0, deja >=1 mm con la plataforma
+    Z_HOMBRO = z0
+    Z_CODO = z0 + HOMBRO_CODO   # 418.629
+    Z_MOTOR = Z_CODO
+    X_FRONT = 194.0             # cara frontal de la placa del codo
+    X_MOTOR = X_FRONT - PLACA   # 191.0, cara de montaje del motor
+
+    Z_PLACA_BAJA = Z_MOTOR - 34.0
+    Z_START = Z_PLACA_BAJA - 89.0
+    Z_END = Z_MOTOR + 34.0
+
+    centro_cuna = 115.0
+
+    # Cubo del hombro
+    hub_x_min = x0 + 11.0  # 121.0, 1 mm por delante de la plataforma
+    hub_x_max = hub_x_min + 24.0
+    hub = kit.caja(24.0, 44.0, 36.0,
+                   en=(hub_x_min, y0 - 22.0, Z_HOMBRO - 18.0))
+
+    # Tubo exterior, arranca en la cama para no dejar voladizo bajo
+    z_tube_start = Z_HOMBRO - 18.0
+    z_tube_end = Z_START + 10.0
+    tubo = kit.transicion([(kit.elipse(TUBO_ANCHO, TUBO_ALTO), z_tube_start),
+                           (kit.elipse(TUBO_ANCHO, TUBO_ALTO), z_tube_end)],
+                          en=(X_TUBO, y0, 0), recta=True)
+
+    # Cuna exterior
+    a_out = TUBO_ANCHO / 2.0
+    b_out = TUBO_ALTO / 2.0
+    cx_out = X_TUBO - centro_cuna  # 39.0
+    pts_out = [
+        (cx_out + a_out, 0.0),
+        (cx_out + a_out * 0.7071, b_out * 0.7071),
+        (cx_out, b_out),
+        (cx_out - a_out * 0.7071, b_out * 0.7071),
+        (cx_out - a_out, 0.0),
+        (cx_out - a_out * 0.7071, -b_out * 0.7071),
+        (cx_out, -b_out),
+        (cx_out + a_out * 0.7071, -b_out * 0.7071)
+    ]
+    sec_baja = kit.seccion(pts_out, curva=True)
+    sec_alta = kit.rectangulo(158.0, 68.0, radio=10.0)
+    cuna = kit.transicion([(sec_baja, Z_START - 1.0),
+                           (sec_alta, Z_PLACA_BAJA),
+                           (sec_alta, Z_END)],
+                          en=(centro_cuna, y0, 0), recta=True)
+
+    pieza = hub + tubo + cuna
+
+    # Hueco interior del tubo y de la cuna, abierto por arriba
+    a_in = (TUBO_ANCHO - 2.0 * PARED) / 2.0
+    b_in = (TUBO_ALTO - 2.0 * PARED) / 2.0
+    cx_in = cx_out
+    pts_in = [
+        (cx_in + a_in, 0.0),
+        (cx_in + a_in * 0.7071, b_in * 0.7071),
+        (cx_in, b_in),
+        (cx_in - a_in * 0.7071, b_in * 0.7071),
+        (cx_in - a_in, 0.0),
+        (cx_in - a_in * 0.7071, -b_in * 0.7071),
+        (cx_in, -b_in),
+        (cx_in + a_in * 0.7071, -b_in * 0.7071)
+    ]
+    sec_in = kit.seccion(pts_in, curva=True)
+    sec_in_alta = kit.rectangulo(152.0, 62.0, radio=8.0)
+    interior = kit.transicion([(sec_in, Z_HOMBRO + 20.0),
+                               (sec_in, Z_START),
+                               (sec_in_alta, Z_PLACA_BAJA),
+                               (sec_in_alta, Z_END + 5.0)],
+                              en=(centro_cuna, y0, 0), recta=True)
+    pieza = pieza.quitar('interior_tubo_cuna', interior)
+
+    # Abertura superior de la cuna
+    abertura = kit.caja(X_MOTOR - 36.0, 62.0,
+                        (Z_END + 20.0) - (Z_MOTOR - 20.0),
+                        en=(36.0, y0 - 31.0, Z_MOTOR - 20.0))
+    pieza = pieza.quitar('abertura_cuna', abertura)
+
+    # Componente del codo: entra desde atrás (-x) para dejar la placa frontal
+    motor = kit.componente('nema23-pg47-56',
+                           en=(X_MOTOR, y0, Z_MOTOR),
+                           girar=[('y', 90)],
+                           entra_por='-x')
+    pieza = pieza.quitar('alojamiento_motor_codo',
+                         motor.hueco(holgura='clearance'))
+
+    # Alojamiento del eje de la plataforma en el hombro
+    pieza = pieza.quitar('alojamiento_plataforma',
+                         plataforma.hueco(holgura='slide'))
+
+    # Taladro en lágrima para el eje del hombro
+    pieza = pieza.taladrar('eje_hombro', 12.0 + kit.holgura('slide'),
+                           en=(hub_x_min, y0, Z_HOMBRO),
+                           eje='+x', lagrima=True)
+
+    # Chavetero del hombro (4 mm)
+    pieza = pieza.quitar('chavetero_hombro',
+                         kit.caja(22.0, 4.0, 4.0,
+                                  en=(hub_x_min - 1.0, y0 - 2.0,
+                                      Z_HOMBRO + 5.0)))
+
+    # Hendidura de apriete del cubo
+    pieza = pieza.quitar('hendidura_apriete',
+                         kit.caja(22.0, 2.0, 20.0,
+                                  en=(hub_x_min - 1.0, y0 - 1.0,
+                                      Z_HOMBRO + 5.0)))
+
+    # Tornillo M5 transversal de apriete (pasa de lado a lado; tuerca exterior)
+    x_apriete = hub_x_min + 10.0
+    pieza = pieza.tornillo('apriete_hombro', 'M5',
+                           en=(x_apriete, y0 - 25.0, Z_HOMBRO + 12.0),
+                           eje='+y', tipo='pasante', lagrima=True)
+
+    # Agujeros pasantes M5 del motor del codo, desde la cara frontal de la placa
+    for i, ag in enumerate(motor.agujeros()):
+        p_ag = ag['en']
+        pieza = pieza.tornillo(f'fijacion_codo_{i+1}', 'M5',
+                               en=(X_FRONT, p_ag[1], p_ag[2]),
+                               eje='-x', tipo='pasante', lagrima=True, avellanado=9.5)
+
+    return pieza.acabar()
