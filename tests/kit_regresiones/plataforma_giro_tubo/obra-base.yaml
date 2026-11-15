@@ -1,0 +1,265 @@
+id: obra-base
+nombre: Base atornillada al tablero
+origen: impreso
+proyecto: 2026-11-15-052303-un_brazo_robot_de_seis_ejes_que_levanta
+verificado: false
+fuentes:
+- url: proyecto 2026-11-15-052303-un_brazo_robot_de_seis_ejes_que_levanta
+  cita: construida por Intelliprint (base_atornillada_al_tablero_con)
+marco: 'El de la pieza construida: el mismo origen y los mismos ejes que su programa.'
+mira: +z
+cuerpos:
+- nombre: Base atornillada al tablero
+  en:
+  - 0
+  - 0
+  - 0
+  step:
+    ruta: obra-base.step
+    min:
+    - -70.0000001
+    - -55.0000001
+    - -1.0658141036401503e-14
+    max:
+    - 110.0000001
+    - 55.0000001
+    - 72.0
+- nombre: '6810-2rs: rodamiento'
+  en:
+  - 0.0
+  - 0.0
+  - 65.0
+  cilindro:
+    diametro: 65.0
+    alto: 7.0
+    eje: +z
+    interior: 50.0
+  porque: 'es un anillo: por el agujero de 50 pasan el eje hueco y los cables'
+  monta: 6810-2rs
+- nombre: 'nema23: brida'
+  en:
+  - 36.7
+  - -28.2
+  - 57.0
+  caja:
+  - 56.4
+  - 56.4
+  - 5.0
+  monta: nema23
+- nombre: 'nema23: cuerpo'
+  en:
+  - 36.7
+  - -28.2
+  - 6.0
+  caja:
+  - 56.4
+  - 56.4
+  - 51.0
+  porque: 56 ± 1 desde la cara de montaje, con la brida
+  monta: nema23
+- nombre: 'nema23: resalte'
+  en:
+  - 64.9
+  - 0.0
+  - 62.0
+  cilindro:
+    diametro: 38.1
+    alto: 1.6
+    eje: +z
+  porque: 'centra el motor: el agujero de la pieza tiene que dejarlo pasar'
+  monta: nema23
+- nombre: 'nema23: eje'
+  en:
+  - 64.9
+  - 0.0
+  - 62.0
+  cilindro:
+    diametro: 6.35
+    alto: 21.0
+    eje: +z
+  porque: 21 ± 1 desde la cara; lleva un plano (5.85 de plano a lomo) en sus últimos
+    15 mm
+  monta: nema23
+despejar:
+- nombre: '6810-2rs: cara de abajo del aro interior'
+  en:
+  - 0.0
+  - 0.0
+  - 64.5
+  cilindro:
+    diametro: 55.7
+    alto: 0.5
+    eje: +z
+    interior: 50.0
+  monta: 6810-2rs
+  gira_con: aro interior
+- nombre: '6810-2rs: cara de arriba del aro interior'
+  en:
+  - 0.0
+  - 0.0
+  - 72.0
+  cilindro:
+    diametro: 55.7
+    alto: 0.5
+    eje: +z
+    interior: 50.0
+  monta: 6810-2rs
+  gira_con: aro interior
+- nombre: '6810-2rs: cara de abajo del aro exterior'
+  en:
+  - 0.0
+  - 0.0
+  - 64.5
+  cilindro:
+    diametro: 65.0
+    alto: 0.5
+    eje: +z
+    interior: 60.75
+  monta: 6810-2rs
+  gira_con: aro exterior
+- nombre: '6810-2rs: cara de arriba del aro exterior'
+  en:
+  - 0.0
+  - 0.0
+  - 72.0
+  cilindro:
+    diametro: 65.0
+    alto: 0.5
+    eje: +z
+    interior: 60.75
+  monta: 6810-2rs
+  gira_con: aro exterior
+- nombre: 'nema23: cables'
+  en:
+  - 57.9
+  - -43.2
+  - 6.0
+  caja:
+  - 14.0
+  - 15.0
+  - 14.0
+  porque: los cuatro cables salen por ese lateral, junto a la tapa de atrás
+  monta: nema23
+fijacion:
+- nombre: paso_rodamiento
+  diametro: 63.0
+  en:
+  - 0.0
+  - 0.0
+  - 62.0
+  eje: +z
+- nombre: caja_motor_1
+  diametro: 8.0
+  en:
+  - 41.35
+  - -23.55
+  - 72.0
+  eje: -z
+- nombre: motor_1
+  diametro: 4.5
+  en:
+  - 41.35
+  - -23.55
+  - 72.0
+  eje: -z
+  tornillo: M4
+- nombre: caja_motor_2
+  diametro: 8.0
+  en:
+  - 88.45
+  - -23.55
+  - 72.0
+  eje: -z
+- nombre: motor_2
+  diametro: 4.5
+  en:
+  - 88.45
+  - -23.55
+  - 72.0
+  eje: -z
+  tornillo: M4
+- nombre: caja_motor_3
+  diametro: 8.0
+  en:
+  - 41.35
+  - 23.55
+  - 72.0
+  eje: -z
+- nombre: motor_3
+  diametro: 4.5
+  en:
+  - 41.35
+  - 23.55
+  - 72.0
+  eje: -z
+  tornillo: M4
+- nombre: caja_motor_4
+  diametro: 8.0
+  en:
+  - 88.45
+  - 23.55
+  - 72.0
+  eje: -z
+- nombre: motor_4
+  diametro: 4.5
+  en:
+  - 88.45
+  - 23.55
+  - 72.0
+  eje: -z
+  tornillo: M4
+- nombre: tablero_1
+  diametro: 4.5
+  en:
+  - -45.0
+  - -40.0
+  - 72.0
+  eje: -z
+  tornillo: M4
+- nombre: tablero_2
+  diametro: 4.5
+  en:
+  - 85.0
+  - -40.0
+  - 72.0
+  eje: -z
+  tornillo: M4
+- nombre: tablero_3
+  diametro: 4.5
+  en:
+  - -45.0
+  - 40.0
+  - 72.0
+  eje: -z
+  tornillo: M4
+- nombre: tablero_4
+  diametro: 4.5
+  en:
+  - 85.0
+  - 40.0
+  - 72.0
+  eje: -z
+  tornillo: M4
+salidas:
+- nombre: '6810-2rs: aro interior'
+  en:
+  - 0.0
+  - 0.0
+  - 65.0
+  eje: +z
+  recorrido:
+  - 0.0
+  - 360.0
+  largo: 7.0
+  porque: la salida «aro interior» del 6810-2rs que monta esta pieza
+- nombre: 'nema23: eje'
+  en:
+  - 64.9
+  - 0.0
+  - 62.0
+  eje: +z
+  recorrido:
+  - 0.0
+  - 360.0
+  largo: 21.0
+  porque: la salida «eje» del nema23 que monta esta pieza

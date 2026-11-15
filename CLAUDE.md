@@ -397,8 +397,12 @@ imprimir; lo que dejó abierto está abajo.
   es 0 porque el banco solo puntúa el invento entero y faltan tres
   piezas. Cumplen la base y **el brazo superior, que pasó a la primera
   corrección**. La plataforma de giro solo falla el acabado: FreeCAD se
-  cae al redondearla y se entrega con las aristas vivas (sin arreglar:
-  es una caída de OCC, no una excepción). El antebrazo proximal se
+  cae al redondearla y se entregaba con las aristas vivas (79 %).
+  Arreglado sin corrida: cuando se cae, las aristas rectas llevan un
+  chaflán hecho por corte, que no pasa por el redondeo de OCC; repetida
+  sin modelo, baja al 1 % y cumple el acabado (lo demás de su bucle no
+  se ha vuelto a medir, y en el banco sigue como «no cumple» hasta
+  reanudar). El antebrazo proximal se
   construyó y no cumple (soportes, una pared de 0,07 mm y dibujado
   encima del motor del codo): es del diseño. El antebrazo distal no se
   construyó, y **cuatro de sus cinco intentos los tumbó el kit**: al

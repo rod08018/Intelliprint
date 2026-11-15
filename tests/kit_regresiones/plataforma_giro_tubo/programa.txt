@@ -1,0 +1,116 @@
+GIRO = 180          # R1: 'Gira 180°'
+LADO = 90           # R1: '90° a cada lado'
+RELACION = 5        # R3: 'correa 5:1'
+MODELO_MOTOR = '23HS30-2804S-PG47'  # R2: 'motor-reductora 23HS30-2804S-PG47'
+
+EJE_OD = 49.8       # Concepto: eje hueco Ø49.8
+EJE_ALTO = 7        # Concepto: baja 7 mm
+REBORDE_OD = 55.7   # Concepto: reborde Ø55.7
+POLEA_DIENTES = 100 # Concepto: polea GT2 de 100 dientes
+COLUMNA_OD = 76     # Concepto: columna hueca Ø76
+COLUMNA_PARED = 3   # Concepto: pared de 3 mm
+PLACA_ANCHO = 110   # Concepto: placa 110
+PLACA_ALTO = 100    # Concepto: placa 100
+PLACA_ESPESOR = 10  # Concepto: placa 10
+PLACA_X = 120       # Concepto: placa a 120 mm del eje
+NERVIO_ANG = 46     # Concepto: nervio cara inferior a 46°
+CILINDRO_LIBRE = 605 # Concepto: cilindro libre de 605 mm
+HOLGURA_BASE = 1    # Concepto: 1 mm libre
+CONO_INF_OD = 64    # Concepto: cono de polea a columna (Ø64)
+EJE_ID = 40.0       # Concepto: hueco interior del eje (Ø40, para cables)
+NERVIO_T = 24       # Sección mínima: 24 x 78 mm (canto en dirección de carga)
+NERVIO_ANCHO = 78   # Sección mínima: 24 x 78 mm (ancho)
+
+def construir(kit):
+    base = kit.componente('obra-base', en=(0, 0, -65), entra_por='-z')
+    aro = base.salida('6810-2rs: aro interior')
+    nema_base = base.salida('nema23: eje')
+    Z_EJE_BASE = aro['punto'][2]  # 0
+    Z_EJE_TOP = Z_EJE_BASE + EJE_ALTO  # 7
+    Z_REBORDE_TOP = Z_EJE_TOP + 3      # 10
+    Z_POLEA = nema_base['punto'][2] + 12.0  # 9
+    Z_POLEA_TOP = Z_POLEA + 10         # 19
+    Z_CONO_TOP = Z_POLEA_TOP + 8       # 27
+    Z_NERVIO_COL = Z_CONO_TOP          # 27
+    Z_TOP_COL = Z_NERVIO_COL + NERVIO_T  # 51
+    X_PLACA_BACK = PLACA_X - PLACA_ESPESOR  # 110
+    X_COL_START = COLUMNA_OD/2 - 2          # 36
+
+    r_shaft_in = EJE_ID/2
+    r_col_in = COLUMNA_OD/2 - COLUMNA_PARED
+    z_int_cone_top = Z_POLEA_TOP + (r_col_in - r_shaft_in)
+
+    r_reborde = REBORDE_OD/2
+    r_flare = r_reborde + 1.15
+    perfil_ext = [
+        (0, 0),
+        (EJE_OD/2, 0),
+        (EJE_OD/2, Z_EJE_TOP),
+        (r_reborde, Z_EJE_TOP),
+        (r_flare, Z_REBORDE_TOP),
+        (CONO_INF_OD/2, Z_POLEA_TOP),
+        (COLUMNA_OD/2, Z_CONO_TOP),
+        (COLUMNA_OD/2, Z_TOP_COL),
+        (0, Z_TOP_COL)
+    ]
+    central = kit.revolucionar(perfil_ext, grados=360, eje='z', en=(0, 0, 0))
+
+    Z_PLATE_BOTTOM = Z_NERVIO_COL + (PLACA_X - X_COL_START) * tan(radians(NERVIO_ANG))
+
+    z_lower_plate = Z_PLATE_BOTTOM
+    z_upper_plate = z_lower_plate + NERVIO_T
+    puntos_nervio = [
+        (X_COL_START, Z_NERVIO_COL),
+        (PLACA_X, z_lower_plate),
+        (PLACA_X, z_upper_plate),
+        (X_COL_START, Z_NERVIO_COL + NERVIO_T)
+    ]
+    nervio = kit.extruir(puntos_nervio, NERVIO_ANCHO, plano='xz', desde=-NERVIO_ANCHO/2)
+
+    h_chamfer = PLACA_ANCHO/2 - NERVIO_ANCHO/2
+    puntos_placa = [
+        (-NERVIO_ANCHO/2, Z_PLATE_BOTTOM),
+        (NERVIO_ANCHO/2, Z_PLATE_BOTTOM),
+        (PLACA_ANCHO/2, Z_PLATE_BOTTOM + h_chamfer),
+        (PLACA_ANCHO/2, Z_PLATE_BOTTOM + PLACA_ALTO),
+        (-PLACA_ANCHO/2, Z_PLATE_BOTTOM + PLACA_ALTO),
+        (-PLACA_ANCHO/2, Z_PLATE_BOTTOM + h_chamfer)
+    ]
+    placa = kit.extruir(puntos_placa, PLACA_ESPESOR, plano='yz', desde=X_PLACA_BACK)
+
+    pieza = central + nervio + placa
+
+    # Redondeo exterior antes de abrir huecos para evitar que OCC falle en cruces.
+    pieza = pieza.acabar(radio=0.5)
+
+    Z_MOTOR = Z_PLATE_BOTTOM + PLACA_ALTO/2 + 10
+    motor = kit.componente('nema23-pg47-76',
+                           en=(X_PLACA_BACK, 0, Z_MOTOR),
+                           girar=[('y', 90)],
+                           entra_por='-x')
+    pieza = pieza.quitar('hueco_motor', motor.hueco(holgura='clearance'))
+    pieza = pieza.taladrar('agujero_motor', 34, en=(PLACA_X, 0, Z_MOTOR), eje='-x', lagrima=True)
+    for i, ag in enumerate(motor.agujeros()):
+        y = ag['en'][1]
+        z = ag['en'][2]
+        pieza = pieza.tornillo(f'motor_M5_{i+1}', 'M5', en=(PLACA_X, y, z), eje='-x',
+                               tipo='pasante', lagrima=True, avellanado=10.0)
+
+    perfil_int = [
+        (0, 0),
+        (r_shaft_in, 0),
+        (r_shaft_in, Z_POLEA_TOP),
+        (r_col_in, z_int_cone_top),
+        (r_col_in, Z_TOP_COL + 10),
+        (0, Z_TOP_COL + 10)
+    ]
+    interior = kit.revolucionar(perfil_int, grados=360, eje='z', en=(0, 0, 0))
+    pieza = pieza.quitar('interior', interior)
+
+    pieza = pieza.acabar(radio=0.2)
+
+    polea = kit.polea_gt2('polea', POLEA_DIENTES, en=(0, 0, Z_POLEA), eje='z', correa=6.0, pestanas=True)
+    polea = polea.taladrar('eje_polea', EJE_ID, en=(0, 0, Z_POLEA), eje='z')
+    pieza = pieza + polea
+
+    return pieza

@@ -495,17 +495,57 @@ def test_si_freecad_se_cae_al_redondear_la_pieza_se_entrega_sin_redondear(tmp_pa
     assert r.solids == 1
 
 
-def test_con_el_redondeo_apagado_acabar_deja_la_pieza_como_esta_y_lo_dice(tmp_path, monkeypatch):
-    """Lo que hace la repetición: una caja de 20 × 20 × 10 «acabada» sigue
-    midiendo 4 000 mm³, sin chaflán ni redondeo, y el aviso dice por qué."""
+def test_con_el_redondeo_apagado_acabar_achaflana_por_corte_y_lo_dice(tmp_path, monkeypatch):
+    """Lo que hace la repetición. Dejaba la pieza con todas sus aristas
+    vivas, y la plataforma de giro del brazo de tubos (banco 1115-0523) no
+    cumplió por eso y solo por eso: «79 % de las aristas quedan vivas», cinco
+    intentos y 0,89 USD, sin nada que el diseñador pudiera escribir distinto.
+    Lo que se cae es el redondeo de OCC; un chaflán hecho restando un prisma
+    no pasa por él. Las aristas rectas entre caras planas, que son las que
+    se miden, lo llevan.
+
+    A mano, una caja de 20 × 20 × 10. El prisma de un chaflán empieza una
+    centésima fuera de cada cara (`prisma_de_chaflan`), así que el de 1 mm
+    quita un triángulo de catetos 0,99 (0,49005 mm²) y el de 0,5, de 0,49
+    (0,12005 mm²). Cuatro aristas en la cama con el de 0,5 (4 × 0,12005 × 20
+    = 9,604 mm³), cuatro arriba con el de 1 (4 × 0,49005 × 20 = 39,204) y
+    cuatro verticales con el de 1 (4 × 0,49005 × 10 = 19,602): 68,41 mm³.
+    En cada esquina los prismas se pisan: arriba, tres de 0,99 llenan 3/4
+    del cubo de la esquina y suman 3/2, así que sobran 0,75 × 0,99³ = 0,728
+    por esquina (2,911); abajo, 0,1985 por esquina (0,794). Quedan
+    4000 − 68,41 + 2,911 + 0,794 = 3935,3 mm³."""
     from mech_toolkit.componentes import SIN_REDONDEO
     monkeypatch.setenv(SIN_REDONDEO, "1")
     r = build_part(Programa(part="caja", codigo="""
 def construir(kit):
     return kit.caja(20, 20, 10).acabar()
 """), None, tmp_path, _freecadcmd(), perfil=PERFIL)
-    assert r.volume_mm3 == pytest.approx(4000, abs=0.01)
-    assert any("se cae al redondear" in a for a in r.avisos)
+    assert r.volume_mm3 == pytest.approx(3935.3, abs=0.1)
+    assert any("se cae al redondear" in a and "chaflán" in a for a in r.avisos)
+
+
+def test_la_plataforma_de_giro_cumple_el_acabado_aunque_freecad_se_caiga_redondeando(
+        tmp_path, monkeypatch):
+    """La pieza de ese banco tal cual la entregó el diseñador, con la ficha
+    de la base de esa corrida y el redondeo apagado, que es como se repite
+    cuando FreeCAD se cae: se le mide el acabado igual que en su bucle. Con
+    las aristas vivas era un 79 % (1313 de 1660 mm) y se admite un 10 %."""
+    import shutil
+
+    from mech_toolkit.componentes import SIN_REDONDEO
+    from orchestrator.banco import AristasVivas
+    origen = Path("tests/kit_regresiones/plataforma_giro_tubo")
+    fichas = tmp_path / "fichas"
+    shutil.copytree(origen, fichas)
+    monkeypatch.setenv("INTELLIPRINT_FICHAS", str(fichas))
+    monkeypatch.setenv(SIN_REDONDEO, "1")
+    r = build_part(Programa(part="plataforma", codigo=(origen / "programa.txt").read_text(
+        encoding="utf-8")), None, tmp_path / "plataforma", _freecadcmd(), perfil=PERFIL)
+    assert r.solids == 1
+    [m] = medir_sondas(tmp_path / "plataforma" / "plataforma.step",
+                       [AristasVivas(tipo="aristas_vivas", max_fraccion=0.1)], _freecadcmd(),
+                       MATERIAL)
+    assert m.estado == "cumple", m.detalle
 
 
 def test_la_traza_dice_si_la_caida_fue_redondeando():

@@ -705,8 +705,9 @@ def como_abrir_el_camino(ficha: dict) -> str:
 
 
 SI_SE_CAE = (
-    "FreeCAD se cae al redondear esta pieza y se ha construido sin acabado: no se arregla "
-    "llamando otra vez a `acabar()`. Suele pasar donde una superficie curva se cruza con el "
+    "FreeCAD se cae al redondear esta pieza y solo se han podido achaflanar algunas de sus "
+    "aristas rectas: no se arregla llamando otra vez a `acabar()`. Suele pasar donde una "
+    "superficie curva se cruza con el "
     "hueco de otra pieza o con otra curva: deja recto ese cruce (una pared plana junto a lo "
     "que se le quita) o quita antes el hueco y dale después la forma")
 """Lo que se le dice cuando las aristas vivas son de una caída de FreeCAD

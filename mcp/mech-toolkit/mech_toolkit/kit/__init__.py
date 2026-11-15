@@ -622,10 +622,7 @@ class Cuerpo:
         # 1114-0631) perdió así dos de cinco intentos: una caída no deja
         # medir nada, y una pieza con las aristas vivas sí.
         if os.environ.get(SIN_REDONDEO):
-            self._kit._avisos.append(
-                "FreeCAD se cae al redondear esta pieza (un fallo de OCC, no de tu "
-                "programa): se entrega con las aristas vivas")
-            return self
+            return self._acabar_por_corte(radio, chaflan_base)
         # Con respaldo: lo que OCC no acaba se achaflana con un corte (ver
         # `prisma_de_chaflan`). Solo aquí: `redondear` y `achaflanar` hacen
         # lo que se les pide o avisan, sin cambiar un redondeo por otra cosa.
@@ -665,6 +662,31 @@ class Cuerpo:
             return pieza
         return pieza._acabar("redondear", radio, elegidas, "todas menos la base",
                              respaldo=True)
+
+    def _acabar_por_corte(self, radio, chaflan_base) -> "Cuerpo":
+        """El acabado cuando FreeCAD se cae redondeando la pieza: sin tocar
+        el redondeo de OCC, un chaflán por corte (`prisma_de_chaflan`) en las
+        aristas rectas entre caras planas, que son las que mide la sonda.
+
+        Se entregaba con todas vivas. La plataforma de giro del brazo de
+        tubos (banco 1115-0523) cumplía todo lo demás y no pasó por eso:
+        «79 % de las aristas quedan vivas» en cinco intentos, sin nada que el
+        diseñador pudiera cambiar. Una arista curva sigue quedando viva."""
+        forma = self._forma
+        fondo = _caja(forma).ZMin
+        franja = fondo + BASE_MM + (chaflan_base or 0) + 0.05
+        abajo = [i for i, e in enumerate(forma.Edges) if e.BoundBox.ZMax <= fondo + BASE_MM]
+        resto = [i for i, e in enumerate(forma.Edges) if e.BoundBox.ZMax > franja]
+        hecha, cortadas = forma, []
+        for indices, lado in ((abajo, chaflan_base), (resto, radio)):
+            if indices and lado:
+                hecha, mas = self._chaflan_por_corte(hecha, indices, lado)
+                cortadas += mas
+        self._kit._avisos.append(
+            "FreeCAD se cae al redondear esta pieza (un fallo de OCC, no de tu programa): "
+            f"en vez de redondeo lleva un chaflán por corte en {len(cortadas)} aristas "
+            "rectas, y las demás quedan vivas")
+        return Cuerpo(hecha, self._kit) if cortadas else self
 
     def _restar(self, nombre, herramienta):
         """La pieza menos `herramienta`, si queda algo. La carcasa del
