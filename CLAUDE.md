@@ -64,8 +64,11 @@ $env:FREECADCMD = "C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe"
 $env:FREECAD_GUI = "C:\Program Files\FreeCAD 1.1\bin\freecad.exe"
 $env:PRUSASLICER = "C:\Program Files\Prusa3D\PrusaSlicer\prusa-slicer-console.exe"
 $env:PYTHONUTF8 = "1"
-.venv\Scripts\python.exe -m pytest -m "gui or llm" -q
+.venv\Scripts\python.exe -m pytest -m "gui or llm" -q -n 7
 ```
+
+Con `-n 7` son 3 min 31 s en vez de 12 min 8 s (los `llm` esperan a
+DeepSeek cada uno por su lado). Cuestan unos 0,06 USD la pasada.
 
 **Sin `FREECAD_GUI` los dos tests `gui` se saltan en silencio** (buscan el
 FreeCAD de Mac por defecto): el código de salida sale 0 sin haberlos corrido.
@@ -380,7 +383,7 @@ imprimir; lo que dejó abierto está abajo.
   antes; para ir de uno en uno, `-n 0`. **El vigilante de gasto del
   banco para todos los contenedores `suite`**: una suite lanzada con el
   banco en marcha muere si el banco llega a su tope. Los 14 tests del
-  host (`gui or llm`) siguen tardando 12 min: sin hacer.
+  host (`gui or llm`), con `-n 7`: de 12 min 8 s a 3 min 31 s.
 - **Pedido por él el 2026-11-14, «es importante»: administrar la web
   pieza a pieza**: girar cada pieza y escribirle («agrega una
   rendija que permita el flujo de aire»). Hecho en la página de un

@@ -267,3 +267,16 @@ def test_al_disenador_y_al_ingeniero_se_les_dice_al_inicio_como_se_mide():
     ingeniero = Path("config/agents/ingeniero.md").read_text(encoding="utf-8")
     orientacion = next(l for l in ingeniero.splitlines() if l.startswith("3. "))
     assert "qué cara va a la cama" in orientacion and "sin soportes" in orientacion
+
+
+def test_el_ingeniero_sabe_que_un_alero_aguanta_la_mitad_que_un_puente():
+    """El brazo de tubos (banco 1115-0432): la base gastó sus cinco intentos,
+    0,42 USD, en un concepto que no se podía cumplir. El ingeniero propuso
+    sujetar el motor bajo cuatro orejas y escribió «cada oreja vuela menos
+    de 8 mm, por debajo del puente máximo de 10 mm». Un puente apoya en sus
+    dos lados; una oreja sale de una pared y cuelga, y de eso la impresora
+    hace la mitad: 5 mm. Al diseñador se le dice (regla 7) y a la pieza se le
+    mide así; al ingeniero solo se le hablaba del puente."""
+    ingeniero = Path("config/agents/ingeniero.md").read_text(encoding="utf-8")
+    orientacion = next(l for l in ingeniero.splitlines() if l.startswith("3. "))
+    assert "`bridge_max_mm` / 2" in orientacion and "alero" in orientacion
