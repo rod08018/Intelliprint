@@ -414,6 +414,33 @@ imprimir; lo que dejó abierto está abajo.
   lo que construye el kit, no lo que mide el banco.** El vigilante se
   puso en 2,75 y la corrida llegó a 3,07: solo mira entre pieza y
   pieza, y la penúltima acabó en 2,745. Mano y brida, sin empezar.
+- **Reanudada otra vez con su «reanud» y 3 USD de tope nuevo, el brazo
+  de tubos pasa 16 de 18** (2026-11-15, `banco_reanudado-2.md`; 1,84
+  USD más: 4,91 la corrida `1115-0523`; **quedan 1,16 de esos 3, y
+  cada reanudación se acuerda**). Todo lo dibujó el modelo; nada a
+  mano. Por primera vez salen las siete piezas y el brazo se monta:
+  llega a 636,6 mm, levanta 2 123 g y se mueve sin chocar en lo
+  probado (729 poses de 47 millones con los seis giros, cada 90°).
+  **Lo que el 16 de 18 no dice:** cuatro de las siete piezas no pasan
+  su propio bucle (plataforma, los dos antebrazos y la mano); solo lo
+  pasan la base, el brazo superior y la brida. Fallan «sin soportes»
+  (plataforma: las alas de un nervio más ancho que la columna empiezan
+  en el aire; antebrazo proximal: un tabique plano de 43 × 43 mm
+  dentro del tubo; mano: una cara de 1568 mm²) y el encaje del
+  antebrazo distal. El arreglo del túnel funcionó (el distal se
+  construye), y lo que falla ahora es del modelo: el distal entregado
+  declara que el proximal le entra «por +z» teniéndolo debajo, lo
+  corrigió al tercer intento y perdió los tres últimos taladrando un
+  agujero de la reductora que cae fuera de su pared. **Avisos del
+  sistema que no le sirvieron, sin arreglar:** el de soportes habla
+  de «una cara inclinada de 4 mm²» y no del borde que empieza en el
+  aire; «no toca la pieza» dice «revisa `en` y `eje`»; a una pieza
+  que lleva su propio NEMA 17 se le dice «no coloques otro nema17»
+  porque la de abajo monta uno; y a la mano se le avisó una vez de
+  que la base, 70 cm más abajo, estorba al giro de la brida (sin
+  mirar: puede ser de `conjunto.radio_libre`). No sigue pareciendo
+  un Arctos: tubos en el brazo superior y los antebrazos, pero la
+  plataforma es un nervio con placa y la mano una caja.
 - **Pedido por él el 2026-11-14: que las pruebas tarden menos** («dura
   demasiado tiempo actualmente»). Hecho para la suite: corre en doce
   procesos (`pytest-xdist`, en la imagen) y baja de 7 min 42 s a
