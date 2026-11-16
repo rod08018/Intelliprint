@@ -532,6 +532,22 @@ imprimir; lo que dejó abierto está abajo.
   TerraHawk, no 8 libras (entendido como la del comercial de 2 m,
   hasta 1 kg; sin confirmar). Queda por decidir
   si el laminado entra en el diseño y si Gazebo queda fuera.
+- **Dicho por él el 2026-11-16: «hagamos lo mismo con el avión, tú
+  diseña y usa lo que habías dicho, quiero que se haga rápido».**
+  Hecho A MANO por el asistente, sin modelo: las cuentas con
+  AeroSandbox (`scripts/avion_vtol_dimensionar.py`, instalado solo en
+  el `.venv` del PC; OpenVSP no se usó) y las 41 piezas con el kit
+  (`scripts/avion_vtol_a_mano.py`). VTOL de 2,6 m, cuatro rotores en
+  dos vigas de carbono, hélice de empuje, cola en H con timones y
+  alerones. Según AeroSandbox y las estimaciones del asistente: 8,7 kg
+  al despegar con 1 kg de carga, batería 6S10P de 21700 (972 Wh),
+  3,2 h y 232 km a 72 km/h. **Pesa el doble que el TerraHawk de 2 m
+  (4 kg)**: con 1 kg de carga, 3 h piden casi 1 kWh de batería.
+  Caben las 41 en la cama y 40 se imprimen sin soportes (el cuerpo
+  central 3 pide en dos puntos de 38 mm², sin arreglar). Está en la
+  web como `2026-11-16-vtol-a-mano-sin-modelo`. **Que vuele no lo
+  dice nada**; el banco no tiene encargo de avión y el modelo no sabe
+  dibujarlo (F13.2 y F13.3 siguen sin hacer).
 
 **2026-11-11 (noche): Fase 10, brazos con transmisión (ADR-021).** Decidido
 por él: **el brazo antes que el avión**; empezar por uno pequeño con servos;

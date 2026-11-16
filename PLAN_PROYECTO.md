@@ -575,6 +575,8 @@ Además el plan reservó 150 mm de radio libre para un brazo que mide 150 del ej
 
 **Qué avión, dicho por él la noche del 2026-11-13 al 14:** un **VTOL**, «similar a este pero mejorado»: el TerraHawk de Nomadium (ala integrada, cuatro rotores de sustentación bajo el ala y hélice de empuje). **Envergadura de 2 m o más, la misma carga que el TerraHawk** (primero pidió 8 libras y lo bajó: «que sea igual»; entendido como la del comercial de 2 m, hasta 1 kg, sin confirmar), **unas 3 horas y 200–250 km**, y que lleve dos cámaras y un lidar sin perder aerodinámica. Las cifras del TerraHawk salen de una captura suya, sin contrastar. Las filas de abajo son de un ala fija pequeña y dicen «ni VTOL en la primera vuelta»: **hay que rehacerlas con él** antes de empezar la fase.
 
+**Hecho a mano por el asistente, sin modelo (2026-11-16)**, con su «tú diseña y usa lo que habías dicho, quiero que se haga rápido»: el VTOL dimensionado con AeroSandbox (`scripts/avion_vtol_dimensionar.py`) y dibujado con el kit en 41 piezas (`scripts/avion_vtol_a_mano.py`). 2,6 m, 8,7 kg con 1 kg de carga, 3,2 h y 232 km a 72 km/h según AeroSandbox y masas estimadas por el asistente. Caben todas; 40 de 41 sin soportes. No es ninguna fila de abajo: AeroSandbox no está en el contenedor (F13.1), el plan no sabe de aviones (F13.2) y la forma no está en el kit para el modelo (F13.3).
+
 | ID | Tarea | Criterio de aceptación |
 |----|-------|------------------------|
 | F13.1 | **Las herramientas** (aero): OpenVSP y AeroSandbox instalados donde corre el sistema. No está comprobado que se instalen en el contenedor | Un ala rectangular da la pendiente de sustentación de la teoría de la línea sustentadora, a mano |
