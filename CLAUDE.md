@@ -468,10 +468,27 @@ imprimir; lo que dejó abierto está abajo.
   brazo de pie. Solo puede quitar un «no cumple» falso. **Sin
   arreglar, de las medidas:** la cama solo se prueba en posturas
   rectas (el brazo superior, de 284 mm, cabe en diagonal) y el sitio
-  de un giro cuenta posturas con la muñeca bajo la mesa. **Falta
-  para que sea del sistema:** las formas en el kit como generadores,
-  contárselas al modelo, las tapas, y correrlo con el modelo (gasto
-  por acordar; del tope de 3 USD quedan 1,16).
+  de un giro cuenta posturas con la muñeca bajo la mesa.
+- **Hechas: las siete formas del brazo en el kit** (2026-11-15,
+  F12.6 (forma), `mech_toolkit/brazo.py`): `kit.brazo_base`,
+  `brazo_columna`, `brazo_tramo`, `brazo_antebrazo`, `brazo_muneca`,
+  `brazo_mano` y `brazo_brida`. Cada una coloca lo comprado, hace sus
+  huecos y tornillos y devuelve la pieza acabada; el programa de una
+  pieza es una línea (`return kit.brazo_tramo(abajo, 190,
+  "nema23-pg47-56")`). Con esas siete líneas, escritas por el
+  asistente y sin modelo, el brazo pasa **18 de 18** en el banco.
+  Es una familia (giros tumbados a lo largo de «y», reposo hacia
+  arriba), no un diseñador. **Falta para que sea del sistema:**
+  contárselas al modelo en los prompts (tests de pago), arreglar las
+  dos medidas de arriba, que le harían gastar intentos, las tapas, y
+  correrlo con el modelo (gasto por acordar; del tope de 3 USD
+  quedan 1,16). **Preguntó por qué el asistente lo hace más rápido
+  que Intelliprint y por qué Intelliprint no sabía hacerlo:** se le
+  dijo que el asistente es un modelo más capaz que DeepSeek y ve el
+  brazo entero, que se le guio por la nota del banco sin mirar la
+  forma, y que hay dos caminos: formas en el código familia por
+  familia, o un modelo más capaz diseñando (más caro). **Sin
+  decidir.** Del avión dijo que «seguro va a ser un super fail».
 - **Pedido por él el 2026-11-14: que las pruebas tarden menos** («dura
   demasiado tiempo actualmente»). Hecho para la suite: corre en doce
   procesos (`pytest-xdist`, en la imagen) y baja de 7 min 42 s a

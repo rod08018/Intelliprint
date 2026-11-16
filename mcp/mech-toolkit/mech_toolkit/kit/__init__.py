@@ -1505,6 +1505,80 @@ class Kit:
                         exterior_mm=2 * radio, correa_mm=float(correa))
         return Cuerpo(_valido(_un_solido(limpia(forma)), "polea_gt2"), self)
 
+    # --- las piezas de un brazo (F12.6 (forma)) --------------------------------------
+    #
+    # La forma de un brazo no la inventa el programa (ADR-023): el brazo que
+    # dibujó el modelo pieza a pieza (banco 1115-0523) funcionaba y al
+    # usuario le pareció chatarra, «cilindros conectados con placas». Cada
+    # una de estas coloca lo comprado, le hace su hueco y sus tornillos y
+    # devuelve la pieza ACABADA, pensada para imprimirse sin soportes.
+
+    def brazo_base(self, distancia, rodamiento="6810-2rs", motor="nema23", alto=78.0,
+                   tablero="M4") -> Cuerpo:
+        """LA BASE DE UN BRAZO, entera: un pedestal hueco con el rodamiento
+        del primer giro en x = 0, y = 0 y, bajo una joroba, el motor que lo
+        mueve por correa, a `distancia` de ese eje (la que te da el plan).
+        Coloca los dos, les hace el hueco y los tornillos, y los cuatro del
+        `tablero`. Devuelve la pieza acabada: `return kit.brazo_base(81.0)`.
+        No coloques tú el rodamiento ni el motor."""
+        from mech_toolkit import brazo
+        return brazo.base(self, distancia, rodamiento, motor, alto, tablero)
+
+    def brazo_columna(self, abajo, hombro, altura=185.0, dientes=100) -> Cuerpo:
+        """LA COLUMNA GIRATORIA DE UN BRAZO, entera: el eje que entra en el
+        rodamiento de la base, la polea de `dientes`, y una columna que sube
+        hasta el tambor del hombro, con el motor-reductora `hombro` dentro y
+        su eje saliendo hacia +y a `altura` de la mesa. `abajo` es la base ya
+        colocada: `base = kit.componente("obra-base", en=(0, 0, 0),
+        entra_por="-z")`. Devuelve la pieza acabada, con la polea."""
+        from mech_toolkit import brazo
+        return brazo.columna(self, abajo, hombro, altura, dientes)
+
+    def brazo_tramo(self, abajo, largo, codo, grosor=50.0) -> Cuerpo:
+        """EL TRAMO DE UN BRAZO ENTRE DOS EJES PARALELOS (del hombro al
+        codo), entero: dos tambores unidos por sus tangentes. Se monta en el
+        eje que sale de `abajo` (la columna ya colocada) y lleva, a `largo`
+        de él hacia arriba, el motor-reductora `codo` con su eje saliendo
+        hacia -y. Devuelve la pieza acabada."""
+        from mech_toolkit import brazo
+        return brazo.tramo(self, abajo, largo, codo, grosor)
+
+    def brazo_antebrazo(self, abajo, largo, motor="nema17",
+                        reductora="cicloidal-nema17-28") -> Cuerpo:
+        """EL ANTEBRAZO DE UN BRAZO, entero: una cáscara que sale del eje del
+        codo (el de `abajo`, el tramo ya colocado) y se afina hasta el giro
+        que tiene a lo largo, con su `motor` dentro y su `reductora` encima;
+        el plato de esa reductora queda a `largo` del codo. Devuelve la pieza
+        acabada."""
+        from mech_toolkit import brazo
+        return brazo.antebrazo(self, abajo, largo, motor, reductora)
+
+    def brazo_muneca(self, abajo, largo, motor="nema17",
+                     reductora="cicloidal-nema17-28") -> Cuerpo:
+        """LA MUÑECA DE UN BRAZO, entera: se atornilla al plato que gira a lo
+        largo del antebrazo (el de `abajo`) y lleva, a `largo` de él, el
+        cabeceo: su `motor` dentro y su `reductora` con el plato hacia +y.
+        Devuelve la pieza acabada."""
+        from mech_toolkit import brazo
+        return brazo.muneca(self, abajo, largo, motor, reductora)
+
+    def brazo_mano(self, abajo, largo, motor="nema17", reductora="cicloidal-nema17-10",
+                   brida=14.0) -> Cuerpo:
+        """LA MANO DE UN BRAZO, entera: se atornilla al plato del cabeceo (el
+        de `abajo`, la muñeca) y lleva arriba el último giro, con su `motor`
+        dentro y su `reductora` encima. `largo` es del eje del cabeceo a la
+        cara de la brida donde va la herramienta, contando el grosor de la
+        `brida`. Devuelve la pieza acabada."""
+        from mech_toolkit import brazo
+        return brazo.mano(self, abajo, largo, motor, reductora, brida)
+
+    def brazo_brida(self, abajo, grosor=14.0, diametro=63.0, herramienta="M3") -> Cuerpo:
+        """LA BRIDA DE UN BRAZO, entera: el disco que se atornilla al plato
+        del último giro (el de `abajo`, la mano), con cuatro agujeros para la
+        `herramienta`. Devuelve la pieza acabada."""
+        from mech_toolkit import brazo
+        return brazo.brida(self, abajo, grosor, diametro, herramienta)
+
 
 # --- la API que puede usar el programa -------------------------------------------------
 
