@@ -1124,11 +1124,24 @@ def no_cabe_en_la_impresora(caja_mm, cama_mm) -> list[str]:
     """Si la caja de la pieza no entra en la impresora en ninguna postura
     derecha (`cama_mm`: ancho y fondo de la cama, y alto). La torreta del
     brazo mediano (banco 1113-1330) salió de 126 × 90 × 430 mm para una
-    impresora de 250 de alto y se dio por buena: nadie lo medía. En diagonal
-    sobre la cama no se prueba."""
+    impresora de 250 de alto y se dio por buena: nadie lo medía.
+
+    La huella se prueba también girada sobre la cama: un tramo de ala con
+    flecha (296 × 33 de huella) solo entra en diagonal, y en postura recta
+    tendría que ser de menos de 60 mm (VTOL, 2026-11-16). Girar la caja de la
+    pieza es conservador: la pieza cabe dentro de su caja."""
     from itertools import permutations
-    if any(all(lado <= hay + 0.05 for lado, hay in zip(p, cama_mm))
-           for p in permutations(caja_mm)):
+    ancho, fondo, alto = cama_mm
+
+    def huella_cabe(a, b):
+        for k in range(361):
+            t = math.radians(k / 4)
+            if (a * math.cos(t) + b * math.sin(t) <= ancho + 0.05
+                    and a * math.sin(t) + b * math.cos(t) <= fondo + 0.05):
+                return True
+        return False
+
+    if any(c <= alto + 0.05 and huella_cabe(a, b) for a, b, c in permutations(caja_mm)):
         return []
     mide = " × ".join(f"{round(v, 1):g}" for v in caja_mm)
     x, y, z = cama_mm

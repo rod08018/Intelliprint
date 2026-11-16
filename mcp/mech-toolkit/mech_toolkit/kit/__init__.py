@@ -1579,6 +1579,26 @@ class Kit:
         from mech_toolkit import brazo
         return brazo.brida(self, abajo, grosor, diametro, herramienta)
 
+    # Lo mismo para un avión (ADR-023): el VTOL dibujado pieza a pieza salió
+    # pesado y anticuado (2026-11-16, «quiero que lo nuestro sea ligero»); la
+    # forma de un ala volante la pone el código y el diseño son sus cifras.
+
+    def avion_piezas(self, diseno) -> list:
+        """LAS PIEZAS DE UN VTOL DE ALA VOLANTE: [(id, nombre, qué hace)] de
+        todas las que se imprimen con el `diseno` (secciones del ala,
+        fuselaje, largueros, rotores; lo da el dimensionado del avión)."""
+        from mech_toolkit import avion
+        return avion.piezas(diseno)
+
+    def avion_pieza(self, diseno, pieza) -> Cuerpo:
+        """UNA PIEZA DE UN VTOL DE ALA VOLANTE, acabada y en su sitio: un
+        tramo del ala con sus largueros, un elevón, una celda del cuerpo
+        central, una góndola de motor, el pilón, la pata o la deriva. `pieza`
+        es un id de `avion_piezas`: `return kit.avion_pieza(diseno,
+        "ala-d-1")`. Cabe en la cama y se imprime sin soportes."""
+        from mech_toolkit import avion
+        return avion.pieza(self, diseno, pieza)
+
 
 # --- la API que puede usar el programa -------------------------------------------------
 

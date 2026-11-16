@@ -343,9 +343,26 @@ def test_lo_que_cabe_en_alguna_postura_cabe(caja):
 
 
 def test_dos_lados_que_solo_caben_de_pie_no_caben_a_la_vez():
-    """240 × 240 × 20: de pie solo cabe uno de los dos lados de 240."""
+    """240 × 240 × 240: de pie cabe uno de los lados de 240, y la huella de
+    240 × 240 no entra en la cama de 235 ni girada. (Era 240 × 240 × 20, que
+    sí cabe: de pie, con la huella de 240 × 20 en diagonal.)"""
     from orchestrator.medida import no_cabe_en_la_impresora
-    assert len(no_cabe_en_la_impresora([240.0, 240.0, 20.0], CAMA)) == 1
+    assert len(no_cabe_en_la_impresora([240.0, 240.0, 240.0], CAMA)) == 1
+
+
+def test_lo_que_solo_cabe_en_diagonal_sobre_la_cama_cabe():
+    """Un tramo de ala con flecha, de pie sobre su raíz: 200 de alto y una
+    huella de 296 × 33, que en diagonal ocupa (296 + 33) / √2 = 232,6 de los
+    235. En postura recta no hay forma: el tramo tendría que ser de menos de
+    60 mm (VTOL a mano, 2026-11-16)."""
+    from orchestrator.medida import no_cabe_en_la_impresora
+    assert no_cabe_en_la_impresora([296.0, 33.0, 200.0], CAMA) == []
+
+
+def test_lo_que_tampoco_cabe_en_diagonal_no_cabe():
+    """300 × 40: en diagonal pide (300 + 40) / √2 = 240,4 y en recta 300."""
+    from orchestrator.medida import no_cabe_en_la_impresora
+    assert len(no_cabe_en_la_impresora([300.0, 40.0, 200.0], CAMA)) == 1
 
 
 # --- lo que el plan pide no puede ser un defecto -----------------------------------------

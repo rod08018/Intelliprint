@@ -467,8 +467,9 @@ imprimir; lo que dejó abierto está abajo.
   centro del anillo, donde está el eje); así fallaba el encaje del
   brazo de pie. Solo puede quitar un «no cumple» falso. **Sin
   arreglar, de las medidas:** la cama solo se prueba en posturas
-  rectas (el brazo superior, de 284 mm, cabe en diagonal) y el sitio
-  de un giro cuenta posturas con la muñeca bajo la mesa.
+  rectas (el brazo superior, de 284 mm, cabe en diagonal; **arreglado
+  el 2026-11-16** con el avión) y el sitio de un giro cuenta posturas
+  con la muñeca bajo la mesa.
 - **Hechas: las siete formas del brazo en el kit** (2026-11-15,
   F12.6 (forma), `mech_toolkit/brazo.py`): `kit.brazo_base`,
   `brazo_columna`, `brazo_tramo`, `brazo_antebrazo`, `brazo_muneca`,
@@ -548,6 +549,32 @@ imprimir; lo que dejó abierto está abajo.
   web como `2026-11-16-vtol-a-mano-sin-modelo`. **Que vuele no lo
   dice nada**; el banco no tiene encargo de avión y el modelo no sabe
   dibujarlo (F13.2 y F13.3 siguen sin hacer).
+- **Dicho por él al verlo, el 2026-11-16:** «5 motores brushless eso
+  es caro en batería», «el espacio entre los 3 rotores de atrás parece
+  que se traslapa», «¿qué tamaño de hélices?», «mete las formas en
+  Intelliprint» y «quiero que lo nuestro sea ligero», «más parecido a
+  un avión moderno eficiente» (el Moose de Flightory y el TerraHawk).
+  **Rehecho A MANO por el asistente, sin modelo:** un ala volante de
+  2,27 m (flecha de 25°, puntas levantadas, fuselaje fundido, sin
+  cola), 6,03 kg con 1 kg de carga, 6S6P de 583 Wh, 3,14 h y 226 km
+  según AeroSandbox. Los cuatro rotores cuestan 0,8 kg, 60 W de los
+  142 del crucero y 49 Wh; hélices de 13″ y de empuje de 10″, con
+  88 mm entre los discos de atrás (eran 25). Las derivas bajo las
+  vigas lo hacen estable en guiñada y son el tren: se alargaron para
+  que la hélice de empuje no toque el suelo (le quedan 30 mm). **La
+  forma está en el kit** (`kit.avion_pieza`, `mech_toolkit/avion.py`,
+  F13.3 (costillas)): 39 piezas de una línea, en la web como
+  `2026-11-16-ala-volante-a-mano-sin-modelo`; caben y ninguna pide
+  soportes. Por el camino: los agujeros de los largueros no tenían
+  tejado (en la primera, ninguno: por eso pedía soportes su cuerpo
+  central 3; en esta, un rombo que se quedaba dentro del círculo), y
+  ahora son una gota.
+  **Una medida del banco cambiada que hay que contarle:** la cama se
+  prueba también girando la pieza sobre ella (`medida.
+  no_cabe_en_la_impresora`); un tramo de ala con flecha solo cabe en
+  diagonal. Solo puede quitar un «no cumple» falso. Pesa 1,5 veces el
+  TerraHawk de 2 m (4 kg), por las 3 h con 1 kg de carga. **Que vuele
+  no lo dice nada**, y el modelo no ha usado las formas.
 
 **2026-11-11 (noche): Fase 10, brazos con transmisión (ADR-021).** Decidido
 por él: **el brazo antes que el avión**; empezar por uno pequeño con servos;
