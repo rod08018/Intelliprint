@@ -414,14 +414,24 @@ def _choca(forma, s) -> float:
     (2026-11-04) `common` devolvió nada para una caja que atravesaba la base
     maciza. Si un punto de dentro del sólido cae dentro de la pieza, choca."""
     v = forma.common(s).Volume
-    if v <= TOL_CHOQUE_MM3 and forma.isInside(_punto_dentro(s), 1e-6, False):
-        return s.Volume
-    return v
+    if v > TOL_CHOQUE_MM3:
+        return v
+    p = _punto_dentro(s)
+    return s.Volume if p is not None and forma.isInside(p, 1e-6, False) else v
 
 
 def _punto_dentro(s):
-    """Un punto que es del sólido. El centro de masas no vale para un anillo
-    (el 608): cae en el agujero, justo donde va el eje, y el eje «chocaba»."""
+    """Un punto que es del sólido, o None si no se encuentra. El centro de
+    masas no vale para un anillo (el 608): cae en el agujero, justo donde va
+    el eje, y el eje «chocaba».
+
+    Tampoco valía buscarlo solo en una rejilla de diez pasos y, si no salía,
+    volver al centro: las caras de los aros del 6810 miden de 2 a 3 mm de
+    ancho en 65 de diámetro, la rejilla (un punto cada 6,5 mm) no cae en
+    ninguna, y en el centro está el eje. La columna del brazo industrial
+    hecho a mano (2026-11-15) «apoyaba en los dos aros» sin tocar ninguno.
+    Ahora se busca además justo debajo de cada cara, y sin punto no se
+    afirma nada: manda el booleano."""
     s = s.Solids[0] if s.ShapeType == "Compound" and len(s.Solids) == 1 else s
     c = s.CenterOfMass
     if s.isInside(c, 1e-6, False):
@@ -435,7 +445,18 @@ def _punto_dentro(s):
                                    b.ZMin + b.ZLength * k / 10)
                 if s.isInside(p, 1e-6, False):
                     return p
-    return c
+    for cara in s.Faces:
+        u0, u1, v0, v1 = cara.ParameterRange
+        try:
+            p, n = cara.valueAt((u0 + u1) / 2, (v0 + v1) / 2), cara.normalAt((u0 + u1) / 2,
+                                                                             (v0 + v1) / 2)
+        except Exception:  # noqa: BLE001 — una cara sin normal en ese punto: se prueba otra
+            continue
+        for hondo in (0.01, 0.05, 0.2):
+            for q in (p - n * hondo, p + n * hondo):
+                if s.isInside(q, 1e-6, False):
+                    return q
+    return None
 
 
 def componente_cabe(forma, ficha, en, giros=()):

@@ -786,3 +786,27 @@ Y lo que sí faltaba de tornillería:
 - **Superficies de forma libre retocadas a mano, texturas y acabados.**
 - **La rigidez de una cáscara** y, hasta F12.3 (flecha), la de un tramo.
 - **Que algo impreso funcione**: ni que la reductora engrane, ni que el brazo aguante, ni que el avión vuele.
+
+---
+
+## ADR-023 · La forma de un brazo la pone el código; el modelo pone las medidas y los motores
+
+**Estado:** aceptada en lo que toca a la forma (2026-11-15); lo demás, en curso · **Afecta a:** Fase 12, ADR-021, ADR-022
+
+**Problema.** El brazo de seis ejes del encargo 18, dibujado entero por el modelo, pasó 16 de 18 en el banco (corrida `1115-0523`) y al usuario le pareció inservible: «Horrible el brazo inusable… solo pusiste cilindros conectados con placas igual. Debe ser un brazo robótico, no algo que pareciera que armé a puras piezas reusadas de la basura o chatarra». Ya lo había dicho del brazo hecho a mano («un brazo a base de paletas y tornillos») y pedirle «tubos» al modelo en el encargo y en los prompts dio tubos con placas. El banco mide que funcione, no la forma; y el sistema diseña pieza a pieza, así que el modelo resuelve cada una con lo más simple que sujeta un motor.
+
+**Decisión.** Tomada por el asistente y enseñada antes en un boceto, que el usuario aprobó el 2026-11-15 («Si asi lo quiero»): un tambor en cada articulación, tramos que van de tambor a tambor como una sola carcasa, y los motores tapados.
+
+1. **La forma de un brazo no la inventa el modelo.** Es la regla de los dientes (ADR-021) y de las curvas (ADR-022) llevada a la pieza entera: lo que tiene una forma conocida lo genera el código, y el modelo decide lo que no la tiene (cuánto mide cada tramo, qué motor y qué reductora lleva cada giro, dónde va cada cosa).
+2. **Cada pieza se piensa para imprimirse sin soportes desde el principio**, y eso también va en el código, porque es donde el modelo falló una y otra vez: una pieza hueca es un vaso (una cara cerrada en la cama y las paredes subiendo), un agujero tumbado lleva tejado a 45°, lo que sale de una pared lleva rampa, y bajo una polea va un cono.
+3. **Decir siempre quién puso qué.** La forma la pone el asistente en el código una vez; que un brazo salga con ella no dice que el modelo sepa diseñar. Lo que mide al sistema sigue siendo el banco, con el modelo, y cada gasto se acuerda antes.
+
+**Alternativas descartadas.**
+- **Pedírselo mejor al modelo.** Hecho el 2026-11-14 (encargo y prompts del ingeniero y del diseñador): tubos con placas.
+- **Un juez de la forma.** No hay medida para «parece un brazo»; el juez de imágenes ya se midió y no separa (ADR-022).
+- **Seguir reanudando.** Sube la nota del banco y no cambia lo que él ve.
+
+**Lo que no cubre.**
+- **Que sirva para otra cosa que un brazo en serie.** Es una familia de formas, no un diseñador general.
+- **Que el brazo impreso funcione**: holguras, rigidez de las cáscaras y juego de las reductoras siguen sin medir.
+- **El aspecto fino**: tapas de los motores, cables y acabados van después.

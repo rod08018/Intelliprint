@@ -441,6 +441,37 @@ imprimir; lo que dejó abierto está abajo.
   mirar: puede ser de `conjunto.radio_libre`). No sigue pareciendo
   un Arctos: tubos en el brazo superior y los antebrazos, pero la
   plataforma es un nervio con placa y la mano una caja.
+- **Dicho por él el 2026-11-15, al ver ese 16 de 18:** «Horrible el
+  brazo inusable… solo pusiste cilindros conectados con placas igual.
+  Debe ser un brazo robótico, no algo que pareciera que armé a puras
+  piezas reusadas de la basura o chatarra». **La nota del banco no
+  basta: antes de contarle un resultado, mirar la foto.** Se le
+  enseñó un boceto (un tambor en cada articulación, tramos de tambor
+  a tambor, motores tapados) y lo aprobó: «Si asi lo quiero».
+  **Decidido (ADR-023): la forma de un brazo la pone el código y el
+  modelo pone medidas y motores.** Y preguntó «¿lo hiciste tú o
+  Intelliprint?»: **hay que decirlo sin que lo pregunte.**
+- **Hecho A MANO por el asistente con el kit, sin modelo: el brazo
+  con esa forma pasa 18 de 18** (2026-11-15,
+  `scripts/brazo_industrial_a_mano.py`; fila F12.6). Las siete piezas
+  llevan sus motores, el rodamiento, la polea y los tornillos, y se
+  imprimen sin soportes; llega a 609,5 mm y levanta 2 703 g. **No es
+  nota del sistema**: el asistente escribió los siete programas y el
+  sistema los construyó, midió y juzgó; el modelo no dibujó nada.
+  No es todavía el boceto: los motores del hombro y del codo van a
+  la vista (faltan tapas) y la muñeca son dos bandejas rectas,
+  abiertas por un lado y a 104 mm del eje del antebrazo. **Una
+  medida del banco corregida que hay que contarle:** un eje macizo
+  dentro de un rodamiento grande (6810) se daba por «apoyado en los
+  dos aros» sin tocar ninguno (`sondas._punto_dentro` probaba con el
+  centro del anillo, donde está el eje); así fallaba el encaje del
+  brazo de pie. Solo puede quitar un «no cumple» falso. **Sin
+  arreglar, de las medidas:** la cama solo se prueba en posturas
+  rectas (el brazo superior, de 284 mm, cabe en diagonal) y el sitio
+  de un giro cuenta posturas con la muñeca bajo la mesa. **Falta
+  para que sea del sistema:** las formas en el kit como generadores,
+  contárselas al modelo, las tapas, y correrlo con el modelo (gasto
+  por acordar; del tope de 3 USD quedan 1,16).
 - **Pedido por él el 2026-11-14: que las pruebas tarden menos** («dura
   demasiado tiempo actualmente»). Hecho para la suite: corre en doce
   procesos (`pytest-xdist`, en la imagen) y baja de 7 min 42 s a

@@ -426,6 +426,22 @@ def test_un_eje_mas_gordo_que_el_agujero_del_rodamiento_si_choca(tmp_path):
     assert cabe.estado == "no_cumple" and "rodamiento" in cabe.detalle
 
 
+def test_un_eje_macizo_en_un_rodamiento_grande_no_toca_sus_aros(tmp_path):
+    """El 6810 (50 × 65 × 7) tiene las caras de sus aros de 2 a 3 mm de ancho
+    en 65 de diámetro. Un eje de Ø49.8 pasa por su agujero de 50 sin tocar
+    nada: su radio, 24.9, no llega al del agujero, 25, y todas esas caras
+    empiezan en 25. Se daba por «apoyado en los dos aros»: al buscar un punto
+    de cada cara para ver si caía dentro de la pieza no se encontraba
+    ninguno, se probaba con el centro del anillo, y en el centro está el eje.
+    Así falló el encaje del brazo industrial hecho a mano (2026-11-15), y
+    antes el del brazo de pie."""
+    from orchestrator.componentes import cargar
+    [cabe] = _medir("def construir(kit):\n    return kit.cilindro(49.8, 20, en=(0, 0, -5))\n",
+                    [ComponenteCabe(tipo="componente_cabe", ficha=cargar("6810-2rs").model_dump(),
+                                    en=[0, 0, 0])], tmp_path)
+    assert cabe.estado == "cumple", cabe.detalle
+
+
 SENSOR_EN_SU_HUECO = """
 def construir(kit):
     sensor = kit.componente("hc-sr04", en=(0, 0, 3), entra_por="+y")
