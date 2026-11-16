@@ -1599,6 +1599,14 @@ class Kit:
         from mech_toolkit import avion
         return avion.pieza(self, diseno, pieza)
 
+    def avion_dentro(self, diseno, que) -> Cuerpo:
+        """LO QUE VA DENTRO DE UN VTOL DE ALA VOLANTE, en su sitio, para verlo
+        o comprobar que cabe: la caja de la batería, la carga, la electrónica
+        o un servo (ids de `diseno["dentro"]`), el canal de los cables
+        (`canal-d`) o la varilla de un elevón (`varilla-d`). No se imprime."""
+        from mech_toolkit import avion
+        return avion.dentro(self, diseno, que)
+
 
 # --- la API que puede usar el programa -------------------------------------------------
 

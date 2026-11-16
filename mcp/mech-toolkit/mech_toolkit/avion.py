@@ -55,6 +55,15 @@ SOLAPE_LARGUEROS = 20.0
 justo en y = 0, cara contra cara, la resta de FreeCAD dejaba el cuerpo central
 en tres trozos (prueba a mano del 2026-11-16)."""
 MEDIO_LARGO_GONDOLA = 40.0
+VARILLA_ELEVON = 2.0
+"""La varilla de carbono que une los trozos de un elevón: con Ø3 no le
+quedaba pared en la punta, donde el elevón tiene 5 mm de grueso."""
+CANAL_CABLES = 6.0
+"""El canal de los cables de los servos, de la raíz al servo exterior."""
+SALIDA_SERVO = 1.2
+"""Cuánto más largo es el hueco del servo por cada mm de hondo, en cada
+punta: el ala se imprime de pie y el fondo del hueco sería un techo; así es
+una rampa a 50° de la horizontal."""
 LARGO_PIE = 150.0
 """El de la deriva y el de la pata, a lo largo de la viga."""
 
@@ -159,12 +168,46 @@ def _con_elevon(d, y0, y1, i):
     return not _levantado(d, i) and (y0 + y1) / 2 >= d["elevon"][0]
 
 
+def _elevon_de(d, k):
+    """(nombre, tramos) del elevón que lleva el tramo `k`. Desde el 2026-11-16
+    hay dos por lado, cada uno con su servo (él: «debe tener alerones,
+    implica que debe tener 4 servos»): `elevones` dice qué tramos forman
+    cada uno. Sin esa clave, un elevón por tramo, como antes."""
+    grupos = d.get("elevones")
+    if not grupos:
+        return str(k), [k]
+    nombres = ["interior", "exterior"] if len(grupos) == 2 else [str(j + 1) for j in range(len(grupos))]
+    for nombre, tramos in zip(nombres, grupos):
+        if k in tramos:
+            return nombre, list(tramos)
+    raise _error(f"el tramo {k} lleva elevón y no está en ningún grupo de `elevones` {grupos}")
+
+
+def _servos(d):
+    """Los servos del lado derecho: [{y, elevon, en, caja}] de `dentro`."""
+    return [{"y": c["en"][1], "elevon": c["id"].split("-")[2], "en": c["en"], "caja": c["caja"]}
+            for c in d.get("dentro", []) if c["id"].startswith("servo-d-")]
+
+
+def equilibrio(d, sin=()) -> dict:
+    """El centro de gravedad (mm) con lo que hay en `dentro`, quitando los ids
+    de `sin`, y su margen estático: lo que queda por delante del punto neutro,
+    en cuerdas medias. Un ala volante no tiene cola que la corrija: pasado el
+    punto neutro (margen negativo) es inestable."""
+    quedan = [c for c in d["dentro"] if c["id"] not in sin]
+    masa = sum(c["masa_kg"] for c in quedan)
+    cg = [sum(c["masa_kg"] * c["en"][k] for c in quedan) / masa for k in range(3)]
+    eq = d["equilibrio"]
+    return {"masa_kg": masa, "cg": cg,
+            "margen": (eq["punto_neutro_x"] - cg[0]) / eq["cuerda_media"]}
+
+
 def _celdas(d):
     """{id: (x0, x1, y0, y1)} de las celdas del cuerpo central (lado derecho y
     centro; las de la izquierda son su reflejo)."""
     fus = d["fuselaje"]
     est = _estaciones(d)
-    y_medio = max(w for _, w, _ in fus) / 2 + 20
+    y_medio = max(f[1] for f in fus) / 2 + 20
     x0, x1 = fus[0][0], fus[-1][0]
     n = math.ceil((x1 - x0) / CELDA_FUSELAJE - 1e-9)
     celdas = {f"centro-{k + 1}": (x0 + (x1 - x0) * k / n, x0 + (x1 - x0) * (k + 1) / n,
@@ -207,11 +250,19 @@ def piezas(d) -> list[tuple[str, str, str]]:
             if _levantado(d, i):
                 lista.append((f"ala-{lado}-{k}", f"Punta {el}", "la punta levantada del ala"))
                 continue
+            servo = [s for s in _servos(d) if y0 < s["y"] < y1]
             lista.append((f"ala-{lado}-{k}", f"Ala {ala}, tramo {k}",
-                          f"de {y0:g} a {y1:g} mm del centro, con los dos largueros"))
+                          f"de {y0:g} a {y1:g} mm del centro, con los dos largueros"
+                          + (f"; lleva el servo del elevón {servo[0]['elevon']}, por abajo"
+                             if servo else "")))
             if _con_elevon(d, y0, y1, i):
-                lista.append((f"elevon-{lado}-{k}", f"Elevón {el} {k}",
-                              "alerón y timón de profundidad a la vez; lo mueve un servo"))
+                nombre, trozos = _elevon_de(d, k)
+                que = "alerón y timón de profundidad a la vez; lo mueve su servo"
+                if len(trozos) > 1:
+                    que += (f"; trozo {trozos.index(k) + 1} de {len(trozos)}, unidos con "
+                            f"una varilla de carbono de Ø{VARILLA_ELEVON:g}")
+                lista.append((f"elevon-{lado}-{k}", f"Elevón {el} {nombre}"
+                              + (f" {trozos.index(k) + 1}" if len(trozos) > 1 else ""), que))
         lista += [(f"gondola-{lado}-delante", f"Góndola delantera {ala}",
                    "un motor de sustentación sobre la viga"),
                   (f"gondola-{lado}-detras", f"Góndola trasera {ala}",
@@ -245,10 +296,6 @@ def _larguero(kit, d, f, diametro, puntas=False):
     el perfil todavía le deja 1,2 mm de pared por cada lado, dentro del primer
     panel del ala exterior. Con `puntas`, en gota hacia +x y hacia -x: lo que se imprime
     de pie sobre un corte en x no deja techo en el agujero."""
-    import FreeCAD
-    import Part
-    from mech_toolkit.kit import Cuerpo
-
     est = _estaciones(d)
     i = d["raiz"]
     perfil = est[i][5]
@@ -258,12 +305,23 @@ def _larguero(kit, d, f, diametro, puntas=False):
         if _grueso(perfil, f) * _estacion(d, y)[2] < diametro + 2.4:
             y_fin = y
             break
-    (xa, za, ya), (xb, zb, yb) = _punto_larguero(d, -SOLAPE_LARGUEROS, f), _punto_larguero(d, y_fin, f)
+    return _tubo(kit, _punto_larguero(d, -SOLAPE_LARGUEROS, f), _punto_larguero(d, y_fin, f),
+                 diametro, puntas)
+
+
+def _tubo(kit, de, a_, diametro, puntas=False, holgura=HOLGURA_TUBO):
+    """Un agujero recto de `de` a `a_`, cada uno (x, z, y). Con `puntas`, en
+    gota (ver `_larguero`). Con `holgura=0` y sin puntas, lo que va dentro."""
+    import FreeCAD
+    import Part
+    from mech_toolkit.kit import Cuerpo
+
+    (xa, za, ya), (xb, zb, yb) = de, a_
     a, b = FreeCAD.Vector(xa, ya, za), FreeCAD.Vector(xb, yb, zb)
     eje = b - a
     largo = eje.Length
     eje.normalize()
-    r = (diametro + HOLGURA_TUBO) / 2
+    r = (diametro + holgura) / 2
     forma = Part.makeCylinder(r, largo, a, eje)
     if puntas:
         # Una gota por cada lado: la punta a r·√2 y los lados tangentes al
@@ -290,37 +348,172 @@ def _largueros(kit, d, puntas=False):
     return hueco
 
 
+def _caras_en(d, y):
+    """(arriba, abajo): los puntos (x, z) de cada cara del ala en `y`, del
+    borde de ataque al de salida."""
+    x, z, c, t, p = _estacion(d, y)
+    arriba, abajo = _caras(_perfil(p))
+    return ([_girado(u, v, x, z, c, t) for u, v in arriba],
+            [_girado(u, v, x, z, c, t) for u, v in abajo])
+
+
+def _z_cara(cara, x):
+    for (x0, z0), (x1, z1) in zip(cara, cara[1:]):
+        if x0 <= x <= x1 and x1 > x0:
+            return z0 + (z1 - z0) * (x - x0) / (x1 - x0)
+    raise _error(f"x = {x:g} cae fuera del perfil")
+
+
+def _servo_en(d, s):
+    """(x, y, z) del centro de un servo: apoyado en la cara de abajo del ala
+    por su punto más alto, para que no asome, y con 1 mm de piel encima."""
+    x, y = s["en"][0], s["en"][1]
+    lx, _, lz = s["caja"]
+    arriba, abajo = _caras_en(d, y)
+    xs = [x - lx / 2 + lx * k / 12 for k in range(13)]
+    suelo = max(_z_cara(abajo, q) for q in xs)
+    techo = min(_z_cara(arriba, q) for q in xs)
+    if techo - 1 < suelo + lz:
+        raise _error(f"el servo de {lz:g} mm de grueso no cabe en y = {y:g}: el ala tiene ahí "
+                     f"{techo - suelo:.1f} mm entre caras y hace falta 1 mm de piel encima")
+    return x, y, suelo + lz / 2
+
+
+def _hueco_servo(kit, d, s):
+    """El hueco de un servo, abierto por abajo para meterlo (se tapa con una
+    tapa). En sus puntas a lo largo de y se abre en rampa (SALIDA_SERVO): el
+    ala se imprime de pie y el fondo del hueco sería un techo."""
+    x, y, z = _servo_en(d, s)
+    lx, ly, lz = s["caja"]
+    arriba = z + lz / 2 + 0.5
+    abajo = z - lz / 2 - 15
+    m = ly / 2 + 0.5
+    ancho = m + SALIDA_SERVO * (arriba - abajo)
+    return kit.extruir([(y - m, arriba), (y - ancho, abajo), (y + ancho, abajo), (y + m, arriba)],
+                       lx + 1, plano="yz", desde=x - lx / 2 - 0.5)
+
+
+def _canal(kit, d, cables=None):
+    """El canal de los cables de los servos de un lado: recto, a la altura de
+    la línea media del perfil y a la cuerda de los servos, del centro del
+    fuselaje al servo más de fuera. Pasa por el hueco del de dentro. Con
+    `cables`, el mazo de cables de ese diámetro que va dentro."""
+    servos = _servos(d)
+    if not servos:
+        return None
+    y_fin = max(s["y"] for s in servos)
+    x, _, c, _, _ = _estacion(d, servos[0]["y"], d["raiz"])
+    f = (servos[0]["en"][0] - x) / c
+    de, a_ = _punto_larguero(d, -10, f), _punto_larguero(d, y_fin, f)
+    if cables:
+        return _tubo(kit, de, a_, cables, holgura=0)
+    return _tubo(kit, de, a_, CANAL_CABLES, puntas=True)
+
+
+def _varilla(kit, d, tramos, hueco=True):
+    """La varilla de carbono que une los trozos de un elevón: a 4 mm detrás
+    de la bisagra, de 5 mm dentro del primero a 5 mm antes del final del
+    último. Los agujeros son ciegos: la varilla queda dentro."""
+    ts = _tramos_ala(d)
+    y0, y1 = ts[tramos[0] - 1][0] + 5, ts[tramos[-1] - 1][1] - 5
+    f = d["elevon"][1]
+
+    def punto(y):
+        x, z, c, t, p = _estacion(d, y)
+        g = f + (HOLGURA_BISAGRA + 3.5) / c
+        if _grueso(p, g) * c < VARILLA_ELEVON + HOLGURA_TUBO + 1.6:
+            raise _error(f"la varilla de Ø{VARILLA_ELEVON:g} del elevón no cabe en y = {y:g}: "
+                         f"el elevón tiene ahí {_grueso(p, g) * c:.1f} mm de grueso")
+        return (*_girado(g, _comba(p, g), x, z, c, t), y)
+    return _tubo(kit, punto(y0), punto(y1), VARILLA_ELEVON,
+                 holgura=HOLGURA_TUBO if hueco else 0)
+
+
+def dentro(kit, d, que):
+    """El cuerpo de `que`: una de las cosas de `dentro` con caja (la batería,
+    la carga, la electrónica, un servo), `canal-d`/`canal-i` o
+    `varilla-d`/`varilla-i`. Para verlas en su sitio y comprobar que caben."""
+    lado = que.split("-")[-1] if que.split("-")[-1] in ("d", "i") else None
+    if que.startswith("canal-") and lado:
+        canal = _canal(kit, d, cables=CANAL_CABLES - 2)
+        if canal is None:
+            raise _error("el avión no tiene servos colocados en `dentro`: no hay canal")
+        return _lado(canal, lado)
+    if que.startswith("varilla-") and lado:
+        largos = [g for g in d.get("elevones", []) if len(g) > 1]
+        if not largos:
+            raise _error("ningún elevón tiene más de un trozo: no hay varilla")
+        return _lado(_varilla(kit, d, largos[0], hueco=False), lado)
+    cosas = {c["id"]: c for c in d.get("dentro", []) if c.get("caja")}
+    if que not in cosas:
+        raise _error(f"dentro del avión no hay {que!r}: hay {', '.join(cosas)}, "
+                     "canal-d, canal-i, varilla-d y varilla-i")
+    c = cosas[que]
+    lx, ly, lz = c["caja"]
+    if que.startswith("servo-"):
+        s = {"en": [c["en"][0], abs(c["en"][1]), c["en"][2]], "caja": c["caja"]}
+        x, y, z = _servo_en(d, s)
+        caja = kit.caja(lx, ly, lz, en=(x - lx / 2, y - ly / 2, z - lz / 2))
+        return caja if c["en"][1] > 0 else caja.espejo("xz", conservar=False)
+    x, y, z = c["en"]
+    return kit.caja(lx, ly, lz, en=(x - lx / 2, y - ly / 2, z - lz / 2))
+
+
+def _fus(d):
+    """[(x, ancho, alto, z del centro)] del fuselaje. La z de cada sección es
+    opcional (sin ella, `z_fuselaje`): desde el 2026-11-16 el fuselaje se
+    ahonda en el centro de gravedad para llevar la batería y, debajo, la
+    carga."""
+    return [(f[0], f[1], f[2], f[3] if len(f) > 3 else d["z_fuselaje"]) for f in d["fuselaje"]]
+
+
+def _elipse_en(kit, ancho, alto, dz):
+    """Una elipse cuyo centro sube `dz` sobre el eje de la transición (en una
+    transición a lo largo de x, v es z)."""
+    from mech_toolkit.kit import Seccion
+    base = kit.elipse(ancho, alto)
+    return Seccion(lambda centro, u, v: base._alambre(centro + v * dz, u, v))
+
+
+def _seccion_fus(d, x):
+    """(ancho, alto, z) del fuselaje en `x`, lineal entre secciones."""
+    fus = _fus(d)
+    for a, b in zip(fus, fus[1:]):
+        if a[0] <= x <= b[0]:
+            t = (x - a[0]) / (b[0] - a[0])
+            return tuple(a[k] + (b[k] - a[k]) * t for k in (1, 2, 3))
+    raise _error(f"x = {x:g} cae fuera del fuselaje")
+
+
 def _fuselaje(kit, d):
-    zf = d["z_fuselaje"]
-    return kit.transicion([(kit.elipse(w, h), x) for x, w, h in d["fuselaje"]], eje="x",
-                          en=(0, 0, zf))
+    return kit.transicion([(_elipse_en(kit, w, h, z), x) for x, w, h, z in _fus(d)], eje="x")
 
 
 def _hueco_fuselaje(kit, d):
     """Por dentro, a PARED de la piel, y acabado en punta a 45° por los dos
     lados: el morro romo de la primera prueba dejaba un techo."""
-    fus = d["fuselaje"]
-    dentro = [(x, w - 2 * PARED, h - 2 * PARED) for x, w, h in fus[1:-1]]
+    fus = _fus(d)
+    dentro = [(x, w - 2 * PARED, h - 2 * PARED, z) for x, w, h, z in fus[1:-1]]
     # Las puntas, un 25 % más largas que a 45° justos: en el límite, la de la
     # cola daba voladizo (cuerpo central 5, 2026-11-16).
     # Acaban en una elipse de 6: con 16, el final era un techo plano de 16 mm
     # (cuerpo central 5).
-    x1, w1, h1 = dentro[0]
+    x1, w1, h1, z1 = dentro[0]
     xf = max(x1 - 1.25 * (min(w1, h1) / 2 - 3), fus[0][0] + PARED + 5)
-    xn, wn, hn = dentro[-1]
+    xn, wn, hn, zn = dentro[-1]
     xb = min(xn + 1.25 * (min(wn, hn) / 2 - 3), fus[-1][0] - PARED - 25)
-    secs = [(xf, 6, 6)] + dentro + [(xb, 6, 6)]
+    secs = [(xf, 6, 6, z1)] + dentro + [(xb, 6, 6, zn)]
     # En tramos rectos: suave, la transición se pasaba de la piel junto a la
     # cola y dejaba dos astillas sueltas (el cuerpo central 5 salía en tres
     # sólidos, 2026-11-16). Recta, además, la punta tiene la pendiente que se
     # le calcula.
-    return kit.transicion([(kit.elipse(w, h), x) for x, w, h in secs], eje="x",
-                          en=(0, 0, d["z_fuselaje"]), recta=True)
+    return kit.transicion([(_elipse_en(kit, w, h, z), x) for x, w, h, z in secs], eje="x",
+                          recta=True)
 
 
 def _rombo(kit, d, x, largo, ancho):
-    fus = d["fuselaje"]
-    abajo = d["z_fuselaje"] - max(h for _, _, h in fus) / 2
+    _, h, z = _seccion_fus(d, x)
+    abajo = z - h / 2
     return kit.extruir([(x - largo / 2, 0), (x, ancho / 2), (x + largo / 2, 0), (x, -ancho / 2)],
                        PARED + 30, plano="xy", desde=abajo - 15)
 
@@ -333,6 +526,9 @@ def _cuerpo_central(kit, d):
     cuerpo = cuerpo - _hueco_fuselaje(kit, d)
     largueros = _largueros(kit, d, puntas=True)
     cuerpo = cuerpo - largueros - largueros.espejo("xz", conservar=False)
+    canal = _canal(kit, d)
+    if canal is not None:
+        cuerpo = cuerpo - canal - canal.espejo("xz", conservar=False)
     for x, largo, ancho in d.get("ventanas", []):
         cuerpo = cuerpo - _rombo(kit, d, x, largo, ancho)
     # El motor de empuje en la cola: cuatro M3 en un círculo de 19 (motores de
@@ -452,13 +648,24 @@ def pieza(kit, d, id_):
         trozo = _cuerpo_central(kit, d) & kit.caja(x1 - x0, y1 - y0, 600, en=(x0, y0, -300))
         return trozo if partes[0] == "centro" else _lado(trozo, lado)
     if partes[0] in ("ala", "elevon"):
-        y0, y1, i, ala = _tramo(kit, d, int(partes[2]))
+        k = int(partes[2])
+        y0, y1, i, ala = _tramo(kit, d, k)
         if partes[0] == "ala":
             ala = ala - _largueros(kit, d)
+            canal = _canal(kit, d)
+            if canal is not None and y0 < max(s["y"] for s in _servos(d)):
+                ala = ala - canal
+            for s in _servos(d):
+                if y0 < s["y"] < y1:
+                    ala = ala - _hueco_servo(kit, d, s)
             if _con_elevon(d, y0, y1, i):
                 ala = ala - _bisagra(kit, d, y0, y1, -HOLGURA_BISAGRA)
             return _lado(ala, lado)
-        return _lado(ala & _bisagra(kit, d, y0, y1, HOLGURA_BISAGRA), lado)
+        elevon = ala & _bisagra(kit, d, y0, y1, HOLGURA_BISAGRA)
+        _, trozos = _elevon_de(d, k)
+        if len(trozos) > 1:
+            elevon = elevon - _varilla(kit, d, trozos)
+        return _lado(elevon, lado)
     ro = d["rotores"]
     if partes[0] == "gondola":
         return _lado(_gondola(kit, d, ro["x"][0 if partes[2] == "delante" else 1]), lado)

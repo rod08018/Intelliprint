@@ -810,3 +810,29 @@ Y lo que sí faltaba de tornillería:
 - **Que sirva para otra cosa que un brazo en serie.** Es una familia de formas, no un diseñador general.
 - **Que el brazo impreso funcione**: holguras, rigidez de las cáscaras y juego de las reductoras siguen sin medir.
 - **El aspecto fino**: tapas de los motores, cables y acabados van después.
+
+## ADR-024 · El avión se simula en Gazebo con PX4; la aerodinámica sale de AeroSandbox, no de AVL
+
+**Estado:** aceptada (2026-11-16) · **Afecta a:** Fase 13, ADR-014, ADR-022
+
+**Problema.** El 2026-11-11 el usuario dejó el avión con OpenVSP y AeroSandbox, «sin meternos a handoff de avl y px4». El 2026-11-16, con el ala volante dibujada, lo cambió: «quiero que crees los urdf, el docker para levantar la imagen con ROS2, poder hacer la simulación de vuelo con gazebo y que trabajemos con integrarlo con px4». Para eso hacen falta tres cosas que el sistema no tenía: un modelo del avión que Gazebo sepa mover, una aeronave que PX4 sepa pilotar y un sitio donde corran los dos.
+
+**Decisión.** Tomada por el asistente sobre su petición:
+
+1. **Un contenedor aparte, `sim`** (`docker/sim.Dockerfile`), con ROS 2 Jazzy, Gazebo Harmonic, PX4 v1.17.0 compilado para SITL, el agente Micro XRCE-DDS y `px4_msgs`. Va en un perfil del compose: no arranca con lo demás y no toca las imágenes del sistema. La versión de PX4 va fijada en el Dockerfile.
+2. **La aerodinámica la da AeroSandbox**, el mismo modelo con el que se dimensionó, y entra en el plugin `AdvancedLiftDrag` de Gazebo, que pide las derivadas de estabilidad que normalmente da AVL. AVL sigue fuera, como él dijo. Los mandos se sacan desviándolos ±5°.
+3. **El modelo se genera, no se escribe a mano** (`sim/generar.py`): masas, inercias, rotores, elevones y patas salen del dimensionado y de las piezas construidas. Si cambia el avión, se regenera. Las mallas no van en git; el SDF, el URDF y la aeronave de PX4 sí, para poder leerlos.
+4. **Los ejes de PX4 mandan.** Elevón positivo es borde de salida arriba, los rotores van en el orden del cuadricóptero en X de PX4 y sus posiciones en FRD desde el CG. Un test lo comprueba contra la física (bajar el elevón izquierdo alabea a la derecha), no contra lo que escribe el generador.
+5. **Gazebo se ve en el navegador** (`sim-web`), como él pidió ese día («quiero poder en mi buscador acceder a gazebo»): una pantalla virtual servida por noVNC, publicada solo en 127.0.0.1. Así no hay que instalar nada en Windows y la escena no sale del PC.
+
+**Enmienda (2026-11-16, siete vuelos).** Dos supuestos de arriba resultaron falsos, y cada uno costó un vuelo: el plugin no es lineal hasta la pérdida (su sigmoide de mezcla tiene la pendiente fija y con una pérdida baja resta sustentación desde 0°: `alpha_stall` se calcula para que el CL máximo del plugin sea el del dimensionado), y el mundo de PX4 trae un campo magnético fijo que no es el de su modelo terrestre (11° de declinación de diferencia: la aeronave le dice a PX4 la del mundo).
+
+**Alternativas descartadas.**
+- **AVL para las derivadas.** Es lo que espera el plugin, pero él lo dejó fuera y AeroSandbox ya estaba en el dimensionado.
+- **Copiar a mano el `standard_vtol` de PX4 y cambiarle cifras.** Se desfasa del avión en cuanto este cambia; se usó solo como referencia.
+- **Meter Gazebo y PX4 en la imagen del sistema.** Son varios GB y una compilación de media hora que el diseño no necesita.
+
+**Lo que no cubre.**
+- **Que el avión impreso vuele.** El plugin es una recta con una mezcla hacia la placa plana, AeroSandbox no es un túnel, las masas son estimaciones y los ajustes de PX4 son los del `standard_vtol`.
+- **Las hélices de verdad.** Su empuje máximo sale del dimensionado; a qué vueltas lo dan y su par son supuestos del asistente.
+- **Que el sistema diseñe el avión.** Lo dibujó el asistente a mano (F13.3 (costillas)); la simulación mide ese dibujo, no al modelo.

@@ -5,54 +5,73 @@
   "alargamiento": 10.62,
   "cuerda_media_m": 0.2841,
   "masa_kg": {
-    "impreso (LW-PLA, estimado)": 0.923,
+    "impreso (LW-PLA, estimado)": 0.942,
     "carbono: largueros y vigas": 0.18,
-    "4 motores de sustentación, variadores y hélices": 0.706,
-    "motor de empuje, variador y hélice plegable": 0.211,
-    "controladora, GPS, telemetría, cables y servos": 0.29,
+    "4 motores de sustentación, variadores y hélices": 0.725,
+    "motor de empuje, variador y hélice plegable": 0.217,
+    "controladora, ordenador de a bordo, GPS, telemetría y cables": 0.31,
+    "cuatro servos de los elevones": 0.1,
     "carga útil": 1.0,
     "batería 6S6P de 21700 de 4,5 Ah (tipo Molicel P45B)": 2.722,
-    "total": 6.031
+    "total": 6.195
   },
   "bateria": {
     "serie": 6,
     "paralelo": 6,
     "Wh": 583.2
   },
-  "carga_alar_kg_m2": 11.87,
+  "carga_alar_kg_m2": 12.19,
   "crucero": {
     "velocidad_m_s": 20.0,
-    "alfa_grados": 4.16,
-    "CL": 0.475,
-    "L_D": 13.86,
-    "resistencia_N": 4.27,
-    "potencia_W": 142.3
+    "alfa_grados": 4.3,
+    "CL": 0.488,
+    "L_D": 13.81,
+    "resistencia_N": 4.4,
+    "potencia_W": 146.7
   },
   "vtol": {
-    "potencia_W": 974,
+    "potencia_W": 1014,
     "minutos": 3.0,
-    "empuje_max_por_motor_kg": 2.71
+    "empuje_max_por_motor_kg": 2.79
   },
   "lo_que_cuestan_los_rotores": {
-    "peso_kg": 0.796,
-    "potencia_crucero_W": 59.9,
-    "energia_vertical_Wh": 48.7
+    "peso_kg": 0.815,
+    "potencia_crucero_W": 60.4,
+    "energia_vertical_Wh": 50.7
   },
-  "autonomia_h": 3.14,
-  "alcance_km": 226,
-  "perdida_m_s": 13.8,
+  "autonomia_h": 3.03,
+  "alcance_km": 218,
+  "perdida_m_s": 14.0,
   "equilibrio": {
     "torsion_punta_grados": -3.0,
-    "punto_neutro_x_m": 0.3354,
-    "cg_x_m": 0.3155,
+    "punto_neutro_x_m": 0.3319,
+    "cg_x_m": 0.312,
     "margen": 0.07,
-    "Cm": -0.0008,
-    "Cm_alfa": -5.837,
-    "Cn_beta": 0.0608
+    "Cm": -0.002,
+    "Cm_alfa": -5.756,
+    "Cn_beta": 0.0555,
+    "con_carga": {
+      "masa_kg": 6.195,
+      "cg_mm": [
+        312.0,
+        0.0,
+        -29.6
+      ],
+      "margen": 0.07
+    },
+    "sin_carga": {
+      "masa_kg": 5.195,
+      "cg_mm": [
+        312.0,
+        0.0,
+        -18.4
+      ],
+      "margen": 0.07
+    }
   },
   "rotores": {
     "y_viga": 0.38,
-    "x_delante": -0.046314268595972985,
+    "x_delante": -0.05335824904769626,
     "x_detras": 0.6773749955601498,
     "x_empuje": 0.72,
     "helice_vtol_pulg": 13,
@@ -165,32 +184,44 @@
       [
         -220,
         20,
-        20
+        20,
+        -20
       ],
       [
         -140,
         110,
-        90
+        90,
+        -20
       ],
       [
         0,
         150,
-        120
+        130,
+        -30
       ],
       [
-        350,
-        150,
-        120
+        180,
+        160,
+        180,
+        -50
+      ],
+      [
+        420,
+        160,
+        180,
+        -50
       ],
       [
         600,
         90,
-        80
+        80,
+        -20
       ],
       [
         720,
         40,
-        40
+        40,
+        -20
       ]
     ],
     "z_fuselaje": -20,
@@ -219,7 +250,7 @@
     "rotores": {
       "y": 380,
       "x": [
-        -46,
+        -53,
         677
       ],
       "viga": 16,
@@ -231,21 +262,243 @@
     },
     "ventanas": [
       [
-        -100,
+        250,
         40,
         34
       ],
       [
-        10,
-        40,
-        34
+        312,
+        70,
+        60
       ],
       [
-        140,
-        84,
-        72
+        374,
+        40,
+        34
       ]
-    ]
+    ],
+    "elevones": [
+      [
+        3
+      ],
+      [
+        4,
+        5
+      ]
+    ],
+    "dentro": [
+      {
+        "id": "impreso",
+        "nombre": "lo impreso (LW-PLA)",
+        "masa_kg": 0.9418,
+        "en": [
+          369.0,
+          0,
+          -1.8
+        ]
+      },
+      {
+        "id": "larguero-Ø10",
+        "nombre": "largueros Ø10",
+        "masa_kg": 0.06,
+        "en": [
+          357.6,
+          0,
+          19.3
+        ]
+      },
+      {
+        "id": "larguero-Ø6",
+        "nombre": "largueros Ø6",
+        "masa_kg": 0.03,
+        "en": [
+          425.9,
+          0,
+          19.3
+        ]
+      },
+      {
+        "id": "vigas",
+        "nombre": "vigas Ø16 de los rotores",
+        "masa_kg": 0.09,
+        "en": [
+          388.3,
+          0,
+          -12.0
+        ]
+      },
+      {
+        "id": "motor-d-delante",
+        "nombre": "motor de sustentación, variador y hélice",
+        "masa_kg": 0.1812,
+        "en": [
+          -53.4,
+          380.0,
+          18.0
+        ]
+      },
+      {
+        "id": "motor-d-detras",
+        "nombre": "motor de sustentación, variador y hélice",
+        "masa_kg": 0.1812,
+        "en": [
+          677.4,
+          380.0,
+          18.0
+        ]
+      },
+      {
+        "id": "motor-i-delante",
+        "nombre": "motor de sustentación, variador y hélice",
+        "masa_kg": 0.1812,
+        "en": [
+          -53.4,
+          -380.0,
+          18.0
+        ]
+      },
+      {
+        "id": "motor-i-detras",
+        "nombre": "motor de sustentación, variador y hélice",
+        "masa_kg": 0.1812,
+        "en": [
+          677.4,
+          -380.0,
+          18.0
+        ]
+      },
+      {
+        "id": "motor-empuje",
+        "nombre": "motor y hélice de empuje",
+        "masa_kg": 0.1735,
+        "en": [
+          735,
+          0,
+          -20.0
+        ]
+      },
+      {
+        "id": "variador-empuje",
+        "nombre": "variador del motor de empuje",
+        "masa_kg": 0.0434,
+        "en": [
+          600,
+          0,
+          -20.0
+        ]
+      },
+      {
+        "id": "electronica",
+        "nombre": "controladora, ordenador de a bordo, GPS, telemetría y receptor",
+        "masa_kg": 0.31,
+        "en": [
+          -20,
+          0,
+          -28
+        ],
+        "caja": [
+          120,
+          60,
+          40
+        ]
+      },
+      {
+        "id": "servo-d-interior",
+        "nombre": "servo del elevón interior",
+        "masa_kg": 0.025,
+        "en": [
+          450.0,
+          650,
+          27.5
+        ],
+        "caja": [
+          24,
+          34,
+          10
+        ]
+      },
+      {
+        "id": "servo-d-exterior",
+        "nombre": "servo del elevón exterior",
+        "masa_kg": 0.025,
+        "en": [
+          531.7,
+          850,
+          38.8
+        ],
+        "caja": [
+          24,
+          34,
+          10
+        ]
+      },
+      {
+        "id": "servo-i-interior",
+        "nombre": "servo del elevón interior",
+        "masa_kg": 0.025,
+        "en": [
+          450.0,
+          -650,
+          27.5
+        ],
+        "caja": [
+          24,
+          34,
+          10
+        ]
+      },
+      {
+        "id": "servo-i-exterior",
+        "nombre": "servo del elevón exterior",
+        "masa_kg": 0.025,
+        "en": [
+          531.7,
+          -850,
+          38.8
+        ],
+        "caja": [
+          24,
+          34,
+          10
+        ]
+      },
+      {
+        "id": "carga",
+        "nombre": "carga: dos cámaras y un lidar",
+        "masa_kg": 1.0,
+        "en": [
+          312.0,
+          0,
+          -88.0
+        ],
+        "caja": [
+          160,
+          80,
+          50
+        ]
+      },
+      {
+        "id": "bateria",
+        "nombre": "batería 6S6P",
+        "masa_kg": 2.7216,
+        "en": [
+          287.2,
+          0,
+          -36.0
+        ],
+        "caja": [
+          210,
+          130,
+          46
+        ]
+      }
+    ],
+    "equilibrio": {
+      "punto_neutro_x": 331.9,
+      "cuerda_media": 284.1,
+      "margen_minimo": 0.05,
+      "margen_maximo": 0.12
+    }
   },
   "perfiles": {
     "mh60": {

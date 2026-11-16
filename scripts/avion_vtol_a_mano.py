@@ -50,7 +50,7 @@ PIEZAS = avion.piezas(DISENO)
 if SOLO:
     PIEZAS = [p for p in PIEZAS if p[0] == SOLO]
 
-obra = Obra(titulo="VTOL de ala volante, a mano y sin modelo",
+obra = Obra(titulo="VTOL de ala volante con su electrónica dentro, a mano y sin modelo",
             nodos=[{"id": i, "nombre": n, "que_hace": q} for i, n, q in PIEZAS])
 O.guardar(P, obra, por="mano")
 if len(PIEZAS) > 1:
@@ -77,13 +77,24 @@ rc = D["lo_que_cuestan_los_rotores"]
     f"{ro['helice_empuje_pulg']}\" de empuje; {ro['hueco_entre_discos_m'] * 1000:.0f} mm entre el "
     "disco de un rotor trasero y el de la de empuje, y "
     f"{ro['helice_empuje_sobre_el_suelo_m'] * 1000:.0f} mm de la de empuje al suelo.\n"
-    f"- Centro de gravedad a {eq['cg_x_m'] * 1000:.0f} mm del morro del ala (margen estático "
-    f"del {eq['margen'] * 100:.0f} %); estable en guiñada (Cn_β = {eq['Cn_beta']}).\n\n"
+    f"- Centro de gravedad a {eq['cg_x_m'] * 1000:.0f} mm del morro del ala, con la carga y "
+    f"sin ella (margen estático del {eq['con_carga']['margen'] * 100:.0f} % y del "
+    f"{eq['sin_carga']['margen'] * 100:.0f} %); estable en guiñada (Cn_β = {eq['Cn_beta']}).\n"
+    "- Dentro: la carga (dos cámaras y un lidar) en el centro de gravedad, mirando abajo por "
+    "tres ventanas, para que ponerla o quitarla no lo mueva; la batería justo encima, bajo "
+    "los largueros, en una bandeja; la controladora y el ordenador de a bordo en el morro. "
+    "Los variadores de sustentación, en las góndolas.\n"
+    "- Dos elevones por lado, cada uno con su servo (cuatro): el interior es un trozo y el "
+    "exterior, dos pegados con una varilla de carbono de Ø2. Los servos van en un hueco por "
+    "debajo del ala, y sus cables por un canal de Ø6 hasta el fuselaje.\n\n"
     "**Se compra:** dos vigas de carbono de Ø16 × 0,9 m; largueros de carbono de Ø10 y Ø6; "
-    "cuatro motores de sustentación con hélices de 13\" y sus variadores; un motor de "
-    "empuje de la clase 28xx con hélice plegable de 10\"; 36 celdas 21700 de 4,5 Ah; "
-    "controladora, GPS, telemetría y dos servos de elevón. Son una propuesta del "
-    "asistente, sin comprobar contra su tienda.\n\n"
+    "varilla de carbono de Ø2; cuatro motores de sustentación con hélices de 13\" y sus "
+    "variadores; un motor de empuje de la clase 28xx con hélice plegable de 10\"; 36 celdas "
+    "21700 de 4,5 Ah; controladora, ordenador de a bordo (Raspberry Pi 5), GPS, telemetría "
+    "y cuatro servos finos de ala (10 mm de grueso). Son una propuesta del asistente, sin "
+    "comprobar contra su tienda.\n\n"
+    "**Sin dibujar todavía:** las tapas de los huecos de los servos y la de la batería, y "
+    "por dentro del ala, la piel fina con nervios: las piezas son macizas.\n\n"
     "**Lo que no está medido:** que vuele. Las masas de lo impreso y de lo comprado y los "
     "rendimientos son estimaciones del asistente; la aerodinámica es la de AeroSandbox, no "
     "un túnel.\n", encoding="utf-8")
@@ -114,6 +125,20 @@ for id_, nombre, _ in PIEZAS:
             print(f"    {mejor}: {zona_en_palabras(z)}", flush=True)
 
 print(f"HECHAS {len(hechas)} de {len(PIEZAS)}; fallan: {fallos}", flush=True)
+
+# Lo de dentro, para verlo en su sitio en las fotos y en la simulación. No son
+# nodos: no se imprimen.
+if not SOLO:
+    from orchestrator.build import build_part
+    from orchestrator.schemas.programa import Programa
+    from tests.test_sondas import PERFIL
+    ques = [c["id"] for c in DISENO["dentro"] if c.get("caja")] + ["canal-d", "canal-i"]
+    for q in ques:
+        codigo = (f"def construir(kit):\n    diseno = {json.dumps(DISENO)}\n"
+                  f"    return kit.avion_dentro(diseno, {q!r})\n")
+        build_part(Programa(part=q, codigo=codigo), None, P / "dentro" / q,
+                   os.environ["FREECADCMD"], perfil=PERFIL)
+        print(f"dentro: {q}", flush=True)
 if not SOLO and hechas:
     from orchestrator.vista import dibujar_piezas
     stls = sorted(P.glob("nodos/*/parts/*/*.stl"))

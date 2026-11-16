@@ -47,6 +47,9 @@ docker compose run --rm orchestrator pieza peticion.md --archivo
 docker compose run --rm orchestrator animar <carpeta-del-proyecto>
 docker compose up -d web                            # http://localhost:8080
 docker compose up -d crafty                         # Telegram
+docker compose --profile sim run --rm sim pytest sim/pruebas   # el avión vuela en PX4 + Gazebo
+docker compose --profile sim run --rm sim-gui sim/volar.sh     # lo mismo, viendo Gazebo
+docker compose --profile sim up -d sim-web                     # Gazebo en http://127.0.0.1:6080
 ```
 
 En el PC, para que el contenedor pueda laminar en tu PrusaSlicer:
@@ -575,6 +578,48 @@ imprimir; lo que dejó abierto está abajo.
   diagonal. Solo puede quitar un «no cumple» falso. Pesa 1,5 veces el
   TerraHawk de 2 m (4 kg), por las 3 h con 1 kg de carga. **Que vuele
   no lo dice nada**, y el modelo no ha usado las formas.
+- **Pedido por él el 2026-11-16, cambiando lo de PX4:** «quiero que
+  crees los urdf, el docker para levantar la imagen con ROS2, poder
+  hacer la simulacion de vuelo con gazebo y que trabajemos con
+  integrarlo con px4» (ADR-024, F13.6 (simulación); AVL sigue fuera).
+  Y sobre el interior: hueco para controladora, Raspberry Pi,
+  variadores y batería; «la batería debe estar en un lugar donde no
+  modifique mucho el centro de gravedad»; y cuatro servos, uno por
+  elevón. **Hecho A MANO por el asistente, sin modelo:** la carga va
+  en el CG (quitarla no lo mueve: margen del 7 % con y sin ella), la
+  batería encima, la electrónica en el morro, dos elevones por lado
+  con su servo en un hueco por debajo y un canal de Ø6 para los
+  cables; las 39 piezas caben y ninguna pide soportes, y lo de dentro
+  no atraviesa ninguna (`tests/test_avion_formas.py`). En la web como
+  `2026-11-16-ala-volante-con-electronica-a-mano-sin-modelo`. Las
+  piezas siguen macizas (faltan piel fina, nervios y tapas).
+  **La simulación:** contenedor `sim` (perfil del compose: ROS 2
+  Jazzy, Gazebo Harmonic, PX4 v1.17.0, Micro XRCE-DDS, `px4_msgs`);
+  `scripts/avion_vtol_aero.py` saca de AeroSandbox las derivadas para
+  `AdvancedLiftDrag`; `python -m sim.generar <proyecto> sim` escribe
+  el modelo de Gazebo, el URDF y la aeronave 4100 (las mallas, 57 MB,
+  fuera de git). El CG del modelo cae a 2,6 mm del dimensionado.
+  `sim/volar.sh` lanza PX4 con él y `sim/pruebas/test_vuelo.py` vuela
+  una misión. **Siete vuelos hasta la misión entera**, cada fallo con
+  su test: la transición se abortaba (gas a tope y 8 s; luego perdía
+  altura: pasa a avión a 20 m/s y mezcla a 15); en el primer giro se
+  pasaba de 60° de alabeo y caía (`FW_R_LIM` 30); y seguía cayendo
+  porque el plugin `AdvancedLiftDrag` mezcla con una sigmoide fija
+  (M = 15) que con la pérdida a 0,2 rad ya restaba sustentación a 0°:
+  `alpha_stall` se calcula ahora para que el CL máximo del plugin sea
+  el del dimensionado (0,309). El sexto voló la misión entera, pero
+  en la primera esquina el rumbo de PX4 saltó 150°: el mundo de PX4
+  tiene un campo magnético fijo de 14,6° de declinación y PX4 usaba
+  la de Zúrich (3°); arreglado en la aeronave. Los ajustes de PX4
+  son los del `standard_vtol`, y el empuje y las vueltas de las
+  hélices, supuestos del asistente. **Un fallo del dimensionado, sin
+  arreglar y por contarle:** el Cn_beta de `request.md` (0,0555) se
+  tomó respecto al morro; respecto al CG es 0,0156, poca estabilidad
+  de guiñada. **Gazebo en el navegador** (pedido por él ese día):
+  `docker compose --profile sim up -d sim-web` y
+  `http://127.0.0.1:6080/vnc.html?autoconnect=1&resize=scale`; repite
+  la misión sin parar y gasta ~5 núcleos (dibuja sin tarjeta).
+  **Que vuele en Gazebo no dice que vuele impreso.**
 
 **2026-11-11 (noche): Fase 10, brazos con transmisión (ADR-021).** Decidido
 por él: **el brazo antes que el avión**; empezar por uno pequeño con servos;

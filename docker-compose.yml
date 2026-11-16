@@ -78,6 +78,8 @@ services:
       # plugin del buscador va en la versión de OpenClaw fijada aquí.
       - ./docker:/app/docker:ro
       - ./docker-compose.yml:/app/docker-compose.yml:ro
+      # El generador del modelo de Gazebo y su aerodinámica (F13.6 (simulación)).
+      - ./sim:/app/sim:ro
 
   # La interfaz web (F5.5 (web)): pedir un diseño, lista de proyectos,
   # descarga en zip y el botón que abre las piezas en el PrusaSlicer del
@@ -100,6 +102,59 @@ services:
     # contenedor sigue siendo el 8080.
     ports: ["${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8080}:8080"]
     restart: unless-stopped
+
+  # --- Simulación de vuelo (F13.6 (simulación)) -------------------------------
+  #
+  # ROS 2 Jazzy, Gazebo Harmonic y PX4 v1.17 con el avión de `sim/`. Va en
+  # su perfil para que un `docker compose up` no lo levante: la imagen pesa
+  # y la simulación no es parte del diseño.
+  #
+  #   docker compose --profile sim run --rm sim sim/volar.sh          # sin ventana
+  #   docker compose --profile sim run --rm sim-gui sim/volar.sh      # con Gazebo
+  #   docker compose --profile sim run --rm sim pytest sim/pruebas    # la prueba de vuelo
+  sim:
+    build:
+      context: .
+      dockerfile: docker/sim.Dockerfile
+    image: intelliprint/sim:dev
+    profiles: [sim]
+    working_dir: /app
+    environment:
+      HEADLESS: "1"
+    volumes:
+      - ./sim:/sim
+      - ./sim:/app/sim
+      # El dimensionado: la prueba de vuelo mide contra él.
+      - ./scripts:/app/scripts:ro
+    # QGroundControl en el PC se conecta por UDP a 127.0.0.1:18570.
+    ports: ["127.0.0.1:18570:18570/udp"]
+
+  # La misma, con la ventana de Gazebo en el escritorio de Windows. Usa el
+  # servidor gráfico de WSL (WSLg) que Docker Desktop ya trae montado.
+  sim-gui:
+    extends:
+      service: sim
+    environment:
+      HEADLESS: ""
+      DISPLAY: ":0"
+      WAYLAND_DISPLAY: wayland-0
+      XDG_RUNTIME_DIR: /mnt/wslg/runtime-dir
+      PULSE_SERVER: /mnt/wslg/PulseServer
+    volumes:
+      - /run/desktop/mnt/host/wslg/.X11-unix:/tmp/.X11-unix
+      - /run/desktop/mnt/host/wslg:/mnt/wslg
+
+  # Gazebo en el navegador: http://localhost:6080/vnc.html?autoconnect=1
+  # (pedido por él el 2026-11-16). Escritorio virtual con noVNC, solo en
+  # este PC; el ala volante repite su misión. `sim/ver.sh` cuenta cómo.
+  #   docker compose --profile sim up sim-web
+  sim-web:
+    extends:
+      service: sim
+    environment:
+      HEADLESS: ""
+    command: ["bash", "/sim/ver.sh"]
+    ports: ["127.0.0.1:6080:6080"]
 
   # --- Crafty: el canal humano por Telegram -----------------------------------
   #

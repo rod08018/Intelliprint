@@ -35,3 +35,8 @@ Thumbs.db
 
 # Copias de seguridad que deja FreeCAD al sobrescribir un .FCStd
 *.FCBak
+
+# La simulación (F13.6 (simulación)): las mallas salen de las piezas de
+# workspace/ con `python -m sim.generar` (57 MB), y los registros de cada vuelo.
+sim/modelos/*/meshes/
+sim/registros/

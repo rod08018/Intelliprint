@@ -51,8 +51,41 @@ CELDA = {"nombre": "21700 de 4,5 Ah (tipo Molicel P45B)", "Wh": 16.2, "g": 70.0}
 EMPAQUE = 1.08
 LWPLA_G_CM3, PIEL_MM, NERVIOS = 0.75, 0.6, 1.4
 CDA_ROTORES_M2 = 0.006          # cuatro hélices paradas en línea y sus motores
-AVIONICA_KG = 0.25 + 0.04       # controladora, GPS, telemetría, cables; 4 servos
-CARBONO_KG = 0.06 + 0.03 + 0.09  # larguero Ø10, larguero Ø6, vigas Ø16
+# Controladora, ordenador de a bordo (una Raspberry Pi 5 con disipador:
+# la pidió él el 2026-11-16), GPS, telemetría, receptor y cables.
+AVIONICA_KG = 0.31
+SERVOS_KG = 4 * 0.025            # cuatro servos finos de ala, uno por elevón
+LARGUEROS_KG, VIGAS_KG = (0.06, 0.03), 0.09   # Ø10 y Ø6; las dos vigas Ø16
+CARBONO_KG = sum(LARGUEROS_KG) + VIGAS_KG
+
+# --- Lo de dentro (mm): cajas que ocupan sitio -----------------------------------
+# La batería 6S6P: 36 celdas 21700 tumbadas a lo largo, seis de ancho y dos de
+# alto, en tres filas de 70 mm; con el forro, 210 × 130 × 46.
+CAJA_BATERIA = (210, 130, 46)
+CAJA_CARGA = (160, 80, 50)       # dos cámaras y un lidar, en su bandeja
+# La controladora y la Raspberry Pi una detrás de otra. Con 110 × 70 en
+# x = -60 se salía del morro, que ahí mide 112 × 92 por dentro (cuentas del
+# 2026-11-16).
+CAJA_ELECTRONICA = (120, 60, 40)
+X_ELECTRONICA = -20
+CAJA_SERVO = (24, 34, 10)        # un servo fino de ala, tumbado
+# Dos elevones por lado, cada uno con su servo (él, el 2026-11-16: «debe
+# tener alerones, implica que debe tener 4 servos»). Por tramos de ala: el
+# interior es el 3 (570–730 mm) y el exterior, el 4 y el 5 pegados
+# (730–1050), que reparten la superficie entre los dos servos (7 000 y
+# 11 300 mm²); si uno falla, el avión sigue gobernable.
+ELEVONES = ((3,), (4, 5))
+SERVO_Y = (650, 850)             # cada servo, dentro de un tramo y en su elevón
+# El margen estático que se acepta, con carga y sin ella. Un ala volante
+# vuela con poco (un 5–10 %); por debajo del 5 % se vuelve nerviosa y
+# pasado el punto neutro, inestable (criterio del asistente).
+MARGEN_MINIMO, MARGEN_MAXIMO = 0.05, 0.12
+SERVO_CUERDA = 0.42              # entre los dos largueros (25 % y 60 %)
+# El techo de la batería: 3 mm bajo el larguero de Ø6, que cruza el fuselaje
+# a z ≈ -7 (el de Ø10, más adelante, a -4,5).
+Z_TECHO_BATERIA = -13
+MEDIO_GONDOLA = 40               # el de `avion.MEDIO_LARGO_GONDOLA`
+X_EMPUJE_MM = 720
 
 # --- La forma (m), x hacia atrás, y a la derecha, z arriba ----------------------
 ENVERGADURA = 2.10
@@ -68,6 +101,15 @@ Z_FUSELAJE = -0.02           # el eje del fuselaje y de la hélice de empuje
 X_DERIVA, Z_VIGA = 0.72, -0.012
 HUECO_SUELO = 0.03
 ALTO_DERIVA = round(Z_VIGA - (Z_FUSELAJE - HELICE_EMPUJE_PULG * 0.0254 / 2 - HUECO_SUELO), 3)
+# El fuselaje: (x, ancho, alto, z del centro). En el centro de gravedad se
+# ahonda hacia abajo: arriba, bajo los largueros, la batería; debajo, la
+# carga. Las dos tienen que ir ahí (él, el 2026-11-16: «la batería debe
+# estar en un lugar donde no modifique mucho el centro de gravedad»): con
+# la carga en el morro, quitarla echaba el centro de gravedad 35–83 mm
+# atrás, más allá del punto neutro, y el ala volante se volvía inestable.
+FUSELAJE = ((-0.22, 0.02, 0.02, -0.02), (-0.14, 0.11, 0.09, -0.02), (0.0, 0.15, 0.13, -0.03),
+            (0.18, 0.16, 0.18, -0.05), (0.42, 0.16, 0.18, -0.05), (0.60, 0.09, 0.08, -0.02),
+            (0.72, 0.04, 0.04, -0.02))
 
 
 def estaciones(torsion_punta):
@@ -90,10 +132,11 @@ def avion(torsion_punta, x_cg=0.0):
     ala = asb.Wing(name="ala", symmetric=True, xsecs=[
         asb.WingXSec(xyz_le=[x, y, z], chord=c, twist=t, airfoil=asb.Airfoil(p))
         for y, x, z, c, t, p in est])
+    # Elipses (shape=2), como las dibuja el kit: con 3 AeroSandbox calculaba
+    # un fuselaje más cuadrado que el que se imprime.
     fuselaje = asb.Fuselage(name="fuselaje", xsecs=[
-        asb.FuselageXSec(xyz_c=[xs, 0, Z_FUSELAJE], width=w, height=h, shape=3)
-        for xs, w, h in ((-0.22, 0.02, 0.02), (-0.14, 0.11, 0.09), (0.0, 0.15, 0.12),
-                         (0.35, 0.15, 0.12), (0.60, 0.09, 0.08), (0.72, 0.04, 0.04))])
+        asb.FuselageXSec(xyz_c=[xs, 0, zc], width=w, height=h, shape=2)
+        for xs, w, h, zc in FUSELAJE])
     # Sin las aletas de las puntas el ala volante quedaba inestable de guiñada
     # (Cn_beta -0,005): dos derivas bajo la cola de las vigas, que además son
     # las patas traseras al posarse. Abajo, para no tocar las hélices.
@@ -168,11 +211,106 @@ def rotores(x_cg, ala):
             "discos_libres": hueco_empuje >= hueco}
 
 
+def centroide_impreso(aeronave):
+    """(x, z) en m de donde cae el peso de lo impreso. Una piel fina con
+    nervios pesa por su superficie, no por su volumen: se pondera cada tramo
+    de ala y de fuselaje por su área mojada. Con las piezas del 2026-11-16
+    medidas en sus STL, el mismo cálculo daba 355 mm."""
+    total = mx = mz = 0.0
+    for w in aeronave.wings:
+        for a, b in zip(w.xsecs, w.xsecs[1:]):
+            pa, pb = np.array(a.xyz_le), np.array(b.xyz_le)
+            largo = math.hypot(pb[1] - pa[1], pb[2] - pa[2])
+            area = (a.chord + b.chord) * largo * (2 if w.symmetric else 1)
+            x = ((pa[0] + a.chord / 2) * a.chord + (pb[0] + b.chord / 2) * b.chord) / (a.chord + b.chord)
+            total, mx, mz = total + area, mx + area * x, mz + area * (pa[2] + pb[2]) / 2
+    for f in aeronave.fuselages:
+        for a, b in zip(f.xsecs, f.xsecs[1:]):
+            perimetro = math.pi * (a.width + a.height + b.width + b.height) / 4
+            area = perimetro * (b.xyz_c[0] - a.xyz_c[0])
+            total += area
+            mx += area * (a.xyz_c[0] + b.xyz_c[0]) / 2
+            mz += area * (a.xyz_c[2] + b.xyz_c[2]) / 2
+    return [_num(mx / total), _num(mz / total)]
+
+
+def dentro(r):
+    """Dónde va cada cosa, en mm, y cuánto pesa. La carga va en el centro de
+    gravedad: así ponerla o quitarla no lo mueve a lo largo. La batería, que
+    es casi la mitad del peso, va donde cuadran los momentos, justo encima de
+    la carga y bajo los largueros (en una bandeja: correrla 1 cm mueve el
+    centro de gravedad 4,5 mm). Los variadores de sustentación van en las
+    góndolas, con sus motores, que están a la misma distancia por delante y
+    por detrás del centro de gravedad."""
+    m = r["_masas"]
+    x_cg = r["equilibrio"]["cg_x_m"] * 1000
+    est = [(y * 1000, x * 1000, z * 1000, c * 1000) for y, x, z, c, _, _ in r["estaciones"]]
+
+    def ala(y, f):
+        """(x, z) a la fracción `f` de la cuerda, en `y` del ala exterior."""
+        for a, b in zip(est[2:], est[3:]):
+            if y <= b[0] or b is est[-1]:
+                t = (y - a[0]) / (b[0] - a[0])
+                return (a[1] + (b[1] - a[1]) * t + f * (a[3] + (b[3] - a[3]) * t),
+                        a[2] + (b[2] - a[2]) * t)
+
+    ro = r["rotores"]
+    xd, xt, yv = ro["x_delante"] * 1000, ro["x_detras"] * 1000, ro["y_viga"] * 1000
+    z_motor = Z_VIGA * 1000 + 30
+    ci = r["_centroide_impreso_m"]
+    cosas = [{"id": "impreso", "nombre": "lo impreso (LW-PLA)", "masa_kg": m["impreso"],
+              "en": [ci[0] * 1000, 0, ci[1] * 1000]}]
+    for (f, mk), nombre in zip(zip((0.25, 0.6), LARGUEROS_KG), ("Ø10", "Ø6")):
+        x, z = ala(505, f)   # de y = -20 a casi la punta: su mitad
+        cosas.append({"id": f"larguero-{nombre}", "nombre": f"largueros {nombre}", "masa_kg": mk,
+                      "en": [x, 0, z]})
+    cosas.append({"id": "vigas", "nombre": "vigas Ø16 de los rotores", "masa_kg": VIGAS_KG,
+                  "en": [(xd - MEDIO_GONDOLA + X_DERIVA * 1000 + 150) / 2, 0, Z_VIGA * 1000]})
+    for lado, s in (("d", 1), ("i", -1)):
+        for donde, x in (("delante", xd), ("detras", xt)):
+            cosas.append({"id": f"motor-{lado}-{donde}",
+                          "nombre": "motor de sustentación, variador y hélice",
+                          "masa_kg": m["sustentacion"] / 4, "en": [x, s * yv, z_motor]})
+    cosas += [{"id": "motor-empuje", "nombre": "motor y hélice de empuje",
+               "masa_kg": 0.8 * m["empuje"], "en": [X_EMPUJE_MM + 15, 0, Z_FUSELAJE * 1000]},
+              {"id": "variador-empuje", "nombre": "variador del motor de empuje",
+               "masa_kg": 0.2 * m["empuje"], "en": [600, 0, Z_FUSELAJE * 1000]},
+              {"id": "electronica", "nombre": "controladora, ordenador de a bordo, GPS, "
+               "telemetría y receptor", "masa_kg": AVIONICA_KG, "en": [X_ELECTRONICA, 0, -28],
+               "caja": list(CAJA_ELECTRONICA)}]
+    for lado, s in (("d", 1), ("i", -1)):
+        for donde, y in zip(("interior", "exterior"), SERVO_Y):
+            x, z = ala(y, SERVO_CUERDA)
+            cosas.append({"id": f"servo-{lado}-{donde}", "nombre": f"servo del elevón {donde}",
+                          "masa_kg": SERVOS_KG / 4, "en": [x, s * y, z], "caja": list(CAJA_SERVO)})
+    z_bateria = Z_TECHO_BATERIA - CAJA_BATERIA[2] / 2
+    z_carga = z_bateria - CAJA_BATERIA[2] / 2 - 4 - CAJA_CARGA[2] / 2
+    cosas.append({"id": "carga", "nombre": "carga: dos cámaras y un lidar", "masa_kg": CARGA_KG,
+                  "en": [x_cg, 0, z_carga], "caja": list(CAJA_CARGA)})
+    momento = sum(c["masa_kg"] * (c["en"][0] - x_cg) for c in cosas)
+    cosas.append({"id": "bateria", "nombre": f"batería 6S{r['bateria']['paralelo']}P",
+                  "masa_kg": m["bateria"], "en": [x_cg - momento / m["bateria"], 0, z_bateria],
+                  "caja": list(CAJA_BATERIA)})
+    for c in cosas:
+        c["masa_kg"] = round(c["masa_kg"], 4)
+        c["en"] = [round(v, 1) for v in c["en"]]
+    return cosas
+
+
+def equilibrio_de(cosas, x_np, mac, sin=()):
+    """Centro de gravedad (mm) y margen estático sin las cosas `sin`."""
+    quedan = [c for c in cosas if c["id"] not in sin]
+    masa = sum(c["masa_kg"] for c in quedan)
+    cg = [sum(c["masa_kg"] * c["en"][k] for c in quedan) / masa for k in range(3)]
+    return {"masa_kg": round(masa, 3), "cg_mm": [round(v, 1) for v in cg],
+            "margen": round((x_np - cg[0]) / mac, 4)}
+
+
 def dimensionar():
     aeronave, ala = avion(-4.0)
     area = sum(w.area(type="wetted") for w in aeronave.wings) + aeronave.fuselages[0].area_wetted()
     impreso = area * 1e4 * PIEL_MM / 10 * LWPLA_G_CM3 * NERVIOS / 1000
-    fijo = impreso + AVIONICA_KG + CARBONO_KG + CARGA_KG
+    fijo = impreso + AVIONICA_KG + SERVOS_KG + CARBONO_KG + CARGA_KG
     paralelo = 1
     while True:
         bateria = 6 * paralelo * CELDA["g"] * EMPAQUE / 1000
@@ -212,11 +350,16 @@ def dimensionar():
             "carbono: largueros y vigas": CARBONO_KG,
             "4 motores de sustentación, variadores y hélices": round(sustentacion, 3),
             "motor de empuje, variador y hélice plegable": round(empuje, 3),
-            "controladora, GPS, telemetría, cables y servos": AVIONICA_KG,
+            "controladora, ordenador de a bordo, GPS, telemetría y cables": AVIONICA_KG,
+            "cuatro servos de los elevones": SERVOS_KG,
             "carga útil": CARGA_KG,
             f"batería 6S{paralelo}P de {CELDA['nombre']}": round(bateria, 3),
             "total": round(masa, 3),
         },
+        "_masas": {"impreso": impreso, "sustentacion": sustentacion, "empuje": empuje,
+                   "bateria": bateria, "total": masa},
+        "_centroide_impreso_m": centroide_impreso(aeronave),
+        "_x_np_m": eq["x_np"], "_mac_m": ala.mean_aerodynamic_chord(),
         "bateria": {"serie": 6, "paralelo": paralelo, "Wh": round(wh, 1)},
         "carga_alar_kg_m2": round(masa / s, 2),
         "crucero": {"velocidad_m_s": V_CRUCERO, "alfa_grados": round(eq["alfa"], 2),
@@ -269,12 +412,13 @@ def perfiles():
 def diseno_mm(r):
     """Lo que el kit necesita para dibujarlo (`kit.avion_pieza`), en mm."""
     ro = r["rotores"]
+    x_cg = round(r["equilibrio"]["cg_x_m"] * 1000)
     return {
         "estaciones": [[round(y * 1000, 1), round(x * 1000, 1), round(z * 1000, 1),
                         round(c * 1000, 1), t, p] for y, x, z, c, t, p in r["estaciones"]],
         "raiz": 2,
-        "fuselaje": [[-220, 20, 20], [-140, 110, 90], [0, 150, 120], [350, 150, 120],
-                     [600, 90, 80], [720, 40, 40]],
+        "fuselaje": [[round(x * 1000), round(w * 1000), round(h * 1000), round(z * 1000)]
+                     for x, w, h, z in FUSELAJE],
         "z_fuselaje": round(Z_FUSELAJE * 1000),
         "largueros": [[0.25, 10], [0.6, 6]],
         "elevon": [650, 0.75],
@@ -283,13 +427,26 @@ def diseno_mm(r):
                                                          round(ro["x_detras"] * 1000)],
                     "viga": 16, "helice": round(ro["helice_vtol_pulg"] * 25.4)},
         "empuje": {"x": 720, "helice": round(ro["helice_empuje_pulg"] * 25.4)},
-        "ventanas": [[-100, 40, 34], [10, 40, 34], [140, 84, 72]],
+        # Bajo la carga, en el centro de gravedad: el lidar en medio y una
+        # cámara a cada lado. Estaban en el morro.
+        "ventanas": [[x_cg - 62, 40, 34], [x_cg, 70, 60], [x_cg + 62, 40, 34]],
+        "elevones": [list(e) for e in ELEVONES],
+        "dentro": r["dentro"],
+        "equilibrio": {"punto_neutro_x": round(r["_x_np_m"] * 1000, 1),
+                       "cuerda_media": round(r["_mac_m"] * 1000, 1),
+                       "margen_minimo": MARGEN_MINIMO, "margen_maximo": MARGEN_MAXIMO},
     }
 
 
 if __name__ == "__main__":
     r = dimensionar()
+    r["dentro"] = dentro(r)
+    x_np, mac = r["_x_np_m"] * 1000, r["_mac_m"] * 1000
+    r["equilibrio"]["con_carga"] = equilibrio_de(r["dentro"], x_np, mac)
+    r["equilibrio"]["sin_carga"] = equilibrio_de(r["dentro"], x_np, mac, sin=("carga",))
     r["diseno"] = diseno_mm(r)
+    for k in [k for k in r if k.startswith("_")] + ["dentro"]:
+        del r[k]
     r["perfiles"] = perfiles()
     texto = json.dumps(r, ensure_ascii=False, indent=2)
     if len(sys.argv) > 1:
