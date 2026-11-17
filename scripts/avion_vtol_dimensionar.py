@@ -76,7 +76,8 @@ COMPRAS = [
      "https://www.amazon.com/WHABEST-Carbon-Quadcopter-Hexacopter-10x8x1000mm/dp/B08B345NGX"),
     ("Tubo de carbono 6 × 4 × 1000 mm (larguero trasero)", 2,
      "https://www.amazon.com/1000MM-carbon-Fiber-surface-Tubing/dp/B07776WJC4"),
-    ("Varilla de carbono maciza redonda de Ø2 (elevón exterior)", 1,
+    ("Varilla de carbono maciza redonda de Ø2, de 500 mm (elevones exteriores y guías del "
+     "cuerpo central)", 2,
      "https://www.amazon.com/s?k=carbon+fiber+rod+2mm+round+500mm"),
     ("Pixhawk 6C con módulo de potencia PM02 y GPS M10", 1,
      "https://www.amazon.com/Controller-High-Performance-STM32H743-Processor-Pre-Installed/dp/B0H4RCG8WG"),
@@ -571,6 +572,9 @@ if __name__ == "__main__":
                      for f, di in d["largueros"]}
     ro = d["rotores"]
     r["tubos_mm"][f"viga Ø{ro['viga']}"] = ro["x"][1] - ro["x"][0] + 2 * kit_avion.MEDIO_LARGO_GONDOLA
+    # La varilla maciza de Ø2: los dos elevones exteriores y, desde el
+    # 2026-11-16, las guías del cuerpo central.
+    r["tubos_mm"]["varilla Ø2"] = round(kit_avion.largo_varilla(d), 1)
     for k in [k for k in r if k.startswith("_")] + ["dentro"]:
         del r[k]
     r["perfiles"] = perfiles()

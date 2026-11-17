@@ -41,8 +41,8 @@ DISENO = {
     "estaciones": [[0.0, 0.0, 0.0, 620.0, 2.0, "mh78"],
      [200.0, 170.0, 0.0, 280.0, 1.0, "mh60"],
      [250.0, 190.0, 5.0, 230.0, 0.0, "mh60"],
-     [1050.0, 563.0, 50.0, 120.0, -4.0, "mh60"],
-     [1135.0, 622.7, 121.3, 80.0, -4.0, "mh60"]],
+     [1050.0, 563.0, 50.0, 120.0, -4.5, "mh60"],
+     [1135.0, 622.7, 121.3, 80.0, -4.5, "mh60"]],
     "raiz": 2,
     "fuselaje": [[-220, 20, 20, -20],
      [-140, 110, 90, -20],
@@ -56,14 +56,14 @@ DISENO = {
     "largueros": [[0.25, 10], [0.6, 6]],
     "elevon": [650, 0.75],
     "deriva": {"x": 720, "cuerda": [150, 90], "alto": 255},
-    "rotores": {"y": 380, "x": [-92, 710], "viga": 16, "helice": 381},
+    "rotores": {"y": 380, "x": [-90, 710], "viga": 16, "helice": 381},
     "empuje": {"x": 720, "helice": 254},
-    "ventanas": [[247, 40, 34], [309, 70, 60], [371, 40, 34]],
+    "ventanas": [[248, 40, 34], [310, 70, 60], [372, 40, 34]],
     "elevones": [[3], [4, 5]],
     "dentro": [{"id": "impreso",
       "nombre": "lo impreso (alas de LW-PLA, el resto de PETG)",
-      "masa_kg": 2.3655,
-      "en": [338.7, 0, -41.6]},
+      "masa_kg": 2.3964,
+      "en": [333.2, 0, -38.4]},
      {"id": "larguero-Ø10",
       "nombre": "largueros Ø10",
       "masa_kg": 0.06,
@@ -75,11 +75,11 @@ DISENO = {
      {"id": "vigas",
       "nombre": "vigas Ø16 de los rotores",
       "masa_kg": 0.09,
-      "en": [369.1, 0, -12.0]},
+      "en": [369.9, 0, -12.0]},
      {"id": "motor-d-delante",
       "nombre": "motor de sustentación, variador y hélice",
       "masa_kg": 0.238,
-      "en": [-91.7, 380.0, 18.0]},
+      "en": [-90.3, 380.0, 18.0]},
      {"id": "motor-d-detras",
       "nombre": "motor de sustentación, variador y hélice",
       "masa_kg": 0.238,
@@ -87,7 +87,7 @@ DISENO = {
      {"id": "motor-i-delante",
       "nombre": "motor de sustentación, variador y hélice",
       "masa_kg": 0.238,
-      "en": [-91.7, -380.0, 18.0]},
+      "en": [-90.3, -380.0, 18.0]},
      {"id": "motor-i-detras",
       "nombre": "motor de sustentación, variador y hélice",
       "masa_kg": 0.238,
@@ -128,14 +128,14 @@ DISENO = {
      {"id": "carga",
       "nombre": "carga: dos cámaras y un lidar",
       "masa_kg": 1.0,
-      "en": [309.3, 0, -114.0],
+      "en": [310.1, 0, -114.0],
       "caja": [160, 80, 50]},
      {"id": "bateria",
       "nombre": "batería LiPo 6S 16 000 mAh",
       "masa_kg": 1.93,
-      "en": [273.4, 0, -49.0],
+      "en": [281.9, 0, -49.0],
       "caja": [206, 86, 72]}],
-    "equilibrio": {"punto_neutro_x": 329.2,
+    "equilibrio": {"punto_neutro_x": 330.0,
      "cuerda_media": 284.1,
      "margen_minimo": 0.05,
      "margen_maximo": 0.12},
@@ -329,7 +329,7 @@ CONSTRUIDAS = ["centro-1", "centro-2", "centro-3", "centro-4", "centro-5", "raiz
                "elevon-d-5", "ala-d-6", "gondola-d-delante", "pilon-d", "pata-d", "deriva-d",
                "panza", "tapa-servo-d-interior"]
 DENTRO = ["bateria", "carga", "electronica", "servo-d-interior", "servo-d-exterior",
-          "canal-d", "varilla-d"]
+          "canal-d", "varilla-d", "guia-1-abajo", "guia-1-izquierda", "guia-3-arriba"]
 
 
 def _construir(raiz, nombre, llamada):
@@ -409,6 +409,43 @@ def test_la_varilla_une_los_dos_trozos_del_elevon_exterior(piezas, dentro):
     """Pasa por los dos trozos, en un agujero de 0,3 mm más que ella."""
     huecos = _huecos(piezas, dentro, [("varilla-d", "elevon-d-4"), ("varilla-d", "elevon-d-5")])
     assert all(0 <= h < 0.5 for h in huecos.values()), huecos
+
+
+def test_las_guias_alinean_las_celdas_del_cuerpo_central(piezas, dentro):
+    """Él, el 2026-11-16, a si se añadían guías entre las piezas del cuerpo
+    central, que iban pegadas a tope: «Sí, añádelas». Varillas de Ø2 que
+    cruzan cada corte, la mitad en cada celda, en agujeros de 0,3 mm más:
+    las dos piezas las rodean sin que ninguna las atraviese. El corte 1 lleva
+    la de abajo; el 3 cae sobre la boca de la panza y no. Una varilla cada
+    vez: las de un corte juntas son varios sólidos, y una pieza construida
+    tiene que ser uno (así falló la primera versión de este test)."""
+    huecos = _huecos(piezas, dentro, [
+        ("guia-1-abajo", "centro-1"), ("guia-1-abajo", "centro-2"),
+        ("guia-1-izquierda", "centro-1"), ("guia-1-izquierda", "centro-2"),
+        ("guia-3-arriba", "centro-3"), ("guia-3-arriba", "centro-4")])
+    assert all(0 <= h < 0.5 for h in huecos.values()), huecos
+
+
+def test_una_guia_que_no_existe_se_dice():
+    """El corte 3 cae sobre la boca de la panza: no lleva la de abajo."""
+    with pytest.raises(Exception, match="corte 3.*izquierda, derecha y arriba"):
+        avion.dentro(None, DISENO, "guia-3-abajo")
+
+
+def test_cada_corte_del_cuerpo_central_lleva_guias():
+    """Tres como poco por corte (los dos lados y arriba), para que una celda
+    no pueda girar sobre la otra; abajo solo donde no está la boca de la
+    panza."""
+    cortes = {}
+    for k, lado in avion.guias(DISENO):
+        cortes.setdefault(k, []).append(lado)
+    centros = [i for i in avion._celdas(DISENO) if i.startswith("centro")]
+    assert sorted(cortes) == list(range(1, len(centros)))
+    x0, x1, _ = avion.panza(DISENO)
+    for k, lados in cortes.items():
+        assert {"izquierda", "derecha", "arriba"} <= set(lados), (k, lados)
+        xc = avion._celdas(DISENO)[f"centro-{k}"][1]
+        assert ("abajo" in lados) == (not x0 - 30 < xc < x1 + 30), (k, xc, lados)
 
 
 def _caja(carpeta):

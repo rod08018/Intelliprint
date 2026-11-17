@@ -629,7 +629,7 @@ imprimir; lo que dejó abierto está abajo.
   L+** (300 × 300 × 330; el perfil del sistema sigue siendo el del M5).
   **Rehecho A MANO por el asistente, sin modelo:** piezas huecas (piel,
   alma, nervios, fundas; panza atornillada y tapas de servo), pesadas en
-  sus STL (2,37 kg, no 0,94); derivas de 255 mm por la guiñada respecto
+  sus STL (2,37 kg sin guías, no 0,94); derivas de 255 mm por la guiñada respecto
   al CG; LiPo 6S 16 000 mAh y motores 4312 de 400 KV con hélice de 15″,
   con su enlace de Amazon en `scripts/avion_vtol.json` (`compras`): 7,0
   kg, 1,53 h y 110 km, 1,71 veces el peso en empuje, según AeroSandbox y
@@ -642,9 +642,24 @@ imprimir; lo que dejó abierto está abajo.
   Entre el centro y las raíces hay ahora una costilla en la junta, para
   pegarlas por una cara y no por el canto de la piel. OCC no da siempre el
   mismo sólido: la misma panza, construida doce veces, varía un 0,7 % de
-  volumen. **Por contarle:** el cuerpo central va
-  pegado a tope, sin nada que alinee sus celdas; el pitot no tiene hueco
-  en el morro; las hélices de 4 mm pueden no entrar en el eje del motor.
+  volumen. **Pedido por él ese día («Sí, añádelas»):** guías entre las
+  celdas del cuerpo central, que iban pegadas a tope: 14 trozos de 18 mm
+  de varilla de Ø2 en tacos de Ø8 por dentro de la pared (`avion.guias`),
+  y dos varillas de 500 mm en la lista de compras en vez de una (con una
+  no daban ni los elevones). **Hecho A MANO por el asistente, sin modelo,
+  el 2026-11-17:** las 44 piezas caben y ninguna pide soportes
+  (`2026-11-17-ala-volante-lipo-guias-a-mano-sin-modelo`, con `foto.png`).
+  Lo impreso pesa 2,40 kg; el total, 7,05 kg; siguen 1,53 h y 110 km, con
+  1,70 veces el peso en empuje. Los 24 g de más bajan la torsión de la
+  punta de −4,0° a −4,5°, y por eso las piezas se construyeron dos veces
+  (la primera vuelta queda en la carpeta del 16). La panza se hizo con la
+  batería 0,4 mm más atrás que en el dimensionado final; otra vuelta sería
+  perseguir el ruido de OCC. Lo que tumbó los tests la noche de la pausa
+  no era tiempo: las varillas de un corte, juntas, son varios sólidos, y
+  el sistema no construye una pieza que no sea una; ahora se miden de una
+  en una (`guia-1-abajo`). **Por contarle:**
+  el pitot no tiene hueco en el morro; las hélices de 4 mm pueden no
+  entrar en el eje del motor.
 
 **2026-11-11 (noche): Fase 10, brazos con transmisión (ADR-021).** Decidido
 por él: **el brazo antes que el avión**; empezar por uno pequeño con servos;

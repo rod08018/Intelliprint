@@ -26,7 +26,9 @@ Cada pieza cabe en la cama y está pensada para imprimirse sin soportes:
   que abraza la viga, y su agujero lleva tejado.
 
 Las piezas se pegan: los largueros de carbono las alinean (Ø10 al 25 % de la
-cuerda y Ø6 al 60 %), como en los aviones de LW-PLA de Flightory.
+cuerda y Ø6 al 60 %), como en los aviones de LW-PLA de Flightory. Las celdas
+del cuerpo central, que los largueros no cruzan todas, llevan guías: trozos
+de varilla de Ø2 en tacos pegados por dentro a la pared (`guias`).
 """
 
 from __future__ import annotations
@@ -102,6 +104,18 @@ VARILLA_ELEVON = 2.0
 quedaba pared en la punta, donde el elevón tiene 5 mm de grueso."""
 CANAL_CABLES = 6.0
 """El canal de los cables de los servos, de la raíz al servo exterior."""
+TACO_GUIA = 8.0
+"""Los tacos de las guías del cuerpo central: con la varilla de Ø2 en un
+agujero de 2,3, les quedan 2,85 mm de pared."""
+MEDIO_TACO = 10.0
+"""Lo que mide un taco a cada lado del corte, sin la punta."""
+MEDIA_GUIA = 9.0
+"""Lo que entra cada guía en cada celda: un trozo de 18 mm de varilla."""
+PUNTA_TACO = 6.0
+"""El cono con el que acaba un taco: con la cara plana, la celda impresa de
+pie sobre el otro corte la tendría de techo, 8 mm en el aire."""
+SOLAPE_TACO = 0.8
+"""Lo que el taco se mete en la pared del fuselaje para quedar pegado a ella."""
 SALIDA_SERVO = 1.2
 """Cuánto más largo es el hueco del servo por cada mm de hondo, en cada
 punta: el ala se imprime de pie y el fondo del hueco sería un techo; así es
@@ -374,7 +388,8 @@ def piezas(d) -> list[tuple[str, str, str]]:
     for id_ in _celdas(d):
         if id_.startswith("centro"):
             lista.append((id_, f"Cuerpo central {id_.split('-')[1]}",
-                          "fuselaje y centro del ala: la batería, la carga y la electrónica"))
+                          "fuselaje y centro del ala: la batería, la carga y la electrónica; "
+                          "se pega a la de al lado con guías de varilla de Ø2"))
     if any(c["id"] == "bateria" for c in d.get("dentro", [])):
         lista.append(("panza", "Panza", "la tapa de abajo del fuselaje, con cuatro M3: lleva la "
                       "bandeja de la batería y, colgada debajo entre dos quillas, la carga, que "
@@ -577,10 +592,17 @@ def _canal(kit, d, cables=None):
     return _tubo(kit, de, a_, CANAL_CABLES, puntas=True)
 
 
-def _varilla(kit, d, tramos, hueco=True):
-    """La varilla de carbono que une los trozos de un elevón: a 4 mm detrás
-    de la bisagra, de 5 mm dentro del primero a 5 mm antes del final del
-    último. Los agujeros son ciegos: la varilla queda dentro."""
+def largo_varilla(d) -> float:
+    """Los mm de varilla de Ø2 que pide el avión: la de cada elevón de varios
+    trozos, de los dos lados, y 2·MEDIA_GUIA por guía del cuerpo central."""
+    largo = 2 * MEDIA_GUIA * len(guias(d))
+    for g in d.get("elevones", []):
+        if len(g) > 1:
+            largo += 2 * math.dist(*_extremos_varilla(d, g))
+    return largo
+
+
+def _extremos_varilla(d, tramos):
     ts = _tramos_ala(d)
     y0, y1 = ts[tramos[0] - 1][0] + 5, ts[tramos[-1] - 1][1] - 5
     f = d["elevon"][1]
@@ -592,14 +614,106 @@ def _varilla(kit, d, tramos, hueco=True):
             raise _error(f"la varilla de Ø{VARILLA_ELEVON:g} del elevón no cabe en y = {y:g}: "
                          f"el elevón tiene ahí {_grueso(p, g) * c:.1f} mm de grueso")
         return (*_girado(g, _comba(p, g), x, z, c, t), y)
-    return _tubo(kit, punto(y0), punto(y1), VARILLA_ELEVON,
+    return punto(y0), punto(y1)
+
+
+def _varilla(kit, d, tramos, hueco=True):
+    """La varilla de carbono que une los trozos de un elevón: a 4 mm detrás
+    de la bisagra, de 5 mm dentro del primero a 5 mm antes del final del
+    último. Los agujeros son ciegos: la varilla queda dentro."""
+    return _tubo(kit, *_extremos_varilla(d, tramos), VARILLA_ELEVON,
                  holgura=HOLGURA_TUBO if hueco else 0)
+
+
+def guias(d) -> list[tuple[int, str]]:
+    """[(k, lado)] de las guías del cuerpo central: en el corte entre la celda
+    k y la k + 1, una varilla de Ø2 por lado (izquierda, derecha, arriba y
+    abajo). Él, el 2026-11-16, a si se añadían guías entre las celdas, que se
+    pegaban a tope: «Sí, añádelas». Abajo no donde el corte cae junto a la
+    boca de la panza: allí no hay pared, y el taco se quedaba en el aire."""
+    cortes = [c for i, c in sorted(_celdas(d).items(), key=lambda t: t[1][0])
+              if i.startswith("centro")]
+    x0, x1, _ = panza(d)
+    lista = []
+    for k, c in enumerate(cortes[:-1], 1):
+        xc = c[1]
+        lados = ["izquierda", "derecha", "arriba"]
+        if not x0 - 30 < xc < x1 + 30:
+            lados.append("abajo")
+        lista += [(k, lado) for lado in lados]
+    return lista
+
+
+def _guias_en(kit, d, k=None) -> list[tuple[float, float, float, str]]:
+    """[(x, y, z, lado)] del eje de cada guía (de la del corte k, si se dice),
+    a TACO_GUIA/2 − SOLAPE_TACO por dentro de la piel tal como sale en el
+    corte: la transición del fuselaje se sale de las secciones del diseño, y
+    un taco puesto con ellas quedaba suelto en el hueco."""
+    import FreeCAD
+    # Lo medido se guarda, como la piel: cada celda lo pedía cortando el
+    # fuselaje entero una vez por guía.
+    clave = json.dumps([d["fuselaje"], d.get("z_fuselaje"), guias(d), _celdas(d)], default=str)
+    if clave not in _GUIAS_MEDIDAS:
+        forma = _fuselaje(kit, d)._forma
+        celdas = _celdas(d)
+        dentro_ = PARED + TACO_GUIA / 2 - SOLAPE_TACO
+        cajas, lista = {}, []
+        for kk, lado in guias(d):
+            xc = celdas[f"centro-{kk}"][1]
+            if xc not in cajas:
+                cortes = forma.slice(FreeCAD.Vector(1, 0, 0), xc)
+                cajas[xc] = cortes[0].BoundBox
+                for c in cortes[1:]:
+                    cajas[xc].add(c.BoundBox)
+            caja = cajas[xc]
+            zm = (caja.ZMin + caja.ZMax) / 2
+            y, z = {"izquierda": (caja.YMin + dentro_, zm), "derecha": (caja.YMax - dentro_, zm),
+                    "arriba": (0.0, caja.ZMax - dentro_),
+                    "abajo": (0.0, caja.ZMin + dentro_)}[lado]
+            lista.append((kk, (xc, y, z, lado)))
+        _GUIAS_MEDIDAS[clave] = lista
+    return [g for kk, g in _GUIAS_MEDIDAS[clave] if k is None or kk == k]
+
+
+_GUIAS_MEDIDAS: dict = {}
+
+
+def _tacos(kit, d, x0, x1):
+    """Los tacos de las guías que caen en la celda de x0 a x1 (cada uno, la
+    mitad que le toca), y los agujeros de sus varillas."""
+    tacos = agujeros = None
+    for xc, y, z, _ in _guias_en(kit, d):
+        if abs(xc - x0) < 1e-6:
+            t = kit.cilindro(TACO_GUIA, MEDIO_TACO, en=(xc, y, z), eje="x") + kit.cono(
+                TACO_GUIA, 0, PUNTA_TACO, en=(xc + MEDIO_TACO, y, z), eje="x")
+        elif abs(xc - x1) < 1e-6:
+            t = kit.cilindro(TACO_GUIA, MEDIO_TACO, en=(xc - MEDIO_TACO, y, z), eje="x") + kit.cono(
+                TACO_GUIA, 0, PUNTA_TACO, en=(xc - MEDIO_TACO, y, z), eje="-x")
+        else:
+            continue
+        a = kit.cilindro(VARILLA_ELEVON + HOLGURA_TUBO, 2 * MEDIA_GUIA,
+                         en=(xc - MEDIA_GUIA, y, z), eje="x")
+        tacos = t if tacos is None else tacos + t
+        agujeros = a if agujeros is None else agujeros + a
+    return tacos, agujeros
 
 
 def dentro(kit, d, que):
     """El cuerpo de `que`: una de las cosas de `dentro` con caja (la batería,
-    la carga, la electrónica, un servo), `canal-d`/`canal-i` o
-    `varilla-d`/`varilla-i`. Para verlas en su sitio y comprobar que caben."""
+    la carga, la electrónica, un servo), `canal-d`/`canal-i`,
+    `varilla-d`/`varilla-i` o `guia-k-lado` (la varilla de ese lado en el
+    corte k del cuerpo central). Para verlas en su sitio y comprobar que
+    caben."""
+    if que.startswith("guia-"):
+        # Una varilla cada vez: las de un corte juntas son varios sólidos, y
+        # el sistema no construye una pieza que no sea uno (2026-11-17).
+        _, k, lado = que.split("-", 2)
+        lados = [ll for kk, ll in guias(d) if kk == int(k)]
+        if lado not in lados:
+            raise _error(f"el corte {k} no lleva guía {lado!r}: lleva "
+                         + (", ".join(lados[:-1]) + " y " + lados[-1] if lados else "ninguna"))
+        xc, y, z, _ = next(g for g in _guias_en(kit, d, int(k)) if g[3] == lado)
+        return kit.cilindro(VARILLA_ELEVON, 2 * MEDIA_GUIA, en=(xc - MEDIA_GUIA, y, z), eje="x")
     lado = que.split("-")[-1] if que.split("-")[-1] in ("d", "i") else None
     if que.startswith("canal-") and lado:
         canal = _canal(kit, d, cables=CANAL_CABLES - 2)
@@ -882,6 +996,11 @@ def _cuerpo_central(kit, d, celda=None):
     marco = (_hueco_fuselaje(kit, d) - _hueco_fuselaje(kit, d, PARED + MARCO)) & kit.caja(
         x1 - x0 + 2 * MARCO, 400, ALTO_LABIO + 4, en=(x0 - MARCO, -200, zc))
     cuerpo = cuerpo - (hueco - marco)
+    agujeros = None
+    if celda is not None:
+        tacos, agujeros = _tacos(kit, d, celda[0], celda[1])
+        if tacos is not None:
+            cuerpo = cuerpo + tacos
     largueros = _largueros(kit, d, puntas=True)
     cuerpo = cuerpo - largueros - largueros.espejo("xz", conservar=False)
     canal = _canal(kit, d)
@@ -899,6 +1018,8 @@ def _cuerpo_central(kit, d, celda=None):
         a = math.radians(45 + 90 * k)
         cuerpo = cuerpo - kit.cilindro(2.8, 10, en=(xe - 9.5, 9.5 * math.cos(a),
                                                     zf + 9.5 * math.sin(a)), eje="x")
+    if agujeros is not None:
+        cuerpo = cuerpo - agujeros
     return cuerpo
 
 

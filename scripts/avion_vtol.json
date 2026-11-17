@@ -5,7 +5,7 @@
   "alargamiento": 10.62,
   "cuerda_media_m": 0.2841,
   "masa_kg": {
-    "impreso, pesado en sus STL": 2.366,
+    "impreso, pesado en sus STL": 2.396,
     "carbono: largueros y vigas": 0.18,
     "4 motores de sustentación, variadores y hélices": 0.952,
     "motor de empuje, variador y hélice plegable": 0.18,
@@ -13,28 +13,28 @@
     "cuatro servos de los elevones": 0.1,
     "carga útil": 1.0,
     "batería LiPo 6S 16 000 mAh": 1.93,
-    "total": 7.018
+    "total": 7.048
   },
-  "impreso_pesado_en": "2026-11-16-ala-volante-lipo-a-mano-sin-modelo",
+  "impreso_pesado_en": "2026-11-17-ala-volante-lipo-guias-a-mano-sin-modelo",
   "bateria": {
     "serie": 6,
     "mAh": 16000,
     "Wh": 355.2
   },
-  "carga_alar_kg_m2": 13.81,
+  "carga_alar_kg_m2": 13.88,
   "crucero": {
     "velocidad_m_s": 20.0,
-    "alfa_grados": 5.27,
-    "CL": 0.553,
+    "alfa_grados": 5.4,
+    "CL": 0.556,
     "L_D": 14.15,
-    "resistencia_N": 4.87,
-    "potencia_W": 162.2
+    "resistencia_N": 4.89,
+    "potencia_W": 162.9
   },
   "vtol": {
-    "potencia_W": 1060,
+    "potencia_W": 1067,
     "minutos": 3.0,
     "empuje_max_por_motor_kg": 3.0,
-    "empuje_sobre_peso": 1.71
+    "empuje_sobre_peso": 1.7
   },
   "compras": [
     {
@@ -88,8 +88,8 @@
       "url": "https://www.amazon.com/1000MM-carbon-Fiber-surface-Tubing/dp/B07776WJC4"
     },
     {
-      "que": "Varilla de carbono maciza redonda de Ø2 (elevón exterior)",
-      "cantidad": 1,
+      "que": "Varilla de carbono maciza redonda de Ø2, de 500 mm (elevones exteriores y guías del cuerpo central)",
+      "cantidad": 2,
       "url": "https://www.amazon.com/s?k=carbon+fiber+rod+2mm+round+500mm"
     },
     {
@@ -116,41 +116,41 @@
   "lo_que_cuestan_los_rotores": {
     "peso_kg": 1.042,
     "potencia_crucero_W": 64.4,
-    "energia_vertical_Wh": 53.0
+    "energia_vertical_Wh": 53.3
   },
   "autonomia_h": 1.53,
   "alcance_km": 110,
   "perdida_m_s": 14.9,
   "equilibrio": {
-    "torsion_punta_grados": -4.0,
-    "punto_neutro_x_m": 0.3292,
-    "cg_x_m": 0.3093,
+    "torsion_punta_grados": -4.5,
+    "punto_neutro_x_m": 0.33,
+    "cg_x_m": 0.3101,
     "margen": 0.07,
-    "Cm": -0.0027,
-    "Cm_alfa": -5.566,
-    "Cn_beta": 0.0598,
+    "Cm": 0.0025,
+    "Cm_alfa": -5.587,
+    "Cn_beta": 0.0604,
     "con_carga": {
-      "masa_kg": 7.018,
+      "masa_kg": 7.048,
       "cg_mm": [
-        309.3,
+        310.1,
         0.0,
-        -42.7
+        -41.6
       ],
-      "margen": 0.0701
+      "margen": 0.0699
     },
     "sin_carga": {
-      "masa_kg": 6.018,
+      "masa_kg": 6.048,
       "cg_mm": [
-        309.3,
+        310.1,
         0.0,
-        -30.9
+        -29.6
       ],
-      "margen": 0.0701
+      "margen": 0.0699
     }
   },
   "rotores": {
     "y_viga": 0.38,
-    "x_delante": -0.091740540622538,
+    "x_delante": -0.09026474551915353,
     "x_detras": 0.7103949955601498,
     "x_empuje": 0.72,
     "helice_vtol_pulg": 15,
@@ -190,7 +190,7 @@
       0.5630461265239989,
       0.05,
       0.12,
-      -4.0,
+      -4.5,
       "mh60"
     ],
     [
@@ -198,7 +198,7 @@
       0.6226822774671738,
       0.12132346865006881,
       0.08,
-      -4.0,
+      -4.5,
       "mh60"
     ]
   ],
@@ -247,7 +247,7 @@
         563.0,
         50.0,
         120.0,
-        -4.0,
+        -4.5,
         "mh60"
       ],
       [
@@ -255,7 +255,7 @@
         622.7,
         121.3,
         80.0,
-        -4.0,
+        -4.5,
         "mh60"
       ]
     ],
@@ -336,7 +336,7 @@
     "rotores": {
       "y": 380,
       "x": [
-        -92,
+        -90,
         710
       ],
       "viga": 16,
@@ -348,17 +348,17 @@
     },
     "ventanas": [
       [
-        247,
+        248,
         40,
         34
       ],
       [
-        309,
+        310,
         70,
         60
       ],
       [
-        371,
+        372,
         40,
         34
       ]
@@ -376,11 +376,11 @@
       {
         "id": "impreso",
         "nombre": "lo impreso (alas de LW-PLA, el resto de PETG)",
-        "masa_kg": 2.3655,
+        "masa_kg": 2.3964,
         "en": [
-          338.7,
+          333.2,
           0,
-          -41.6
+          -38.4
         ]
       },
       {
@@ -408,7 +408,7 @@
         "nombre": "vigas Ø16 de los rotores",
         "masa_kg": 0.09,
         "en": [
-          369.1,
+          369.9,
           0,
           -12.0
         ]
@@ -418,7 +418,7 @@
         "nombre": "motor de sustentación, variador y hélice",
         "masa_kg": 0.238,
         "en": [
-          -91.7,
+          -90.3,
           380.0,
           18.0
         ]
@@ -438,7 +438,7 @@
         "nombre": "motor de sustentación, variador y hélice",
         "masa_kg": 0.238,
         "en": [
-          -91.7,
+          -90.3,
           -380.0,
           18.0
         ]
@@ -553,7 +553,7 @@
         "nombre": "carga: dos cámaras y un lidar",
         "masa_kg": 1.0,
         "en": [
-          309.3,
+          310.1,
           0,
           -114.0
         ],
@@ -568,7 +568,7 @@
         "nombre": "batería LiPo 6S 16 000 mAh",
         "masa_kg": 1.93,
         "en": [
-          273.4,
+          281.9,
           0,
           -49.0
         ],
@@ -580,7 +580,7 @@
       }
     ],
     "equilibrio": {
-      "punto_neutro_x": 329.2,
+      "punto_neutro_x": 330.0,
       "cuerda_media": 284.1,
       "margen_minimo": 0.05,
       "margen_maximo": 0.12
@@ -589,7 +589,8 @@
   "tubos_mm": {
     "larguero Ø10": 1000.0,
     "larguero Ø6": 1000.0,
-    "viga Ø16": 882.0
+    "viga Ø16": 880.0,
+    "varilla Ø2": 912.5
   },
   "perfiles": {
     "mh60": {

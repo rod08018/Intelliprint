@@ -61,3 +61,14 @@ def test_ningun_tubo_de_carbono_pasa_del_metro_que_se_vende(r):
     """En Amazon los tubos de Ø16, Ø10 y Ø6 se venden de 1000 mm."""
     for nombre, largo in r["tubos_mm"].items():
         assert largo <= 1000, (nombre, largo)
+
+
+def test_la_varilla_de_o2_alcanza_para_los_elevones_y_las_guias(r):
+    """La varilla maciza de Ø2 se vende de 500 mm. Hace falta para unir los
+    dos trozos de cada elevón exterior y, desde las guías del cuerpo central
+    (él: «Sí, añádelas», 2026-11-16), para un trozo de 18 mm en cada guía.
+    Comprar una sola, como antes, no daba ni para los dos elevones."""
+    compra = next(c for c in r["compras"] if "Ø2" in c["que"])
+    largo = r["tubos_mm"]["varilla Ø2"]
+    assert largo > 2 * 300 + 14 * 18 - 50, largo
+    assert largo <= compra["cantidad"] * 500, (largo, compra)
