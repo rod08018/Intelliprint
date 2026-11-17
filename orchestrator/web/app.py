@@ -342,10 +342,18 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
         if not piezas:
             raise HTTPException(404, "este proyecto no tiene piezas construidas")
         png = carpeta / "vista.png"
-        if not png.is_file() or png.stat().st_mtime < max(p.stat().st_mtime for p in piezas):
-            from orchestrator.vista import dibujar_piezas
+        from orchestrator import obra
+        from orchestrator import vista as V
+        # Un backlog, montado (él, 2026-11-17: «debe mostrarse el ensamble de
+        # todo»); se redibuja también si su conjunto se volvió a mover.
+        es_obra = obra.es_obra(carpeta)
+        fuentes = [*piezas, *(carpeta.glob("nodos/*/ensamble.json") if es_obra else [])]
+        if not png.is_file() or png.stat().st_mtime < max(p.stat().st_mtime for p in fuentes):
             try:
-                dibujar_piezas(piezas, png)
+                if es_obra:
+                    V.dibujar_montado(carpeta, png)
+                else:
+                    V.dibujar_piezas(piezas, png)
             except ValueError as e:
                 raise HTTPException(409, str(e))
         return FileResponse(png, media_type="image/png")

@@ -16,6 +16,7 @@ Uso, desde el repo:
     MSYS_NO_PATHCONV=1 docker compose run --rm -T --entrypoint python3 suite - \\
         /workspace/projects/<carpeta> < scripts/avion_vtol_a_mano.py
 Con un segundo argumento (un id de pieza), construye solo esa, en /tmp.
+En el workspace hace falta `-e CAMBIO="…"`: lo que cambia esta versión.
 """
 
 import json
@@ -37,11 +38,23 @@ raiz = cli._raiz()
 os.chdir(raiz)
 P = Path(sys.argv[1] if len(sys.argv) > 1 else "/tmp/avion")
 SOLO = sys.argv[2] if len(sys.argv) > 2 else None
+# Cada carpeta es una VERSIÓN del avión, con lo que cambia en `CAMBIO`. Él,
+# el 2026-11-17, al ver siete inventos en la portada: «¿por qué hay 6
+# inventos de avión y no un avión con 6 versiones?». Se pide antes de
+# construir nada: sin ella, la carpeta sale como un invento más.
+AVION = "2026-11-16-vtol-a-mano-sin-modelo"
+CAMBIO = os.environ.get("CAMBIO", "").strip()
+if not str(P).startswith("/tmp/") and not CAMBIO:
+    raise SystemExit("falta CAMBIO: qué cambia esta versión del avión "
+                     "(docker compose run -e CAMBIO=\"…\" …)")
 if P.exists() and not str(P).startswith("/tmp/"):
     raise SystemExit(f"{P} ya existe y no es temporal: no se toca")
 shutil.rmtree(P, ignore_errors=True)
 P.mkdir(parents=True)
 os.environ["INTELLIPRINT_WORKSPACE"] = str(P.parent.parent)
+if CAMBIO and not str(P).startswith("/tmp/"):
+    from orchestrator.web.versiones import marcar_version
+    print("VERSIÓN de", marcar_version(P.parent.parent, P, AVION, CAMBIO), flush=True)
 D = json.loads(Path("scripts/avion_vtol.json").read_text(encoding="utf-8"))
 DISENO = D["diseno"]
 CAMA = (235, 235, 250)

@@ -41,9 +41,20 @@ if CORRIDA.exists() and not str(CORRIDA).startswith("/tmp/"):
 shutil.rmtree(CORRIDA, ignore_errors=True)
 PROYECTO = HASTA == "proyecto"
 HASTA = "brida" if PROYECTO else HASTA
+# Como proyecto, cada carpeta es una VERSIÓN del brazo, con lo que cambia en
+# `CAMBIO`: el brazo salía dos veces en la portada (y su muñeca, una
+# tercera), y él quiere un invento con sus versiones (2026-11-17).
+BRAZO = "2026-11-14-brazo-de-seis-ejes-a-mano-sin-modelo"
+CAMBIO = os.environ.get("CAMBIO", "").strip()
+if PROYECTO and not CAMBIO:
+    raise SystemExit("falta CAMBIO: qué cambia esta versión del brazo "
+                     "(docker compose run -e CAMBIO=\"…\" …)")
 P = CORRIDA if PROYECTO else CORRIDA / "01" / "projects" / "a"
 P.mkdir(parents=True)
 os.environ["INTELLIPRINT_WORKSPACE"] = str(P.parent.parent)
+if PROYECTO:
+    from orchestrator.web.versiones import marcar_version
+    print("VERSIÓN de", marcar_version(P.parent.parent, P, BRAZO, CAMBIO), flush=True)
 env = dict(os.environ)
 freecad = cli._freecadcmd(env)
 perfil = cli._perfil(raiz, env)
@@ -348,8 +359,11 @@ print("módulos:", len(modulos.construir(P, freecad, perfil.datos)), f"piezas en
       flush=True)
 from orchestrator.conjunto import VERIFICACION, verificar_conjunto  # noqa: E402
 t = time.time()
+# Como proyecto, con su animación: es la que deja `ensamble.json`, lo que la
+# web enseña montado. Sin ella, el brazo del 2026-11-15 salía en la web en
+# siete piezas sueltas y él no lo vio armado (2026-11-17).
 v = verificar_conjunto(P, "todo", freecad, min_gap_mm=perfil.impresora.fit_mm("slide") / 2,
-                       animar=False)
+                       animar=PROYECTO)
 print(f"conjunto: movido en {time.time() - t:.0f} s; ok: {v['ok']}", flush=True)
 for a in v["articulaciones"]:
     print(f"  «{a['pieza']}» sobre «{a['padre']}» ({a['de']}), de {a['recorrido'][0]:g}° a "

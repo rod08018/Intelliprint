@@ -660,6 +660,27 @@ imprimir; lo que dejó abierto está abajo.
   en una (`guia-1-abajo`). **Por contarle:**
   el pitot no tiene hueco en el morro; las hélices de 4 mm pueden no
   entrar en el eje del motor.
+- **Dicho por él el 2026-11-17: «¿por qué en Intelliprint hay 6 inventos
+  de avión y no un avión con 6 versiones?» y «el brazo no aparece armado
+  en los inventos, arregla todo eso».** Cada carpeta hecha a mano traía
+  una petición distinta y ningún `proyecto.json`. Arreglado:
+  `versiones.marcar_version` la marca como versión de su proyecto y los dos
+  scripts a mano la exigen (`-e CAMBIO="…"`). Las versiones se ordenan por
+  de cuál parte cada una, no por el nombre (que en lo hecho a mano solo
+  lleva la fecha), y la página dice a la vista qué cambia. Marcadas las
+  que había: el avión es un invento con 7 versiones y el brazo uno con 3
+  (la muñeca de ensayo es la 2). El brazo industrial se había comprobado
+  sin animación y no dejó `ensamble.json`, lo que la web pinta montado:
+  rehecha con `animar`, y el script ya la hace como proyecto. Y después:
+  «también debe mostrarse el ensamble de todo». La imagen de un backlog
+  (portada, y página sin visor) eran sus piezas en fila: ahora es el
+  invento montado (`vista.montado`), con el conjunto en reposo y lo
+  comprado dentro, o, sin conjunto (el avión), cada pieza donde se dibujó.
+  Dibujar el avión tarda unos 107 s la primera vez; quedan dibujados.
+  **Preguntó también si vuela con 7 kg, imprimiéndolo con poco relleno:**
+  el 20 % de relleno ya estaba contado y lo impreso es 2,40 de los 7,05 kg
+  (el PETG del cuerpo, 1,87); se le contestó con el desglose. **Sin
+  decidir:** pasar el cuerpo a LW-PLA o adelgazarlo.
 
 **2026-11-11 (noche): Fase 10, brazos con transmisión (ADR-021).** Decidido
 por él: **el brazo antes que el avión**; empezar por uno pequeño con servos;

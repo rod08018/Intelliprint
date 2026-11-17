@@ -155,19 +155,72 @@ def _carpetas(workspace: Path) -> list[Path]:
 def raices(workspace: Path) -> dict[str, str]:
     """{id de la carpeta: id del proyecto}. El proyecto se llama como su
     primera ejecución, que es la solicitud original."""
-    raiz_de: dict[str, str] = {}
+    padre: dict[str, str | None] = {}
     por_peticion: dict[str, str] = {}
     for carpeta in _carpetas(workspace):
         peticion = ""
         if (carpeta / "request.md").is_file():
             peticion = (carpeta / "request.md").read_text(encoding="utf-8", errors="ignore").strip()
-        candidato = (marca_de(carpeta).get("proyecto") or _citado(carpeta)
-                     or por_peticion.get(peticion))
-        # El candidato puede ser a su vez una versión: se sube hasta la raíz.
-        raiz_de[carpeta.name] = raiz_de.get(candidato, carpeta.name)
+        padre[carpeta.name] = (marca_de(carpeta).get("proyecto") or _citado(carpeta)
+                               or por_peticion.get(peticion))
         if peticion:
             por_peticion.setdefault(peticion, carpeta.name)
+    # El candidato puede ser a su vez una versión: se sube hasta la raíz.
+    # Después de leerlas todas, y no al pasar: una marca puede nombrar una
+    # carpeta que va después en el alfabeto (las hechas a mano solo llevan
+    # la fecha: «…-16-ala-volante» apunta a «…-16-vtol», 2026-11-17).
+    raiz_de: dict[str, str] = {}
+    for nombre in padre:
+        visto, actual = {nombre}, nombre
+        while padre.get(actual) in padre and padre[actual] not in visto:
+            actual = padre[actual]
+            visto.add(actual)
+        raiz_de[nombre] = actual
     return raiz_de
+
+
+def _en_orden(versiones: list[dict], workspace: Path) -> list[dict]:
+    """Las versiones de un proyecto, cada una detrás de la que dice que
+    parte (`basado_en`), y a igualdad por nombre, que empieza por la fecha.
+    Solo por nombre, el ala volante del 2026-11-16 salía como versión 1 de un
+    proyecto que empezó con el VTOL de ese mismo día."""
+    ids = {v["id"] for v in versiones}
+    base = {v["id"]: marca_de(Path(workspace) / v["seccion"] / v["id"]).get("basado_en")
+            for v in versiones}
+    quedan = sorted(versiones, key=lambda v: v["id"])
+    orden, puestas = [], set()
+    while quedan:
+        lista = next((v for v in quedan if base[v["id"]] not in ids or base[v["id"]] in puestas),
+                     quedan[0])   # un ciclo no deja a ninguna lista: la primera
+        quedan.remove(lista)
+        orden.append(lista)
+        puestas.add(lista["id"])
+    return orden
+
+
+def marcar_version(workspace: Path, carpeta: Path, proyecto: str, modificacion: str,
+                   basado_en: str | None = None) -> dict:
+    """Deja escrito en `carpeta` que es una versión del proyecto de
+    `proyecto` (cualquiera de sus versiones), con lo que cambia. Para lo que
+    no lanza la web: lo hecho a mano salía como un invento por carpeta, siete
+    aviones en la portada (2026-11-17). Parte de `basado_en` o, sin él, de la
+    última versión que había."""
+    carpeta = Path(carpeta)
+    raiz_de = raices(workspace)
+    if proyecto not in raiz_de or proyecto == carpeta.name:
+        raise ProyectoDesconocido(proyecto)
+    raiz = raiz_de[proyecto]
+    if basado_en is None:
+        hermanas = [{"id": n, "seccion": _seccion_de(workspace, n)}
+                    for n, r in raiz_de.items() if r == raiz and n != carpeta.name]
+        basado_en = _en_orden(hermanas, workspace)[-1]["id"]
+    marca = {"proyecto": raiz, "basado_en": basado_en, "modificacion": modificacion.strip()}
+    (carpeta / MARCA).write_text(json.dumps(marca, ensure_ascii=False), encoding="utf-8")
+    return marca
+
+
+def _seccion_de(workspace: Path, nombre: str) -> str:
+    return next(s for s in SECCIONES if (Path(workspace) / s / nombre).is_dir())
 
 
 def _merito(v: dict) -> tuple:
@@ -276,6 +329,7 @@ def agrupar(filas: list[dict], workspace: Path) -> list[dict]:
 
     proyectos = []
     for raiz, versiones in por_raiz.items():
+        versiones = _en_orden(versiones, workspace)
         for n, v in enumerate(versiones, 1):
             v["version"] = n
             v["modificacion"] = marca_de(Path(workspace) / v["seccion"] / v["id"]).get("modificacion")
@@ -284,7 +338,7 @@ def agrupar(filas: list[dict], workspace: Path) -> list[dict]:
         terminadas = [v for v in versiones if v["estado"] != "en marcha"] or versiones
         mejor = max(terminadas, key=_merito)
         en_marcha = next((v for v in versiones if v["estado"] == "en marcha"), None)
-        primera = versiones[0]
+        primera = next((v for v in versiones if v["id"] == raiz), versiones[0])
         proyectos.append({
             **mejor,
             "id": raiz,

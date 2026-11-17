@@ -1038,6 +1038,7 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
         {f'<div class="acciones">{acciones}</div>' if acciones else ""}
         {aprobado}
         <p class="suave meta">Versión {v["version"]} de {len(versiones)} · {e(_fecha(v["id"]))}</p>
+        {f'<p class="suave meta">Qué cambia: {e(v["modificacion"])}</p>' if v.get("modificacion") else ""}
       </div>
     </div>
     {materiales}{estudio}{arbol}{seccion_piezas}{cambiar_todo}{docs}
@@ -1052,19 +1053,8 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
 
 
 def _conjunto_con_ensamble(carpeta: Path) -> str | None:
-    """El último conjunto de la obra (el ensamble final) que ya dejó sus
-    mallas para el visor."""
-    obra = _leer(carpeta / "obra.json") or {}
-    conjuntos = [x["id"] for x in obra.get("nodos", []) if x.get("tipo") == "conjunto"]
-    from orchestrator import obra as O
-    try:
-        orden = O.cargar_obra(carpeta).orden()
-    except Exception:
-        orden = conjuntos
-    for i in reversed([i for i in orden if i in conjuntos]):
-        if (carpeta / "nodos" / i / "ensamble.json").is_file():
-            return i
-    return None
+    from orchestrator.vista import conjunto_con_ensamble
+    return conjunto_con_ensamble(carpeta)
 
 
 def _kgf_cm(nm: float) -> str:

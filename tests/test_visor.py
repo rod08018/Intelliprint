@@ -240,3 +240,78 @@ def test_un_par_pequeno_no_sale_como_cero():
     assert _kgf_cm(0.17652) == "1.8"
     assert _kgf_cm(1.0787) == "11"
     assert _kgf_cm(0.0) == "0"
+
+
+# --- El invento montado, en su imagen ------------------------------------------------
+# Él, el 2026-11-17: «también debe mostrarse el ensamble de todo, porque del
+# brazo y eso no veo ensamble». La imagen de un invento de varias piezas
+# (la de la portada, y la de su página cuando no hay visor) eran las piezas
+# en fila, como en la cama.
+
+
+def _triangulo_en(ruta, x):
+    import struct
+    ruta.parent.mkdir(parents=True)
+    puntos = [x, 0, 0, x + 10, 0, 0, x, 10, 0]
+    ruta.write_bytes(bytes(80) + struct.pack("<I", 1) + struct.pack("<12fH", 0, 0, 1, *puntos, 0))
+
+
+def test_montado_con_conjunto_pone_cada_malla_en_la_pose_de_reposo(tmp_path):
+    """El soporte, en reposo, está en (29.4, 12.2, 27.6) del marco de la base
+    sin girar (ver `test_las_poses_salen_de_la_cinematica_del_conjunto`); lo
+    comprado va con la pieza que lo monta."""
+    from orchestrator.vista import montado
+    carpeta = _giro(tmp_path)
+    tri = {"v": [0, 0, 0, 1, 0, 0, 0, 1, 0], "t": [0, 1, 2]}
+    (carpeta / "nodos" / "conjunto" / "ensamble.json").write_text(json.dumps({
+        "solidos": {"base": {"pieza": "base", "color": "#111111", **tri},
+                    "soporte": {"pieza": "soporte", "color": "#222222", **tri},
+                    "base: montado": {"pieza": "base", "color": "#333333", **tri}},
+        "piezas": {}, "articulaciones": []}), encoding="utf-8")
+
+    mallas, colores = montado(carpeta)
+
+    def plano(m):
+        return [c for p in m[0] for c in p]
+    assert plano(mallas["soporte"]) == pytest.approx([29.4, 12.2, 27.6, 30.4, 12.2, 27.6,
+                                                      29.4, 13.2, 27.6])
+    assert plano(mallas["base"]) == pytest.approx([0, 0, 0, 1, 0, 0, 0, 1, 0])
+    assert plano(mallas["base: montado"]) == pytest.approx([0, 0, 0, 1, 0, 0, 0, 1, 0])
+    assert colores["soporte"] == "#222222"
+
+
+def test_montado_sin_conjunto_deja_cada_pieza_donde_se_dibujo(tmp_path):
+    """El avión no se mueve: no tiene conjunto, y cada pieza se dibujó donde
+    va montada. En fila, la segunda empezaba donde acababa la primera."""
+    from orchestrator.vista import montado
+    carpeta = tmp_path / "projects" / "avion"
+    _triangulo_en(carpeta / "nodos" / "ala" / "parts" / "ala" / "ala.stl", 0)
+    _triangulo_en(carpeta / "nodos" / "cola" / "parts" / "cola" / "cola.stl", 100)
+
+    mallas, _ = montado(carpeta)
+
+    assert min(v[0] for v in mallas["cola"][0]) == pytest.approx(100)
+    assert min(v[0] for v in mallas["ala"][0]) == pytest.approx(0)
+
+
+def test_la_vista_de_un_backlog_es_el_invento_montado(tmp_path):
+    """La portada y la página piden `vista.png`: en un backlog es el
+    invento montado, no las piezas en fila (una pieza suelta sigue igual)."""
+    from orchestrator import vista
+    carpeta = tmp_path / "projects" / ID
+    _triangulo_en(carpeta / "nodos" / "ala" / "parts" / "ala" / "ala.stl", 0)
+    _triangulo_en(carpeta / "nodos" / "cola" / "parts" / "cola" / "cola.stl", 100)
+    (carpeta / "obra.json").write_text(json.dumps(
+        {"titulo": "avión", "nodos": [{"id": "ala", "nombre": "Ala", "que_hace": "x"},
+                                     {"id": "cola", "nombre": "Cola", "que_hace": "x"}]}),
+        encoding="utf-8")
+    llamadas = []
+    original = vista.dibujar_montado
+    vista.dibujar_montado = lambda c, destino, titulo="": (llamadas.append(c), original(
+        c, destino, titulo))[1]
+    try:
+        r = _web(tmp_path).get(f"/proyectos/{ID}/vista.png")
+    finally:
+        vista.dibujar_montado = original
+    assert r.status_code == 200, r.text
+    assert llamadas == [carpeta]

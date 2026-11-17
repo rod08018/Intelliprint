@@ -519,6 +519,56 @@ def test_las_versiones_pueden_estar_unas_en_archivo_y_otras_no(ws):
     assert gato["seccion"] == "projects"
 
 
+def test_lo_hecho_a_mano_se_marca_como_version_de_su_proyecto(ws):
+    """Fallo real (2026-11-17): cada ala volante hecha a mano salía como un
+    invento aparte, siete aviones en la portada. Cada versión traía una
+    petición distinta y nada decía de qué proyecto era; él: «¿por qué hay 6
+    inventos de avión y no un avión con 6 versiones?»."""
+    from orchestrator.web.versiones import marca_de, marcar_version
+
+    _version(ws, "2026-11-16-vtol", "VTOL de 2,6 m", "")
+    segunda = _version(ws, "2026-11-16-ala", "Ala volante", "")
+    tercera = _version(ws, "2026-11-17-ala-guias", "Ala volante con guías", "")
+
+    marcar_version(ws, segunda, "2026-11-16-vtol", "ala volante en vez de cola en H")
+    # Se puede nombrar cualquier versión: el proyecto es el de su raíz.
+    marcar_version(ws, tercera, "2026-11-16-ala", "guías entre las celdas")
+
+    (avion,) = [g for g in _grupos(ws) if g["id"] == "2026-11-16-vtol"]
+    # Por de cuál parte cada una, no por el nombre: las carpetas hechas a
+    # mano solo llevan la fecha, y «…-16-ala» iba antes que «…-16-vtol».
+    assert [v["id"] for v in avion["versiones"]] == [
+        "2026-11-16-vtol", "2026-11-16-ala", "2026-11-17-ala-guias"]
+    assert [v["version"] for v in avion["versiones"]] == [1, 2, 3]
+    assert [v["modificacion"] for v in avion["versiones"]] == [
+        None, "ala volante en vez de cola en H", "guías entre las celdas"]
+    assert avion["titulo"] == "VTOL de 2,6 m"
+    # Parte de la última que había antes de ella, no de la raíz.
+    assert marca_de(tercera)["basado_en"] == "2026-11-16-ala"
+
+
+def test_la_pagina_dice_a_la_vista_que_cambia_la_version(ws):
+    """Solo salía al pasar el ratón por la miniatura: en el móvil, nunca."""
+    from orchestrator.web.versiones import marcar_version
+
+    _version(ws, "2026-11-16-vtol", "VTOL de 2,6 m", "")
+    ala = _version(ws, "2026-11-16-ala", "Ala volante", "")
+    marcar_version(ws, ala, "2026-11-16-vtol", "ala volante en vez de cola en H")
+    web = TestClient(crear_app(ws, host_workspace=HOST))
+
+    pagina = _visible(web.get("/p/2026-11-16-vtol?v=2026-11-16-ala").text)
+    assert "Qué cambia: ala volante en vez de cola en H" in pagina
+    assert "Qué cambia" not in _visible(web.get("/p/2026-11-16-vtol?v=2026-11-16-vtol").text)
+
+
+def test_marcar_una_version_de_un_proyecto_que_no_existe_se_dice(ws):
+    from orchestrator.web.versiones import ProyectoDesconocido, marcar_version
+
+    carpeta = _version(ws, "2026-11-17-ala", "Ala volante", "")
+    with pytest.raises(ProyectoDesconocido):
+        marcar_version(ws, carpeta, "2026-11-16-no-existe", "algo")
+
+
 def test_la_portada_pinta_un_proyecto_por_solicitud_con_sus_versiones(ws):
     for n in (1, 2, 3):
         _version(ws, f"2026-09-21-0{n}-gato", "Un gato de tijera", "" if n == 2 else "- choca")
