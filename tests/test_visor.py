@@ -315,3 +315,45 @@ def test_la_vista_de_un_backlog_es_el_invento_montado(tmp_path):
         vista.dibujar_montado = original
     assert r.status_code == 200, r.text
     assert llamadas == [carpeta]
+
+
+def test_la_portada_no_mide_la_tornilleria_que_no_enseña(tmp_path, monkeypatch):
+    """Fallo real (2026-11-17): la primera carga de la portada tardaba 37 s,
+    34 de ellos cortando la malla de cada pieza por cada tornillo; y la
+    tarjeta quita la tornillería de lo que enseña. Lo comprado sigue."""
+    from orchestrator import tornilleria
+    from orchestrator.web import paginas
+
+    def no(*_a, **_k):
+        raise AssertionError("la portada no enseña la tornillería")
+    monkeypatch.setattr(tornilleria, "tornillos", no)
+    monkeypatch.setattr(paginas, "_MATERIALES", {})
+    _giro(tmp_path)
+    html = _web(tmp_path).get("/").text
+    assert "Micro servo SG90" in html
+
+
+def test_los_materiales_medidos_sobreviven_a_reiniciar_la_web(tmp_path, monkeypatch):
+    """Solo se guardaban en memoria: tras cada arranque, la primera visita a
+    cada invento tardaba 15 s midiendo sus tornillos (2026-11-17). Se
+    guardan en `vistas/`, con la firma de lo que había, y se rehacen si
+    algo cambia."""
+    import os
+
+    from orchestrator import tornilleria
+    from orchestrator.web import paginas
+    carpeta = _giro(tmp_path)
+    monkeypatch.setattr(paginas, "_MATERIALES", {})
+    medidos = paginas._materiales(carpeta)
+    assert medidos is not None
+
+    def no(*_a, **_k):
+        raise AssertionError("ya estaban medidos")
+    monkeypatch.setattr(tornilleria, "tornillos", no)
+    monkeypatch.setattr(paginas, "_MATERIALES", {})      # la web, recién arrancada
+    assert paginas._materiales(carpeta) == medidos
+
+    obra = carpeta / "obra.json"
+    os.utime(obra, ns=(obra.stat().st_mtime_ns + 10**9,) * 2)
+    monkeypatch.setattr(paginas, "_MATERIALES", {})
+    assert paginas._materiales(carpeta) is None          # cambió: se mide otra vez

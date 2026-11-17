@@ -387,9 +387,11 @@ def _estado_conjunto(nodo: Path) -> str:
     return "verificado" if v.get("ok") else "con choques"
 
 
-def siguiente(carpeta: Path) -> str | None:
-    """El nodo en el que se está: el primero, en orden, que se puede tocar."""
-    for i, e in estados(carpeta).items():
+def siguiente(carpeta: Path, todos: dict | None = None) -> str | None:
+    """El nodo en el que se está: el primero, en orden, que se puede tocar.
+    Con `todos`, los estados ya calculados: mirarlos es leer la carpeta de
+    cada nodo, y la portada los calculaba dos veces por backlog."""
+    for i, e in (todos if todos is not None else estados(carpeta)).items():
         if e not in (*HECHOS, "bloqueado"):
             return i
     return None
@@ -409,7 +411,7 @@ def resumen_de_estado(carpeta: Path) -> tuple[str, str]:
     if a_medias == "pedida":
         return "incompleto", f"falta proponer la ampliación «{ampliar.pedida(carpeta)}»"
     todos = estados(carpeta)
-    i = siguiente(carpeta)
+    i = siguiente(carpeta, todos)
     if i is None:
         return "aprobado", ""
     nombre, e = obra.nodo(i).nombre, todos[i]

@@ -48,12 +48,16 @@ def _tornilleria(carpeta: Path) -> tuple[Counter, Counter, dict]:
     return compra, incluido, con
 
 
-def materiales(carpeta: Path) -> dict:
+def materiales(carpeta: Path, tornilleria: bool = True) -> dict:
     """{"impresas": [{id, nombre, impresa}],
     "comprado": [{id, nombre, cuantos, tipo}],          tipo: componente | tornilleria
                  más "enlace" si la ficha dice dónde se compra
     "incluido": [{nombre, cuantos, viene_con}]}: lo que viene en la bolsa
-    de un componente, que se ve en el ensamble pero no se compra aparte."""
+    de un componente, que se ve en el ensamble pero no se compra aparte.
+
+    Sin `tornilleria`, ni la tornillería ni lo que viene en la bolsa: es
+    medir en la malla cada tornillo, y la portada, que no los enseña,
+    tardaba 34 s en eso al arrancar (2026-11-17)."""
     from orchestrator import obra as O
 
     carpeta = Path(carpeta)
@@ -97,7 +101,8 @@ def materiales(carpeta: Path) -> dict:
             comprado[c] += n * cuantos
         for c, n in modulo.otros.items():
             sueltos[c] += n * cuantos
-    tornilleria, incluido, con = _tornilleria(carpeta)
+    tornillos, incluido, con = (_tornilleria(carpeta) if tornilleria
+                                else (Counter(), Counter(), {}))
     correas: Counter = Counter()
     if O.es_obra(carpeta):
         # Lo que pide cada correa del plan (F10.3 (correa)): la polea del
@@ -124,7 +129,7 @@ def materiales(carpeta: Path) -> dict:
                     + [{"id": nombre, "nombre": nombre, "cuantos": n, "tipo": "transmision"}
                        for nombre, n in sorted(correas.items())]
                     + [{"id": nombre, "nombre": nombre, "cuantos": n, "tipo": "tornilleria"}
-                       for nombre, n in sorted(tornilleria.items())],
+                       for nombre, n in sorted(tornillos.items())],
         "incluido": [{"nombre": nombre, "cuantos": n, "viene_con": con[nombre]}
                      for nombre, n in sorted(incluido.items())],
     }

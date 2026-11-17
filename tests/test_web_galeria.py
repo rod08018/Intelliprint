@@ -379,7 +379,8 @@ def test_la_portada_no_recalcula_los_tornillos_de_un_invento_que_no_ha_cambiado(
     carpeta = _pan_tilt(tmp_path)
     veces = []
     de_verdad = M.materiales
-    monkeypatch.setattr(M, "materiales", lambda c: veces.append(c) or de_verdad(c))
+    monkeypatch.setattr(M, "materiales",
+                        lambda c, **k: veces.append(c) or de_verdad(c, **k))
 
     primera = paginas._materiales(carpeta)
     assert paginas._materiales(carpeta) == primera and len(veces) == 1

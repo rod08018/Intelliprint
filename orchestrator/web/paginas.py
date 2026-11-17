@@ -151,15 +151,24 @@ _DE_QUE_DEPENDEN = ("obra.json", "pieza.json", "parts/*/rasgos.json", "parts/*/*
 
 
 def _firma(carpeta: Path) -> tuple:
+    """Relativa a la carpeta: también se guarda en disco, y el workspace no
+    se ve en la misma ruta desde el PC que desde el contenedor."""
     firma = []
     for patron in _DE_QUE_DEPENDEN:
         for ruta in sorted(carpeta.glob(patron)):
             dato = ruta.stat()
-            firma.append((str(ruta), dato.st_mtime_ns, dato.st_size))
+            firma.append((ruta.relative_to(carpeta).as_posix(), dato.st_mtime_ns, dato.st_size))
     return tuple(firma)
 
 
-def _materiales(carpeta: Path) -> dict | None:
+def _en_disco(carpeta: Path, tornilleria: bool) -> Path:
+    """Donde se guardan, en `vistas/`, que la web escribe y no cuenta como
+    trabajo del proyecto: en memoria se perdían en cada arranque, y la primera
+    visita a cada invento tardaba 15 s midiendo sus tornillos (2026-11-17)."""
+    return carpeta / "vistas" / ("materiales.json" if tornilleria else "materiales-sin-tornillos.json")
+
+
+def _materiales(carpeta: Path, tornilleria: bool = True) -> dict | None:
     """Con memoria. Medido el 2026-11-11 con tres inventos: la portada tardaba
     10 segundos en cada carga, 8 de ellos midiendo otra vez en la malla de
     cada pieza el grosor que atraviesa cada tornillo; y mientras algo se
@@ -171,15 +180,31 @@ def _materiales(carpeta: Path) -> dict | None:
         firma = _firma(carpeta)
     except OSError:      # un archivo que desaparece a media lectura
         firma = None
-    guardado = _MATERIALES.get(str(carpeta))
+    clave = f"{carpeta}|{tornilleria}"
+    guardado = _MATERIALES.get(clave)
     if firma is not None and guardado is not None and guardado[0] == firma:
         return guardado[1]
+    archivo = _en_disco(carpeta, tornilleria)
+    if firma is not None:
+        try:
+            leido = json.loads(archivo.read_text(encoding="utf-8"))
+            if [tuple(x) for x in leido["firma"]] == list(firma):
+                _MATERIALES[clave] = (firma, leido["m"])
+                return leido["m"]
+        except (OSError, ValueError, KeyError, TypeError):
+            pass         # no está, o es de otra versión: se mide
     try:
-        m = materiales(carpeta)
+        m = materiales(carpeta, tornilleria=tornilleria)
     except Exception:   # un proyecto a medias no tumba la portada
         m = None
     if firma is not None:
-        _MATERIALES[str(carpeta)] = (firma, m)
+        _MATERIALES[clave] = (firma, m)
+        try:
+            archivo.parent.mkdir(exist_ok=True)
+            archivo.write_text(json.dumps({"firma": firma, "m": m}, ensure_ascii=False),
+                               encoding="utf-8")
+        except (OSError, TypeError, ValueError):
+            pass         # sin permiso de escritura, o algo que no es JSON: queda en memoria
     return m
 
 
@@ -261,7 +286,8 @@ def galeria(grupos: list[dict], workspace: Path, hay_puente: bool, puede_pedir: 
         estado = "en marcha" if g.get("en_marcha") else v["estado"]
         frase, clase = ESTADOS.get(estado, (estado, "suave"))
         tipo, como = tipo_de(carpeta)
-        m = _materiales(carpeta) if tipo != "mecanismo" else None
+        # Sin tornillería: la tarjeta no la enseña (`_compras`).
+        m = _materiales(carpeta, tornilleria=False) if tipo != "mecanismo" else None
         etapa = _etapa(estado, m)
         if etapa == "impreso":
             frase = "Impreso"

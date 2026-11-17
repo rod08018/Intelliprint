@@ -187,6 +187,51 @@ def _ultimo_cambio(carpeta: Path) -> float:
     return ultimo
 
 
+def _sin_tocar(carpeta: Path):
+    """Cuánto lleva sin tocarse, calculado solo si se pide y una vez: recorre
+    la carpeta entera, y en la compartida con Windows la portada tardaba de
+    16 a 45 s mirándolo en proyectos terminados (2026-11-17)."""
+    hace: list[float] = []
+
+    def sin_tocar() -> float:
+        if not hace:
+            hace.append(time.time() - _ultimo_cambio(carpeta))
+        return hace[0]
+    return sin_tocar
+
+
+def _trabajando(carpeta: Path, rondas=None, trabajo=None, sin_tocar=None) -> bool:
+    """Si hay un proceso diseñando en `carpeta` ahora mismo.
+
+    Si hay job.json, manda el proceso: su latido, que se ve desde cualquier
+    contenedor, y si no late (anterior al latido), su pid. Sin él, sin
+    rounds.json y tocado hace nada: lo más probable es que siga trabajando
+    (lo lanzado a mano). Un proyecto terminado no vuelve a «en marcha» por
+    ser reciente."""
+    carpeta = Path(carpeta)
+    if rondas is None:
+        rondas = _lee_json(carpeta / "rounds.json") or []
+    if trabajo is None:
+        trabajo = _lee_json(carpeta / "job.json") or {}
+    sin_tocar = sin_tocar or _sin_tocar(carpeta)
+    latido = carpeta / LATIDO
+    if latido.exists():
+        try:
+            return time.time() - latido.stat().st_mtime < LATIDO_VALE_S
+        except OSError:   # lo quitó justo ahora: terminó
+            return False
+    if trabajo.get("pid"):
+        return _vivo(trabajo["pid"], trabajo.get("inicio"))
+    # Un concepto por aprobar se acaba de escribir y el proceso ya salió:
+    # «reciente» no quiere decir aquí que siga trabajando.
+    # Una obra no deja rondas propias (son de sus nodos) y su proceso late:
+    # sin latido, ha terminado o está esperando a la persona.
+    por_aprobar = ((carpeta / "concepto.json").exists()
+                   and not (carpeta / "concepto_aprobado").exists())
+    return (not rondas and not por_aprobar and not (carpeta / "obra.json").exists()
+            and sin_tocar() < RECIENTE_S)
+
+
 def estado_de(carpeta: Path) -> dict:
     """Qué es este proyecto, mirando lo que tiene dentro."""
     rondas = _lee_json(carpeta / "rounds.json") or []
@@ -204,30 +249,11 @@ def estado_de(carpeta: Path) -> dict:
     # pero si dejó piezas y ensamble es trabajo bueno: no se archiva.
     tiene_obra = ((carpeta / "assembly.FCStd").exists()
                   or any(carpeta.glob("*.FCStd")) or any(carpeta.glob("parts/*/*.step")))
-    tocado_hace = time.time() - _ultimo_cambio(carpeta)
-    # Sin rounds.json y tocado hace nada: lo más probable es que siga
-    # trabajando. Un proyecto terminado no vuelve a "en marcha" por ser reciente.
-    # «Tocado hace poco» es para lo lanzado a mano, que no deja job.json.
-    # Si lo hay, manda el proceso: su latido, que se ve desde cualquier
-    # contenedor, y si no late (anterior al latido), su pid.
+    sin_tocar = _sin_tocar(carpeta)
     por_aprobar = ((carpeta / "concepto.json").exists()
                    and not (carpeta / "concepto_aprobado").exists())
     es_obra = (carpeta / "obra.json").exists()
-    latido = carpeta / LATIDO
-    if latido.exists():
-        try:
-            vivo = time.time() - latido.stat().st_mtime < LATIDO_VALE_S
-        except OSError:   # lo quitó justo ahora: terminó
-            vivo = False
-    elif trabajo.get("pid"):
-        vivo = _vivo(trabajo["pid"], trabajo.get("inicio"))
-    else:
-        # Un concepto por aprobar se acaba de escribir y el proceso ya salió:
-        # «reciente» no quiere decir aquí que siga trabajando.
-        # Una obra no deja rondas propias (son de sus nodos) y su proceso late:
-        # sin latido, ha terminado o está esperando a la persona.
-        vivo = (not rondas and not por_aprobar and not es_obra
-                and tocado_hace < RECIENTE_S)
+    vivo = _trabajando(carpeta, rondas, trabajo, sin_tocar)
     if es_obra:
         # F7.2 (desglose): su estado es el del nodo en el que se está, y su
         # título el del desglose.
@@ -265,8 +291,9 @@ def estado_de(carpeta: Path) -> dict:
 
     return {
         "id": carpeta.name,
-        "segundos_sin_moverse": int(tocado_hace),
-        "parece_colgado": estado == "en marcha" and tocado_hace > COLGADO_S,
+        # Lo terminado no se mueve: None, sin recorrerlo.
+        "segundos_sin_moverse": int(sin_tocar()) if estado == "en marcha" else None,
+        "parece_colgado": estado == "en marcha" and sin_tocar() > COLGADO_S,
         "titulo": mecanismo.get("title") or peticion or carpeta.name,
         "peticion": peticion,
         "estado": estado,
@@ -285,9 +312,12 @@ def en_marcha(carpeta: Path) -> str | None:
     carpeta = Path(carpeta)
     if not carpeta.is_dir():
         return None
-    for fila in indice(carpeta):
-        if fila["estado"] == "en marcha":
-            return fila["id"]
+    # Solo si trabaja, no su estado entero: el de un backlog se lee nodo a
+    # nodo, y la página de cada proyecto pregunta esto (2026-11-17).
+    for p in sorted((p for p in carpeta.iterdir() if p.is_dir()),
+                    key=lambda p: (p.stat().st_mtime, p.name), reverse=True):
+        if _trabajando(p):
+            return p.name
     return None
 
 

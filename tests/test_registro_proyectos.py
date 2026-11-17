@@ -162,6 +162,53 @@ def test_colgado_se_mide_por_lo_que_lleva_sin_escribir_no_por_lo_que_lleva_corri
     assert filas[parado.name]["segundos_sin_moverse"] > 12 * 60
 
 
+def test_lo_terminado_no_se_recorre_entero_para_saber_si_se_mueve(tmp_path, monkeypatch):
+    """Fallo real (2026-11-17): la portada tardaba de 16 a 45 s. Por cada
+    proyecto se miraba la fecha de todos sus archivos (5 895 en el
+    workspace, a 1,4 ms cada una en la carpeta compartida con Windows), y
+    solo hace falta para lo que podría seguir en marcha. Un terminado, o un
+    backlog sin latido, no se mueve: su `segundos_sin_moverse` es None."""
+    from orchestrator import registry
+    recorridos = []
+    original = registry._ultimo_cambio
+    monkeypatch.setattr(registry, "_ultimo_cambio",
+                        lambda c: (recorridos.append(c.name), original(c))[1])
+    _envejecer(_resuelto(tmp_path, "2026-09-19-1000-bisagra"))
+    obra = _proyecto(tmp_path, "2026-09-19-1100-brazo")
+    (obra / "obra.json").write_text(json.dumps(
+        {"titulo": "brazo", "nodos": [{"id": "base", "nombre": "Base", "que_hace": "x"}]}),
+        encoding="utf-8")
+    _proyecto(tmp_path, "2026-09-19-1400-recien_lanzado")   # sin rondas y escrito ahora
+
+    filas = {f["id"]: f for f in indice(tmp_path)}
+
+    assert recorridos == ["2026-09-19-1400-recien_lanzado"]
+    assert filas["2026-09-19-1000-bisagra"]["segundos_sin_moverse"] is None
+    assert filas["2026-09-19-1400-recien_lanzado"]["estado"] == "en marcha"
+    assert filas["2026-09-19-1400-recien_lanzado"]["segundos_sin_moverse"] < 60
+
+
+def test_saber_si_algo_esta_en_marcha_no_resume_cada_backlog(tmp_path, monkeypatch):
+    """La página de cada proyecto pregunta si hay algo en marcha, y para eso
+    se calculaba el estado entero de cada backlog, nodo a nodo: la mitad de
+    sus 6 a 7 s en la carpeta compartida (2026-11-17). Para saberlo basta
+    con el latido, el proceso o la fecha."""
+    from orchestrator import obra
+    from orchestrator.registry import en_marcha
+
+    def no(*_):
+        raise AssertionError("no hace falta el estado del backlog")
+    monkeypatch.setattr(obra, "resumen_de_estado", no)
+    hecho = _proyecto(tmp_path, "2026-09-19-1100-brazo")
+    (hecho / "obra.json").write_text(json.dumps(
+        {"titulo": "brazo", "nodos": [{"id": "base", "nombre": "Base", "que_hace": "x"}]}),
+        encoding="utf-8")
+    _envejecer(hecho)
+    assert en_marcha(tmp_path) is None
+    _proyecto(tmp_path, "2026-09-19-1400-recien_lanzado")
+    assert en_marcha(tmp_path) == "2026-09-19-1400-recien_lanzado"
+
+
 def test_un_proceso_zombi_no_cuenta_como_en_marcha(tmp_path):
     """Fallo real: el Geneva drive falló a las 09:42 y seis horas después el
     registro seguía diciendo «en marcha».

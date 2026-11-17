@@ -681,6 +681,16 @@ imprimir; lo que dejó abierto está abajo.
   el 20 % de relleno ya estaba contado y lo impreso es 2,40 de los 7,05 kg
   (el PETG del cuerpo, 1,87); se le contestó con el desglose. **Sin
   decidir:** pasar el cuerpo a LW-PLA o adelgazarlo.
+- **La portada tardaba de 16 a 45 s; arreglado con su «Sí, arréglalo»**
+  (2026-11-17). En la carpeta compartida de Docker cada `stat` cuesta
+  ~1,4 ms: saber si un proyecto «se mueve» recorría todos sus archivos,
+  el estado de cada backlog se calculaba dos o tres veces, y la portada
+  medía en la malla los tornillos que no enseña (34 s al arrancar). Ahora
+  la portada tarda de 3,7 a 4,8 s. Los materiales medidos se guardan en
+  `vistas/materiales*.json` de cada proyecto con la firma de lo que los
+  produjo: tras reiniciar la web, la página del brazo baja de 15,6 a
+  4,3 s. **La primera visita de cada proyecto sigue tardando ~15 s**
+  (se miden sus tornillos una vez).
 
 **2026-11-11 (noche): Fase 10, brazos con transmisión (ADR-021).** Decidido
 por él: **el brazo antes que el avión**; empezar por uno pequeño con servos;
