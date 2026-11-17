@@ -620,6 +620,31 @@ imprimir; lo que dejó abierto está abajo.
   `http://127.0.0.1:6080/vnc.html?autoconnect=1&resize=scale`; repite
   la misión sin parar y gasta ~5 núcleos (dibuja sin tarjeta).
   **Que vuele en Gazebo no dice que vuele impreso.**
+- **Dicho por él el 2026-11-16, después:** «haz todo lo que haga falta,
+  el fallo, los pulidos de las piezas también»; «las alas son de lw pla
+  el resto de petg» (Prusament); y al ver 36 celdas, «nunca ha sido tan
+  ilógico… tiene más sentido una batería 4s grandecita», «algo de 15k
+  mAh para… un poco más de 1 hora… o usemos 6s» y «usemos motores y
+  batería que pueda comprar en amazon». Imprime en una **Prusa CORE One
+  L+** (300 × 300 × 330; el perfil del sistema sigue siendo el del M5).
+  **Rehecho A MANO por el asistente, sin modelo:** piezas huecas (piel,
+  alma, nervios, fundas; panza atornillada y tapas de servo), pesadas en
+  sus STL (2,37 kg, no 0,94); derivas de 255 mm por la guiñada respecto
+  al CG; LiPo 6S 16 000 mAh y motores 4312 de 400 KV con hélice de 15″,
+  con su enlace de Amazon en `scripts/avion_vtol.json` (`compras`): 7,0
+  kg, 1,53 h y 110 km, 1,71 veces el peso en empuje, según AeroSandbox y
+  las cifras de cada anuncio (sin medir). Los largueros se cortan al
+  metro de tubo que se vende. Las piezas huecas pasaban de los 180 s de
+  FreeCAD (el primer tramo del ala, 257 s): ahora se vacían con el hueco
+  limpio y lo de dentro se suma después. Las 44 piezas caben y ninguna
+  pide soportes; están en la web como
+  `2026-11-16-ala-volante-lipo-amazon-a-mano-sin-modelo` (con `foto.png`).
+  Entre el centro y las raíces hay ahora una costilla en la junta, para
+  pegarlas por una cara y no por el canto de la piel. OCC no da siempre el
+  mismo sólido: la misma panza, construida doce veces, varía un 0,7 % de
+  volumen. **Por contarle:** el cuerpo central va
+  pegado a tope, sin nada que alinee sus celdas; el pitot no tiene hueco
+  en el morro; las hélices de 4 mm pueden no entrar en el eje del motor.
 
 **2026-11-11 (noche): Fase 10, brazos con transmisión (ADR-021).** Decidido
 por él: **el brazo antes que el avión**; empezar por uno pequeño con servos;

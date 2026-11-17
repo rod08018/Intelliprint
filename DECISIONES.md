@@ -827,6 +827,8 @@ Y lo que sí faltaba de tornillería:
 
 **Enmienda (2026-11-16, siete vuelos).** Dos supuestos de arriba resultaron falsos, y cada uno costó un vuelo: el plugin no es lineal hasta la pérdida (su sigmoide de mezcla tiene la pendiente fija y con una pérdida baja resta sustentación desde 0°: `alpha_stall` se calcula para que el CL máximo del plugin sea el del dimensionado), y el mundo de PX4 trae un campo magnético fijo que no es el de su modelo terrestre (11° de declinación de diferencia: la aeronave le dice a PX4 la del mundo).
 
+**Enmienda (2026-11-16, al simularlo).** La estabilidad de guiñada del dimensionado se tomaba respecto al morro (Cn_β = 0,0555); respecto al centro de gravedad, que es lo que ve Gazebo, era 0,0156. Ahora AeroSandbox la calcula respecto al CG y las derivas crecen de alto hasta 0,001 por grado (criterio del asistente): de cuerda no servía, porque con 165 mm de alto una deriva casi no sustenta. Con la LiPo de Amazon miden 255 mm.
+
 **Alternativas descartadas.**
 - **AVL para las derivadas.** Es lo que espera el plugin, pero él lo dejó fuera y AeroSandbox ya estaba en el dimensionado.
 - **Copiar a mano el `standard_vtol` de PX4 y cambiarle cifras.** Se desfasa del avión en cuanto este cambia; se usó solo como referencia.

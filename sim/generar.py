@@ -113,16 +113,30 @@ def _piel(masa, triangulos_m):
     return masa, cg, t
 
 
+def _impreso(masa, mallas, pesos=None):
+    """La masa de lo impreso repartida pieza a pieza: cada una con lo que
+    pesó (`masas.json` del proyecto), por su superficie. Sin pesos, toda por
+    la superficie: así era cuando todo se contaba como piel de LW-PLA, pero
+    las derivas y las patas llevan relleno y el cuerpo es de PETG: pesan más
+    por cm² que un tramo de ala (pesado el 2026-11-16). Escalado para que sume `masa`, la del
+    dimensionado."""
+    if not pesos:
+        return [_piel(masa, np.concatenate(list(mallas.values())))]
+    total = sum(pesos[k] for k in mallas)
+    return [_piel(masa * pesos[k] / total, t) for k, t in mallas.items()]
+
+
 # -------------------------------------------------------------------- modelo
 
 class Modelo:
     """El avión de la simulación: masas, rotores, bisagras y patas, en FLU."""
 
-    def __init__(self, r, aero, impreso):
+    def __init__(self, r, aero, impreso, pesos=None):
         self.r, self.aero = r, aero
         self.cg_mm = r["equilibrio"]["con_carga"]["cg_mm"]
         self.dentro = {c["id"]: c for c in r["diseno"]["dentro"]}
         self.impreso = impreso
+        self.pesos = pesos
         self.masa, self.cg_flu, self.tensor = inercia(self._cuerpos())
         self.rotores = self._rotores()
         self.bisagras = self._bisagras()
@@ -137,8 +151,8 @@ class Modelo:
         for c in self.dentro.values():
             m, p = c["masa_kg"], self._flu(c["en"])
             if c["id"] == "impreso" and self.impreso:
-                tri = np.concatenate([self._tri_flu(t) for t in self.impreso.values()])
-                cuerpos.append(_piel(m, tri))
+                cuerpos += _impreso(m, {k: self._tri_flu(t) for k, t in self.impreso.items()},
+                                    self.pesos)
             elif c["id"].startswith("larguero"):
                 cuerpos.append((m, p, barra(m, 2 * y_ala, 1)))
             elif c["id"] == "vigas":
@@ -461,8 +475,9 @@ def airframe(r):
     crucero = r["crucero"]["velocidad_m_s"]
     # El crucero pide su resistencia a la hélice de empuje; ω va con la raíz.
     trim = math.sqrt(r["crucero"]["resistencia_N"] / (EMPUJE_DE_EMPUJE_KG * G0))
-    # Colgado: empuje/peso del dimensionado, también con la raíz.
-    hover = math.sqrt(1 / r["supuestos"]["empuje_sobre_peso"])
+    # Colgado: empuje/peso de los motores comprados (antes era un supuesto
+    # del dimensionado, 1,8), también con la raíz.
+    hover = math.sqrt(1 / r["vtol"]["empuje_sobre_peso"])
     lineas += [
         "",
         "param set-default VT_TYPE 2",
@@ -553,7 +568,10 @@ def generar(proyecto, salida):
     raiz = Path(__file__).resolve().parent.parent
     r = json.loads((raiz / "scripts" / "avion_vtol.json").read_text(encoding="utf-8"))
     aero = json.loads((raiz / "sim" / "aero_vtol.json").read_text(encoding="utf-8"))
-    m = Modelo(r, aero, piezas_de(proyecto))
+    pesado = Path(proyecto) / "masas.json"
+    pesos = ({k: p["masa_kg"] for k, p in json.loads(pesado.read_text(encoding="utf-8"))
+              ["piezas"].items()} if pesado.exists() else None)
+    m = Modelo(r, aero, piezas_de(proyecto), pesos)
     carpeta = salida / "modelos" / NOMBRE
     (carpeta / "meshes").mkdir(parents=True, exist_ok=True)
     for nombre, tri in m.mallas().items():

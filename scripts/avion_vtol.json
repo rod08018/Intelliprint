@@ -1,84 +1,163 @@
 {
   "carga_kg": 1.0,
   "envergadura_m": 2.27,
-  "area_alar_m2": 0.5081,
+  "area_alar_m2": 0.508,
   "alargamiento": 10.62,
   "cuerda_media_m": 0.2841,
   "masa_kg": {
-    "impreso (LW-PLA, estimado)": 0.942,
+    "impreso, pesado en sus STL": 2.366,
     "carbono: largueros y vigas": 0.18,
-    "4 motores de sustentación, variadores y hélices": 0.725,
-    "motor de empuje, variador y hélice plegable": 0.217,
+    "4 motores de sustentación, variadores y hélices": 0.952,
+    "motor de empuje, variador y hélice plegable": 0.18,
     "controladora, ordenador de a bordo, GPS, telemetría y cables": 0.31,
     "cuatro servos de los elevones": 0.1,
     "carga útil": 1.0,
-    "batería 6S6P de 21700 de 4,5 Ah (tipo Molicel P45B)": 2.722,
-    "total": 6.195
+    "batería LiPo 6S 16 000 mAh": 1.93,
+    "total": 7.018
   },
+  "impreso_pesado_en": "2026-11-16-ala-volante-lipo-a-mano-sin-modelo",
   "bateria": {
     "serie": 6,
-    "paralelo": 6,
-    "Wh": 583.2
+    "mAh": 16000,
+    "Wh": 355.2
   },
-  "carga_alar_kg_m2": 12.19,
+  "carga_alar_kg_m2": 13.81,
   "crucero": {
     "velocidad_m_s": 20.0,
-    "alfa_grados": 4.3,
-    "CL": 0.488,
-    "L_D": 13.81,
-    "resistencia_N": 4.4,
-    "potencia_W": 146.7
+    "alfa_grados": 5.27,
+    "CL": 0.553,
+    "L_D": 14.15,
+    "resistencia_N": 4.87,
+    "potencia_W": 162.2
   },
   "vtol": {
-    "potencia_W": 1014,
+    "potencia_W": 1060,
     "minutos": 3.0,
-    "empuje_max_por_motor_kg": 2.79
+    "empuje_max_por_motor_kg": 3.0,
+    "empuje_sobre_peso": 1.71
   },
+  "compras": [
+    {
+      "que": "Batería LiPo 6S 16 000 mAh 15C, XT90S (Tattu Plus)",
+      "cantidad": 1,
+      "url": "https://www.amazon.com/Tattu-16000mAh-22-2V-Battery-XT90S/dp/B0C6QRWBGX"
+    },
+    {
+      "que": "Motor 4312 400KV, 3 kg por hélice en 6S (sustentación)",
+      "cantidad": 4,
+      "url": "https://www.amazon.com/Brushless-Thrust-Bearings-Photography-Industrial/dp/B0FD6JMVMB"
+    },
+    {
+      "que": "Hélices 15 × 5,5 de carbono, pares CW + CCW (sustentación)",
+      "cantidad": 2,
+      "url": "https://www.amazon.com/QWINOUT-Propeller-Multicopter-Quadcopter-Hexacopter/dp/B07ZYLX92M"
+    },
+    {
+      "que": "Variador 60 A 2–6S (4 de sustentación y 1 de empuje)",
+      "cantidad": 5,
+      "url": "https://www.amazon.com/Brushless-Controller-RC-Helicopter-Multi-axis/dp/B0FNM5YV9J"
+    },
+    {
+      "que": "Motor 3510 600KV 3–6S (empuje)",
+      "cantidad": 1,
+      "url": "https://www.amazon.com/clp/B0FDR8FW7G"
+    },
+    {
+      "que": "Hélice plegable 10 × 6 con buje para eje de 4 mm (empuje)",
+      "cantidad": 1,
+      "url": "https://www.amazon.com/Folding-Propeller-D38%C3%97H35mm-Diameter-Airplane/dp/B07SG35RGG"
+    },
+    {
+      "que": "Servo de ala KST X10 Mini, 10 mm de grueso (elevones)",
+      "cantidad": 4,
+      "url": "https://www.amazon.com/Servo-Aluminum-Operating-Voltage-Coreless/dp/B0GTLHDGL1"
+    },
+    {
+      "que": "Tubo de carbono 16 × 14 × 1000 mm (vigas de los rotores)",
+      "cantidad": 2,
+      "url": "https://www.amazon.com/WHABEST-1000MM-Glossy-Quadcopter-Hexrcopter/dp/B0777KH429"
+    },
+    {
+      "que": "Tubos de carbono 10 × 8 × 1000 mm, paquete de 2 (larguero delantero)",
+      "cantidad": 1,
+      "url": "https://www.amazon.com/WHABEST-Carbon-Quadcopter-Hexacopter-10x8x1000mm/dp/B08B345NGX"
+    },
+    {
+      "que": "Tubo de carbono 6 × 4 × 1000 mm (larguero trasero)",
+      "cantidad": 2,
+      "url": "https://www.amazon.com/1000MM-carbon-Fiber-surface-Tubing/dp/B07776WJC4"
+    },
+    {
+      "que": "Varilla de carbono maciza redonda de Ø2 (elevón exterior)",
+      "cantidad": 1,
+      "url": "https://www.amazon.com/s?k=carbon+fiber+rod+2mm+round+500mm"
+    },
+    {
+      "que": "Pixhawk 6C con módulo de potencia PM02 y GPS M10",
+      "cantidad": 1,
+      "url": "https://www.amazon.com/Controller-High-Performance-STM32H743-Processor-Pre-Installed/dp/B0H4RCG8WG"
+    },
+    {
+      "que": "Sensor de velocidad MS4525DO con tubo pitot",
+      "cantidad": 1,
+      "url": "https://www.amazon.com/MS4525DO-Airspeed-Differential-Pressure-Monitoring/dp/B0H2GVVF3K"
+    },
+    {
+      "que": "Radio de telemetría SiK V3 (915 o 433 MHz, la legal en su país)",
+      "cantidad": 1,
+      "url": "https://www.amazon.com/Holybro-Telemetry-Open-Source-Plug-N-Play-Controller/dp/B0HNBJHVBC"
+    },
+    {
+      "que": "Raspberry Pi 5 de 8 GB con disipador activo",
+      "cantidad": 1,
+      "url": "https://www.amazon.com/Raspberry-Basic-Including-Active-Cooler/dp/B0CX19SV2N"
+    }
+  ],
   "lo_que_cuestan_los_rotores": {
-    "peso_kg": 0.815,
-    "potencia_crucero_W": 60.4,
-    "energia_vertical_Wh": 50.7
+    "peso_kg": 1.042,
+    "potencia_crucero_W": 64.4,
+    "energia_vertical_Wh": 53.0
   },
-  "autonomia_h": 3.03,
-  "alcance_km": 218,
-  "perdida_m_s": 14.0,
+  "autonomia_h": 1.53,
+  "alcance_km": 110,
+  "perdida_m_s": 14.9,
   "equilibrio": {
-    "torsion_punta_grados": -3.0,
-    "punto_neutro_x_m": 0.3319,
-    "cg_x_m": 0.312,
+    "torsion_punta_grados": -4.0,
+    "punto_neutro_x_m": 0.3292,
+    "cg_x_m": 0.3093,
     "margen": 0.07,
-    "Cm": -0.002,
-    "Cm_alfa": -5.756,
-    "Cn_beta": 0.0555,
+    "Cm": -0.0027,
+    "Cm_alfa": -5.566,
+    "Cn_beta": 0.0598,
     "con_carga": {
-      "masa_kg": 6.195,
+      "masa_kg": 7.018,
       "cg_mm": [
-        312.0,
+        309.3,
         0.0,
-        -29.6
+        -42.7
       ],
-      "margen": 0.07
+      "margen": 0.0701
     },
     "sin_carga": {
-      "masa_kg": 5.195,
+      "masa_kg": 6.018,
       "cg_mm": [
-        312.0,
+        309.3,
         0.0,
-        -18.4
+        -30.9
       ],
-      "margen": 0.07
+      "margen": 0.0701
     }
   },
   "rotores": {
     "y_viga": 0.38,
-    "x_delante": -0.05335824904769626,
-    "x_detras": 0.6773749955601498,
+    "x_delante": -0.091740540622538,
+    "x_detras": 0.7103949955601498,
     "x_empuje": 0.72,
-    "helice_vtol_pulg": 13,
+    "helice_vtol_pulg": 15,
     "helice_empuje_pulg": 10,
-    "hueco_entre_discos_m": 0.088,
-    "hueco_minimo_m": 0.05,
-    "helice_empuje_sobre_el_suelo_m": 0.03,
+    "hueco_entre_discos_m": 0.062,
+    "hueco_minimo_m": 0.057,
+    "helice_empuje_sobre_el_suelo_m": 0.12,
     "discos_libres": true
   },
   "estaciones": [
@@ -111,7 +190,7 @@
       0.5630461265239989,
       0.05,
       0.12,
-      -3.0,
+      -4.0,
       "mh60"
     ],
     [
@@ -119,15 +198,16 @@
       0.6226822774671738,
       0.12132346865006881,
       0.08,
-      -3.0,
+      -4.0,
       "mh60"
     ]
   ],
   "supuestos": {
     "rendimiento_crucero": 0.6,
     "figura_de_merito": 0.6,
-    "empuje_sobre_peso": 1.8,
-    "kg_por_kg_de_empuje": 0.065,
+    "empuje_sobre_peso_minimo": 1.5,
+    "variador_kg": 0.055,
+    "empuje_kg": 0.18,
     "minutos_vtol": 3.0,
     "reserva": 0.15,
     "clmax": 1.0,
@@ -167,7 +247,7 @@
         563.0,
         50.0,
         120.0,
-        -3.0,
+        -4.0,
         "mh60"
       ],
       [
@@ -175,7 +255,7 @@
         622.7,
         121.3,
         80.0,
-        -3.0,
+        -4.0,
         "mh60"
       ]
     ],
@@ -206,10 +286,16 @@
         -50
       ],
       [
-        420,
+        240,
         160,
-        180,
-        -50
+        200,
+        -60
+      ],
+      [
+        400,
+        160,
+        200,
+        -60
       ],
       [
         600,
@@ -245,16 +331,16 @@
         150,
         90
       ],
-      "alto": 165
+      "alto": 255
     },
     "rotores": {
       "y": 380,
       "x": [
-        -53,
-        677
+        -92,
+        710
       ],
       "viga": 16,
-      "helice": 330
+      "helice": 381
     },
     "empuje": {
       "x": 720,
@@ -262,17 +348,17 @@
     },
     "ventanas": [
       [
-        250,
+        247,
         40,
         34
       ],
       [
-        312,
+        309,
         70,
         60
       ],
       [
-        374,
+        371,
         40,
         34
       ]
@@ -289,12 +375,12 @@
     "dentro": [
       {
         "id": "impreso",
-        "nombre": "lo impreso (LW-PLA)",
-        "masa_kg": 0.9418,
+        "nombre": "lo impreso (alas de LW-PLA, el resto de PETG)",
+        "masa_kg": 2.3655,
         "en": [
-          369.0,
+          338.7,
           0,
-          -1.8
+          -41.6
         ]
       },
       {
@@ -322,7 +408,7 @@
         "nombre": "vigas Ø16 de los rotores",
         "masa_kg": 0.09,
         "en": [
-          388.3,
+          369.1,
           0,
           -12.0
         ]
@@ -330,9 +416,9 @@
       {
         "id": "motor-d-delante",
         "nombre": "motor de sustentación, variador y hélice",
-        "masa_kg": 0.1812,
+        "masa_kg": 0.238,
         "en": [
-          -53.4,
+          -91.7,
           380.0,
           18.0
         ]
@@ -340,9 +426,9 @@
       {
         "id": "motor-d-detras",
         "nombre": "motor de sustentación, variador y hélice",
-        "masa_kg": 0.1812,
+        "masa_kg": 0.238,
         "en": [
-          677.4,
+          710.4,
           380.0,
           18.0
         ]
@@ -350,9 +436,9 @@
       {
         "id": "motor-i-delante",
         "nombre": "motor de sustentación, variador y hélice",
-        "masa_kg": 0.1812,
+        "masa_kg": 0.238,
         "en": [
-          -53.4,
+          -91.7,
           -380.0,
           18.0
         ]
@@ -360,9 +446,9 @@
       {
         "id": "motor-i-detras",
         "nombre": "motor de sustentación, variador y hélice",
-        "masa_kg": 0.1812,
+        "masa_kg": 0.238,
         "en": [
-          677.4,
+          710.4,
           -380.0,
           18.0
         ]
@@ -370,7 +456,7 @@
       {
         "id": "motor-empuje",
         "nombre": "motor y hélice de empuje",
-        "masa_kg": 0.1735,
+        "masa_kg": 0.144,
         "en": [
           735,
           0,
@@ -380,7 +466,7 @@
       {
         "id": "variador-empuje",
         "nombre": "variador del motor de empuje",
-        "masa_kg": 0.0434,
+        "masa_kg": 0.036,
         "en": [
           600,
           0,
@@ -394,7 +480,7 @@
         "en": [
           -20,
           0,
-          -28
+          -33
         ],
         "caja": [
           120,
@@ -412,8 +498,8 @@
           27.5
         ],
         "caja": [
-          24,
-          34,
+          31,
+          38,
           10
         ]
       },
@@ -427,8 +513,8 @@
           38.8
         ],
         "caja": [
-          24,
-          34,
+          31,
+          38,
           10
         ]
       },
@@ -442,8 +528,8 @@
           27.5
         ],
         "caja": [
-          24,
-          34,
+          31,
+          38,
           10
         ]
       },
@@ -457,8 +543,8 @@
           38.8
         ],
         "caja": [
-          24,
-          34,
+          31,
+          38,
           10
         ]
       },
@@ -467,9 +553,9 @@
         "nombre": "carga: dos cámaras y un lidar",
         "masa_kg": 1.0,
         "en": [
-          312.0,
+          309.3,
           0,
-          -88.0
+          -114.0
         ],
         "caja": [
           160,
@@ -479,26 +565,31 @@
       },
       {
         "id": "bateria",
-        "nombre": "batería 6S6P",
-        "masa_kg": 2.7216,
+        "nombre": "batería LiPo 6S 16 000 mAh",
+        "masa_kg": 1.93,
         "en": [
-          287.2,
+          273.4,
           0,
-          -36.0
+          -49.0
         ],
         "caja": [
-          210,
-          130,
-          46
+          206,
+          86,
+          72
         ]
       }
     ],
     "equilibrio": {
-      "punto_neutro_x": 331.9,
+      "punto_neutro_x": 329.2,
       "cuerda_media": 284.1,
       "margen_minimo": 0.05,
       "margen_maximo": 0.12
     }
+  },
+  "tubos_mm": {
+    "larguero Ø10": 1000.0,
+    "larguero Ø6": 1000.0,
+    "viga Ø16": 882.0
   },
   "perfiles": {
     "mh60": {

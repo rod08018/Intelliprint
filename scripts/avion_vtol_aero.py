@@ -51,11 +51,19 @@ def _n(x):
     return float(np.ravel(x)[0])
 
 
+def _deriva(r):
+    """(cuerda de la raíz, de la punta, alto) de las derivas del
+    dimensionado, en m: crecen de alto hasta dar la estabilidad de guiñada
+    que se les pide (`D.CN_BETA_MINIMO`)."""
+    de = r["diseno"]["deriva"]
+    return (*(c / 1000 for c in de["cuerda"]), de["alto"] / 1000)
+
+
 def avion(r, desvio=None):
     """El avión de AeroSandbox con los elevones partidos. `desvio`: (cuál,
     simétrico, antisimétrico) en grados, con cuál "interior" o "exterior"."""
     eq = r["equilibrio"]
-    aeronave, _ = D.avion(eq["torsion_punta_grados"], eq["cg_x_m"])
+    aeronave, _ = D.avion(eq["torsion_punta_grados"], eq["cg_x_m"], _deriva(r))
     est = [tuple(e) for e in r["estaciones"]]
     grupos = r["diseno"]["elevones"]
     tramos = []   # los y donde empieza y acaba cada elevón, de los tramos del kit
@@ -126,7 +134,7 @@ def sin_mandos(r):
     4,3° pasaba de −0,002 a +0,019 (equilibraba a 6,75° y no a 4,3, con o sin
     mandos). Los mandos van como diferencias, y ahí ese desfase se anula."""
     eq = r["equilibrio"]
-    aeronave, _ = D.avion(eq["torsion_punta_grados"], eq["cg_x_m"])
+    aeronave, _ = D.avion(eq["torsion_punta_grados"], eq["cg_x_m"], _deriva(r))
     cg = eq["con_carga"]["cg_mm"]
     aeronave.xyz_ref = [cg[0] / 1000, 0.0, cg[2] / 1000]
     return aeronave

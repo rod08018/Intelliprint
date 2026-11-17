@@ -16,8 +16,9 @@ con lo que sale de construir:
   levantada de 1050 a 1135 (un tramo, el sexto); los elevones empiezan en
   650, así que los llevan los tramos con el centro de ahí en adelante: el 3
   (650), el 4 y el 5;
-- por lado: 3 de raíz, 6 de ala, 3 elevones, 2 góndolas, pilón, pata y
-  deriva, 17; con las cinco del centro, 39;
+- por lado: 3 de raíz, 6 de ala, 3 elevones, 2 góndolas, pilón, pata,
+  deriva y las tapas de los dos servos, 19; con las cinco del centro y la
+  panza, 44;
 - el tramo 1 va de y = 250 (borde de ataque en x = 190, cuerda 230, sin
   torsión) a 410 (borde de ataque en 190 + 373 · 0,2 = 264,6, cuerda
   230 − 110 · 0,2 = 208; borde de salida en 472,6);
@@ -37,47 +38,107 @@ from tests.test_generators import _freecadcmd
 from tests.test_sondas import PERFIL
 
 DISENO = {
-    "estaciones": [[0.0, 0.0, 0.0, 620.0, 2.0, "mh78"], [200.0, 170.0, 0.0, 280.0, 1.0, "mh60"],
-                   [250.0, 190.0, 5.0, 230.0, 0.0, "mh60"],
-                   [1050.0, 563.0, 50.0, 120.0, -3.0, "mh60"],
-                   [1135.0, 622.7, 121.3, 80.0, -3.0, "mh60"]],
+    "estaciones": [[0.0, 0.0, 0.0, 620.0, 2.0, "mh78"],
+     [200.0, 170.0, 0.0, 280.0, 1.0, "mh60"],
+     [250.0, 190.0, 5.0, 230.0, 0.0, "mh60"],
+     [1050.0, 563.0, 50.0, 120.0, -4.0, "mh60"],
+     [1135.0, 622.7, 121.3, 80.0, -4.0, "mh60"]],
     "raiz": 2,
-    "fuselaje": [[-220, 20, 20, -20], [-140, 110, 90, -20], [0, 150, 130, -30],
-                 [180, 160, 180, -50], [420, 160, 180, -50], [600, 90, 80, -20],
-                 [720, 40, 40, -20]],
+    "fuselaje": [[-220, 20, 20, -20],
+     [-140, 110, 90, -20],
+     [0, 150, 130, -30],
+     [180, 160, 180, -50],
+     [240, 160, 200, -60],
+     [400, 160, 200, -60],
+     [600, 90, 80, -20],
+     [720, 40, 40, -20]],
     "z_fuselaje": -20,
     "largueros": [[0.25, 10], [0.6, 6]],
     "elevon": [650, 0.75],
-    "deriva": {"x": 720, "cuerda": [150, 90], "alto": 165},
-    "rotores": {"y": 380, "x": [-53, 677], "viga": 16, "helice": 330},
+    "deriva": {"x": 720, "cuerda": [150, 90], "alto": 255},
+    "rotores": {"y": 380, "x": [-92, 710], "viga": 16, "helice": 381},
     "empuje": {"x": 720, "helice": 254},
-    "ventanas": [[250, 40, 34], [312, 70, 60], [374, 40, 34]],
+    "ventanas": [[247, 40, 34], [309, 70, 60], [371, 40, 34]],
     "elevones": [[3], [4, 5]],
-    "dentro": [
-        {"id": "impreso", "masa_kg": 0.9418, "en": [369.0, 0, -1.8]},
-        {"id": "larguero-Ø10", "masa_kg": 0.06, "en": [357.6, 0, 19.3]},
-        {"id": "larguero-Ø6", "masa_kg": 0.03, "en": [425.9, 0, 19.3]},
-        {"id": "vigas", "masa_kg": 0.09, "en": [388.3, 0, -12.0]},
-        {"id": "motor-d-delante", "masa_kg": 0.1812, "en": [-53.4, 380.0, 18.0]},
-        {"id": "motor-d-detras", "masa_kg": 0.1812, "en": [677.4, 380.0, 18.0]},
-        {"id": "motor-i-delante", "masa_kg": 0.1812, "en": [-53.4, -380.0, 18.0]},
-        {"id": "motor-i-detras", "masa_kg": 0.1812, "en": [677.4, -380.0, 18.0]},
-        {"id": "motor-empuje", "masa_kg": 0.1735, "en": [735, 0, -20.0]},
-        {"id": "variador-empuje", "masa_kg": 0.0434, "en": [600, 0, -20.0]},
-        {"id": "electronica", "masa_kg": 0.31, "en": [-20, 0, -28], "caja": [120, 60, 40]},
-        {"id": "servo-d-interior", "masa_kg": 0.025, "en": [450.0, 650, 27.5],
-         "caja": [24, 34, 10]},
-        {"id": "servo-d-exterior", "masa_kg": 0.025, "en": [531.7, 850, 38.8],
-         "caja": [24, 34, 10]},
-        {"id": "servo-i-interior", "masa_kg": 0.025, "en": [450.0, -650, 27.5],
-         "caja": [24, 34, 10]},
-        {"id": "servo-i-exterior", "masa_kg": 0.025, "en": [531.7, -850, 38.8],
-         "caja": [24, 34, 10]},
-        {"id": "carga", "masa_kg": 1.0, "en": [312.0, 0, -88.0], "caja": [160, 80, 50]},
-        {"id": "bateria", "masa_kg": 2.7216, "en": [287.2, 0, -36.0], "caja": [210, 130, 46]},
-    ],
-    "equilibrio": {"punto_neutro_x": 331.9, "cuerda_media": 284.1,
-                   "margen_minimo": 0.05, "margen_maximo": 0.12},
+    "dentro": [{"id": "impreso",
+      "nombre": "lo impreso (alas de LW-PLA, el resto de PETG)",
+      "masa_kg": 2.3655,
+      "en": [338.7, 0, -41.6]},
+     {"id": "larguero-Ø10",
+      "nombre": "largueros Ø10",
+      "masa_kg": 0.06,
+      "en": [357.6, 0, 19.3]},
+     {"id": "larguero-Ø6",
+      "nombre": "largueros Ø6",
+      "masa_kg": 0.03,
+      "en": [425.9, 0, 19.3]},
+     {"id": "vigas",
+      "nombre": "vigas Ø16 de los rotores",
+      "masa_kg": 0.09,
+      "en": [369.1, 0, -12.0]},
+     {"id": "motor-d-delante",
+      "nombre": "motor de sustentación, variador y hélice",
+      "masa_kg": 0.238,
+      "en": [-91.7, 380.0, 18.0]},
+     {"id": "motor-d-detras",
+      "nombre": "motor de sustentación, variador y hélice",
+      "masa_kg": 0.238,
+      "en": [710.4, 380.0, 18.0]},
+     {"id": "motor-i-delante",
+      "nombre": "motor de sustentación, variador y hélice",
+      "masa_kg": 0.238,
+      "en": [-91.7, -380.0, 18.0]},
+     {"id": "motor-i-detras",
+      "nombre": "motor de sustentación, variador y hélice",
+      "masa_kg": 0.238,
+      "en": [710.4, -380.0, 18.0]},
+     {"id": "motor-empuje",
+      "nombre": "motor y hélice de empuje",
+      "masa_kg": 0.144,
+      "en": [735, 0, -20.0]},
+     {"id": "variador-empuje",
+      "nombre": "variador del motor de empuje",
+      "masa_kg": 0.036,
+      "en": [600, 0, -20.0]},
+     {"id": "electronica",
+      "nombre": "controladora, ordenador de a bordo, GPS, telemetría y receptor",
+      "masa_kg": 0.31,
+      "en": [-20, 0, -33],
+      "caja": [120, 60, 40]},
+     {"id": "servo-d-interior",
+      "nombre": "servo del elevón interior",
+      "masa_kg": 0.025,
+      "en": [450.0, 650, 27.5],
+      "caja": [31, 38, 10]},
+     {"id": "servo-d-exterior",
+      "nombre": "servo del elevón exterior",
+      "masa_kg": 0.025,
+      "en": [531.7, 850, 38.8],
+      "caja": [31, 38, 10]},
+     {"id": "servo-i-interior",
+      "nombre": "servo del elevón interior",
+      "masa_kg": 0.025,
+      "en": [450.0, -650, 27.5],
+      "caja": [31, 38, 10]},
+     {"id": "servo-i-exterior",
+      "nombre": "servo del elevón exterior",
+      "masa_kg": 0.025,
+      "en": [531.7, -850, 38.8],
+      "caja": [31, 38, 10]},
+     {"id": "carga",
+      "nombre": "carga: dos cámaras y un lidar",
+      "masa_kg": 1.0,
+      "en": [309.3, 0, -114.0],
+      "caja": [160, 80, 50]},
+     {"id": "bateria",
+      "nombre": "batería LiPo 6S 16 000 mAh",
+      "masa_kg": 1.93,
+      "en": [273.4, 0, -49.0],
+      "caja": [206, 86, 72]}],
+    "equilibrio": {"punto_neutro_x": 329.2,
+     "cuerda_media": 284.1,
+     "margen_minimo": 0.05,
+     "margen_maximo": 0.12},
 }
 
 CAMA = (235.0, 235.0, 250.0)
@@ -85,8 +146,9 @@ CAMA = (235.0, 235.0, 250.0)
 
 def test_el_avion_tiene_las_piezas_contadas_a_mano():
     ids = [p[0] for p in avion.piezas(DISENO)]
-    assert len(ids) == len(set(ids)) == 39
+    assert len(ids) == len(set(ids)) == 44
     assert [i for i in ids if i.startswith("centro")] == [f"centro-{k}" for k in range(1, 6)]
+    assert "panza" in ids
     for lado in "di":
         assert [i for i in ids if i.startswith(f"raiz-{lado}")] == [
             f"raiz-{lado}-{k}" for k in (1, 2, 3)]
@@ -95,13 +157,47 @@ def test_el_avion_tiene_las_piezas_contadas_a_mano():
         assert [i for i in ids if i.startswith(f"elevon-{lado}")] == [
             f"elevon-{lado}-{k}" for k in (3, 4, 5)]
         for resto in ("gondola-{}-delante", "gondola-{}-detras", "pilon-{}", "pata-{}",
-                      "deriva-{}"):
+                      "deriva-{}", "tapa-servo-{}-interior", "tapa-servo-{}-exterior"):
             assert resto.format(lado) in ids
+
+
+def test_ningun_corte_del_cuerpo_central_cae_en_el_borde_de_salida():
+    """De y = 0 a 100 el borde de salida del centro del ala va de x = 620 a
+    85 + 620 − 170 · 0,5 = 535. Cortando en celdas iguales (de 188) uno caía
+    en 532; con 25 mm de margen se lleva a 510, y la última celda mide 210."""
+    celdas = avion._celdas(DISENO)
+    assert [round(celdas[f"centro-{k}"][1], 1) for k in range(1, 6)] == [
+        -32.0, 156.0, 344.0, 510.0, 720.0]
+
+
+def test_ningun_larguero_pasa_del_tubo_de_un_metro():
+    """Los tubos de carbono se venden de 1000 mm en Amazon; con este diseño
+    cada larguero medía unos 1160 (cuentas del 2026-11-16)."""
+    import math
+    for f, di in DISENO["largueros"]:
+        assert math.dist(*avion.extremos_larguero(DISENO, f, di)) <= 1000.0 + 1e-6, di
 
 
 def test_una_pieza_que_no_existe_se_dice_con_las_que_hay():
     with pytest.raises(Exception, match="no tiene la pieza 'ala-d-9'.*ala-d-6"):
         avion.pieza(None, DISENO, "ala-d-9")
+
+
+# --- por dentro: piel fina ---------------------------------------------------------
+
+def test_el_hueco_de_un_perfil_cierra_atras_en_punta():
+    """Con `punta`, las dos almas son una V: el mismo número de puntos (la
+    transición los une uno a uno), cada punta más allá del punto de la cara
+    de abajo de ese lado y a media altura entre las dos caras. Por detrás,
+    3 mm; por delante, lo que deje el morro, que empieza antes (las caras
+    metidas hacia dentro no llegan al borde de ataque)."""
+    recto = avion.contorno_hueco("mh60", 300, 0.6)
+    v = avion.contorno_hueco("mh60", 300, 0.6, punta=3.0)
+    assert len(recto) == len(v) == 48
+    for punta, abajo, arriba in ((v[23], v[24], recto[23]), (v[0], v[47], recto[0])):
+        assert abajo[1] < punta[1] < arriba[1]
+    assert (v[23][0] - v[24][0]) * 300 == pytest.approx(3.0)
+    assert 0 < (v[47][0] - v[0][0]) * 300 <= 3.0
 
 
 # --- lo de dentro y el equilibrio ------------------------------------------------
@@ -157,19 +253,54 @@ def test_lo_de_dentro_cabe_en_el_hueco_del_fuselaje(que):
                 assert (yq / (w / 2)) ** 2 + ((zq - zc) / (h / 2)) ** 2 <= 1, (que, xq, yq, zq)
 
 
-def test_la_bateria_pasa_bajo_los_largueros():
-    """Los largueros cruzan el fuselaje de lado a lado: la batería, que se
-    mete y se saca, tiene que quedar debajo con 1 mm de aire."""
-    c = next(c for c in DISENO["dentro"] if c["id"] == "bateria")
-    (x, _, z), (lx, ly, lz) = c["en"], c["caja"]
+def _bajo_los_largueros(x, z, lx, ly, lz):
+    """Cuántos largueros cruzan la caja en planta; falla si alguno no le
+    deja 1 mm de aire por encima. Dentro del fuselaje el tubo va sin funda,
+    de pared a pared."""
     cruzan = 0
     for f, diametro in DISENO["largueros"]:
         for y in (-ly / 2, 0, ly / 2):
             xl, zl, _ = avion._punto_larguero(DISENO, abs(y), f)
             if x - lx / 2 <= xl <= x + lx / 2:
                 cruzan += 1
-                assert z + lz / 2 <= zl - diametro / 2 - 1, (f, y, zl)
-    assert cruzan > 0
+                assert z + lz / 2 <= zl - diametro / 2 - 1, (f, x, y, zl)
+    return cruzan
+
+
+def test_la_bateria_pasa_bajo_los_largueros():
+    """Los largueros cruzan el fuselaje de lado a lado: la batería, que se
+    mete y se saca, tiene que quedar debajo con 1 mm de aire."""
+    c = next(c for c in DISENO["dentro"] if c["id"] == "bateria")
+    (x, _, z), (lx, ly, lz) = c["en"], c["caja"]
+    assert _bajo_los_largueros(x, z, lx, ly, lz) > 0
+
+
+def test_la_panza_deja_entrar_la_bateria():
+    """La panza va de punta a punta de la batería con 2 mm de más, y se corta
+    por debajo de ella: la batería sale hacia abajo sin tocar el cuerpo."""
+    c = next(c for c in DISENO["dentro"] if c["id"] == "bateria")
+    (x, _, z), (lx, _, lz) = c["en"], c["caja"]
+    x0, x1, z_corte = avion.panza(DISENO)
+    assert x0 == pytest.approx(x - lx / 2 - 2) and x1 == pytest.approx(x + lx / 2 + 2)
+    assert z_corte <= z - lz / 2
+
+
+def test_la_electronica_entra_por_la_panza_y_se_desliza_hasta_su_sitio():
+    """La electrónica va en el morro, delante de la panza: entra por la boca
+    y se empuja hacia delante a su altura. En cada punto del camino, cada
+    milímetro cuenta: dentro del hueco del fuselaje y bajo los largueros."""
+    c = next(c for c in DISENO["dentro"] if c["id"] == "electronica")
+    (x, y, z), (lx, ly, lz) = c["en"], c["caja"]
+    x0, _, _ = avion.panza(DISENO)
+    xs = [x + k for k in range(0, int(x0 + lx / 2 - x) + 1, 10)]
+    assert xs[-1] - lx / 2 >= x0 - 10, "el camino tiene que llegar a la boca"
+    for xc in xs:
+        _bajo_los_largueros(xc, z, lx, ly, lz)
+        for xq in (xc - lx / 2, xc + lx / 2):
+            w, h, zc = _hueco_en(xq)
+            for yq in (y - ly / 2, y + ly / 2):
+                for zq in (z - lz / 2, z + lz / 2):
+                    assert (yq / (w / 2)) ** 2 + ((zq - zc) / (h / 2)) ** 2 <= 1, (xc, xq, zq)
 
 
 def test_lleva_cuatro_servos_dos_elevones_por_lado():
@@ -195,7 +326,8 @@ def test_lleva_cuatro_servos_dos_elevones_por_lado():
 # llevan la electrónica, la batería y la carga; el ala 3 y la 4, los servos.
 CONSTRUIDAS = ["centro-1", "centro-2", "centro-3", "centro-4", "centro-5", "raiz-d-1",
                "ala-d-1", "ala-i-1", "ala-d-3", "ala-d-4", "elevon-d-3", "elevon-d-4",
-               "elevon-d-5", "ala-d-6", "gondola-d-delante", "pilon-d", "pata-d", "deriva-d"]
+               "elevon-d-5", "ala-d-6", "gondola-d-delante", "pilon-d", "pata-d", "deriva-d",
+               "panza", "tapa-servo-d-interior"]
 DENTRO = ["bateria", "carga", "electronica", "servo-d-interior", "servo-d-exterior",
           "canal-d", "varilla-d"]
 
@@ -241,9 +373,20 @@ def test_lo_de_dentro_no_atraviesa_el_fuselaje(piezas, dentro):
     """La batería, la carga y la electrónica, contra las celdas que cruzan:
     la piel, los largueros, el canal de los cables."""
     pares = [("bateria", "centro-3"), ("bateria", "centro-4"), ("carga", "centro-3"),
-             ("carga", "centro-4"), ("electronica", "centro-1"), ("electronica", "centro-2")]
+             ("carga", "centro-4"), ("electronica", "centro-1"), ("electronica", "centro-2"),
+             ("bateria", "panza"), ("carga", "panza"), ("electronica", "panza")]
     huecos = _huecos(piezas, dentro, pares)
     assert all(h >= 0 for h in huecos.values()), huecos
+
+
+def test_un_tramo_de_ala_es_hueco(piezas):
+    """El ala-d-1 maciza, contada a mano con el MH 60 (10,1 % de grueso) y
+    sus cuerdas, son unos 527 cm³; su piel sola, de 0,6 mm, 42 cm³. Con las
+    fundas, el alma y los nervios tiene que quedar entre las dos, y lejos de
+    la maciza: el 2026-11-16 las piezas eran macizas y sumaban 9,7 litros."""
+    from orchestrator.estudio import malla
+    v = malla(piezas["ala-d-1"] / "ala-d-1.stl").volumen_mm3 / 1000
+    assert 42 < v < 105, v
 
 
 def test_cada_servo_esta_en_su_hueco_del_ala(piezas, dentro):

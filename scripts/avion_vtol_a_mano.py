@@ -50,7 +50,7 @@ PIEZAS = avion.piezas(DISENO)
 if SOLO:
     PIEZAS = [p for p in PIEZAS if p[0] == SOLO]
 
-obra = Obra(titulo="VTOL de ala volante con su electrónica dentro, a mano y sin modelo",
+obra = Obra(titulo="VTOL de ala volante con LiPo 6S y lo comprado en Amazon, a mano y sin modelo",
             nodos=[{"id": i, "nombre": n, "que_hace": q} for i, n, q in PIEZAS])
 O.guardar(P, obra, por="mano")
 if len(PIEZAS) > 1:
@@ -66,7 +66,9 @@ rc = D["lo_que_cuestan_los_rotores"]
     f"- Envergadura {D['envergadura_m']} m, ala de {D['area_alar_m2']} m² con flecha de 25° y "
     "puntas levantadas; perfil MH 78 en el centro y MH 60 en el ala (autoestables).\n"
     f"- Peso al despegar {m['total']} kg, con {m['carga útil']} kg de carga (dos cámaras y un "
-    f"lidar) y una batería 6S{D['bateria']['paralelo']}P de 21700 ({D['bateria']['Wh']} Wh).\n"
+    f"lidar) y una LiPo {D['bateria']['serie']}S de {D['bateria']['mAh']} mAh "
+    f"({D['bateria']['Wh']} Wh). Los cuatro rotores levantan {D['vtol']['empuje_sobre_peso']} "
+    "veces su peso.\n"
     f"- Crucero a {c['velocidad_m_s'] * 3.6:.0f} km/h: L/D {c['L_D']}, {c['potencia_W']} W. "
     f"Autonomía {D['autonomia_h']} h y {D['alcance_km']:.0f} km, con 15 % de reserva y "
     f"{D['vtol']['minutos']:.0f} min de vuelo vertical ({D['vtol']['potencia_W']:.0f} W).\n"
@@ -87,17 +89,28 @@ rc = D["lo_que_cuestan_los_rotores"]
     "- Dos elevones por lado, cada uno con su servo (cuatro): el interior es un trozo y el "
     "exterior, dos pegados con una varilla de carbono de Ø2. Los servos van en un hueco por "
     "debajo del ala, y sus cables por un canal de Ø6 hasta el fuselaje.\n\n"
-    "**Se compra:** dos vigas de carbono de Ø16 × 0,9 m; largueros de carbono de Ø10 y Ø6; "
-    "varilla de carbono de Ø2; cuatro motores de sustentación con hélices de 13\" y sus "
-    "variadores; un motor de empuje de la clase 28xx con hélice plegable de 10\"; 36 celdas "
-    "21700 de 4,5 Ah; controladora, ordenador de a bordo (Raspberry Pi 5), GPS, telemetría "
-    "y cuatro servos finos de ala (10 mm de grueso). Son una propuesta del asistente, sin "
-    "comprobar contra su tienda.\n\n"
-    "**Sin dibujar todavía:** las tapas de los huecos de los servos y la de la batería, y "
-    "por dentro del ala, la piel fina con nervios: las piezas son macizas.\n\n"
-    "**Lo que no está medido:** que vuele. Las masas de lo impreso y de lo comprado y los "
-    "rendimientos son estimaciones del asistente; la aerodinámica es la de AeroSandbox, no "
-    "un túnel.\n", encoding="utf-8")
+    "**Se compra en Amazon** (él: «usemos motores y bateria que pueda comprar en amazon»; "
+    "elegido por el asistente, con las cifras de cada anuncio, sin medir):\n\n"
+    + "".join(f"- {c['cantidad']} × [{c['que']}]({c['url']})\n" for c in D["compras"])
+    + "\nY lo que no tiene anuncio aquí: el receptor de su radio, tornillos M3, velcro de 20 mm, "
+    "cinta de bisagra, epoxi y CA. Los tubos de carbono se venden de 1000 mm: "
+    + ", ".join(f"{k} de {v:g} mm" for k, v in D["tubos_mm"].items()) + ".\n\n"
+    "- **Por dentro, hueco** (él: «las alas son de lw pla el resto de petg», Prusament): el "
+    "ala, de piel de 0,6 mm "
+    "con un alma al 72 % de la cuerda, nervios en zigzag a 50° y fundas de 1,2 mm en los "
+    "largueros; el fuselaje, de 1,2 mm. La batería, la carga y la electrónica entran por la "
+    "panza, que se atornilla con cuatro M3: el larguero de atrás cruza el fuselaje sobre la "
+    "batería y por arriba no se puede. Cada hueco de servo lleva su tapa.\n"
+    f"- Lo impreso pesa {m.get('impreso, pesado en sus STL', '?')} kg, pesado en sus STL "
+    "(`scripts/avion_vtol_masas.py`): las alas (raíces, tramos y elevones) en LW-PLA "
+    "espumado a 0,6 g/cm³ y el resto (cuerpo central, panza, tapas, góndolas, pilones, patas "
+    "y derivas) en PETG de 1,27 g/cm³, con el relleno del perfil.\n\n"
+    "**Puntos débiles, sin calcular:** el pilón descarga en la piel de 0,6 mm de LW-PLA (no "
+    "hay un refuerzo debajo); los M3 de la panza roscan en PETG de 1,2 mm; la bandeja de la batería "
+    "es de 3 mm y aguanta 2,7 kg en los aterrizajes.\n\n"
+    "**Lo que no está medido:** que vuele, ni que aguante. La densidad del LW-PLA, las masas "
+    "de lo comprado y los rendimientos son estimaciones del asistente; la aerodinámica es la "
+    "de AeroSandbox, no un túnel.\n", encoding="utf-8")
 
 hechas, fallos = [], []
 for id_, nombre, _ in PIEZAS:
@@ -140,6 +153,16 @@ if not SOLO:
                    os.environ["FREECADCMD"], perfil=PERFIL)
         print(f"dentro: {q}", flush=True)
 if not SOLO and hechas:
+    # Lo que pesa lo construido, para el dimensionado (que lee
+    # `scripts/avion_vtol_impreso.json`, copia de esto si es el avión de hoy).
+    import importlib.util
+    _spec = importlib.util.spec_from_file_location("masas", "scripts/avion_vtol_masas.py")
+    masas = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(masas)
+    pesado = masas.pesar(P)
+    (P / "masas.json").write_text(json.dumps(pesado, ensure_ascii=False, indent=1) + "\n",
+                                  encoding="utf-8")
+    print(f"PESA {pesado['masa_kg']:.3f} kg lo impreso; centro {pesado['centro_mm']}", flush=True)
     from orchestrator.vista import dibujar_piezas
     stls = sorted(P.glob("nodos/*/parts/*/*.stl"))
     print("VISTA:", dibujar_piezas(stls, P / "vista.png", "VTOL de ala volante, a mano"))

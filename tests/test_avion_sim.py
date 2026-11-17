@@ -58,6 +58,18 @@ def test_inercia_de_dos_masas_a_mano():
     assert np.diag(tensor) == pytest.approx([2, 0, 2])
 
 
+def test_cada_pieza_impresa_lleva_lo_que_peso():
+    """Dos triángulos iguales a 0,4 m uno de otro, uno pesado el triple: el
+    centro de lo impreso cae a un cuarto del pesado (0,1 m), y la masa suma
+    lo que dice el dimensionado aunque los pesos no sumen eso."""
+    a = _triangulo([0, 0, 0], [0.01, 0, 0], [0, 0.01, 0])
+    b = a + np.array([0.4, 0, 0])
+    masa, cg, _ = G.inercia(G._impreso(2.0, {"deriva-d": a, "ala-d-1": b},
+                                       {"deriva-d": 0.3, "ala-d-1": 0.1}))
+    assert masa == pytest.approx(2.0)
+    assert cg[0] == pytest.approx(0.1 + 0.01 / 3)
+
+
 def test_la_inercia_de_una_caja_es_la_de_los_libros():
     # Caja de 2 kg y 0,3 × 0,2 × 0,1 m: Ixx = m(b² + c²)/12.
     t = G.caja(2.0, (0.3, 0.2, 0.1))
@@ -176,6 +188,19 @@ def _param(texto, nombre):
         if linea.startswith(f"param set-default {nombre} "):
             return float(linea.split()[-1])
     raise AssertionError(f"{nombre} no está en la aeronave")
+
+
+def test_es_estable_en_guinada_respecto_al_centro_de_gravedad():
+    # El dimensionado daba Cn_beta = 0,0555 tomado respecto al morro (el
+    # avión de `equilibrado` tenía la referencia en x = 0); respecto al CG,
+    # que es donde gira, era 0,0156 (visto el 2026-11-16 al simularlo). El
+    # mínimo: 0,001 por grado, el borde bajo de lo típico en un avión ligero
+    # (0,001–0,002 /°). Criterio del asistente; la constante del de Perkins y
+    # Hage no se pudo leer en su fuente.
+    minimo = 0.001 * 180 / math.pi
+    assert AERO["Cenb"] >= minimo
+    # Y el dimensionado dice lo mismo que la simulación.
+    assert R["equilibrio"]["Cn_beta"] == pytest.approx(AERO["Cenb"], rel=0.1)
 
 
 def test_px4_cree_la_misma_declinacion_que_el_mundo_de_gazebo():
