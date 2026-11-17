@@ -153,6 +153,28 @@ def test_el_rodamiento_en_el_que_gira_una_pieza_no_cuenta_para_los_choques(tmp_p
     assert len(todos["soporte: montado"]) == 5
 
 
+def test_lo_que_se_ve_del_conjunto_lleva_lo_comprado_que_no_se_barre(tmp_path, monkeypatch):
+    """Quitar el rodamiento vale para los choques, no para enseñar el
+    conjunto. El brazo industrial salía en la web sin los dos NEMA 23 con
+    reductora del hombro y del codo ni el 6810 de la base, porque el brazo
+    gira en sus ejes: él dijo «ese brazo no es el brazo industrial que me
+    habías mostrado» (2026-11-17)."""
+    from orchestrator import assembly, conjunto
+    carpeta = _articulacion(tmp_path)
+    visto = {}
+    monkeypatch.setattr(conjunto, "_barrer", lambda *a, **k: [])
+    monkeypatch.setattr(assembly, "build_assembly",
+                        lambda steps, _, poses, destino, fc, solidos: visto.update(fcstd=solidos))
+    monkeypatch.setattr(conjunto, "animar_conjunto",
+                        lambda piezas, arts, steps, solidos, duenos, *a, **k:
+                        visto.update(gif=solidos, duenos=duenos) or (tmp_path / "a.gif"))
+    (tmp_path / "a.gif").write_bytes(b"GIF")
+    conjunto.verificar_conjunto(carpeta, "conjunto", "freecadcmd", 0.1)
+    assert len(visto["fcstd"]["soporte: montado"]) == 5
+    assert len(visto["gif"]["soporte: montado"]) == 5
+    assert visto["duenos"]["soporte: montado"] == "soporte"
+
+
 def test_el_servo_sobre_el_que_gira_una_pieza_si_cuenta(tmp_path):
     """Un servo no se abraza: la pieza va en su cuerno, por delante de la
     carcasa, y si la toca es un choque de verdad. Nada cambia para él."""

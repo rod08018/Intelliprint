@@ -691,6 +691,22 @@ imprimir; lo que dejó abierto está abajo.
   produjo: tras reiniciar la web, la página del brazo baja de 15,6 a
   4,3 s. **La primera visita de cada proyecto sigue tardando ~15 s**
   (se miden sus tornillos una vez).
+- **Dicho por él el 2026-11-17: «ese brazo no es el brazo industrial que
+  me habías mostrado»** y, del avión, «tiene piezas fuera del modelo, no se
+  entiende qué son». Del brazo, el visor y el GIF no dibujaban lo comprado
+  en lo que gira otra pieza (los dos NEMA 23 con reductora y el 6810): eso
+  se quita del barrido de choques, no del dibujo; arreglado y reanimado. Del
+  avión, la vista no dibujaba las vigas, los motores ni las hélices
+  (`avion.comprado_a_la_vista`, guardado en `comprado/`): las góndolas y
+  las derivas salían sueltas. Rellenadas las seis versiones del ala; la
+  primera (cola en H) no. **Encontrado al mirarlo, sin arreglar y por
+  contarle:** la deriva trasera (x de 720 a 870) se monta sobre los 30 mm
+  finales de la góndola de atrás (670 a 750): 11 383 mm³ comunes medidos
+  con FreeCAD, y la viga de 880 mm acaba en 750, así que 120 mm de deriva
+  no tienen viga. Ningún test medía choques entre piezas del avión. Los
+  motores de la vista (Ø50 × 30 y Ø42 × 25) son supuestos del asistente.
+  Sin arreglar tampoco: el barrido del brazo quita entero el motorreductor
+  en cuyo eje gira la pieza siguiente, no solo su eje.
 
 **2026-11-11 (noche): Fase 10, brazos con transmisión (ADR-021).** Decidido
 por él: **el brazo antes que el avión**; empezar por uno pequeño con servos;

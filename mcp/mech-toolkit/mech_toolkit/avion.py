@@ -1181,6 +1181,85 @@ def _z_viga(d):
     return bajo - d["rotores"]["viga"] / 2 - 10
 
 
+MOTOR_SUBIR = (50.0, 30.0)
+"""Ø y alto del motor 4312 de sustentación; MOTOR_EMPUJE, los del 3510. Son
+supuestos del asistente para verlo montado: los anuncios no dan el plano."""
+MOTOR_EMPUJE = (42.0, 25.0)
+SOBRE_EL_MOTOR = 5.0
+"""Del motor a la pala: el buje de la hélice."""
+
+
+def _cilindro_tris(p0, eje, largo, radio, n=24):
+    """Un cilindro cerrado en triángulos, de `p0` a lo largo de `eje` (unitario)."""
+    a = (1.0, 0.0, 0.0) if abs(eje[0]) < 0.9 else (0.0, 1.0, 0.0)
+    u = (eje[1] * a[2] - eje[2] * a[1], eje[2] * a[0] - eje[0] * a[2], eje[0] * a[1] - eje[1] * a[0])
+    nu = math.sqrt(sum(c * c for c in u))
+    u = tuple(c / nu for c in u)
+    v = (eje[1] * u[2] - eje[2] * u[1], eje[2] * u[0] - eje[0] * u[2], eje[0] * u[1] - eje[1] * u[0])
+
+    def punto(k, h):
+        t = 2 * math.pi * k / n
+        return tuple(p0[i] + eje[i] * h + radio * (math.cos(t) * u[i] + math.sin(t) * v[i])
+                     for i in range(3))
+    abajo, arriba = p0, tuple(p0[i] + eje[i] * largo for i in range(3))
+    tris = []
+    for k in range(n):
+        a0, a1, b0, b1 = punto(k, 0), punto(k + 1, 0), punto(k, largo), punto(k + 1, largo)
+        tris += [(a0, a1, b1), (a0, b1, b0), (abajo, a1, a0), (arriba, b0, b1)]
+    return tris
+
+
+def _pala_tris(centro, largo_dir, normal, diametro, grueso=3.0, n=16):
+    """Una hélice de dos palas, plana: un huso de `diametro` de punta a punta
+    a lo largo de `largo_dir`, y de grueso `grueso` según `normal`."""
+    ancho = (normal[1] * largo_dir[2] - normal[2] * largo_dir[1],
+             normal[2] * largo_dir[0] - normal[0] * largo_dir[2],
+             normal[0] * largo_dir[1] - normal[1] * largo_dir[0])
+    r, w = diametro / 2, 0.06 * diametro
+    contorno = []
+    for k in range(2 * n):
+        t = 2 * math.pi * k / (2 * n)
+        s, q = r * math.cos(t), w * math.sin(t) * (0.35 + 0.65 * abs(math.cos(t)))
+        contorno.append(tuple(centro[i] + s * largo_dir[i] + q * ancho[i] for i in range(3)))
+
+    def subir(p, h):
+        return tuple(p[i] + h * normal[i] for i in range(3))
+    tris = []
+    for k in range(len(contorno)):
+        a, b = contorno[k], contorno[(k + 1) % len(contorno)]
+        tris += [(centro, a, b), (subir(centro, grueso), subir(b, grueso), subir(a, grueso)),
+                 (a, subir(b, grueso), b), (a, subir(a, grueso), subir(b, grueso))]
+    return tris
+
+
+def comprado_a_la_vista(d) -> dict[str, list]:
+    """Lo comprado que se ve por fuera, en triángulos y en su sitio: las dos
+    vigas de carbono, los cinco motores y sus hélices. Solo para enseñarlo
+    montado: sin ellos, la vista del avión dejaba las góndolas y las derivas
+    sueltas junto al ala (él, 2026-11-17: «no se entiende qué son»)."""
+    ro, L = d["rotores"], MEDIO_LARGO_GONDOLA
+    zv, dv = _z_viga(d), ro["viga"]
+    arriba = zv + dv / 2 + 12          # la cara de arriba de la góndola (`_gondola`)
+    out = {}
+    for lado, s in (("d", 1), ("i", -1)):
+        y = s * ro["y"]
+        out[f"viga-{lado}"] = _cilindro_tris((ro["x"][0] - L, y, zv), (1, 0, 0),
+                                             ro["x"][1] - ro["x"][0] + 2 * L, dv / 2)
+        for donde, x in (("delante", ro["x"][0]), ("detras", ro["x"][1])):
+            out[f"motor-{lado}-{donde}"] = _cilindro_tris((x, y, arriba), (0, 0, 1),
+                                                          MOTOR_SUBIR[1], MOTOR_SUBIR[0] / 2)
+            g = 1 / math.sqrt(2)
+            out[f"helice-{lado}-{donde}"] = _pala_tris(
+                (x, y, arriba + MOTOR_SUBIR[1] + SOBRE_EL_MOTOR), (g, s * g, 0), (0, 0, 1),
+                ro["helice"])
+    xe, zf = d["empuje"]["x"], d["z_fuselaje"]
+    out["motor-empuje"] = _cilindro_tris((xe, 0, zf), (1, 0, 0), MOTOR_EMPUJE[1],
+                                         MOTOR_EMPUJE[0] / 2)
+    out["helice-empuje"] = _pala_tris((xe + MOTOR_EMPUJE[1] + SOBRE_EL_MOTOR, 0, zf), (0, 0, 1),
+                                      (1, 0, 0), d["empuje"]["helice"])
+    return out
+
+
 def _gondola(kit, d, x):
     """El soporte de un motor de sustentación: abraza la viga y deja arriba una
     cara plana con cuatro M3 en un círculo de 25 (compruébalo con el motor que

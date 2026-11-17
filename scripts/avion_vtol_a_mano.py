@@ -176,6 +176,8 @@ if not SOLO and hechas:
     (P / "masas.json").write_text(json.dumps(pesado, ensure_ascii=False, indent=1) + "\n",
                                   encoding="utf-8")
     print(f"PESA {pesado['masa_kg']:.3f} kg lo impreso; centro {pesado['centro_mm']}", flush=True)
-    from orchestrator.vista import dibujar_piezas
-    stls = sorted(P.glob("nodos/*/parts/*/*.stl"))
-    print("VISTA:", dibujar_piezas(stls, P / "vista.png", "VTOL de ala volante, a mano"))
+    # Montado, con las vigas, los motores y las hélices: sin ellos las
+    # góndolas y las derivas salían sueltas («no se entiende qué son», 2026-11-17).
+    from orchestrator.vista import dibujar_montado, guardar_comprado
+    guardar_comprado(P, avion.comprado_a_la_vista(DISENO))
+    print("VISTA:", dibujar_montado(P, P / "vista.png"))

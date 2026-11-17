@@ -347,7 +347,8 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
         # Un backlog, montado (él, 2026-11-17: «debe mostrarse el ensamble de
         # todo»); se redibuja también si su conjunto se volvió a mover.
         es_obra = obra.es_obra(carpeta)
-        fuentes = [*piezas, *(carpeta.glob("nodos/*/ensamble.json") if es_obra else [])]
+        fuentes = [*piezas, *(carpeta.glob("nodos/*/ensamble.json") if es_obra else []),
+                   *carpeta.glob(f"{V.COMPRADO}/*.stl")]
         if not png.is_file() or png.stat().st_mtime < max(p.stat().st_mtime for p in fuentes):
             try:
                 if es_obra:

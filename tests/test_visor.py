@@ -294,6 +294,23 @@ def test_montado_sin_conjunto_deja_cada_pieza_donde_se_dibujo(tmp_path):
     assert min(v[0] for v in mallas["ala"][0]) == pytest.approx(0)
 
 
+def test_montado_sin_conjunto_lleva_lo_comprado_que_une_las_piezas(tmp_path):
+    """Sin las vigas de carbono, las góndolas y las derivas del avión salían
+    flotando junto al ala. Él, el 2026-11-17: «tiene piezas fuera del modelo,
+    no se entiende qué son». Lo comprado se guarda en `comprado/`, ya en su
+    sitio, y se pinta en su color, que no es el de ninguna pieza."""
+    from orchestrator.vista import COLOR_COMPRADO, COLORES, guardar_comprado, montado
+    carpeta = tmp_path / "projects" / "avion"
+    _triangulo_en(carpeta / "nodos" / "ala" / "parts" / "ala" / "ala.stl", 0)
+    guardar_comprado(carpeta, {"viga-d": [[(500, 0, 0), (510, 0, 0), (500, 10, 0)]]})
+
+    mallas, colores = montado(carpeta)
+
+    assert min(v[0] for v in mallas["viga-d"][0]) == pytest.approx(500)
+    assert colores["viga-d"] == COLOR_COMPRADO and COLOR_COMPRADO not in COLORES
+    assert colores["ala"] != COLOR_COMPRADO
+
+
 def test_la_vista_de_un_backlog_es_el_invento_montado(tmp_path):
     """La portada y la página piden `vista.png`: en un backlog es el
     invento montado, no las piezas en fila (una pieza suelta sigue igual)."""

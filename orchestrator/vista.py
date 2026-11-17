@@ -21,6 +21,28 @@ from orchestrator.proyecto_3mf import leer_stl
 HUECO_MM = 10.0
 MARGEN_PX = 12
 COLORES = ("#e8833a", "#3a7be8", "#9aa5b1", "#5bb36a", "#c94f7c", "#d6b33a")
+COMPRADO = "comprado"
+"""Lo comprado de un invento que no se mueve (las vigas de carbono, los
+motores y las hélices del avión), en STL y ya en su sitio. Sin esto las
+góndolas y las derivas salían flotando junto al ala: él, el 2026-11-17, «tiene
+piezas fuera del modelo, no se entiende qué son»."""
+COLOR_COMPRADO = "#33383d"
+
+
+def guardar_comprado(carpeta: Path, mallas: dict[str, list]) -> list[Path]:
+    """Cada malla ({nombre: [triángulo de tres puntos]}) en un STL binario de
+    `comprado/`."""
+    import struct
+    destino = Path(carpeta) / COMPRADO
+    destino.mkdir(parents=True, exist_ok=True)
+    hechos = []
+    for nombre, tris in mallas.items():
+        ruta = destino / f"{nombre}.stl"
+        datos = [bytes(80), struct.pack("<I", len(tris))]
+        datos += [struct.pack("<12fH", 0, 0, 0, *(c for p in t for c in p), 0) for t in tris]
+        ruta.write_bytes(b"".join(datos))
+        hechos.append(ruta)
+    return hechos
 
 
 def dibujar_piezas(stls: list[Path], destino: Path, titulo: str = "") -> Path:
@@ -90,6 +112,11 @@ def montado(carpeta: Path) -> tuple[dict, dict]:
         if triangulos:
             mallas[stl.stem] = ([list(p) for p in vertices], [list(t) for t in triangulos])
             colores[stl.stem] = COLORES[i % len(COLORES)]
+    for stl in sorted((carpeta / COMPRADO).glob("*.stl")):
+        vertices, triangulos = leer_stl(stl)
+        if triangulos:
+            mallas[stl.stem] = ([list(p) for p in vertices], [list(t) for t in triangulos])
+            colores[stl.stem] = COLOR_COMPRADO
     return mallas, colores
 
 

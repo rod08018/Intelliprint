@@ -681,13 +681,18 @@ def verificar_conjunto(carpeta: Path, conjunto: str, freecadcmd: str, min_gap_mm
                           brazos_del_plan(O.cargar_obra(carpeta)))}
     dir_nodo = carpeta / O.NODOS / conjunto
     dir_nodo.mkdir(parents=True, exist_ok=True)
-    build_assembly(steps, {}, {s: _placement(reposo[duenos[s]]) for s in duenos},
-                   dir_nodo / "assembly.FCStd", freecadcmd, solidos)
+    # Lo que se enseña lleva TODO lo comprado: el rodamiento en el que gira
+    # otra pieza sale del barrido, no del dibujo. Sin esto, el brazo
+    # industrial salía en la web sin sus dos NEMA 23 con reductora ni el
+    # 6810 de la base, y «no era el brazo» de la foto (2026-11-17).
+    duenos_v, solidos_v, _ = _solidos(piezas)
+    build_assembly(steps, {}, {s: _placement(reposo[duenos_v[s]]) for s in duenos_v},
+                   dir_nodo / "assembly.FCStd", freecadcmd, solidos_v)
     (dir_nodo / VERIFICACION).write_text(json.dumps(v, ensure_ascii=False, indent=1),
                                          encoding="utf-8")
     if animar:
         ob = O.cargar_obra(carpeta)
-        gif = animar_conjunto(piezas, arts, steps, solidos, duenos, choques,
+        gif = animar_conjunto(piezas, arts, steps, solidos_v, duenos_v, choques,
                               dir_nodo / "animation.gif", freecadcmd, ob.nodo(conjunto).nombre,
                               paso)
         # El conjunto de toda la obra es la animación del proyecto: la web,

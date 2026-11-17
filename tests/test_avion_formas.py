@@ -27,6 +27,7 @@ con lo que sale de construir:
 """
 
 import json
+import math
 import os
 
 import pytest
@@ -181,6 +182,41 @@ def test_ningun_larguero_pasa_del_tubo_de_un_metro():
 def test_una_pieza_que_no_existe_se_dice_con_las_que_hay():
     with pytest.raises(Exception, match="no tiene la pieza 'ala-d-9'.*ala-d-6"):
         avion.pieza(None, DISENO, "ala-d-9")
+
+
+# --- lo comprado, para verlo montado ------------------------------------------------
+
+def test_lo_comprado_une_las_gondolas_al_ala():
+    """Sin vigas, motores ni hélices, la vista del avión enseñaba las góndolas
+    y las derivas sueltas junto al ala (él, 2026-11-17: «no se entiende qué
+    son»). La viga va de la punta de la góndola de delante (−90 − 40) a la de
+    la de atrás (710 + 40), en y = ±380: los 880 mm que se compran. Cada
+    hélice mide su diámetro: 381 las de subir y 254 la de empuje."""
+    comprado = avion.comprado_a_la_vista(DISENO)
+    assert len([k for k in comprado if k.startswith("helice")]) == 5
+    assert len([k for k in comprado if k.startswith("motor")]) == 5
+
+    def caja(k):
+        puntos = [p for t in comprado[k] for p in t]
+        return [min(p[i] for p in puntos) for i in range(3)], [max(p[i] for p in puntos)
+                                                                for i in range(3)]
+    for lado, y in (("d", 380), ("i", -380)):
+        lo, hi = caja(f"viga-{lado}")
+        assert (lo[0], hi[0]) == pytest.approx((-130, 750), abs=0.01)
+        assert (lo[1] + hi[1]) / 2 == pytest.approx(y, abs=0.01) and hi[1] - lo[1] == pytest.approx(16, abs=0.1)
+    def radio(k, i, j):
+        """De la punta más lejana al eje, que pasa por el centro de su caja."""
+        lo, hi = caja(k)
+        c = [(lo[i] + hi[i]) / 2, (lo[j] + hi[j]) / 2]
+        return max(math.hypot(p[i] - c[0], p[j] - c[1]) for t in comprado[k] for p in t)
+    for k in [k for k in comprado if k.startswith("helice-") and k != "helice-empuje"]:
+        lo, hi = caja(k)
+        assert 2 * radio(k, 0, 1) == pytest.approx(381, abs=0.01)
+        # Sobre su motor, que va sobre la góndola: por encima de la viga.
+        assert lo[2] > caja("motor" + k[len("helice"):])[1][2] - 0.01 > caja("viga-d")[1][2]
+    lo, hi = caja("helice-empuje")
+    assert 2 * radio("helice-empuje", 1, 2) == pytest.approx(254, abs=0.01)
+    assert lo[0] >= 720     # detrás de la cola del fuselaje
 
 
 # --- por dentro: piel fina ---------------------------------------------------------
