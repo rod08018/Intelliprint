@@ -424,7 +424,8 @@ def piezas(d) -> list[tuple[str, str, str]]:
                               "donde el ala se funde con el fuselaje"))
         for k, (y0, y1, i) in enumerate(_tramos_ala(d), 1):
             if _levantado(d, i):
-                lista.append((f"ala-{lado}-{k}", f"Punta {el}", "la punta levantada del ala"))
+                if not d.get("punta_unida"):
+                    lista.append((f"ala-{lado}-{k}", f"Punta {el}", "la punta levantada del ala"))
                 continue
             servo = [s for s in _servos(d) if y0 < s["y"] < y1]
             # Los largueros se cortan al metro del tubo comprado: el último
@@ -435,7 +436,9 @@ def piezas(d) -> list[tuple[str, str, str]]:
             lista.append((f"ala-{lado}-{k}", f"Ala {ala}, tramo {k}",
                           f"de {y0:g} a {y1:g} mm del centro, {con}"
                           + (f"; lleva el servo del elevón {servo[0]['elevon']}, por abajo"
-                             if servo else "")))
+                             if servo else "")
+                          + ("; con la punta levantada, de la misma pieza"
+                             if _con_punta(d, k) else "")))
             for s in servo:
                 lista.append((f"tapa-servo-{lado}-{s['elevon']}",
                               f"Tapa del servo {s['elevon']} {el}",
@@ -1206,6 +1209,17 @@ def _tramo(kit, d, k):
     return y0, y1, i, _ala_entre(kit, d, y0, y1, i)
 
 
+def _con_punta(d, k):
+    """Si el tramo `k` lleva pegada la punta levantada (`punta_unida`): él, el
+    2026-11-18, «Sí, bájalas», con una cama de 300 × 300 × 330. El último tramo
+    del avión de ese día (de 646,7 a 860) y su punta (de 860 a 945) miden
+    juntos 298,3 de alto de pie sobre la raíz, y de huella unos 270 × 110:
+    caben, y son dos piezas menos."""
+    tramos = _tramos_ala(d)
+    return (bool(d.get("punta_unida")) and k < len(tramos)
+            and _levantado(d, tramos[k][2]) and not _levantado(d, tramos[k - 1][2]))
+
+
 def _z_viga(d):
     """El centro de la viga: bajo la cara de abajo del ala donde pasa la viga,
     con sitio para el pilón."""
@@ -1407,58 +1421,85 @@ def pieza(kit, d, id_):
         x0, x1, y0, y1 = celdas[id_ if partes[0] == "centro" else f"raiz-d-{partes[2]}"]
         trozo = _cuerpo_central(kit, d, (x0, x1, y0, y1))
         return trozo if partes[0] == "centro" else _lado(trozo, lado)
-    if partes[0] in ("ala", "elevon"):
+    if partes[0] == "ala":
+        k = int(partes[2])
+        ala = _ala(kit, d, k)
+        if _con_punta(d, k):
+            # Las dos se cortan en el mismo plano con la misma sección: el
+            # hueco del tramo, abierto por su cara de fuera, sigue en el de la
+            # punta, y la unión es una sola pieza.
+            # Detrás de la bisagra, debajo de la punta va el hueco del elevón:
+            # de pie sobre la raíz, la punta empezaba ahí en el aire, un techo
+            # de 40 mm (2026-11-18). Se le quita una rampa que sube a 40° de la
+            # vertical, que además deja holgura al final del elevón.
+            _, y1, i = _tramos_ala(d)[k - 1]
+            x, _, c, _, _ = _estacion(d, y1, i)
+            xh = x + d["elevon"][1] * c - HOLGURA_BISAGRA
+            rampa = kit.extruir([(xh, y1 - 1), (xh + 400, y1 - 1), (xh + 400, y1 - 1 + 1.2 * 400)],
+                                600, plano="xy", desde=-300)
+            ala = ala + (_ala(kit, d, k + 1) - rampa)
+        return _lado(ala, lado)
+    if partes[0] == "elevon":
         k = int(partes[2])
         y0, y1, i, ala = _tramo(kit, d, k)
-        if partes[0] == "ala":
-            con_elevon = _con_elevon(d, y0, y1, i)
-            hueco = _hueco_tramo(kit, d, y0, y1, i, con_elevon, _levantado(d, i))
-            if hueco is not None:
-                # Lo de dentro (nervios, fundas de los largueros y cajones de
-                # los servos) se suma después de vaciar, recortado a la forma
-                # del tramo: es el mismo sólido (ala − (hueco − dentro) =
-                # (ala − hueco) + (ala & dentro)), pero restar un hueco que los
-                # nervios parten en 14 trozos le costaba a OCC 158 s en el
-                # primer tramo, y la pieza entera pasaba del tope de 180
-                # (2026-11-16). Antes de recortarlo a la forma, a la caja del
-                # hueco: cada nervio sale 200 mm por delante y por detrás del
-                # ala, y cruzar eso con la piel curva costaba el triple.
-                # Solo las fundas de los largueros que entran en el tramo más
-                # que el radio de la funda. Los del avión del 2026-11-18 acaban
-                # en el corte de la punta (y = 860), y por el diedro su disco
-                # final asomaba 2,4 mm en ella: dos rodajas sueltas dentro del
-                # hueco, y la pieza salía en tres sólidos.
-                dentro = _largueros(kit, d, pared=FUNDA,
-                                    desde=y0 + max(di for _, di in d["largueros"]) / 2 + FUNDA)
-                if not _levantado(d, i):
-                    nervios = _nervios(kit, d, y0, y1, i)
-                    dentro = nervios if dentro is None else dentro + nervios
-                for s in _servos(d):
-                    if y0 < s["y"] < y1:
-                        cajon = _cajon_servo(kit, d, s)
-                        dentro = cajon if dentro is None else dentro + cajon
-                if dentro is None:
-                    ala = ala - hueco
-                else:
-                    bb = hueco._forma.BoundBox
-                    dentro = dentro & kit.caja(bb.XLength + 2, bb.YLength + 2, bb.ZLength + 2,
-                                               en=(bb.XMin - 1, bb.YMin - 1, bb.ZMin - 1))
-                    ala = (ala - hueco) + (dentro & ala)
-            ala = ala - _largueros(kit, d)
-            canal = _canal(kit, d)
-            if canal is not None and y0 < max(s["y"] for s in _servos(d)):
-                ala = ala - canal
-            for s in _servos(d):
-                if y0 < s["y"] < y1:
-                    ala = ala - _hueco_servo(kit, d, s)
-            if _con_elevon(d, y0, y1, i):
-                ala = ala - _bisagra(kit, d, y0, y1, -HOLGURA_BISAGRA)
-            return _lado(ala, lado)
         elevon = ala & _bisagra(kit, d, y0, y1, HOLGURA_BISAGRA)
         _, trozos = _elevon_de(d, k)
         if len(trozos) > 1:
             elevon = elevon - _varilla(kit, d, trozos)
         return _lado(elevon, lado)
+    return _pieza_rotores(kit, d, partes, lado)
+
+
+def _ala(kit, d, k):
+    """El tramo `k` del ala derecha, vaciado, con sus agujeros y su bisagra."""
+    y0, y1, i, ala = _tramo(kit, d, k)
+    con_elevon = _con_elevon(d, y0, y1, i)
+    hueco = _hueco_tramo(kit, d, y0, y1, i, con_elevon, _levantado(d, i))
+    if hueco is not None:
+        # Lo de dentro (nervios, fundas de los largueros y cajones de
+        # los servos) se suma después de vaciar, recortado a la forma
+        # del tramo: es el mismo sólido (ala − (hueco − dentro) =
+        # (ala − hueco) + (ala & dentro)), pero restar un hueco que los
+        # nervios parten en 14 trozos le costaba a OCC 158 s en el
+        # primer tramo, y la pieza entera pasaba del tope de 180
+        # (2026-11-16). Antes de recortarlo a la forma, a la caja del
+        # hueco: cada nervio sale 200 mm por delante y por detrás del
+        # ala, y cruzar eso con la piel curva costaba el triple.
+        # Solo las fundas de los largueros que entran en el tramo más
+        # que el radio de la funda. Los del avión del 2026-11-18 acaban
+        # en el corte de la punta (y = 860), y por el diedro su disco
+        # final asomaba 2,4 mm en ella: dos rodajas sueltas dentro del
+        # hueco, y la pieza salía en tres sólidos.
+        dentro = _largueros(kit, d, pared=FUNDA,
+                            desde=y0 + max(di for _, di in d["largueros"]) / 2 + FUNDA)
+        if not _levantado(d, i):
+            nervios = _nervios(kit, d, y0, y1, i)
+            dentro = nervios if dentro is None else dentro + nervios
+        for s in _servos(d):
+            if y0 < s["y"] < y1:
+                cajon = _cajon_servo(kit, d, s)
+                dentro = cajon if dentro is None else dentro + cajon
+        if dentro is None:
+            ala = ala - hueco
+        else:
+            bb = hueco._forma.BoundBox
+            dentro = dentro & kit.caja(bb.XLength + 2, bb.YLength + 2, bb.ZLength + 2,
+                                       en=(bb.XMin - 1, bb.YMin - 1, bb.ZMin - 1))
+            ala = (ala - hueco) + (dentro & ala)
+    ala = ala - _largueros(kit, d)
+    canal = _canal(kit, d)
+    if canal is not None and y0 < max(s["y"] for s in _servos(d)):
+        ala = ala - canal
+    for s in _servos(d):
+        if y0 < s["y"] < y1:
+            ala = ala - _hueco_servo(kit, d, s)
+    if _con_elevon(d, y0, y1, i):
+        ala = ala - _bisagra(kit, d, y0, y1, -HOLGURA_BISAGRA)
+    return ala
+
+
+def _pieza_rotores(kit, d, partes, lado):
+    """Las góndolas, los pilones y, en los aviones sin `aletas`, la pata y la deriva."""
     ro = d["rotores"]
     if partes[0] == "gondola":
         delante = partes[2] == "delante"

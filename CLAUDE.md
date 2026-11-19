@@ -732,7 +732,18 @@ imprimir; lo que dejó abierto está abajo.
   punta, a −6° de torsión. **Se le había dicho 4,46 kg y 49–61 min**,
   con lo impreso estimado; la lista ya dice lo medido. **Decidido por él ese
   día: «solo alas de lwpla y el cuerpo central petg»**: el cuerpo no pasa
-  a LW-PLA (se le ofreció por unos 0,45 kg menos) y queda como está.
+  a LW-PLA (se le ofreció por unos 0,45 kg menos) y queda como está. Y
+  con «Sí, bájalas» y «toma en cuenta el volumen de impresión de la core one
+  L+»: **29 piezas** (versión 9, `2026-11-18-ala-volante-29-piezas-a-mano-sin-
+  modelo`, a mano y sin modelo). Cada punta va pegada a su último tramo
+  (`punta_unida`), con una rampa detrás de la bisagra para no empezar en el
+  aire. Lo demás no baja, y no por la cama: el primer tramo ya entra en
+  diagonal con 21 mm, la raíz mide 409 a lo largo y el cuerpo central de pie
+  cabría en tres celdas, pero las orillas de la boca de la panza y el borde de
+  salida piden imprimirse en sentidos contrarios
+  (`tests/test_avion_menos_piezas.py`). Mismas cifras: 5,49 kg, 1,07 h y 73
+  km; la panza se construyó con la batería 0,6 mm más atrás que el último
+  dimensionado.
   Arreglado por el camino, cada uno con su test: un diseño puede dar los
   cortes del cuerpo central (`cortes_fuselaje`; su borde de ataque va a
   41° y la celda que lo llevaba de pie pedía soportes en el morro); un

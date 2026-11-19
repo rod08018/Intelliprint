@@ -26,7 +26,7 @@ param set-default COM_PREARM_MODE 2
 param set-default COM_RC_IN_MODE 1
 
 param set-default CA_ROTOR_COUNT 5
-param set-default CA_ROTOR0_PX 0.4271
+param set-default CA_ROTOR0_PX 0.4270
 param set-default CA_ROTOR0_PY 0.3650
 param set-default CA_ROTOR0_KM 0.05
 param set-default SIM_GZ_EC_FUNC1 101
@@ -38,7 +38,7 @@ param set-default CA_ROTOR1_KM 0.05
 param set-default SIM_GZ_EC_FUNC2 102
 param set-default SIM_GZ_EC_MIN2 0
 param set-default SIM_GZ_EC_MAX2 628
-param set-default CA_ROTOR2_PX 0.4271
+param set-default CA_ROTOR2_PX 0.4270
 param set-default CA_ROTOR2_PY -0.3650
 param set-default CA_ROTOR2_KM -0.05
 param set-default SIM_GZ_EC_FUNC3 103

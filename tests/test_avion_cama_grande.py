@@ -169,7 +169,7 @@ def test_se_imprimen_sin_soportes(piezas):
 
 # --- el avión de hoy (`scripts/avion_vtol.json`) ------------------------------------
 
-DE_HOY = ["ala-d-4", "centro-1", "centro-2"]
+DE_HOY = ["ala-d-3", "centro-1", "centro-2"]
 
 
 @pytest.fixture(scope="module")
@@ -193,8 +193,10 @@ def test_la_punta_del_ala_sale_de_una_pieza(de_hoy):
     """Los largueros acababan en el corte de la punta (y = 860), y por el
     diedro el disco de su extremo asomaba 2,4 mm en ella: sus fundas, dentro
     del hueco y sin tocar la piel, eran dos sólidos sueltos (2026-11-18).
-    `build_part` no construye una pieza de varios sólidos."""
-    assert (de_hoy["ala-d-4"] / "ala-d-4.stl").exists()
+    `build_part` no construye una pieza de varios sólidos. Desde que la
+    punta va pegada al último tramo (`punta_unida`, ese mismo día), es el
+    tramo 3 el que la lleva."""
+    assert (de_hoy["ala-d-3"] / "ala-d-3.stl").exists()
 
 
 def test_el_morro_y_el_cuerpo_de_hoy_se_imprimen_sin_soportes(de_hoy):

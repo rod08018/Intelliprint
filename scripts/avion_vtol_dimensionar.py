@@ -633,7 +633,13 @@ def diseno_mm(r):
         # la panza (de 156 a 324) como en las celdas que ya se imprimían.
         "cortes_fuselaje": [round(FUSELAJE[0][0] * 1000), 105, 230, 420,
                             round(FUSELAJE[-1][0] * 1000)],
-        "elevones": [list(e) for e in ELEVONES],
+        # Cuatro celdas, y no tres, aunque de pie caben en 325 mm: las orillas
+        # de la boca de la panza y el borde de salida del centro piden
+        # imprimirse en sentidos contrarios (probado el 2026-11-18,
+        # `tests/test_avion_menos_piezas.py`). La punta levantada sí va pegada
+        # al último tramo: él, ese día, «Sí, bájalas»; dos piezas menos.
+        "punta_unida": True,
+        "elevones":[list(e) for e in ELEVONES],
         "dentro": r["dentro"],
         "equilibrio": {"punto_neutro_x": round(r["_x_np_m"] * 1000, 1),
                        "cuerda_media": round(r["_mac_m"] * 1000, 1),

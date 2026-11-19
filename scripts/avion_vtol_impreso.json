@@ -1,18 +1,18 @@
 {
- "proyecto": "2026-11-18-ala-volante-660kv-a-mano-sin-modelo",
- "piezas_contadas": 31,
- "masa_kg": 2.01433,
+ "proyecto": "2026-11-18-ala-volante-29-piezas-a-mano-sin-modelo",
+ "piezas_contadas": 29,
+ "masa_kg": 2.012434,
  "centro_mm": [
-  320.4,
+  320.0,
   0.0,
-  -29.7
+  -29.8
  ],
  "por_tipo_kg": {
-  "ala (LW-PLA)": 0.384138,
-  "centro (PETG)": 0.726108,
+  "ala (LW-PLA)": 0.381638,
+  "centro (PETG)": 0.726742,
   "elevon (LW-PLA)": 0.052746,
   "gondola (PETG)": 0.516838,
-  "panza (PETG)": 0.116962,
+  "panza (PETG)": 0.116932,
   "pilon (PETG)": 0.082794,
   "raiz (LW-PLA)": 0.123428,
   "tapa (PETG)": 0.011316
@@ -49,22 +49,12 @@
   },
   "ala-d-3": {
    "material": "LW-PLA",
-   "volumen_cm3": 79.0,
-   "masa_kg": 0.047374,
+   "volumen_cm3": 94.2,
+   "masa_kg": 0.056526,
    "centro_mm": [
-    491.2,
-    747.8,
-    43.2
-   ]
-  },
-  "ala-d-4": {
-   "material": "LW-PLA",
-   "volumen_cm3": 17.3,
-   "masa_kg": 0.010402,
-   "centro_mm": [
-    569.4,
-    901.0,
-    84.7
+    502.9,
+    773.2,
+    50.2
    ]
   },
   "ala-i-1": {
@@ -89,22 +79,12 @@
   },
   "ala-i-3": {
    "material": "LW-PLA",
-   "volumen_cm3": 79.0,
-   "masa_kg": 0.047374,
+   "volumen_cm3": 94.2,
+   "masa_kg": 0.056526,
    "centro_mm": [
-    491.2,
-    -747.8,
-    43.2
-   ]
-  },
-  "ala-i-4": {
-   "material": "LW-PLA",
-   "volumen_cm3": 17.3,
-   "masa_kg": 0.010402,
-   "centro_mm": [
-    569.4,
-    -901.0,
-    84.7
+    502.9,
+    -773.2,
+    50.2
    ]
   },
   "centro-1": {
@@ -119,22 +99,22 @@
   },
   "centro-2": {
    "material": "PETG",
-   "volumen_cm3": 117.2,
-   "masa_kg": 0.14888,
+   "volumen_cm3": 117.8,
+   "masa_kg": 0.149576,
    "centro_mm": [
     161.8,
     -0.0,
-    -29.9
+    -30.1
    ]
   },
   "centro-3": {
    "material": "PETG",
-   "volumen_cm3": 143.7,
-   "masa_kg": 0.182438,
+   "volumen_cm3": 143.6,
+   "masa_kg": 0.182376,
    "centro_mm": [
     325.2,
     -0.0,
-    -37.9
+    -37.8
    ]
   },
   "centro-4": {
@@ -230,9 +210,9 @@
   "panza": {
    "material": "PETG",
    "volumen_cm3": 92.1,
-   "masa_kg": 0.116962,
+   "masa_kg": 0.116932,
    "centro_mm": [
-    238.8,
+    239.9,
     -0.0,
     -94.4
    ]
