@@ -421,7 +421,9 @@ def piezas(d) -> list[tuple[str, str, str]]:
             if id_.startswith("raiz"):
                 k = id_.split("-")[2]
                 lista.append((f"raiz-{lado}-{k}", f"Raíz del ala {ala} {k}",
-                              "donde el ala se funde con el fuselaje"))
+                              "donde el ala se funde con el fuselaje"
+                              + ("; por ella cruzan los manguitos donde se enchufan las alas"
+                                 if _desmontable(d) else "")))
         for k, (y0, y1, i) in enumerate(_tramos_ala(d), 1):
             if _levantado(d, i):
                 if not d.get("punta_unida"):
@@ -438,7 +440,9 @@ def piezas(d) -> list[tuple[str, str, str]]:
                           + (f"; lleva el servo del elevón {servo[0]['elevon']}, por abajo"
                              if servo else "")
                           + ("; con la punta levantada, de la misma pieza"
-                             if _con_punta(d, k) else "")))
+                             if _con_punta(d, k) else "")
+                          + ("; se enchufa al cuerpo por el larguero de Ø10 y un pasador, "
+                             "y la sujeta un M3" if k == 1 and _desmontable(d) else "")))
             for s in servo:
                 lista.append((f"tapa-servo-{lado}-{s['elevon']}",
                               f"Tapa del servo {s['elevon']} {el}",
@@ -449,8 +453,12 @@ def piezas(d) -> list[tuple[str, str, str]]:
                 if len(trozos) > 1:
                     que += (f"; trozo {trozos.index(k) + 1} de {len(trozos)}, unidos con "
                             f"una varilla de carbono de Ø{VARILLA_ELEVON:g}")
+                if _mandos(d):
+                    que += "; va con tres bisagras de papel y su cuerno por abajo"
                 lista.append((f"elevon-{lado}-{k}", f"Elevón {el} {nombre}"
                               + (f" {trozos.index(k) + 1}" if len(trozos) > 1 else ""), que))
+        pilon = ("une la viga al ala con dos M3 que llegan a la funda del larguero"
+                 if d.get("pilon_atornillado") else "une la viga al ala")
         if d["rotores"].get("aletas"):
             lista += [(f"gondola-{lado}-delante", f"Góndola delantera {ala}",
                        "un motor de sustentación sobre la viga y, debajo, la pata delantera: "
@@ -458,13 +466,13 @@ def piezas(d) -> list[tuple[str, str, str]]:
                       (f"gondola-{lado}-detras", f"Góndola trasera {ala}",
                        "un motor de sustentación sobre la viga y, debajo, la deriva: "
                        "estabilidad de guiñada y pata trasera"),
-                      (f"pilon-{lado}", f"Pilón {el}", "une la viga al ala")]
+                      (f"pilon-{lado}", f"Pilón {el}", pilon)]
             continue
         lista += [(f"gondola-{lado}-delante", f"Góndola delantera {ala}",
                    "un motor de sustentación sobre la viga"),
                   (f"gondola-{lado}-detras", f"Góndola trasera {ala}",
                    "un motor de sustentación sobre la viga"),
-                  (f"pilon-{lado}", f"Pilón {el}", "une la viga al ala"),
+                  (f"pilon-{lado}", f"Pilón {el}", pilon),
                   (f"pata-{lado}", f"Pata delantera {ala}", "bajo la viga: para posarse"),
                   (f"deriva-{lado}", f"Deriva {ala}",
                    "bajo la cola de la viga: estabilidad de guiñada y pata trasera")]
@@ -488,15 +496,52 @@ def _punto_larguero(d, y, f):
     return (*_girado(f, _comba(p, f), x, z, c, t), y)
 
 
-def extremos_larguero(d, f, diametro):
-    """((x, z, y) de un extremo, del otro) de un larguero: recto, del centro
-    (un poco más allá) a donde el perfil todavía le deja 1,2 mm de pared por
-    cada lado, dentro del primer panel del ala exterior, y sin pasar de
-    TUBO_COMPRADO de largo."""
+DESMONTABLE = {"enchufe": 5.0, "manguito": [12.0, 10.0], "pasa": 60.0, "tijera": [10.0, 3.0],
+               "pasador": [6.0, 0.75, 20.0], "tornillo": 25.0}
+"""Las alas desmontables (F13.7 (desmontable)), decididas por él el 2026-11-18
+al compararlo con el Stallion de Flightory. Con la flecha, los largueros de
+las dos alas forman una V, y el de cada lado pasaba 20 mm al otro
+(`SOLAPE_LARGUEROS`): los dos se cortaban en el centro y el avión no se podía
+montar (medido a mano ese día). Ahora:
+
+- `enchufe`: el Ø10 de cada ala sale de su raíz 5 Ø (criterio del asistente)
+  y entra en un `manguito` de carbono de 12 × 10 pegado al cuerpo central;
+- `pasa`: cada manguito cruza el fuselaje hasta 60 mm al otro lado del centro,
+  y los dos se cruzan en tijera: en el centro, el de la derecha sube
+  `tijera[0]` mm y el de la izquierda baja `tijera[1]`, girando cada uno
+  sobre la punta de su larguero; entre los dos tubos de Ø12 queda 1 mm. No
+  a partes iguales: bajando 6,5 el de la izquierda, la electrónica (techo en
+  −15,5) no pasaba bajo él al empujarla hacia el morro. Subiendo 10 el de la
+  derecha, en su raíz (30,5 mm de grueso) le quedan 0,9 mm de sobra con su
+  funda (cuentas del 2026-11-19);
+- el Ø6 acaba a ras de la raíz: no va paralelo al Ø10 (4,4° de diferencia) y
+  el ala no podría deslizar sobre los dos. En su lugar, un `pasador` de Ø6 ×
+  2·20 al 75 % de la cuerda, paralelo al Ø10, que impide que el ala gire;
+- un M3 a lo largo de x, `tornillo` mm dentro de la raíz, cruza manguito y
+  larguero por su eje neutro, por un tetón que sirve de guía para taladrarlos
+  juntos (las plantillas de taladrar del Stallion)."""
+
+
+def _desmontable(d):
+    m = d.get("desmontable")
+    if not m:
+        return None
+    return {**DESMONTABLE, **(m if isinstance(m, dict) else {})}
+
+
+def _principal(d, f):
+    """Si el larguero al `f` de la cuerda es el de delante: el que lleva manguito."""
+    return f == d["largueros"][0][0]
+
+
+def _fin_larguero(d, f, diametro, y_ini):
+    """La y donde acaba un larguero que empieza en `y_ini`: donde el perfil
+    todavía le deja 1,2 mm de pared por cada lado, dentro del primer panel del
+    ala exterior, y sin pasar de TUBO_COMPRADO de largo."""
     est = _estaciones(d)
     i = d["raiz"]
     perfil = est[i][5]
-    de = _punto_larguero(d, -SOLAPE_LARGUEROS, f)
+    de = _punto_larguero(d, y_ini, f)
 
     def largo(y):
         return math.dist(de, _punto_larguero(d, y, f))
@@ -513,16 +558,176 @@ def extremos_larguero(d, f, diametro):
             y = (lo + hi) / 2
             lo, hi = (y, hi) if largo(y) <= TUBO_COMPRADO else (lo, y)
         y_fin = lo
-    return de, _punto_larguero(d, y_fin, f)
+    return y_fin
 
 
-def _larguero(kit, d, f, diametro, puntas=False, pared=0.0):
+def _punto_eje(d, y, f, lado, y_fin):
+    """(x, z, y) del eje de un larguero en `y`, en las coordenadas del lado
+    derecho (el izquierdo es su reflejo). El de delante de un ala desmontable
+    sube (derecha) o baja (izquierda) en tijera, girando sobre su punta."""
+    x, z, yy = _punto_larguero(d, y, f)
+    m = _desmontable(d)
+    if m and _principal(d, f):
+        sube = m["tijera"][0] if lado == "d" else -m["tijera"][1]
+        z += sube * (y_fin - y) / y_fin
+    return x, z, yy
+
+
+def extremos_larguero(d, f, diametro, lado="d"):
+    """((x, z, y) de un extremo, del otro) de un larguero, en las coordenadas
+    del lado derecho: recto, del centro (un poco más allá) a `_fin_larguero`.
+    En un ala desmontable, el de delante sale de la raíz lo que entra en su
+    manguito y los demás acaban en ella."""
+    m = _desmontable(d)
+    y_raiz = _estaciones(d)[d["raiz"]][0]
+    if m is None:
+        y_ini = -SOLAPE_LARGUEROS
+    elif _principal(d, f):
+        y_ini = y_raiz - m["enchufe"] * diametro
+    else:
+        y_ini = y_raiz
+    y_fin = _fin_larguero(d, f, diametro, y_ini)
+    return _punto_eje(d, y_ini, f, lado, y_fin), _punto_eje(d, y_fin, f, lado, y_fin)
+
+
+def extremos_manguito(d, lado="d"):
+    """((x, z, y), (x, z, y)) del manguito de un ala desmontable, en las
+    coordenadas del lado derecho: de la raíz (medio mm dentro) a `pasa` mm al
+    otro lado del centro, sobre el eje del larguero de delante."""
+    m = _desmontable(d)
+    f, di = d["largueros"][0]
+    y_fin = extremos_larguero(d, f, di, lado)[1][2]
+    y_raiz = _estaciones(d)[d["raiz"]][0]
+    return (_punto_eje(d, y_raiz - 0.5, f, lado, y_fin),
+            _punto_eje(d, -m["pasa"], f, lado, y_fin))
+
+
+def _deslizar(d, lado="d"):
+    """El vector unitario (x, z, y) por el que el ala entra en su manguito."""
+    f, di = d["largueros"][0]
+    a, b = extremos_larguero(d, f, di, lado)
+    v = [b[k] - a[k] for k in range(3)]
+    n = math.sqrt(sum(c * c for c in v))
+    return [c / n for c in v]
+
+
+def extremos_pasador(d, lado="d"):
+    """((x, z, y), (x, z, y)) del pasador de detrás, paralelo al larguero de
+    delante y con la mitad a cada lado de la raíz."""
+    m = _desmontable(d)
+    diametro, f, medio = m["pasador"]
+    y_raiz = _estaciones(d)[d["raiz"]][0]
+    x, z, c, t, p = _estacion(d, y_raiz)
+    cx, cz = _girado(f, _comba(p, f), x, z, c, t)
+    u = _deslizar(d, lado)
+    k = medio / u[2]
+    return ((cx - u[0] * k, cz - u[1] * k, y_raiz - medio),
+            (cx + u[0] * k, cz + u[1] * k, y_raiz + medio))
+
+
+def tornillo_raiz(d, lado="d"):
+    """((x, z, y) de la cabeza, del final) del M3 que sujeta un ala desmontable:
+    a lo largo de x, desde el borde de ataque de la raíz, cruzando el manguito
+    por su eje neutro (a la altura de su eje). 12 mm más allá del manguito."""
+    m = _desmontable(d)
+    f, di = d["largueros"][0]
+    y_fin = extremos_larguero(d, f, di, lado)[1][2]
+    y = _estaciones(d)[d["raiz"]][0] - m["tornillo"]
+    x, z, _ = _punto_eje(d, y, f, lado, y_fin)
+    x_le = _estacion_centro(d, y)[0]
+    return (x_le - 1, z, y), (x + m["manguito"][0] / 2 + 12, z, y)
+
+
+def tubos(d) -> list[dict]:
+    """Los tubos comprados, en su sitio y en (x, y, z): los largueros, los
+    manguitos y pasadores de un ala desmontable y las vigas de los rotores.
+    Cada uno {id, de, a, diametro}; el larguero que entra en su manguito lo
+    dice en `dentro_de`."""
+    m = _desmontable(d)
+    out = []
+    for lado, s in (("d", 1), ("i", -1)):
+        def real(p, s=s):
+            return (p[0], s * p[2], p[1])
+        for f, di in d["largueros"]:
+            de, a_ = extremos_larguero(d, f, di, lado)
+            t = {"id": f"larguero-{di:g}-{lado}", "de": real(de), "a": real(a_), "diametro": di}
+            if m and _principal(d, f):
+                t["dentro_de"] = f"manguito-{lado}"
+            out.append(t)
+        if m:
+            de, a_ = extremos_manguito(d, lado)
+            out.append({"id": f"manguito-{lado}", "de": real(de), "a": real(a_),
+                        "diametro": m["manguito"][0], "diametro_interior": m["manguito"][1]})
+            de, a_ = extremos_pasador(d, lado)
+            out.append({"id": f"pasador-{lado}", "de": real(de), "a": real(a_),
+                        "diametro": m["pasador"][0]})
+        x0, x1 = extremos_viga(d)
+        y, zv = s * d["rotores"]["y"], _z_viga(d)
+        out.append({"id": f"viga-{lado}", "de": (x0, y, zv), "a": (x1, y, zv),
+                    "diametro": d["rotores"]["viga"]})
+    return out
+
+
+def _larguero(kit, d, f, diametro, puntas=False, pared=0.0, lado="d"):
     """El agujero de un larguero (`extremos_larguero`). Con `puntas`, en gota
     hacia +x y hacia -x: lo que se imprime de pie sobre un corte en x no deja
     techo en el agujero. Con `pared`, la funda que lo abraza dentro del hueco
     del ala: `pared` mm más gruesa."""
-    de, a_ = extremos_larguero(d, f, diametro)
+    de, a_ = extremos_larguero(d, f, diametro, lado)
     return _tubo(kit, de, a_, diametro + 2 * pared, puntas)
+
+
+def _tubos_centro(kit, d, lado="d", puntas=False, pared=0.0):
+    """Los agujeros (o con `pared`, las fundas) de lo que cruza el cuerpo
+    central, de los dos lados y ya en su sitio, para la pieza de `lado`
+    dibujada en las coordenadas de la derecha. Sin alas desmontables, los
+    largueros; con ellas, los manguitos y la mitad de cada pasador. Los dos
+    manguitos no son reflejo uno del otro (van en tijera): en una pieza de la
+    izquierda, que se dibuja a la derecha y se refleja, se cambian de sitio."""
+    m = _desmontable(d)
+    if m is None:
+        t = _largueros(kit, d, puntas, pared)
+        return t + t.espejo("xz", conservar=False)
+    otro = "i" if lado == "d" else "d"
+
+    def de_un_lado(ll):
+        t = _tubo(kit, *extremos_manguito(d, ll), m["manguito"][0] + 2 * pared, puntas)
+        (xa, za, ya), (xb, zb, yb) = extremos_pasador(d, ll)
+        # El agujero pasa un diámetro de la raíz, donde ya no hay cuerpo: el
+        # pasador va inclinado con la flecha, y su mitad cortada en recto en
+        # la raíz dejaba sin taladrar una cuña de 6 mm³ (2026-11-19). La
+        # funda no, que se metería en el ala.
+        k = 0.5 if pared else 0.5 + m["pasador"][0] / math.dist((xa, za, ya), (xb, zb, yb))
+        fin = (xa + k * (xb - xa), za + k * (zb - za), ya + k * (yb - ya))
+        return t + _tubo(kit, (xa, za, ya), fin, m["pasador"][0] + 2 * pared, puntas)
+    return de_un_lado(lado) + de_un_lado(otro).espejo("xz", conservar=False)
+
+
+def _tornillo_centro(kit, d, lado="d"):
+    """(tetones, agujeros) del M3 que sujeta cada ala desmontable, de los dos
+    lados y ya en su sitio (ver `_tubos_centro`). El tetón va de pie al
+    imprimir la raíz, que se apoya en un corte en x, y acaba en cono por los
+    dos lados: no sabe sobre cuál se imprime. La cabeza entra por un
+    avellanado desde el borde de ataque hasta 8 mm del manguito; la rosca la
+    hace el tornillo en el PETG, en un agujero de Ø2,5 al otro lado."""
+    m = _desmontable(d)
+    otro = "i" if lado == "d" else "d"
+    r = (m["manguito"][0] + HOLGURA_TUBO) / 2
+
+    def de_un_lado(ll):
+        (xa, z, y), (xb, _, _) = tornillo_raiz(d, ll)
+        xm = xb - m["manguito"][0] / 2 - 12
+        teton = kit.cilindro(10, xb - xa, en=(xa, y, z), eje="x") + kit.cono(
+            10, 0, 5, en=(xb, y, z), eje="x")
+        xc = xm - r - 8
+        hueco = (kit.cilindro(6.5, xc - xa + 1, en=(xa - 1, y, z), eje="x")
+                 + kit.cono(6.5, 0, 3.25, en=(xc, y, z), eje="x")
+                 + kit.cilindro(3.3, xm + r + 1 - xc, en=(xc, y, z), eje="x")
+                 + kit.cilindro(2.5, xb - 1 - (xm + r), en=(xm + r, y, z), eje="x"))
+        return teton, hueco
+    t1, h1 = de_un_lado(lado)
+    t2, h2 = de_un_lado(otro)
+    return (t1 + t2.espejo("xz", conservar=False), h1 + h2.espejo("xz", conservar=False))
 
 
 def _tubo(kit, de, a_, diametro, puntas=False, holgura=HOLGURA_TUBO):
@@ -556,14 +761,14 @@ def _tubo(kit, de, a_, diametro, puntas=False, holgura=HOLGURA_TUBO):
     return Cuerpo(forma, kit)
 
 
-def _largueros(kit, d, puntas=False, pared=0.0, desde=None):
+def _largueros(kit, d, puntas=False, pared=0.0, desde=None, lado="d"):
     """Los de `_larguero`, todos; con `desde`, solo los que pasan de esa y
     (en el lado derecho)."""
     hueco = None
     for f, diametro in d["largueros"]:
         if desde is not None and extremos_larguero(d, f, diametro)[1][2] <= desde:
             continue
-        t = _larguero(kit, d, f, diametro, puntas, pared)
+        t = _larguero(kit, d, f, diametro, puntas, pared, lado)
         hueco = t if hueco is None else hueco + t
     return hueco
 
@@ -752,6 +957,19 @@ def dentro(kit, d, que):
                          + (", ".join(lados[:-1]) + " y " + lados[-1] if lados else "ninguna"))
         xc, y, z, _ = next(g for g in _guias_en(kit, d, int(k)) if g[3] == lado)
         return kit.cilindro(VARILLA_ELEVON, 2 * MEDIA_GUIA, en=(xc - MEDIA_GUIA, y, z), eje="x")
+    if que.startswith("tubo-"):
+        # Un tubo comprado (`tubos`), sólido y a su medida: para medir que no
+        # atraviesa ninguna pieza (F13.8 (choques)).
+        t = {t["id"]: t for t in tubos(d)}.get(que[5:])
+        if t is None:
+            raise _error(f"el avión no tiene el tubo {que[5:]!r}: tiene "
+                         + ", ".join(x["id"] for x in tubos(d)))
+        (xa, ya, za), (xb, yb, zb) = t["de"], t["a"]
+        lleno = _tubo(kit, (xa, za, ya), (xb, zb, yb), t["diametro"], holgura=0)
+        if t.get("diametro_interior"):
+            lleno = lleno - _tubo(kit, (xa, za, ya), (xb, zb, yb), t["diametro_interior"],
+                                  holgura=0)
+        return lleno
     lado = que.split("-")[-1] if que.split("-")[-1] in ("d", "i") else None
     if que.startswith("canal-") and lado:
         canal = _canal(kit, d, cables=CANAL_CABLES - 2)
@@ -983,7 +1201,7 @@ def _repisa(kit, d):
     return kit.caja(x1 - x0, 200, BANDEJA, en=(x0, -100, z - BANDEJA))
 
 
-def _cuerpo_central(kit, d, celda=None):
+def _cuerpo_central(kit, d, celda=None, lado="d"):
     """El fuselaje con el centro del ala, hueco. Con `celda` ((x0, x1, y0,
     y1)), solo lo que cae dentro: el cuerpo y sus huecos se recortan antes de
     unirlos y restarlos, que da el mismo sólido y FreeCAD lo hace en menos
@@ -1022,8 +1240,10 @@ def _cuerpo_central(kit, d, celda=None):
     costillas = _costillas(kit, d)
     if costillas is not None:
         hueco_ala = hueco_ala - costillas
-    fundas = _largueros(kit, d, puntas=True, pared=FUNDA)
-    hueco_ala = hueco_ala - fundas - fundas.espejo("xz", conservar=False)
+    hueco_ala = hueco_ala - _tubos_centro(kit, d, lado, puntas=True, pared=FUNDA)
+    tornillos = _tornillo_centro(kit, d, lado) if _desmontable(d) else None
+    if tornillos is not None:
+        hueco_ala = hueco_ala - tornillos[0]
     trozos = [h for h in (recorta(hueco_fus), recorta(hueco_ala)) if h is not None]
     hueco = trozos[0] if len(trozos) == 1 else trozos[0] + trozos[1]
     hueco = hueco - _repisa(kit, d)
@@ -1039,8 +1259,9 @@ def _cuerpo_central(kit, d, celda=None):
         tacos, agujeros = _tacos(kit, d, celda[0], celda[1])
         if tacos is not None:
             cuerpo = cuerpo + tacos
-    largueros = _largueros(kit, d, puntas=True)
-    cuerpo = cuerpo - largueros - largueros.espejo("xz", conservar=False)
+    cuerpo = cuerpo - _tubos_centro(kit, d, lado, puntas=True)
+    if tornillos is not None:
+        cuerpo = cuerpo - tornillos[1]
     canal = _canal(kit, d)
     if canal is not None:
         cuerpo = cuerpo - canal - canal.espejo("xz", conservar=False)
@@ -1165,24 +1386,60 @@ def _nervios(kit, d, y0, y1, i):
     return todos
 
 
-def _hueco_tramo(kit, d, y0, y1, i, elevon, punta, piel=PIEL_ALA):
-    """El hueco de un tramo del ala exterior: abierto por sus dos caras (se
-    pegan tramo con tramo sobre la costilla de la raíz) salvo en la punta,
-    que acaba cerrada. Dos celdas, delante y detrás del alma; la de detrás no
-    la llevan los tramos con elevón, que ahí tienen la bisagra."""
-    ya, yb = y0 - 1, (y1 - PIEL_ALA if punta else y1 + 1)
+def _seccion_aplastada(kit, x, z, c, t, p, desde, hasta, piel):
+    """La sección hueca con su alto llevado casi a cero hacia la línea media
+    del perfil: el final de un hueco en tejado."""
+    cont = contorno_hueco(p, c, piel, desde, hasta)
+    if cont is None:
+        return None
+    return kit.seccion([_girado(u, _comba(p, u) + (v - _comba(p, u)) * 0.03, x, z, c, t)
+                        for u, v in cont])
+
+
+def _hueco_tramo(kit, d, y0, y1, i, elevon, punta, piel=PIEL_ALA, raiz_cerrada=False,
+                 fuera_cerrada=False):
+    """El hueco de un tramo del ala exterior: abierto por sus dos caras salvo
+    en la punta, que acaba cerrada. Dos celdas, delante y detrás del alma; la
+    de detrás no la llevan los tramos con elevón, que ahí tienen la bisagra.
+
+    Con las juntas cerradas (F13.9 (juntas)), al compararlo con el Stallion de
+    Flightory (2026-11-18): abiertas, dos tramos se pegaban solo por el canto
+    de su piel de 0,6 mm (de 326 a 570 mm², medido ese día; las del Stallion,
+    de 1 394 a 3 534). Con `raiz_cerrada`, una costilla en la raíz, que de pie
+    es lo primero que se imprime; con `fuera_cerrada`, el hueco acaba en
+    tejado hacia la línea media del perfil, a 40° de la vertical al imprimirlo
+    de pie (una costilla arriba sería un techo de toda la cuerda)."""
+    ya = y0 + piel if raiz_cerrada else y0 - 1
+    yb = y1 - PIEL_ALA if punta or fuera_cerrada else y1 + 1
+    m = _mandos(d)
     celdas = [(0.0, CUERDA_ALMA)] + ([] if elevon else [(CUERDA_ALMA, 1.0)])
     hueco = None
     for desde, hasta in celdas:
-        secs = []
-        for y in (ya, yb):
-            x, z, c, t, p = _estacion(d, y, i)
+        def limites(y, c, desde=desde, hasta=hasta):
             e = piel / 2 / c
-            secs.append(_seccion_hueca(kit, x, z, c, t, p, desde + (e if desde else 0),
-                                       hasta - (e if hasta < 1 else 0), piel=piel))
-        if None in secs:
+            h = hasta
+            if elevon and m and hasta < 1:
+                # Delante de la bisagra, BANDA_BISAGRA maciza para las bisagras de chapa.
+                h = min(hasta, d["elevon"][1] - (BANDA_BISAGRA + HOLGURA_BISAGRA) / c)
+            return desde + (e if desde else 0), h - (e if h < 1 else 0)
+
+        def seccion(y, aplastada=False):
+            x, z, c, t, p = _estacion(d, y, i)
+            a, b = limites(y, c)
+            if aplastada:
+                return _seccion_aplastada(kit, x, z, c, t, p, a, b, piel)
+            return _seccion_hueca(kit, x, z, c, t, p, a, b, piel=piel)
+        if fuera_cerrada and not punta:
+            x, z, c, t, p = _estacion(d, yb, i)
+            alto = max((_grueso(p, u / 40) * c for u in range(41)), default=0) / 2
+            y_tejado = yb - 1.2 * alto
+            tramos = [(seccion(ya), ya), (seccion(y_tejado), y_tejado),
+                      (seccion(yb, aplastada=True), yb)]
+        else:
+            tramos = [(seccion(ya), ya), (seccion(yb), yb)]
+        if any(s is None for s, _ in tramos):
             continue
-        celda = kit.transicion([(secs[0], ya), (secs[1], yb)], eje="y")
+        celda = kit.transicion(tramos, eje="y", recta=fuera_cerrada and not punta)
         hueco = celda if hueco is None else hueco + celda
     return hueco
 
@@ -1202,6 +1459,256 @@ def _bisagra(kit, d, y0, y1, margen):
     xa, xb, y0, y1 = xa - pendiente, xb + pendiente, y0 - 1, y1 + 1
     return kit.extruir([(xa, y0), (xa + 400, y0), (xb + 400, y1), (xb, y1)], 600,
                        plano="xy", desde=-300)
+
+
+MANDOS = {"bisel": 30.0}
+"""Los mandos de los elevones (F13.10 (mandos)), al compararlo con el Stallion
+de Flightory (2026-11-18). Con el corte recto, la esquina de abajo del elevón
+tocaba el ala a los 10,6° (contado a mano en y = 433); con el frente del
+elevón en V a `bisel` grados del eje de la bisagra, no toca mientras baje o
+suba menos que eso. Se piden ±25° libres (criterio del asistente)."""
+BANDA_BISAGRA = 8.0
+"""Lo macizo del ala delante de la bisagra, donde entran las bisagras de chapa:
+con el alma al 72 % quedaban de 4,8 a 7,6 mm."""
+BISAGRA_CHAPA = (26.0, 0.8, 7.5, 10.0)
+"""La ranura de una bisagra de chapa de 25 × 20 (las del Stallion): largo a lo
+largo de la bisagra, grueso, y lo que entra en el ala y en el elevón."""
+CUERNO = (9.0, 19.0, 1.6)
+"""Los dos agujeros del cuerno del elevón, por debajo y a la altura de su
+servo: a 9 y 19 mm detrás de la bisagra, de Ø1,6 para tornillos de M2."""
+
+
+def _mandos(d):
+    m = d.get("mandos")
+    if not m:
+        return None
+    return {**MANDOS, **(m if isinstance(m, dict) else {})}
+
+
+def recorrido_elevon(d, y) -> float:
+    """Los grados que el elevón puede bajar o subir en `y` antes de que su
+    frente toque la cara de atrás del ala (el menor de los dos). La bisagra
+    va a media altura del perfil, en la línea de bisagra; el ala acaba en
+    una cara plana HOLGURA_BISAGRA por delante, y el elevón empieza otro tanto
+    por detrás, recto o en V (`mandos`)."""
+    x, z, c, t, p = _estacion(d, y)
+    f = d["elevon"][1]
+    arriba, abajo = _caras(_perfil(p))
+    vc = _comba(p, f)
+    h_arriba, h_abajo = (_en(arriba, f) - vc) * c, (vc - _en(abajo, f)) * c
+    g = HOLGURA_BISAGRA
+    m = _mandos(d)
+    tb = math.tan(math.radians(m["bisel"])) if m else 0.0
+    frente = [(g + abs(dz) * tb, dz) for dz in
+              [-h_abajo + (h_arriba + h_abajo) * k / 40 for k in range(41)]]
+    libre = []
+    for signo in (1, -1):
+        theta = 0.0
+        while theta < 90:
+            a = math.radians(signo * (theta + 0.05))
+            toca = False
+            for dx, dz in frente:
+                xr = dx * math.cos(a) + dz * math.sin(a)
+                zr = -dx * math.sin(a) + dz * math.cos(a)
+                if xr < -g and -h_abajo <= zr <= h_arriba:
+                    toca = True
+                    break
+            if toca:
+                break
+            theta += 0.05
+        libre.append(theta)
+    return min(libre)
+
+
+def _servo_de_tramo(d, k):
+    y0, y1, _ = _tramos_ala(d)[k - 1]
+    return next((s for s in _servos(d) if y0 < s["y"] < y1), None)
+
+
+def mandos(d, k) -> dict:
+    """Dónde van las bisagras de chapa (y) y el cuerno del elevón del tramo `k`."""
+    y0, y1, _ = _tramos_ala(d)[k - 1]
+    s = _servo_de_tramo(d, k)
+    return {"bisagras": [y0 + (y1 - y0) * q for q in (0.2, 0.5, 0.8)],
+            "cuerno": {"y": s["y"] if s else (y0 + y1) / 2}}
+
+
+def _ejes_bisagra(d, y, i):
+    """(punto de la bisagra (x, y, z), a lo largo de ella, hacia atrás por la
+    cuerda, hacia arriba): unitarios y a derechas."""
+    f = d["elevon"][1]
+
+    def punto(yy):
+        x, z, c, t, p = _estacion(d, yy, i)
+        px, pz = _girado(f, _comba(p, f), x, z, c, t)
+        return (px, yy, pz), (x, z, c, t, p)
+    h, (x, z, c, t, p) = punto(y)
+    h1, _ = punto(y + 1)
+    e = [h1[k] - h[k] for k in range(3)]
+    ne = math.sqrt(sum(v * v for v in e))
+    e = [v / ne for v in e]
+    qx, qz = _girado(f + 0.1, _comba(p, f), x, z, c, t)
+    cu = [qx - h[0], 0.0, qz - h[2]]
+    n = [e[1] * cu[2] - e[2] * cu[1], e[2] * cu[0] - e[0] * cu[2], e[0] * cu[1] - e[1] * cu[0]]
+    nn = math.sqrt(sum(v * v for v in n))
+    n = [v / nn for v in n]
+    if n[2] < 0:
+        n = [-v for v in n]
+    cu = [n[1] * e[2] - n[2] * e[1], n[2] * e[0] - n[0] * e[2], n[0] * e[1] - n[1] * e[0]]
+    return h, e, cu, n
+
+
+def _caja_local(kit, o, ex, ey, ez, lx, ly, lz):
+    """Una caja de lx × ly × lz con su esquina en `o` y sus lados por los ejes
+    unitarios ex, ey, ez (a derechas)."""
+    import FreeCAD
+    import Part
+    from mech_toolkit.kit import Cuerpo
+    m = FreeCAD.Matrix(ex[0], ey[0], ez[0], o[0], ex[1], ey[1], ez[1], o[1],
+                       ex[2], ey[2], ez[2], o[2], 0, 0, 0, 1)
+    caja = Part.makeBox(lx, ly, lz)
+    caja.transformShape(m)
+    return Cuerpo(caja, kit)
+
+
+def _ranuras_bisagra(kit, d, k):
+    """Las ranuras de las tres bisagras de chapa del elevón del tramo `k`: a
+    media altura, la mitad de cada una en el ala y la otra en el elevón."""
+    _, _, i = _tramos_ala(d)[k - 1]
+    largo, grueso, en_ala, en_elevon = BISAGRA_CHAPA
+    g = HOLGURA_BISAGRA
+    todas = None
+    for y in mandos(d, k)["bisagras"]:
+        h, e, cu, n = _ejes_bisagra(d, y, i)
+        o = [h[j] - e[j] * largo / 2 - cu[j] * (g + en_ala) - n[j] * grueso / 2 for j in range(3)]
+        r = _caja_local(kit, o, e, cu, n, largo, 2 * g + en_ala + en_elevon, grueso)
+        todas = r if todas is None else todas + r
+    return todas
+
+
+def _cuerno(kit, d, k):
+    """Los dos agujeros del cuerno, por debajo del elevón del tramo `k`."""
+    _, _, i = _tramos_ala(d)[k - 1]
+    y = mandos(d, k)["cuerno"]["y"]
+    h, e, cu, n = _ejes_bisagra(d, y, i)
+    x, z, c, t, p = _estacion(d, y, i)
+    f = d["elevon"][1]
+    a, b, diametro = CUERNO
+    todos = None
+    for s in (a, b):
+        hl = _grueso(p, f + s / c) * c
+        # Ciego: entra desde abajo hasta 1,2 mm de la cara de arriba.
+        top = [h[j] + cu[j] * s + n[j] * (hl / 2 - 1.2) for j in range(3)]
+        hueco = _cilindro_hacia(kit, diametro, hl + 5, top, [-v for v in n])
+        todos = hueco if todos is None else todos + hueco
+    return todos
+
+
+def _cilindro_hacia(kit, diametro, largo, base, eje):
+    """Un cilindro desde `base` (x, y, z) a lo largo del vector unitario `eje`."""
+    import FreeCAD
+    import Part
+    from mech_toolkit.kit import Cuerpo
+    return Cuerpo(Part.makeCylinder(diametro / 2, largo, FreeCAD.Vector(*base),
+                                    FreeCAD.Vector(*eje)), kit)
+
+
+def _elevon_v(kit, d, y0, y1, i):
+    """Todo lo que queda detrás del frente en V del elevón, de `y0` a `y1`."""
+    tb = math.tan(math.radians(_mandos(d)["bisel"]))
+    f = d["elevon"][1]
+    secs = []
+    for y in (y0 - 1, y1 + 1):
+        x, z, c, t, p = _estacion(d, y, i)
+        g, vc, alto = HOLGURA_BISAGRA / c, _comba(p, f), 0.3
+        puntos = [(f + g, vc), (f + g + alto * tb, vc + alto), (2.0, vc + alto),
+                  (2.0, vc - alto), (f + g + alto * tb, vc - alto)]
+        secs.append((kit.seccion([_girado(u, v, x, z, c, t) for u, v in puntos]), y))
+    return kit.transicion(secs, eje="y", recta=True)
+
+
+TUBO_INTERIOR = {16.0: 12.0, 12.0: 10.0, 10.0: 8.0, 6.0: 4.0}
+"""El diámetro de dentro de los tubos de la lista de compras (de 1 mm de pared)."""
+E_CARBONO = 100000.0
+"""N/mm²: el módulo de un tubo de carbono pultruido, supuesto del asistente
+(el anuncio no lo da)."""
+
+
+def seccion_tubo(diametro, interior) -> tuple[float, float]:
+    """(I en mm⁴, W en mm³) de un tubo."""
+    i = math.pi * (diametro ** 4 - interior ** 4) / 64
+    return i, i / (diametro / 2)
+
+
+def _cuerda_planta(d, y):
+    est = d["estaciones"]
+    for a, b in zip(est, est[1:]):
+        if a[0] <= y <= b[0]:
+            return a[3] + (b[3] - a[3]) * (y - a[0]) / (b[0] - a[0])
+    return est[-1][3]
+
+
+def momento_flector(d, sustentacion, y0, pasos=2000) -> float:
+    """N·m en `y0` (mm) de media ala que sustenta `sustentacion` N, repartida
+    por el método de Schrenk: la media de la forma en planta (las cuerdas de
+    `estaciones`) y de una elipse."""
+    est = d["estaciones"]
+    s = est[-1][0]
+    dy = s / pasos
+    ys = [(k + 0.5) * dy for k in range(pasos)]
+    area = sum(_cuerda_planta(d, y) for y in ys) * dy
+    m = 0.0
+    for y in ys:
+        if y <= y0:
+            continue
+        carga = sustentacion / 2 * (_cuerda_planta(d, y) / area
+                                    + 4 / (math.pi * s) * math.sqrt(max(0.0, 1 - (y / s) ** 2)))
+        m += carga * (y - y0) * dy
+    return m / 1000
+
+
+def esfuerzos(d, n=4.0) -> dict:
+    """Lo que trabajan los tubos de carbono a `n` g con la masa de `dentro`
+    (criterio del asistente: 4 g). Los largueros en la raíz del ala exterior,
+    repartiendo el momento por su rigidez; el manguito de un ala desmontable
+    con todo el momento del centro; cada viga en voladizo desde su pilón con
+    un motor a fondo (`rotores.empuje_kg`). Y la flecha de la punta a 1 g."""
+    masa = equilibrio(d)["masa_kg"]
+    media = n * masa * 9.81 / 2
+    y_raiz = _estaciones(d)[d["raiz"]][0]
+    tubos = {}
+    secciones = {di: seccion_tubo(di, TUBO_INTERIOR[float(di)]) for _, di in d["largueros"]}
+    rigidez = sum(i for i, _ in secciones.values())
+    m_raiz = momento_flector(d, media, y_raiz)
+    for _, di in d["largueros"]:
+        i, w = secciones[di]
+        tubos[f"larguero-{di:g}"] = {"mpa": m_raiz * 1000 * i / rigidez / w, "n_m": m_raiz,
+                                     "donde": f"y = {y_raiz:g}"}
+    m = _desmontable(d)
+    if m:
+        _, w = seccion_tubo(*m["manguito"])
+        m0 = momento_flector(d, media, 0.0)
+        tubos["manguito"] = {"mpa": m0 * 1000 / w, "n_m": m0, "donde": "y = 0"}
+    ro = d["rotores"]
+    if ro.get("empuje_kg"):
+        x, z, c, t, p = _estacion(d, ro["y"])
+        _, w = seccion_tubo(ro["viga"], TUBO_INTERIOR[float(ro["viga"])])
+        x0, x1 = x + 0.12 * c, x + 0.88 * c
+        brazo = max(x0 - ro["x"][0], ro["x"][1] - x1)
+        tubos["viga"] = {"mpa": ro["empuje_kg"] * 9.81 * brazo / w,
+                         "n_m": ro["empuje_kg"] * 9.81 * brazo / 1000,
+                         "donde": f"a {brazo:.0f} mm del pilón"}
+    # La flecha a 1 g: el ala exterior en voladizo desde su raíz.
+    s = d["estaciones"][-1][0]
+    pasos = 200
+    dy = (s - y_raiz) / pasos
+    giro = flecha = 0.0
+    for k in range(pasos):
+        y = y_raiz + (k + 0.5) * dy
+        curva = momento_flector(d, masa * 9.81 / 2, y, pasos=400) * 1000 / (E_CARBONO * rigidez)
+        giro += curva * dy
+        flecha += giro * dy
+    return {"n": n, "masa_kg": masa, "tubos": tubos, "flecha_punta_mm_1g": flecha}
 
 
 def _tramo(kit, d, k):
@@ -1314,6 +1821,15 @@ def comprado_a_la_vista(d) -> dict[str, list]:
             out[f"helice-{lado}-{donde}"] = _pala_tris(
                 (x, y, arriba + motor[1] + SOBRE_EL_MOTOR), (g, s * g, 0), (0, 0, 1),
                 ro["helice"])
+    # Los largueros, manguitos y pasadores van dentro del ala y no salen en la
+    # foto, pero en FreeCAD, escondida el ala, se ve cómo se enchufa
+    # (F13.14 (ensamble)).
+    for t in tubos(d):
+        if t["id"].startswith("viga"):
+            continue
+        largo = math.dist(t["de"], t["a"])
+        eje = tuple((b - a) / largo for a, b in zip(t["de"], t["a"]))
+        out[t["id"]] = _cilindro_tris(t["de"], eje, largo, t["diametro"] / 2)
     xe, zf = d["empuje"]["x"], d["z_fuselaje"]
     out["motor-empuje"] = _cilindro_tris((xe, 0, zf), (1, 0, 0), MOTOR_EMPUJE[1],
                                          MOTOR_EMPUJE[0] / 2)
@@ -1346,17 +1862,109 @@ def _gondola(kit, d, x):
     return g - kit.cilindro(3.3, 60, en=(x + L / 2 + 6, y - 30, zv), eje="y")   # pasador M3
 
 
+HOLGURA_PILON = 0.4
+PILON_TORNILLOS = (14.0, 9.0)
+"""Los dos M3 del pilón atornillado (F13.12 (pilón)): a 14 mm a cada lado del
+eje de la viga, para no tocarla (radio 8,15) ni dejar sin pared la tuerca, y
+9 mm delante y detrás del eje del larguero de Ø10, pegados a su funda."""
+
+
+def _tornillos_pilon_en(d):
+    """[(x, y)] de los dos M3 del pilón atornillado."""
+    ro = d["rotores"]
+    f, di = d["largueros"][0]
+    dy, dx = PILON_TORNILLOS
+    out = []
+    for s in (-1, 1):
+        y = ro["y"] + s * dy
+        x = _punto_larguero(d, y, f)[0] + s * dx
+        out.append((x, y))
+    return out
+
+
+def _ancho_pilon(d):
+    dv = d["rotores"]["viga"]
+    return 2 * (PILON_TORNILLOS[0] + 6) if d.get("pilon_atornillado") else dv + 8
+
+
+def _tetones_pilon(kit, d):
+    """Dentro del ala, un tetón en rombo por cada M3 del pilón, de la piel de
+    abajo a la de arriba y pegado a la funda del larguero: así el empuje de
+    los rotores pasa al larguero y no cuelga de 0,6 mm de piel (en el
+    Stallion, el larguero pasa por el brazo del motor). Sus caras van a 40°
+    de la vertical al imprimir el tramo de pie."""
+    todos = None
+    for x, y in _tornillos_pilon_en(d):
+        arriba, abajo = _caras_en(d, y)
+        zs, zi = _z_cara(arriba, x), _z_cara(abajo, x)
+        r = (zs - zi) / 2 + 1
+        h = r / math.tan(math.radians(40))
+        zm = (zs + zi) / 2
+        t = kit.extruir([(y - h, zm), (y, zm - r), (y + h, zm), (y, zm + r)], 8, plano="yz",
+                        desde=x - 4)
+        todos = t if todos is None else todos + t
+    return todos
+
+
+def _tornillos_pilon(kit, d):
+    """Los agujeros de los M3 del pilón: verticales, de arriba del ala al fondo
+    del pilón (la cabeza arriba, sobre el tetón)."""
+    todos = None
+    for x, y in _tornillos_pilon_en(d):
+        t = kit.cilindro(3.3, 300, en=(x, y, -150))
+        todos = t if todos is None else todos + t
+    return todos
+
+
 def _pilon(kit, d):
     """Une la viga al ala: una placa que por arriba copia la cara de abajo del
-    ala. Restarle el ala a un bloque dejaba trozos sueltos (2026-11-16)."""
+    ala. Restarle el ala a un bloque dejaba trozos sueltos (2026-11-16). Copia
+    la de los dos lados de la placa: con el diedro, la cara del ala baja
+    0,06 mm por mm hacia dentro. Atornillado (F13.12 (pilón)), es más ancho y
+    lleva la tuerca de cada M3 en un hueco por debajo."""
     ro = d["rotores"]
     y, zv, dv = ro["y"], _z_viga(d), ro["viga"]
+    if not d.get("pilon_atornillado"):
+        # Pegado, la extrusión de una sección, como antes: la transición de
+        # abajo, con el diedro, le dejaba al derecho un borde en el aire
+        # (pedía soportes en `test_avion_formas`, 2026-11-19).
+        x, z, c, t, p = _estacion(d, y)
+        _, abajo = _caras(_perfil(p))
+        cara = [_girado(u, v, x, z, c, t) for u, v in abajo if 0.12 <= u <= 0.88]
+        contorno = [(cara[0][0], zv - 2), (cara[-1][0], zv - 2)] + list(reversed(cara))
+        placa = kit.extruir(contorno, dv + 8, plano="xz", desde=y - (dv + 8) / 2)
+        return placa - kit.cilindro(dv + HOLGURA_TUBO, 2 * c, en=(x - c / 2, y, zv), eje="x")
+    ancho = _ancho_pilon(d)
+    # Atornillado, 0,4 mm por debajo del ala: la placa reglada entre sus dos
+    # bordes y el ala, transición de secciones con torsión, no coinciden, y
+    # con 40 mm de ancho se cruzaban 627 mm³ (2026-11-19); con 0,2 aún
+    # quedaban 2,4, donde la cara curva junto al borde de ataque se copia con
+    # tramos rectos. Pegado copiaba la cara; atornillado, el tornillo cierra
+    # esa holgura.
+    baja = HOLGURA_PILON if d.get("pilon_atornillado") else 0.0
+    secs = []
+    for yy in (y - ancho / 2, y + ancho / 2):
+        x, z, c, t, p = _estacion(d, yy)
+        _, abajo = _caras(_perfil(p))
+        cara = [(px, pz - baja) for px, pz in
+                (_girado(u, v, x, z, c, t) for u, v in abajo if 0.12 <= u <= 0.88)]
+        contorno = [(cara[0][0], zv - 2), (cara[-1][0], zv - 2)] + list(reversed(cara))
+        secs.append((kit.seccion(contorno), yy))
+    placa = kit.transicion(secs, eje="y", recta=True)
     x, z, c, t, p = _estacion(d, y)
-    _, abajo = _caras(_perfil(p))
-    cara = [_girado(u, v, x, z, c, t) for u, v in abajo if 0.12 <= u <= 0.88]
-    contorno = [(cara[0][0], zv - 2), (cara[-1][0], zv - 2)] + list(reversed(cara))
-    placa = kit.extruir(contorno, dv + 8, plano="xz", desde=y - (dv + 8) / 2)
-    return placa - kit.cilindro(dv + HOLGURA_TUBO, 2 * c, en=(x - c / 2, y, zv), eje="x")
+    placa = placa - kit.cilindro(dv + HOLGURA_TUBO, 2 * c, en=(x - c / 2, y, zv), eje="x")
+    if d.get("pilon_atornillado"):
+        # Atornillado se imprime como se dibuja, sobre su cara de abajo: el
+        # arco de la viga, de Ø16, quedaba en el aire (726 mm², 2026-11-19).
+        # Tejado hacia arriba.
+        r = (dv + HOLGURA_TUBO) / 2
+        k = r / math.sqrt(2)
+        placa = placa - kit.extruir([(y - k, zv + k), (y + k, zv + k), (y, zv + r * math.sqrt(2))],
+                                    2 * c, plano="yz", desde=x - c / 2)
+        placa = placa - _tornillos_pilon(kit, d)
+        for xt, yt in _tornillos_pilon_en(d):
+            placa = placa - kit.hexagono(5.8, 2.6, en=(xt, yt, zv - 2.01))
+    return placa
 
 
 def _sin_viga(kit, d, p, x0, x1):
@@ -1419,11 +2027,12 @@ def pieza(kit, d, id_):
     if partes[0] in ("centro", "raiz"):
         celdas = _celdas(d)
         x0, x1, y0, y1 = celdas[id_ if partes[0] == "centro" else f"raiz-d-{partes[2]}"]
-        trozo = _cuerpo_central(kit, d, (x0, x1, y0, y1))
+        trozo = _cuerpo_central(kit, d, (x0, x1, y0, y1),
+                                "d" if partes[0] == "centro" else lado)
         return trozo if partes[0] == "centro" else _lado(trozo, lado)
     if partes[0] == "ala":
         k = int(partes[2])
-        ala = _ala(kit, d, k)
+        ala = _ala(kit, d, k, lado)
         if _con_punta(d, k):
             # Las dos se cortan en el mismo plano con la misma sección: el
             # hueco del tramo, abierto por su cara de fuera, sigue en el de la
@@ -1437,12 +2046,16 @@ def pieza(kit, d, id_):
             xh = x + d["elevon"][1] * c - HOLGURA_BISAGRA
             rampa = kit.extruir([(xh, y1 - 1), (xh + 400, y1 - 1), (xh + 400, y1 - 1 + 1.2 * 400)],
                                 600, plano="xy", desde=-300)
-            ala = ala + (_ala(kit, d, k + 1) - rampa)
+            ala = ala + (_ala(kit, d, k + 1, lado) - rampa)
         return _lado(ala, lado)
     if partes[0] == "elevon":
         k = int(partes[2])
         y0, y1, i, ala = _tramo(kit, d, k)
-        elevon = ala & _bisagra(kit, d, y0, y1, HOLGURA_BISAGRA)
+        if _mandos(d):
+            elevon = ala & _elevon_v(kit, d, y0, y1, i)
+            elevon = elevon - _ranuras_bisagra(kit, d, k) - _cuerno(kit, d, k)
+        else:
+            elevon = ala & _bisagra(kit, d, y0, y1, HOLGURA_BISAGRA)
         _, trozos = _elevon_de(d, k)
         if len(trozos) > 1:
             elevon = elevon - _varilla(kit, d, trozos)
@@ -1450,11 +2063,19 @@ def pieza(kit, d, id_):
     return _pieza_rotores(kit, d, partes, lado)
 
 
-def _ala(kit, d, k):
-    """El tramo `k` del ala derecha, vaciado, con sus agujeros y su bisagra."""
+def _ala(kit, d, k, lado="d"):
+    """El tramo `k` del ala de `lado`, dibujado a la derecha, vaciado, con sus
+    agujeros y su bisagra."""
     y0, y1, i, ala = _tramo(kit, d, k)
     con_elevon = _con_elevon(d, y0, y1, i)
-    hueco = _hueco_tramo(kit, d, y0, y1, i, con_elevon, _levantado(d, i))
+    tramos = _tramos_ala(d)
+    # Las juntas (F13.9 (juntas)): cerradas por las dos caras donde se pega
+    # un tramo con otro; abiertas donde la punta va pegada en la misma pieza.
+    juntas = bool(d.get("juntas"))
+    raiz_cerrada = juntas and not (k > 1 and _con_punta(d, k - 1))
+    fuera_cerrada = juntas and not _con_punta(d, k) and k < len(tramos)
+    hueco = _hueco_tramo(kit, d, y0, y1, i, con_elevon, _levantado(d, i),
+                         raiz_cerrada=raiz_cerrada, fuera_cerrada=fuera_cerrada)
     if hueco is not None:
         # Lo de dentro (nervios, fundas de los largueros y cajones de
         # los servos) se suma después de vaciar, recortado a la forma
@@ -1471,7 +2092,8 @@ def _ala(kit, d, k):
         # final asomaba 2,4 mm en ella: dos rodajas sueltas dentro del
         # hueco, y la pieza salía en tres sólidos.
         dentro = _largueros(kit, d, pared=FUNDA,
-                            desde=y0 + max(di for _, di in d["largueros"]) / 2 + FUNDA)
+                            desde=y0 + max(di for _, di in d["largueros"]) / 2 + FUNDA,
+                            lado=lado)
         if not _levantado(d, i):
             nervios = _nervios(kit, d, y0, y1, i)
             dentro = nervios if dentro is None else dentro + nervios
@@ -1479,6 +2101,21 @@ def _ala(kit, d, k):
             if y0 < s["y"] < y1:
                 cajon = _cajon_servo(kit, d, s)
                 dentro = cajon if dentro is None else dentro + cajon
+        if k == 1 and _desmontable(d):
+            dentro = dentro + _tubo(kit, *extremos_pasador(d, lado),
+                                    _desmontable(d)["pasador"][0] + 2 * FUNDA)
+            # Lo mismo que el agujero del Ø6 (abajo): su funda empezaba en la
+            # raíz con la tapa inclinada 18°, un techo en el aire dentro del
+            # hueco (10 mm², 2026-11-19). Empieza un diámetro antes, dentro
+            # de la costilla.
+            for f, di in d["largueros"][1:]:
+                de, a_ = extremos_larguero(d, f, di, lado)
+                u = [(q - p_) / math.dist(de, a_) for p_, q in zip(de, a_)]
+                dentro = dentro + _tubo(kit, tuple(p_ - di * w for p_, w in zip(de, u)),
+                                        tuple(p_ + 2 * di * w for p_, w in zip(de, u)),
+                                        di + 2 * FUNDA)
+        if d.get("pilon_atornillado") and y0 < d["rotores"]["y"] < y1:
+            dentro = dentro + _tetones_pilon(kit, d)
         if dentro is None:
             ala = ala - hueco
         else:
@@ -1486,7 +2123,21 @@ def _ala(kit, d, k):
             dentro = dentro & kit.caja(bb.XLength + 2, bb.YLength + 2, bb.ZLength + 2,
                                        en=(bb.XMin - 1, bb.YMin - 1, bb.ZMin - 1))
             ala = (ala - hueco) + (dentro & ala)
-    ala = ala - _largueros(kit, d)
+    ala = ala - _largueros(kit, d, lado=lado)
+    if k == 1 and _desmontable(d):
+        ala = ala - _tubo(kit, *extremos_pasador(d, lado), _desmontable(d)["pasador"][0])
+        # El Ø6 acaba a ras de la raíz, y su agujero, cortado en recto al
+        # tubo, quedaba con la flecha 18° inclinado respecto a la costilla:
+        # solo la cruzaba a medias, y la cuña que dejaba empezaba en el aire
+        # impresa de pie (10 mm², 2026-11-19). Se alarga un diámetro hacia
+        # fuera, donde no hay ala.
+        for f, di in d["largueros"][1:]:
+            de, a_ = extremos_larguero(d, f, di, lado)
+            u = [(q - p_) / math.dist(de, a_) for p_, q in zip(de, a_)]
+            ala = ala - _tubo(kit, tuple(p_ - di * w for p_, w in zip(de, u)),
+                              tuple(p_ + di * w for p_, w in zip(de, u)), di)
+    if d.get("pilon_atornillado") and y0 < d["rotores"]["y"] < y1:
+        ala = ala - _tornillos_pilon(kit, d)
     canal = _canal(kit, d)
     if canal is not None and y0 < max(s["y"] for s in _servos(d)):
         ala = ala - canal
@@ -1495,6 +2146,8 @@ def _ala(kit, d, k):
             ala = ala - _hueco_servo(kit, d, s)
     if _con_elevon(d, y0, y1, i):
         ala = ala - _bisagra(kit, d, y0, y1, -HOLGURA_BISAGRA)
+        if _mandos(d):
+            ala = ala - _ranuras_bisagra(kit, d, k)
     return ala
 
 

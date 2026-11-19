@@ -50,6 +50,16 @@ MASA_ROTOR = 0.005            # la hélice como eslabón; el motor va en base_li
 # hace temblar.
 MASA_ELEVON = 1e-8
 LIMITE_ELEVON = 0.78          # rad: ±45°, el SIM_GZ_SV_MAXA de PX4
+
+
+def limite_elevon(r):
+    """Rad que puede ir cada elevón a cada lado: lo que dejan las piezas
+    (`mandos.recorrido`, medido por `avion.recorrido_elevon` al dimensionar),
+    sin pasar de ±45°. Con el corte recto de la versión 9 la esquina del
+    elevón tocaba el ala a los 10,6° y Gazebo lo dejaba ir a 45 (comparado
+    con el Stallion el 2026-11-18, F13.10 (mandos))."""
+    libre = r["diseno"].get("mandos", {}).get("recorrido")
+    return LIMITE_ELEVON if libre is None else math.radians(min(libre, 45.0))
 TRAMO_MM = 160                # los tramos del ala en el kit (mech_toolkit/avion.py)
 LARGO_VIGAS = 0.9             # m, las vigas compradas
 DISCO_SOBRE_MOTOR = 30        # mm, del centro del motor al plano de la hélice
@@ -315,8 +325,8 @@ class Modelo:
                 "</material></visual></link>"
                 f'<joint name="{b["servo"]}" type="revolute"><pose>{f(medio)} 0 0 0</pose>'
                 f'<parent>base_link</parent><child>elevon_{b["mando"]}</child>'
-                f'<axis><xyz>{f(b["eje"])}</xyz><limit><lower>{-LIMITE_ELEVON}</lower>'
-                f"<upper>{LIMITE_ELEVON}</upper></limit><dynamics><damping>1.0</damping>"
+                f'<axis><xyz>{f(b["eje"])}</xyz><limit><lower>{-limite_elevon(self.r)}</lower>'
+                f"<upper>{limite_elevon(self.r)}</upper></limit><dynamics><damping>1.0</damping>"
                 "</dynamics></axis><physics><ode><implicit_spring_damper>1"
                 "</implicit_spring_damper></ode></physics></joint>"
                 '<plugin filename="gz-sim-joint-position-controller-system" '
@@ -399,8 +409,8 @@ class Modelo:
                 f'<mesh filename="{mallas}/{b["servo"]}.stl"/></geometry></visual></link>'
                 f'<joint name="{b["servo"]}" type="revolute"><parent link="base_link"/>'
                 f'<child link="elevon_{b["mando"]}"/><origin xyz="{f(medio)}" rpy="0 0 0"/>'
-                f'<axis xyz="{f(b["eje"])}"/><limit lower="{-LIMITE_ELEVON}" '
-                f'upper="{LIMITE_ELEVON}" effort="1" velocity="10"/></joint>')
+                f'<axis xyz="{f(b["eje"])}"/><limit lower="{-limite_elevon(self.r)}" '
+                f'upper="{limite_elevon(self.r)}" effort="1" velocity="10"/></joint>')
         partes.append("</robot>\n")
         return "\n".join(partes)
 

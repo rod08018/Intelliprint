@@ -509,6 +509,38 @@ def crear_app(workspace: Path, puente=None, host_workspace: str = "",
             raise HTTPException(502, respuesta.get("error") or "PrusaSlicer no se abrió")
         return {**respuesta, "abiertas": len(piezas)}
 
+    @app.post("/proyectos/{id}/abrir-en-freecad")
+    def abrir_en_freecad(id: str) -> dict:
+        """El invento montado, en el FreeCAD del PC (F13.14 (ensamble)): él,
+        el 2026-11-18, quería «darle click en algún lado de la app y ver el
+        avión ensamblado»."""
+        carpeta = _proyecto(id, banco=True)
+        if puente is None:
+            raise HTTPException(
+                503, "no hay puente con el PC. Arráncalo en el host con: "
+                "powershell scripts\\start-host-mcps.ps1")
+        from orchestrator import vista as V
+        from orchestrator.mcp.client import ClienteMCP, LlamadaFallida, PuenteInalcanzable
+        try:
+            fcstd = V.ensamble_fcstd(carpeta)
+        except ValueError as e:
+            raise HTTPException(409, str(e))
+        try:
+            ruta = a_ruta_del_host(fcstd.as_posix(), workspace.as_posix(), host_workspace)
+        except RutaFueraDelWorkspace as e:
+            raise HTTPException(500, str(e))
+        try:
+            respuesta = ClienteMCP(puente, timeout=60).llamar("abrir_en_freecad", fcstd=ruta)
+        except PuenteInalcanzable as e:
+            raise HTTPException(
+                503, f"el puente del PC no contesta ({e}). ¿Está arrancado? "
+                "powershell scripts\\start-host-mcps.ps1")
+        except LlamadaFallida as e:
+            raise HTTPException(502, str(e))
+        if not respuesta.get("ok"):
+            raise HTTPException(502, respuesta.get("error") or "FreeCAD no se abrió")
+        return respuesta
+
     @app.get("/", response_class=HTMLResponse)
     def portada() -> str:
         from orchestrator.llm.cost import tope_usd

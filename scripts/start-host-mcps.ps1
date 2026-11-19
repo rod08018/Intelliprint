@@ -45,7 +45,9 @@ if (Test-Path $envFile) {
         $valor = $linea.Substring($i + 1).Trim().Trim('"', "'")
         # Solo lo que el puente usa. Cargar el .env entero meteria la clave
         # de DeepSeek y el token del bot en un proceso que no los necesita.
-        if ($clave -in @("PRUSASLICER", "INTELLIPRINT_WORKSPACE")) {
+        # FREECAD_GUI y FREECADCMD: para abrir el invento montado
+        # (F13.14 (ensamble)).
+        if ($clave -in @("PRUSASLICER", "INTELLIPRINT_WORKSPACE", "FREECAD_GUI", "FREECADCMD")) {
             Set-Item -Path "env:$clave" -Value $valor
         }
     }
@@ -60,7 +62,15 @@ if (-not $env:PRUSASLICER) {
     }
 }
 
+# FreeCAD con ventana, para "Ver montado en FreeCAD". Sin el, el puente
+# sigue sirviendo para PrusaSlicer: no es motivo para no arrancar.
+if (-not $env:FREECAD_GUI) {
+    $porDefecto = "C:\Program Files\FreeCAD 1.1\bin\freecad.exe"
+    if (Test-Path $porDefecto) { $env:FREECAD_GUI = $porDefecto }
+}
+
 Write-Host "PrusaSlicer:  $env:PRUSASLICER"
+Write-Host "FreeCAD:      $env:FREECAD_GUI"
 Write-Host "Puente MCP:   http://localhost:$Puerto/mcp  (el contenedor lo ve como host.docker.internal)"
 Write-Host ""
 

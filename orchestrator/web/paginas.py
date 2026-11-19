@@ -983,8 +983,14 @@ def proyecto(g: dict, elegida: str | None, workspace: Path, hay_puente: bool,
     imprimir_titulo = ("Este diseño no tiene piezas" if sin_piezas else
                        "Arranca el puente en el PC para abrir PrusaSlicer" if not hay_puente else
                        "Abre las piezas en el PrusaSlicer de tu PC, con el perfil de la impresora")
+    freecad_titulo = ("Este diseño no tiene piezas" if sin_piezas else
+                      "Arranca el puente en el PC para abrir FreeCAD" if not hay_puente else
+                      "Abre el invento montado en el FreeCAD de tu PC")
     acciones = (f'<button class="btn pri" data-abrir="{vid}" title="{e(imprimir_titulo)}"'
                 f'{" disabled" if sin_piezas or not hay_puente else ""}>Abrir en PrusaSlicer</button>'
+                # F13.14 (ensamble): el invento montado, en el FreeCAD del PC.
+                f'<button class="btn" data-freecad="{vid}" title="{e(freecad_titulo)}"'
+                f'{" disabled" if sin_piezas or not hay_puente else ""}>Ver montado en FreeCAD</button>'
                 f'<a class="btn" href="/proyectos/{vid}.zip" download>Descargar</a>')
     # Un concepto por aprobar no tiene nada que imprimir ni que bajar, y una
     # caja vacía de «Todavía no hay imagen» se comía media pantalla.
@@ -1889,6 +1895,13 @@ GUION_PROYECTO = r"""
     const nodo = b.dataset.nodo ? "?nodo=" + encodeURIComponent(b.dataset.nodo) : "";
     const [ok, d] = await enviar("/proyectos/" + encodeURIComponent(b.dataset.abrir) + "/abrir" + nodo);
     avisar(ok ? "PrusaSlicer abierto con " + d.abiertas + " piezas" : (detalle(d) || "No se pudo abrir"));
+    b.disabled = false; b.textContent = antes;
+  }));
+  document.querySelectorAll("[data-freecad]").forEach(b => b.addEventListener("click", async () => {
+    // La primera vez escribe el ensamble con FreeCAD: el avión tarda.
+    b.disabled = true; const antes = b.textContent; b.textContent = "Montándolo…";
+    const [ok, d] = await enviar("/proyectos/" + encodeURIComponent(b.dataset.freecad) + "/abrir-en-freecad");
+    avisar(ok ? "FreeCAD abierto con el invento montado" : (detalle(d) || "No se pudo abrir"));
     b.disabled = false; b.textContent = antes;
   }));
   // La obra (F7.3 (arbol)): cada botón de un nodo llama a su ruta y recarga.

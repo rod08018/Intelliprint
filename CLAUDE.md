@@ -756,6 +756,48 @@ imprimir; lo que dejó abierto está abajo.
   pitot sin hueco en el morro). En Gazebo, con PX4, vuela la misión
   entera (`sim/pruebas`, 5 de 5); **que vuele en Gazebo no dice que vuele
   impreso**.
+- **Pedido por él el 2026-11-18, al compararlo con el Stallion de
+  Flightory:** «planifica los cambios»; eligió «Alas desmontables», y
+  pidió «darle click en algún lado de la app y ver el avión ensamblado»
+  en FreeCAD. Plan aprobado (de F13.7 (desmontable) a F13.14 (ensamble) en
+  `PLAN_PROYECTO.md`).
+  **Hecho A MANO por el asistente, sin modelo, el 2026-11-19.** Lo que
+  se midió primero: los dos largueros se cruzaban en el centro (no se
+  podía montar), las juntas se pegaban por el canto (242–570 mm²), los
+  elevones no tenían mandos y tocaban a los 10,6°, y nadie medía
+  esfuerzos. Ahora cada ala se enchufa en un manguito de carbono 12 × 10
+  pegado al cuerpo central; los dos se cruzan en tijera, 10 mm arriba
+  el derecho y 3 abajo el izquierdo (a partes iguales, el izquierdo
+  tocaba la electrónica), y el ala la sujeta **un M3 a lo largo de x,
+  por el eje neutro del manguito y el larguero, y un pasador de Ø6, no
+  dos M3 verticales** como decía el plan; el Ø6 del ala no entra en el
+  cuerpo (no es paralelo al Ø10 y el ala no deslizaría). Las
+  juntas pegan cara con cara (≥ 1 000 mm²); los elevones llevan tres
+  bisagras de papel, cuerno y varilla en Z, con 40° libres (Gazebo y PX4
+  limitados a eso); el pilón va atornillado a un tetón de la funda del
+  larguero. Cada cosa con su test (`test_avion_choques`, `_desmontable`,
+  `_mandos`, `_esfuerzos`, `_compras`). **Los esfuerzos se calculan con
+  Schrenk y no con AeroSandbox**, como decía el plan: a 4 g, el Ø10 a
+  339 MPa, el Ø6 a 203, el manguito a 494 y la viga a 44, contra
+  600 MPa **supuestos** (ningún anuncio da la cifra); la punta baja
+  20 mm a 1 g. Pesado en sus STL, lo impreso es 2,13 kg: el avión pasa
+  a 5,69 kg, 1,02 h y 70 km, 1,82 veces el peso en empuje. Son las
+  versiones 10 y 11 del avión (la 11, la misma con la batería y la
+  torsión del dimensionado rehecho). Ocho líneas nuevas de compras, sin
+  peso en ningún anuncio (los 85 g son **supuestos del asistente**); las
+  varillas cuestan Q388 de envío. La lista sigue en el artifact. **El botón «Ver montado en
+  FreeCAD»** (F13.14 (ensamble)): el contenedor escribe
+  `vistas/ensamble.FCStd` con freecadcmd y el puente del host lo abre
+  con `scripts/freecad_ver_ensamble.py`, que lo pinta y no pide guardar;
+  probado en el navegador. Hay que reiniciar el puente para tenerlo.
+  En Gazebo, con PX4, la versión 11 vuela la misión entera (5 de 5) con
+  los elevones a 40°; la primera vez voló con las derivadas de antes de
+  la torsión de −7° (`sim/aero_vtol.json` se rehace aparte, con
+  `scripts/avion_vtol_aero.py`, y solo lo avisó la suite). **Que vuele en
+  Gazebo no dice que vuele impreso.** **Preguntó ese día por qué cuatro
+  «alerones» bajo los motores y no una cola con un servo:** son las dos
+  patas y las dos derivas, fijas; se le explicó y se le ofreció bajar a
+  dos elevones o una cola en V invertida. Sin decidir.
 
 **2026-11-11 (noche): Fase 10, brazos con transmisión (ADR-021).** Decidido
 por él: **el brazo antes que el avión**; empezar por uno pequeño con servos;

@@ -1,40 +1,40 @@
 {
   "carga_kg": 0.3,
   "envergadura_m": 1.89,
-  "area_alar_m2": 0.5071,
+  "area_alar_m2": 0.5069,
   "alargamiento": 7.42,
-  "cuerda_media_m": 0.3011,
+  "cuerda_media_m": 0.3012,
   "masa_kg": {
-    "impreso, pesado en sus STL": 2.012,
-    "carbono: largueros y vigas": 0.37,
+    "impreso, pesado en sus STL": 2.132,
+    "carbono (largueros, manguitos y vigas) y herrajes": 0.45499999999999996,
     "4 motores de sustentación, variadores y hélices": 1.02,
     "motor de empuje, variador y hélice": 0.19,
     "controladora, GPS, pitot, receptor y cables": 0.291,
     "cuatro servos de los elevones": 0.054,
     "carga útil": 0.3,
     "batería LiPo 6S 10 000 mAh": 1.248,
-    "total": 5.485
+    "total": 5.69
   },
-  "impreso_pesado_en": "2026-11-18-ala-volante-29-piezas-a-mano-sin-modelo",
+  "impreso_pesado_en": "2026-11-19-ala-volante-desmontable-a-mano-sin-modelo",
   "bateria": {
     "serie": 6,
     "mAh": 10000,
     "Wh": 222.0
   },
-  "carga_alar_kg_m2": 10.82,
+  "carga_alar_kg_m2": 11.22,
   "crucero": {
     "velocidad_m_s": 19.0,
-    "alfa_grados": 6.39,
-    "CL": 0.556,
-    "L_D": 12.24,
-    "resistencia_N": 4.4,
-    "potencia_W": 139.2
+    "alfa_grados": 6.92,
+    "CL": 0.577,
+    "L_D": 12.29,
+    "resistencia_N": 4.54,
+    "potencia_W": 143.8
   },
   "vtol": {
-    "potencia_W": 788,
+    "potencia_W": 833,
     "minutos": 3.0,
     "empuje_max_por_motor_kg": 3.0,
-    "empuje_sobre_peso": 1.89
+    "empuje_sobre_peso": 1.82
   },
   "compras": [
     {
@@ -131,46 +131,86 @@
       "que": "Varilla de carbono maciza redonda de Ø2, de 500 mm (guías del cuerpo central)",
       "cantidad": 1,
       "url": "https://www.amazon.com/s?k=carbon+fiber+rod+2mm+round+500mm"
+    },
+    {
+      "que": "Tubos de carbono 12 × 10 × 500 mm, paquete de 4 (ARRIS; los manguitos de las alas desmontables, uno por tubo)",
+      "cantidad": 1,
+      "url": "https://www.amazon.com/dp/B08ZSTPHVS"
+    },
+    {
+      "que": "Bisagras de papel para CA de 20 × 15 mm, 20 piezas (tres por elevón)",
+      "cantidad": 1,
+      "url": "https://www.amazon.com/dp/B0DY7ZQG1D"
+    },
+    {
+      "que": "Varillas Z de 1,5 × 450 mm con cuernos de nailon de 21 × 10 y topes, 10 juegos (un cuerno y una varilla por elevón)",
+      "cantidad": 1,
+      "url": "https://www.amazon.com/dp/B0BHYRRBHP"
+    },
+    {
+      "que": "Tornillos M2 autorroscantes, surtido (los cuernos de los elevones)",
+      "cantidad": 1,
+      "url": "https://www.amazon.com/dp/B0CY986CCR"
+    },
+    {
+      "que": "Tornillos M3 de cabeza Allen de 6 a 30 mm con tuercas, inox 304, 720 piezas (las alas al cuerpo y los pilones)",
+      "cantidad": 1,
+      "url": "https://www.amazon.com/dp/B0FG2BRXL3"
+    },
+    {
+      "que": "Conectores MPX de 6 pines, 20 pares (un par por ala: sus dos servos al desmontarla)",
+      "cantidad": 1,
+      "url": "https://www.amazon.com/dp/B07C6NV1GK"
+    },
+    {
+      "que": "Pegamento CA fino, 20 g (las bisagras y las juntas de LW-PLA)",
+      "cantidad": 1,
+      "url": "https://www.amazon.com/dp/B0DSCCB7G5"
+    },
+    {
+      "que": "Jeringa de epoxi J-B Weld de 25 ml (los manguitos al cuerpo central)",
+      "cantidad": 1,
+      "url": "https://www.amazon.com/dp/B072V321DX"
     }
   ],
   "lo_que_cuestan_los_rotores": {
-    "peso_kg": 1.205,
-    "potencia_crucero_W": 60.3,
-    "energia_vertical_Wh": 39.4
+    "peso_kg": 1.248,
+    "potencia_crucero_W": 60.5,
+    "energia_vertical_Wh": 41.6
   },
-  "autonomia_h": 1.07,
-  "alcance_km": 73,
-  "perdida_m_s": 14.2,
+  "autonomia_h": 1.02,
+  "alcance_km": 70,
+  "perdida_m_s": 14.4,
   "equilibrio": {
-    "torsion_punta_grados": -6.0,
-    "punto_neutro_x_m": 0.3095,
-    "cg_x_m": 0.2884,
+    "torsion_punta_grados": -7.0,
+    "punto_neutro_x_m": 0.3089,
+    "cg_x_m": 0.2878,
     "margen": 0.07,
-    "Cm": -0.0018,
-    "Cm_alfa": -4.491,
-    "Cn_beta": 0.0585,
+    "Cm": 0.0017,
+    "Cm_alfa": -4.443,
+    "Cn_beta": 0.058,
     "con_carga": {
-      "masa_kg": 5.485,
+      "masa_kg": 5.69,
       "cg_mm": [
-        288.4,
+        287.8,
         0.0,
-        -23.4
+        -22.0
       ],
-      "margen": 0.07
+      "margen": 0.0699
     },
     "sin_carga": {
-      "masa_kg": 5.185,
+      "masa_kg": 5.39,
       "cg_mm": [
-        288.4,
+        287.8,
         0.0,
-        -19.7
+        -18.4
       ],
-      "margen": 0.07
+      "margen": 0.0699
     }
   },
   "rotores": {
     "y_viga": 0.365,
-    "x_delante": -0.1386475473149441,
+    "x_delante": -0.1398945580967106,
     "x_detras": 0.7154458604324748,
     "x_empuje": 0.61,
     "helice_vtol_pulg": 15,
@@ -210,7 +250,7 @@
       0.4684369012191991,
       0.045,
       0.16,
-      -6.0,
+      -7.0,
       "mh60"
     ],
     [
@@ -218,7 +258,7 @@
       0.528073052162374,
       0.1163234686500688,
       0.11,
-      -6.0,
+      -7.0,
       "mh60"
     ]
   ],
@@ -267,7 +307,7 @@
         468.4,
         45.0,
         160.0,
-        -6.0,
+        -7.0,
         "mh60"
       ],
       [
@@ -275,7 +315,7 @@
         528.1,
         116.3,
         110.0,
-        -6.0,
+        -7.0,
         "mh60"
       ]
     ],
@@ -362,7 +402,7 @@
     "rotores": {
       "y": 365,
       "x": [
-        -139,
+        -140,
         715
       ],
       "viga": 16,
@@ -371,7 +411,8 @@
       "motor": [
         50,
         33
-      ]
+      ],
+      "empuje_kg": 3.0
     },
     "empuje": {
       "x": 610,
@@ -411,6 +452,13 @@
       610
     ],
     "punta_unida": true,
+    "desmontable": true,
+    "juntas": true,
+    "mandos": {
+      "bisel": 30.0,
+      "recorrido": 40.0
+    },
+    "pilon_atornillado": true,
     "elevones": [
       [
         2
@@ -423,11 +471,11 @@
       {
         "id": "impreso",
         "nombre": "lo impreso (alas de LW-PLA, el resto de PETG)",
-        "masa_kg": 2.0124,
+        "masa_kg": 2.1316,
         "en": [
-          320.0,
+          323.5,
           0,
-          -29.8
+          -27.1
         ]
       },
       {
@@ -451,11 +499,31 @@
         ]
       },
       {
+        "id": "manguitos",
+        "nombre": "manguitos Ø12 de las alas desmontables",
+        "masa_kg": 0.055,
+        "en": [
+          205.0,
+          0,
+          5.0
+        ]
+      },
+      {
+        "id": "herrajes",
+        "nombre": "bisagras, cuernos, varillas de mando y tornillos",
+        "masa_kg": 0.03,
+        "en": [
+          500.1,
+          0,
+          26.7
+        ]
+      },
+      {
         "id": "vigas",
         "nombre": "vigas Ø16 de los rotores",
         "masa_kg": 0.272,
         "en": [
-          298.4,
+          297.8,
           0,
           -12.0
         ]
@@ -465,7 +533,7 @@
         "nombre": "motor de sustentación, variador y hélice",
         "masa_kg": 0.255,
         "en": [
-          -138.6,
+          -139.9,
           365.0,
           18.0
         ]
@@ -485,7 +553,7 @@
         "nombre": "motor de sustentación, variador y hélice",
         "masa_kg": 0.255,
         "en": [
-          -138.6,
+          -139.9,
           -365.0,
           18.0
         ]
@@ -600,7 +668,7 @@
         "nombre": "carga: dos cámaras y un lidar",
         "masa_kg": 0.3,
         "en": [
-          288.4,
+          287.8,
           0,
           -87.0
         ],
@@ -615,7 +683,7 @@
         "nombre": "batería LiPo 6S 10 000 mAh",
         "masa_kg": 1.248,
         "en": [
-          238.3,
+          226.0,
           0,
           -38.0
         ],
@@ -627,17 +695,46 @@
       }
     ],
     "equilibrio": {
-      "punto_neutro_x": 309.5,
-      "cuerda_media": 301.1,
+      "punto_neutro_x": 308.9,
+      "cuerda_media": 301.2,
       "margen_minimo": 0.05,
       "margen_maximo": 0.12
     }
   },
   "tubos_mm": {
-    "larguero Ø10": 952.8,
-    "larguero Ø6": 930.0,
-    "viga Ø16": 964.0,
-    "varilla Ø2": 198.0
+    "larguero Ø10": 746.7,
+    "larguero Ø6": 676.2,
+    "viga Ø16": 965.0,
+    "varilla Ø2": 198.0,
+    "manguito Ø12": 302.4,
+    "pasador Ø6": 43.3
+  },
+  "esfuerzos": {
+    "n": 4.0,
+    "masa_kg": 5.69,
+    "flecha_punta_mm_1g": 20.6,
+    "tubos": {
+      "larguero-10": {
+        "mpa": 338.9,
+        "n_m": 23.11,
+        "donde": "y = 220"
+      },
+      "larguero-6": {
+        "mpa": 203.4,
+        "n_m": 23.11,
+        "donde": "y = 220"
+      },
+      "manguito": {
+        "mpa": 493.7,
+        "n_m": 43.36,
+        "donde": "y = 0"
+      },
+      "viga": {
+        "mpa": 43.9,
+        "n_m": 12.06,
+        "donde": "a 410 mm del pilón"
+      }
+    }
   },
   "perfiles": {
     "mh60": {

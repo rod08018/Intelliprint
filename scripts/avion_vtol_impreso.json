@@ -1,21 +1,21 @@
 {
- "proyecto": "2026-11-18-ala-volante-29-piezas-a-mano-sin-modelo",
+ "proyecto": "2026-11-19-ala-volante-desmontable-a-mano-sin-modelo",
  "piezas_contadas": 29,
- "masa_kg": 2.012434,
+ "masa_kg": 2.131633,
  "centro_mm": [
-  320.0,
-  0.0,
-  -29.8
+  323.5,
+  -0.1,
+  -27.1
  ],
  "por_tipo_kg": {
-  "ala (LW-PLA)": 0.381638,
-  "centro (PETG)": 0.726742,
-  "elevon (LW-PLA)": 0.052746,
+  "ala (LW-PLA)": 0.458943,
+  "centro (PETG)": 0.725147,
+  "elevon (LW-PLA)": 0.052442,
   "gondola (PETG)": 0.516838,
-  "panza (PETG)": 0.116932,
-  "pilon (PETG)": 0.082794,
-  "raiz (LW-PLA)": 0.123428,
-  "tapa (PETG)": 0.011316
+  "panza (PETG)": 0.116962,
+  "pilon (PETG)": 0.126352,
+  "raiz (LW-PLA)": 0.123569,
+  "tapa (PETG)": 0.01138
  },
  "supuestos": {
   "lwpla_g_cm3": 0.6,
@@ -29,61 +29,61 @@
  "piezas": {
   "ala-d-1": {
    "material": "LW-PLA",
-   "volumen_cm3": 125.6,
-   "masa_kg": 0.07536,
+   "volumen_cm3": 165.3,
+   "masa_kg": 0.0992,
    "centro_mm": [
-    352.4,
-    323.1,
-    15.5
+    352.1,
+    341.4,
+    17.2
    ]
   },
   "ala-d-2": {
    "material": "LW-PLA",
-   "volumen_cm3": 98.2,
-   "masa_kg": 0.058933,
+   "volumen_cm3": 117.2,
+   "masa_kg": 0.070328,
    "centro_mm": [
-    413.1,
-    535.0,
-    29.7
+    417.2,
+    546.8,
+    30.9
    ]
   },
   "ala-d-3": {
    "material": "LW-PLA",
-   "volumen_cm3": 94.2,
-   "masa_kg": 0.056526,
+   "volumen_cm3": 99.9,
+   "masa_kg": 0.059932,
    "centro_mm": [
-    502.9,
-    773.2,
-    50.2
+    504.2,
+    771.0,
+    50.3
    ]
   },
   "ala-i-1": {
    "material": "LW-PLA",
-   "volumen_cm3": 125.6,
-   "masa_kg": 0.07536,
+   "volumen_cm3": 165.3,
+   "masa_kg": 0.0992,
    "centro_mm": [
-    352.4,
-    -323.1,
-    15.5
+    352.2,
+    -341.5,
+    16.8
    ]
   },
   "ala-i-2": {
    "material": "LW-PLA",
-   "volumen_cm3": 98.2,
-   "masa_kg": 0.058933,
+   "volumen_cm3": 117.3,
+   "masa_kg": 0.070379,
    "centro_mm": [
-    413.1,
-    -535.0,
-    29.7
+    417.2,
+    -546.8,
+    30.5
    ]
   },
   "ala-i-3": {
    "material": "LW-PLA",
-   "volumen_cm3": 94.2,
-   "masa_kg": 0.056526,
+   "volumen_cm3": 99.8,
+   "masa_kg": 0.059904,
    "centro_mm": [
-    502.9,
-    -773.2,
+    504.2,
+    -771.0,
     50.2
    ]
   },
@@ -99,22 +99,22 @@
   },
   "centro-2": {
    "material": "PETG",
-   "volumen_cm3": 117.8,
-   "masa_kg": 0.149576,
+   "volumen_cm3": 118.5,
+   "masa_kg": 0.150516,
    "centro_mm": [
     161.8,
     -0.0,
-    -30.1
+    -29.4
    ]
   },
   "centro-3": {
    "material": "PETG",
-   "volumen_cm3": 143.6,
-   "masa_kg": 0.182376,
+   "volumen_cm3": 141.6,
+   "masa_kg": 0.179841,
    "centro_mm": [
-    325.2,
+    325.6,
     -0.0,
-    -37.8
+    -38.4
    ]
   },
   "centro-4": {
@@ -129,42 +129,42 @@
   },
   "elevon-d-2": {
    "material": "LW-PLA",
-   "volumen_cm3": 60.8,
-   "masa_kg": 0.015428,
+   "volumen_cm3": 58.0,
+   "masa_kg": 0.015239,
    "centro_mm": [
-    510.4,
-    532.6,
-    31.8
+    511.3,
+    532.7,
+    32.4
    ]
   },
   "elevon-d-3": {
    "material": "LW-PLA",
-   "volumen_cm3": 38.1,
-   "masa_kg": 0.010945,
+   "volumen_cm3": 36.6,
+   "masa_kg": 0.010982,
    "centro_mm": [
-    570.1,
-    744.0,
-    47.3
+    570.7,
+    744.1,
+    48.1
    ]
   },
   "elevon-i-2": {
    "material": "LW-PLA",
-   "volumen_cm3": 60.8,
-   "masa_kg": 0.015428,
+   "volumen_cm3": 58.0,
+   "masa_kg": 0.015239,
    "centro_mm": [
-    510.4,
-    -532.6,
-    31.8
+    511.3,
+    -532.7,
+    32.4
    ]
   },
   "elevon-i-3": {
    "material": "LW-PLA",
-   "volumen_cm3": 38.1,
-   "masa_kg": 0.010945,
+   "volumen_cm3": 36.6,
+   "masa_kg": 0.010982,
    "centro_mm": [
-    570.1,
-    -744.0,
-    47.3
+    570.7,
+    -744.1,
+    48.1
    ]
   },
   "gondola-d-delante": {
@@ -174,7 +174,7 @@
    "centro_mm": [
     -138.1,
     365.0,
-    -73.5
+    -73.6
    ]
   },
   "gondola-d-detras": {
@@ -194,7 +194,7 @@
    "centro_mm": [
     -138.1,
     -365.0,
-    -73.5
+    -73.6
    ]
   },
   "gondola-i-detras": {
@@ -210,111 +210,111 @@
   "panza": {
    "material": "PETG",
    "volumen_cm3": 92.1,
-   "masa_kg": 0.116932,
+   "masa_kg": 0.116962,
    "centro_mm": [
-    239.9,
+    238.8,
     -0.0,
     -94.4
    ]
   },
   "pilon-d": {
    "material": "PETG",
-   "volumen_cm3": 81.1,
-   "masa_kg": 0.041397,
+   "volumen_cm3": 146.9,
+   "masa_kg": 0.063176,
    "centro_mm": [
-    380.1,
-    365.0,
-    -0.6
+    380.0,
+    365.4,
+    -1.7
    ]
   },
   "pilon-i": {
    "material": "PETG",
-   "volumen_cm3": 81.1,
-   "masa_kg": 0.041397,
+   "volumen_cm3": 146.9,
+   "masa_kg": 0.063176,
    "centro_mm": [
-    380.1,
-    -365.0,
-    -0.6
+    380.0,
+    -365.4,
+    -1.7
    ]
   },
   "raiz-d-1": {
    "material": "LW-PLA",
-   "volumen_cm3": 53.4,
-   "masa_kg": 0.032025,
+   "volumen_cm3": 56.6,
+   "masa_kg": 0.033981,
    "centro_mm": [
-    207.8,
-    144.1,
-    5.0
+    208.4,
+    146.2,
+    6.6
    ]
   },
   "raiz-d-2": {
    "material": "LW-PLA",
-   "volumen_cm3": 49.5,
-   "masa_kg": 0.029689,
+   "volumen_cm3": 45.7,
+   "masa_kg": 0.027426,
    "centro_mm": [
-    391.4,
-    148.4,
-    -2.4
+    397.6,
+    148.9,
+    -2.7
    ]
   },
   "raiz-i-1": {
    "material": "LW-PLA",
-   "volumen_cm3": 53.4,
-   "masa_kg": 0.032025,
+   "volumen_cm3": 57.9,
+   "masa_kg": 0.034735,
    "centro_mm": [
-    207.8,
-    -144.1,
-    5.0
+    208.2,
+    -147.2,
+    4.8
    ]
   },
   "raiz-i-2": {
    "material": "LW-PLA",
-   "volumen_cm3": 49.5,
-   "masa_kg": 0.029689,
+   "volumen_cm3": 45.7,
+   "masa_kg": 0.027427,
    "centro_mm": [
-    391.4,
-    -148.4,
-    -2.4
+    397.6,
+    -148.9,
+    -2.7
    ]
   },
   "tapa-servo-d-exterior": {
    "material": "PETG",
    "volumen_cm3": 2.3,
-   "masa_kg": 0.002878,
+   "masa_kg": 0.002898,
    "centro_mm": [
     488.8,
     735.0,
-    32.1
+    32.2
    ]
   },
   "tapa-servo-d-interior": {
    "material": "PETG",
    "volumen_cm3": 2.2,
-   "masa_kg": 0.00278,
+   "masa_kg": 0.002792,
    "centro_mm": [
     408.3,
     520.0,
-    17.1
+    17.2
    ]
   },
   "tapa-servo-i-exterior": {
    "material": "PETG",
    "volumen_cm3": 2.3,
-   "masa_kg": 0.002878,
+   "masa_kg": 0.002898,
    "centro_mm": [
     488.8,
     -735.0,
-    32.1
+    32.2
    ]
   },
   "tapa-servo-i-interior": {
    "material": "PETG",
    "volumen_cm3": 2.2,
-   "masa_kg": 0.00278,
+   "masa_kg": 0.002792,
    "centro_mm": [
     408.3,
     -520.0,
-    17.1
+    17.2
    ]
   }
  }

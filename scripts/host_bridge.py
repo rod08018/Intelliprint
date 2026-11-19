@@ -194,6 +194,50 @@ def abrir_en_prusaslicer(stls: list[str], perfil: str = "") -> dict:
     return {"ok": True, "abiertas": len(archivos), "perfil": perfil}
 
 
+MACRO_ENSAMBLE = Path(__file__).resolve().parent / "freecad_ver_ensamble.py"
+"""La macro que abre un ensamble en el FreeCAD del PC (F13.14 (ensamble)). Es
+la del repo, y el documento le llega por el entorno: si el contenedor pudiera
+mandar qué ejecutar, el puente ejecutaría en el host lo que le escribieran."""
+
+
+def freecad_con_ventana(gui: str, consola: str) -> str:
+    """FREECAD_GUI, o el hermano con ventana de FREECADCMD."""
+    if gui:
+        return gui
+    for sin, con in (("freecadcmd.exe", "freecad.exe"), ("freecadcmd", "freecad")):
+        if consola.lower().endswith(sin):
+            return consola[: -len(sin)] + con
+    return ""
+
+
+def orden_para_ver_en_freecad(programa: str, fcstd: str, workspace: Path) -> tuple[list, dict]:
+    """(la orden, lo que se añade al entorno) para abrir un .FCStd del
+    workspace con la macro que lo pinta."""
+    destino = comprobar_dentro(fcstd, workspace)
+    if destino.suffix != ".FCStd":
+        # Un .py o un .FCMacro se ejecutarían al abrirlos.
+        raise ValueError(f"{fcstd!r} no es un documento de FreeCAD (.FCStd)")
+    return [programa, str(MACRO_ENSAMBLE)], {"INTELLIPRINT_FCSTD": str(destino)}
+
+
+@mcp.tool()
+def abrir_en_freecad(fcstd: str) -> dict:
+    """Abre en el FreeCAD del escritorio el invento montado, con sus colores.
+    No espera a que se cierre."""
+    programa = freecad_con_ventana(os.environ.get("FREECAD_GUI", ""),
+                                   os.environ.get("FREECADCMD", ""))
+    if not programa or not Path(programa).exists():
+        return {"ok": False, "error": f"no encuentro FreeCAD: {programa or '(sin definir)'}"}
+    try:
+        orden, entorno = orden_para_ver_en_freecad(programa, fcstd, _workspace())
+    except (ValueError, FueraDelWorkspace) as e:
+        return {"ok": False, "error": str(e)}
+    if not Path(entorno["INTELLIPRINT_FCSTD"]).is_file():
+        return {"ok": False, "error": f"no encuentro: {fcstd}"}
+    subprocess.Popen(orden, env={**os.environ, **entorno}, **_desenganchado())
+    return {"ok": True}
+
+
 def _desenganchado() -> dict:
     if sys.platform == "win32":
         return {"creationflags": subprocess.DETACHED_PROCESS

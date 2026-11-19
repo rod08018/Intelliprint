@@ -120,6 +120,111 @@ def montado(carpeta: Path) -> tuple[dict, dict]:
     return mallas, colores
 
 
+ENSAMBLE = "ensamble.FCStd"
+"""El invento montado para abrirlo en el FreeCAD del PC (F13.14 (ensamble)).
+Él, el 2026-11-18: «darle click en algún lado de la app y ver el avión
+ensamblado»; en FreeCAD solo se podía abrir pieza a pieza."""
+DENTRO = "dentro"
+"""Lo que va dentro del avión (batería, electrónica, servos): no se ve en la
+foto, pero en FreeCAD se puede esconder la piel y mirarlo."""
+_FUENTES_ENSAMBLE = ("parts/*/*.stl", "nodos/*/parts/*/*.stl", "modulos/*/*/*.stl",
+                     "nodos/*/ensamble.json", f"{COMPRADO}/*.stl", f"{DENTRO}/*/*.stl")
+_ESCRIBIR_FCSTD = r'''
+import json, os, FreeCAD, Mesh
+datos = json.load(open(os.environ["INTELLIPRINT_ENSAMBLE"], encoding="utf-8"))
+doc = FreeCAD.newDocument("Ensamble")
+grupos = {}
+for i, p in enumerate(datos["mallas"]):
+    if p["grupo"] not in grupos:
+        grupos[p["grupo"]] = doc.addObject("App::DocumentObjectGroup", p["grupo"])
+    o = doc.addObject("Mesh::Feature", "Malla%03d" % i)
+    o.Label = p["nombre"]
+    o.Mesh = Mesh.Mesh(p["stl"])
+    o.addProperty("App::PropertyColor", "Color", "Intelliprint",
+                  "El color de la foto; lo pinta la macro del puente al abrirlo")
+    o.Color = tuple(p["color"])
+    grupos[p["grupo"]].addObject(o)
+# Sin ventana, FreeCAD los guardaba ocultos y al abrirlos no se veía nada
+# (2026-11-19).
+for o in doc.Objects:
+    o.Visibility = True
+doc.recompute()
+doc.saveAs(datos["destino"])
+'''
+
+
+def _firma_ensamble(carpeta: Path) -> list:
+    return [[r.relative_to(carpeta).as_posix(), r.stat().st_mtime_ns, r.stat().st_size]
+            for patron in _FUENTES_ENSAMBLE for r in sorted(carpeta.glob(patron))]
+
+
+def _color(hexa: str) -> list[float]:
+    return [int(hexa[k:k + 2], 16) / 255 for k in (1, 3, 5)]
+
+
+def _escribir_stl(ruta: Path, vertices, triangulos) -> None:
+    import struct
+    datos = [bytes(80), struct.pack("<I", len(triangulos))]
+    datos += [struct.pack("<12fH", 0, 0, 0, *(c for k in t for c in vertices[k]), 0)
+              for t in triangulos]
+    ruta.write_bytes(b"".join(datos))
+
+
+def ensamble_fcstd(carpeta: Path, freecadcmd: str | None = None) -> Path:
+    """`vistas/ensamble.FCStd`: cada pieza del invento montado
+    (`montado`, las mismas mallas que la foto) en el grupo «Impreso» o
+    «Comprado», y lo de `dentro/` en «Dentro». Solo se rehace si cambió algo
+    de lo que sale (`vistas/ensamble.json` guarda la firma).
+
+    Mallas y no los .step: el brazo se monta en reposo moviendo mallas
+    (`pose_para_el_visor`), y así lo que se ve en FreeCAD es lo de la foto."""
+    import os
+    import subprocess
+    import tempfile
+    carpeta = Path(carpeta)
+    destino = carpeta / "vistas" / ENSAMBLE
+    guardada = carpeta / "vistas" / "ensamble.json"
+    firma = _firma_ensamble(carpeta)
+    try:
+        if destino.is_file() and json.loads(guardada.read_text(encoding="utf-8")) == firma:
+            return destino
+    except (OSError, ValueError):
+        pass
+    mallas, colores = montado(carpeta)
+    if not mallas:
+        raise ValueError("este invento no tiene ninguna pieza con triángulos")
+    freecadcmd = freecadcmd or os.environ.get("FREECADCMD")
+    if not freecadcmd:
+        raise ValueError("no hay FreeCAD con el que escribir el ensamble (define FREECADCMD)")
+    destino.parent.mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        lista = []
+        for i, (nombre, (vertices, triangulos)) in enumerate(mallas.items()):
+            stl = tmp / f"{i:03d}.stl"
+            _escribir_stl(stl, vertices, triangulos)
+            lista.append({"nombre": nombre, "stl": str(stl), "color": _color(colores[nombre]),
+                          "grupo": "Comprado" if colores[nombre] == COLOR_COMPRADO else "Impreso"})
+        for i, stl in enumerate(sorted(carpeta.glob(f"{DENTRO}/*/*.stl"))):
+            lista.append({"nombre": stl.stem, "stl": str(stl),
+                          "color": _color(COLORES[i % len(COLORES)]), "grupo": "Dentro"})
+        temporal = destino.with_suffix(".tmp.FCStd")
+        (tmp / "datos.json").write_text(json.dumps({"mallas": lista, "destino": str(temporal)}),
+                                        encoding="utf-8")
+        (tmp / "escribir.py").write_text(_ESCRIBIR_FCSTD, encoding="utf-8")
+        proceso = subprocess.run([freecadcmd, str(tmp / "escribir.py")], capture_output=True,
+                                 text=True, timeout=900,
+                                 env={**os.environ, "INTELLIPRINT_ENSAMBLE": str(tmp / "datos.json")})
+        # freecadcmd sale con 0 aunque el guion falle: lo que dice si se hizo
+        # es el archivo.
+        if not temporal.is_file():
+            raise ValueError(f"FreeCAD no escribió el ensamble: {proceso.stdout[-500:]}"
+                             f"{proceso.stderr[-500:]}")
+        temporal.replace(destino)
+    guardada.write_text(json.dumps(firma), encoding="utf-8")
+    return destino
+
+
 def dibujar_montado(carpeta: Path, destino: Path, titulo: str = "") -> Path:
     """El invento montado (`montado`), en un PNG."""
     mallas, colores = montado(carpeta)

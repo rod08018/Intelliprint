@@ -78,3 +78,29 @@ def test_la_varilla_de_o2_alcanza_para_las_guias(r):
     largo = r["tubos_mm"]["varilla Ø2"]
     assert largo % 18 == pytest.approx(0, abs=0.01) and largo >= 3 * 18, largo
     assert largo <= compra["cantidad"] * 500, (largo, compra)
+
+
+def test_lo_que_pide_el_diseno_esta_en_la_lista(r):
+    """F13.13 (compras): al compararlo con el Stallion (2026-11-18) faltaban
+    bisagras, cuernos, varillas, tornillería y pegamento, y con las alas
+    desmontables hacen falta además los manguitos y un conector por ala para
+    los cables de sus servos. Cada cosa que el diseño pide, con su línea."""
+    d = r["diseno"]
+    hace_falta = {"pegamento CA": "CA", "epoxi": "epoxi"}
+    if d.get("mandos"):
+        hace_falta.update({"bisagras": "bisagras", "cuernos y varillas": "cuernos",
+                           "tornillos de los cuernos": "M2"})
+    if d.get("desmontable") or d.get("pilon_atornillado"):
+        hace_falta["tornillos y tuercas M3"] = "M3"
+    if d.get("desmontable"):
+        hace_falta.update({"manguitos": "12 × 10", "conector de los servos": "MPX"})
+    textos = " ".join(c["que"] for c in r["compras"])
+    faltan = [que for que, clave in hace_falta.items() if clave not in textos]
+    assert faltan == []
+
+
+def test_el_manguito_sale_del_tubo_de_12_que_se_vende(r):
+    """El 12 × 10 se vende en Amazon de 500 mm (ARRIS, cuatro tubos): cada
+    manguito (lo que mide uno), de uno."""
+    if "manguito Ø12" in r["tubos_mm"]:
+        assert r["tubos_mm"]["manguito Ø12"] <= 500

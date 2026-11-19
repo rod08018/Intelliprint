@@ -105,6 +105,25 @@ COMPRAS = [
      "https://www.amazon.com/dp/B0GWYYKDCS"),
     ("Varilla de carbono maciza redonda de Ø2, de 500 mm (guías del cuerpo central)", 1,
      "https://www.amazon.com/s?k=carbon+fiber+rod+2mm+round+500mm"),
+    # F13.13 (compras): lo que faltaba al compararlo con el Stallion de
+    # Flightory (2026-11-18). Buscado en Amazon con la entrega a Guatemala
+    # el 2026-11-19; ninguno dice su peso, por eso van en HERRAJES_KG.
+    ("Tubos de carbono 12 × 10 × 500 mm, paquete de 4 (ARRIS; los manguitos de las alas "
+     "desmontables, uno por tubo)", 1, "https://www.amazon.com/dp/B08ZSTPHVS"),
+    ("Bisagras de papel para CA de 20 × 15 mm, 20 piezas (tres por elevón)", 1,
+     "https://www.amazon.com/dp/B0DY7ZQG1D"),
+    ("Varillas Z de 1,5 × 450 mm con cuernos de nailon de 21 × 10 y topes, 10 juegos "
+     "(un cuerno y una varilla por elevón)", 1, "https://www.amazon.com/dp/B0BHYRRBHP"),
+    ("Tornillos M2 autorroscantes, surtido (los cuernos de los elevones)", 1,
+     "https://www.amazon.com/dp/B0CY986CCR"),
+    ("Tornillos M3 de cabeza Allen de 6 a 30 mm con tuercas, inox 304, 720 piezas "
+     "(las alas al cuerpo y los pilones)", 1, "https://www.amazon.com/dp/B0FG2BRXL3"),
+    ("Conectores MPX de 6 pines, 20 pares (un par por ala: sus dos servos al desmontarla)", 1,
+     "https://www.amazon.com/dp/B07C6NV1GK"),
+    ("Pegamento CA fino, 20 g (las bisagras y las juntas de LW-PLA)", 1,
+     "https://www.amazon.com/dp/B0DSCCB7G5"),
+    ("Jeringa de epoxi J-B Weld de 25 ml (los manguitos al cuerpo central)", 1,
+     "https://www.amazon.com/dp/B072V321DX"),
 ]
 
 # --- Supuestos del asistente (no medidos) ------------------------------------
@@ -138,7 +157,12 @@ SERVOS_KG = 4 * 0.0135           # MG90D, su anuncio
 # Ø10 (31 g el metro, su anuncio) y Ø6 (calculado); las dos vigas de 16 × 12,
 # 136 g el metro de tubo (calculado: Amazon no lo da), contadas enteras.
 LARGUEROS_KG, VIGAS_KG = (0.062, 0.036), 0.272
-CARBONO_KG = sum(LARGUEROS_KG) + VIGAS_KG
+# Las alas desmontables (2026-11-18): el tubo de 12 × 10 de los manguitos,
+# 55 g el metro (calculado con 1,6 g/cm³), contado entero. Y los herrajes:
+# 12 bisagras de chapa, 4 cuernos, 4 varillas de mando y la tornillería, unos
+# 30 g (estimación del asistente: los anuncios no los pesan todos).
+MANGUITOS_KG, HERRAJES_KG = 0.055, 0.030
+CARBONO_KG = sum(LARGUEROS_KG) + VIGAS_KG + MANGUITOS_KG + HERRAJES_KG
 
 # --- Lo de dentro (mm): cajas que ocupan sitio -----------------------------------
 # La LiPo de 161 × 48 × 66 de su anuncio, tumbada (66 de ancho y 48 de alto:
@@ -421,6 +445,14 @@ def dentro(r):
         x, z = ala(ENVERGADURA * 250, f)   # de y = -20 a casi la punta: su mitad
         cosas.append({"id": f"larguero-{nombre}", "nombre": f"largueros {nombre}", "masa_kg": mk,
                       "en": [x, 0, z]})
+    # Los manguitos cruzan el fuselaje a la altura del Ø10; los herrajes van
+    # casi todos en la bisagra de los elevones, al 75 % de la cuerda.
+    x, z = ala(est[2][0], 0.25)
+    cosas.append({"id": "manguitos", "nombre": "manguitos Ø12 de las alas desmontables",
+                  "masa_kg": MANGUITOS_KG, "en": [x - 40, 0, z]})
+    x, z = ala(ENVERGADURA * 330, 0.75)
+    cosas.append({"id": "herrajes", "nombre": "bisagras, cuernos, varillas de mando y tornillos",
+                  "masa_kg": HERRAJES_KG, "en": [x, 0, z]})
     cosas.append({"id": "vigas", "nombre": "vigas Ø16 de los rotores", "masa_kg": VIGAS_KG,
                   "en": [(xd - PATA_CUERDA_MM[0] / 2 + xt + CUERDAS_DERIVA[0] * 500) / 2, 0,
                          Z_VIGA * 1000]})
@@ -520,7 +552,7 @@ def dimensionar():
         "masa_kg": {
             ("impreso, pesado en sus STL" if medido else "impreso (LW-PLA, estimado)"):
                 round(impreso, 3),
-            "carbono: largueros y vigas": CARBONO_KG,
+            "carbono (largueros, manguitos y vigas) y herrajes": CARBONO_KG,
             "4 motores de sustentación, variadores y hélices": round(sustentacion, 3),
             "motor de empuje, variador y hélice": round(empuje, 3),
             "controladora, GPS, pitot, receptor y cables": AVIONICA_KG,
@@ -611,7 +643,8 @@ def diseno_mm(r):
         "rotores": {"y": round(ro["y_viga"] * 1000), "x": [round(ro["x_delante"] * 1000),
                                                          round(ro["x_detras"] * 1000)],
                     "viga": 16, "helice": round(ro["helice_vtol_pulg"] * 25.4),
-                    "aletas": True, "motor": [50, 33]},
+                    "aletas": True, "motor": [50, 33],
+                    "empuje_kg": MOTOR_VTOL["empuje_max_kg"]},
         "empuje": {"x": X_EMPUJE_MM, "helice": round(ro["helice_empuje_pulg"] * 25.4)},
         # Bajo la carga, en el centro de gravedad: el lidar en medio y una
         # cámara a cada lado. Estaban en el morro.
@@ -639,6 +672,13 @@ def diseno_mm(r):
         # `tests/test_avion_menos_piezas.py`). La punta levantada sí va pegada
         # al último tramo: él, ese día, «Sí, bájalas»; dos piezas menos.
         "punta_unida": True,
+        # Lo que salió de compararlo con el Stallion de Flightory (2026-11-18):
+        # las alas se desmontan (F13.7 (desmontable); él: «Alas desmontables»),
+        # las juntas se pegan cara con cara (F13.9 (juntas)), los elevones
+        # llevan bisagras, cuerno y frente en V (F13.10 (mandos)), y el pilón
+        # se atornilla al larguero (F13.12 (pilón)).
+        "desmontable": True, "juntas": True, "mandos": {"bisel": 30.0},
+        "pilon_atornillado": True,
         "elevones":[list(e) for e in ELEVONES],
         "dentro": r["dentro"],
         "equilibrio": {"punto_neutro_x": round(r["_x_np_m"] * 1000, 1),
@@ -667,6 +707,20 @@ if __name__ == "__main__":
     # La varilla maciza de Ø2: los dos elevones exteriores y, desde el
     # 2026-11-16, las guías del cuerpo central.
     r["tubos_mm"]["varilla Ø2"] = round(kit_avion.largo_varilla(d), 1)
+    if d.get("desmontable"):
+        r["tubos_mm"]["manguito Ø12"] = round(math.dist(*kit_avion.extremos_manguito(d)), 1)
+        r["tubos_mm"]["pasador Ø6"] = round(math.dist(*kit_avion.extremos_pasador(d)), 1)
+    # Lo que dejan girar las piezas a cada elevón (F13.10 (mandos)): lo usa
+    # el simulador como límite de sus articulaciones.
+    d["mandos"]["recorrido"] = round(min(
+        kit_avion.recorrido_elevon(d, y) for y0, y1, i in kit_avion._tramos_ala(d)
+        if kit_avion._con_elevon(d, y0, y1, i) for y in (y0, y1)), 1)
+    # Lo que trabajan los tubos de carbono (F13.11 (esfuerzos)).
+    e = kit_avion.esfuerzos(d)
+    r["esfuerzos"] = {"n": e["n"], "masa_kg": round(e["masa_kg"], 3),
+                      "flecha_punta_mm_1g": round(e["flecha_punta_mm_1g"], 1),
+                      "tubos": {k: {"mpa": round(v["mpa"], 1), "n_m": round(v["n_m"], 2),
+                                    "donde": v["donde"]} for k, v in e["tubos"].items()}}
     for k in [k for k in r if k.startswith("_")] + ["dentro"]:
         del r[k]
     r["perfiles"] = perfiles()
