@@ -57,13 +57,16 @@ if CAMBIO and not str(P).startswith("/tmp/"):
     print("VERSIÓN de", marcar_version(P.parent.parent, P, AVION, CAMBIO), flush=True)
 D = json.loads(Path("scripts/avion_vtol.json").read_text(encoding="utf-8"))
 DISENO = D["diseno"]
-CAMA = (235, 235, 250)
+# La cama del diseño si la dice (la CORE One L+, 300 × 300 × 330, desde el
+# 2026-11-18); si no, la del perfil del sistema, con la que se cortaron las
+# versiones anteriores.
+CAMA = tuple(DISENO.get("cama", (235, 235, 250)))
 
 PIEZAS = avion.piezas(DISENO)
 if SOLO:
     PIEZAS = [p for p in PIEZAS if p[0] == SOLO]
 
-obra = Obra(titulo="VTOL de ala volante con LiPo 6S y lo comprado en Amazon, a mano y sin modelo",
+obra = Obra(titulo="VTOL de ala volante, a mano y sin modelo",
             nodos=[{"id": i, "nombre": n, "que_hace": q} for i, n, q in PIEZAS])
 O.guardar(P, obra, por="mano")
 if len(PIEZAS) > 1:
@@ -73,15 +76,15 @@ m, c, ro, eq = D["masa_kg"], D["crucero"], D["rotores"], D["equilibrio"]
 rc = D["lo_que_cuestan_los_rotores"]
 (P / "request.md").write_text(
     "VTOL de ala volante, «como el TerraHawk pero mejorado», ligero. **Diseñado a mano por "
-    "el asistente el 2026-11-16, no por el modelo**: las cuentas con AeroSandbox "
+    "el asistente (la primera versión el 2026-11-16; esta, el 2026-11-18), no por el modelo**: las cuentas con AeroSandbox "
     "(`scripts/avion_vtol_dimensionar.py`) y la forma de cada pieza con "
     "`kit.avion_pieza` (`mech_toolkit/avion.py`); cada programa es una línea.\n\n"
     f"- Envergadura {D['envergadura_m']} m, ala de {D['area_alar_m2']} m² con flecha de 25° y "
     "puntas levantadas; perfil MH 78 en el centro y MH 60 en el ala (autoestables).\n"
-    f"- Peso al despegar {m['total']} kg, con {m['carga útil']} kg de carga (dos cámaras y un "
-    f"lidar) y una LiPo {D['bateria']['serie']}S de {D['bateria']['mAh']} mAh "
+    f"- Peso al despegar {m['total']} kg, con {m['carga útil']} kg de carga y una LiPo {D['bateria']['serie']}S de {D['bateria']['mAh']} mAh "
     f"({D['bateria']['Wh']} Wh). Los cuatro rotores levantan {D['vtol']['empuje_sobre_peso']} "
-    "veces su peso.\n"
+    "veces su peso a 1 500 m (Guatemala), con el gas limitado al 65 %: los motores son de "
+    "660 KV con hélice de 15″, que a gas pleno pasarían de vueltas.\n"
     f"- Crucero a {c['velocidad_m_s'] * 3.6:.0f} km/h: L/D {c['L_D']}, {c['potencia_W']} W. "
     f"Autonomía {D['autonomia_h']} h y {D['alcance_km']:.0f} km, con 15 % de reserva y "
     f"{D['vtol']['minutos']:.0f} min de vuelo vertical ({D['vtol']['potencia_W']:.0f} W).\n"
@@ -95,13 +98,16 @@ rc = D["lo_que_cuestan_los_rotores"]
     f"- Centro de gravedad a {eq['cg_x_m'] * 1000:.0f} mm del morro del ala, con la carga y "
     f"sin ella (margen estático del {eq['con_carga']['margen'] * 100:.0f} % y del "
     f"{eq['sin_carga']['margen'] * 100:.0f} %); estable en guiñada (Cn_β = {eq['Cn_beta']}).\n"
-    "- Dentro: la carga (dos cámaras y un lidar) en el centro de gravedad, mirando abajo por "
+    "- Dentro: la carga en el centro de gravedad, mirando abajo por "
     "tres ventanas, para que ponerla o quitarla no lo mueva; la batería justo encima, bajo "
-    "los largueros, en una bandeja; la controladora y el ordenador de a bordo en el morro. "
+    "los largueros, en una bandeja; la controladora (una Pixhawk 1, la suya) en el morro. "
     "Los variadores de sustentación, en las góndolas.\n"
-    "- Dos elevones por lado, cada uno con su servo (cuatro): el interior es un trozo y el "
-    "exterior, dos pegados con una varilla de carbono de Ø2. Los servos van en un hueco por "
-    "debajo del ala, y sus cables por un canal de Ø6 hasta el fuselaje.\n\n"
+    "- Dos elevones por lado, cada uno de una pieza y con su servo MG90D. Los servos van en "
+    "un hueco por debajo del ala, y sus cables por un canal de Ø6 hasta el fuselaje.\n"
+    "- En la cama de 300 × 300 × 330 de la CORE One L+: piezas más grandes y menos. Cada "
+    "góndola lleva debajo su pata (la de delante) o su deriva (la de atrás), de una pieza: "
+    "separadas, la deriva se montaba sobre la góndola. La viga va de la punta de la pata a "
+    "la de la deriva.\n\n"
     "**Se compra en Amazon** (él: «usemos motores y bateria que pueda comprar en amazon»; "
     "elegido por el asistente, con las cifras de cada anuncio, sin medir):\n\n"
     + "".join(f"- {c['cantidad']} × [{c['que']}]({c['url']})\n" for c in D["compras"])
@@ -116,8 +122,8 @@ rc = D["lo_que_cuestan_los_rotores"]
     "batería y por arriba no se puede. Cada hueco de servo lleva su tapa.\n"
     f"- Lo impreso pesa {m.get('impreso, pesado en sus STL', '?')} kg, pesado en sus STL "
     "(`scripts/avion_vtol_masas.py`): las alas (raíces, tramos y elevones) en LW-PLA "
-    "espumado a 0,6 g/cm³ y el resto (cuerpo central, panza, tapas, góndolas, pilones, patas "
-    "y derivas) en PETG de 1,27 g/cm³, con el relleno del perfil.\n\n"
+    "espumado a 0,6 g/cm³ y el resto (cuerpo central, panza, tapas, góndolas con su pata o su "
+    "deriva, y pilones) en PETG de 1,27 g/cm³, con el relleno del perfil.\n\n"
     "**Puntos débiles, sin calcular:** el pilón descarga en la piel de 0,6 mm de LW-PLA (no "
     "hay un refuerzo debajo); los M3 de la panza roscan en PETG de 1,2 mm; la bandeja de la batería "
     "es de 3 mm y aguanta 2,7 kg en los aterrizajes.\n\n"
@@ -128,7 +134,7 @@ rc = D["lo_que_cuestan_los_rotores"]
 hechas, fallos = [], []
 for id_, nombre, _ in PIEZAS:
     t = time.time()
-    codigo = (f"def construir(kit):\n    diseno = {json.dumps(DISENO)}\n"
+    codigo = (f"def construir(kit):\n    diseno = {DISENO!r}\n"
               f"    return kit.avion_pieza(diseno, {id_!r})\n")
     try:
         _lista(P, id_, codigo)
@@ -160,7 +166,7 @@ if not SOLO:
     from tests.test_sondas import PERFIL
     ques = [c["id"] for c in DISENO["dentro"] if c.get("caja")] + ["canal-d", "canal-i"]
     for q in ques:
-        codigo = (f"def construir(kit):\n    diseno = {json.dumps(DISENO)}\n"
+        codigo = (f"def construir(kit):\n    diseno = {DISENO!r}\n"
                   f"    return kit.avion_dentro(diseno, {q!r})\n")
         build_part(Programa(part=q, codigo=codigo), None, P / "dentro" / q,
                    os.environ["FREECADCMD"], perfil=PERFIL)

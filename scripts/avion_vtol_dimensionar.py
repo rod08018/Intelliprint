@@ -17,6 +17,16 @@ Lo que cambia de la primera versión, y por qué:
 - **Los rotores no se pisan**: los discos de las hélices se separan entre sí,
   del ala y del de empuje al menos un 15 % del diámetro de sustentación.
 
+Y el 2026-11-18, al ver 7 kg («me parece irreal el peso del avion no creo
+que vuele», con el TerraHawk y el Flightory de menos de 3 kg), se rehízo con
+lo que él compra, sección a sección, en la lista de compras que aprobó: LiPo
+6S de 10 000 mAh, cuatro 4214 de 660 KV con hélice de 15″ («Usa 600kv y
+helices mas grandes»; el 660 KV es el único de esa franja para 6S que llega
+a Guatemala), el 3115 de 900 KV de empuje con 9″, 300 g de carga y casi una
+hora de vuelo. Vuela a 1 500 m (la Ciudad de Guatemala): el aire pesa un 13 %
+menos que al nivel del mar, y se dimensiona con ese aire. Imprime en una
+CORE One L+ (300 × 300 × 330): menos piezas, más grandes.
+
 Lo escribió el asistente a mano: no es nota del sistema. Las masas por kilo
 de empuje, los rendimientos y la densidad del LW-PLA son estimaciones del
 asistente y van en el informe; la aerodinámica es la de AeroSandbox
@@ -34,59 +44,67 @@ import sys
 import aerosandbox as asb
 import aerosandbox.numpy as np
 
-RHO, G = 1.225, 9.81
-V_CRUCERO = 20.0     # 72 km/h, la del TerraHawk según su captura
-CARGA_KG = float(sys.argv[2]) if len(sys.argv) > 2 else 1.0
+G = 9.81
+# Vuela en la Ciudad de Guatemala (2026-11-18): a 1 500 m el aire pesa
+# 1,058 kg/m³ (atmósfera estándar), no 1,225. Con el del nivel del mar el
+# dimensionado daba un 13 % más de empuje y de sustentación que los que hay.
+ATMOSFERA = asb.Atmosphere(altitude=1500)
+RHO = float(ATMOSFERA.density())
+V_CRUCERO = 19.0     # 68 km/h: el de la lista de compras v4
+CARGA_KG = float(sys.argv[2]) if len(sys.argv) > 2 else 0.3
 
-# --- Lo que se compra (él, el 2026-11-16) -------------------------------------
-# «usemos motores y bateria que pueda comprar en amazon» y «algo de 15k mAh
-# para tener un poco mas de 1 hora de vuelo? o usemos 6s». Antes se buscaba
-# cuántas celdas 21700 daban 3 horas: con el peso real de las piezas eran 54
-# (6S9P, 4,1 kg) y 9,3 kg de avión, y él lo vio ilógico («tiene mas sentido
-# una bateria 4s grandecita»). Ahora la batería y los motores son los de un
-# anuncio y lo que sale es la autonomía. Las cifras son las de cada anuncio,
-# no medidas.
-BATERIA = {"nombre": "batería LiPo 6S 16 000 mAh", "serie": 6, "mAh": 16000, "kg": 1.93,
-           "caja": (203, 82, 70)}         # Tattu Plus 15C, XT90S
-# El 4312 de 400 KV: 3 kg por hélice en 6S con hélices de 15 a 18″, 162 g. Con
-# hélices de 13″ ningún motor de Amazon con cifras daba los 3,3 kg que pedía.
-MOTOR_VTOL = {"empuje_max_kg": 3.0, "kg": 0.162}
-VARIADOR_KG = 0.055                       # 60 A 2–6S; supuesto del asistente
-HELICE_VTOL_KG = 0.021                    # 15 × 5,5 de carbono (Xoar: 21 ± 2 g)
-EMPUJE_KG = 0.18    # 3510 de 600 KV, su variador y la plegable de 10 × 6: supuesto
+# --- Lo que se compra (la lista de compras v4, aprobada el 2026-11-18) ----------
+# Él: «dame los links de todo y debe estar en amazon para yo poder traerlo a
+# guatemala y trata de usar los pesos que dice amazon», «porque no una
+# bateria de 10Ah 6s?», y de los motores de subir, «Usa 600kv y helices mas
+# grandes» y «Con el de 660KV». Las cifras son las de cada anuncio, no
+# medidas; donde el anuncio decía un peso imposible («50 g» para un motor),
+# se dice al lado de dónde sale el otro.
+BATERIA = {"nombre": "batería LiPo 6S 10 000 mAh", "serie": 6, "mAh": 10000, "kg": 1.248,
+           "caja": (161, 66, 48)}         # 161 × 48 × 66 en su anuncio, tumbada
+# El 4214 de 660 KV (copia del iFlight XING 4214): 213 g según las tiendas del
+# XING. A fondo gira la hélice de 15″ a unas 12 000 rpm, más de lo que
+# aguantan ella y los variadores de 40 A: PX4 lo limita al 65 %, donde gira
+# como el MAD 5005 de 440 KV a fondo y empuja lo mismo, 3,0 kg al nivel del
+# mar (tabla de banco de MAD con la misma hélice).
+MOTOR_VTOL = {"empuje_max_kg": 3.0, "kg": 0.213, "limite": 0.65}
+VARIADOR_KG = 0.022                       # MAD AMPX 40A Pro, su anuncio
+HELICE_VTOL_KG = 0.020                    # 15 × 5,5 de carbono, su anuncio
+# DYS X3115 de 900 KV (112 g), Hobbywing Skywalker 60A V2 (68 g) y la Gemfan
+# 9045 tripala (unos 10 g: Amazon no la pesa).
+EMPUJE_KG = 0.19
 EMPUJE_SOBRE_PESO_MINIMO = 1.5   # criterio del asistente: margen para una ráfaga
-# Lo que hay que comprar, con su anuncio. Las cantidades salen del diseño.
+# Lo que hay que comprar, con su anuncio. La controladora no: él ya tiene una
+# Pixhawk 1 (un clon, «px4pilot»).
 COMPRAS = [
-    ("Batería LiPo 6S 16 000 mAh 15C, XT90S (Tattu Plus)", 1,
-     "https://www.amazon.com/Tattu-16000mAh-22-2V-Battery-XT90S/dp/B0C6QRWBGX"),
-    ("Motor 4312 400KV, 3 kg por hélice en 6S (sustentación)", 4,
-     "https://www.amazon.com/Brushless-Thrust-Bearings-Photography-Industrial/dp/B0FD6JMVMB"),
-    ("Hélices 15 × 5,5 de carbono, pares CW + CCW (sustentación)", 2,
-     "https://www.amazon.com/QWINOUT-Propeller-Multicopter-Quadcopter-Hexacopter/dp/B07ZYLX92M"),
-    ("Variador 60 A 2–6S (4 de sustentación y 1 de empuje)", 5,
-     "https://www.amazon.com/Brushless-Controller-RC-Helicopter-Multi-axis/dp/B0FNM5YV9J"),
-    ("Motor 3510 600KV 3–6S (empuje)", 1, "https://www.amazon.com/clp/B0FDR8FW7G"),
-    ("Hélice plegable 10 × 6 con buje para eje de 4 mm (empuje)", 1,
-     "https://www.amazon.com/Folding-Propeller-D38%C3%97H35mm-Diameter-Airplane/dp/B07SG35RGG"),
-    ("Servo de ala KST X10 Mini, 10 mm de grueso (elevones)", 4,
-     "https://www.amazon.com/Servo-Aluminum-Operating-Voltage-Coreless/dp/B0GTLHDGL1"),
-    ("Tubo de carbono 16 × 14 × 1000 mm (vigas de los rotores)", 2,
-     "https://www.amazon.com/WHABEST-1000MM-Glossy-Quadcopter-Hexrcopter/dp/B0777KH429"),
-    ("Tubos de carbono 10 × 8 × 1000 mm, paquete de 2 (larguero delantero)", 1,
-     "https://www.amazon.com/WHABEST-Carbon-Quadcopter-Hexacopter-10x8x1000mm/dp/B08B345NGX"),
-    ("Tubo de carbono 6 × 4 × 1000 mm (larguero trasero)", 2,
-     "https://www.amazon.com/1000MM-carbon-Fiber-surface-Tubing/dp/B07776WJC4"),
-    ("Varilla de carbono maciza redonda de Ø2, de 500 mm (elevones exteriores y guías del "
-     "cuerpo central)", 2,
+    ("LiPo 6S 10 000 mAh 100C, pedirla con XT90", 1, "https://www.amazon.com/dp/B0HBQBDRJM"),
+    ("Motor 4214 660KV X-class, paquete de 4 (sustentación; limitado al 65 % en PX4)", 1,
+     "https://www.amazon.com/dp/B0HQC3FQK1"),
+    ("Hélices de carbono 15 × 5,5″, 2 CW + 2 CCW (sustentación)", 2,
+     "https://www.amazon.com/dp/B0B3V5F7C2"),
+    ("Variador MAD AMPX 40A Pro 2–6S (sustentación)", 4, "https://www.amazon.com/dp/B082W7ZHZ5"),
+    ("Motor DYS X3115 900KV, paquete de 4 (empuje)", 1, "https://www.amazon.com/dp/B0G3FBRBP4"),
+    ("Hélices Gemfan 9045 tripala, 2 CW + 2 CCW (empuje)", 1,
+     "https://www.amazon.com/dp/B0BM91PDTQ"),
+    ("Variador Hobbywing Skywalker 60A V2 (empuje; su BEC alimenta los servos)", 1,
+     "https://www.amazon.com/dp/B0DQD7W8V8"),
+    ("Módulo de potencia para Pixhawk, 30 V / 90 A", 1, "https://www.amazon.com/dp/B0BCJM3R5P"),
+    ("Conectores XT90-S antichispa, 5 pares", 1, "https://www.amazon.com/dp/B0HDRYTGP5"),
+    ("Cable de silicona 10 AWG, 10 ft", 1, "https://www.amazon.com/dp/B0D968WN4W"),
+    ("Cable de silicona 12 AWG, 10 ft", 1, "https://www.amazon.com/dp/B0D968VXCT"),
+    ("Extensiones de servo de 30 cm, 10 piezas", 1, "https://www.amazon.com/dp/B01LA9YDEI"),
+    ("GPS M8N con brújula (JeeFly)", 1, "https://www.amazon.com/dp/B0FLV6RTY1"),
+    ("Sensor de velocidad (pitot digital)", 1, "https://www.amazon.com/dp/B01J7NCML0"),
+    ("Servo MG90D digital, engranes de metal, 4 piezas (elevones)", 1,
+     "https://www.amazon.com/dp/B0D5YBL2JX"),
+    ("Tubo de carbono 16 × 12 × 1000 mm (vigas de los rotores)", 2,
+     "https://www.amazon.com/dp/B09Q7Y1ZWJ"),
+    ("Tubo de carbono 10 × 8 × 1000 mm (larguero delantero, uno por ala)", 2,
+     "https://www.amazon.com/dp/B09QLFGBN3"),
+    ("Tubos de carbono 6 × 4 × 1000 mm, paquete de 6 (larguero trasero)", 1,
+     "https://www.amazon.com/dp/B0GWYYKDCS"),
+    ("Varilla de carbono maciza redonda de Ø2, de 500 mm (guías del cuerpo central)", 1,
      "https://www.amazon.com/s?k=carbon+fiber+rod+2mm+round+500mm"),
-    ("Pixhawk 6C con módulo de potencia PM02 y GPS M10", 1,
-     "https://www.amazon.com/Controller-High-Performance-STM32H743-Processor-Pre-Installed/dp/B0H4RCG8WG"),
-    ("Sensor de velocidad MS4525DO con tubo pitot", 1,
-     "https://www.amazon.com/MS4525DO-Airspeed-Differential-Pressure-Monitoring/dp/B0H2GVVF3K"),
-    ("Radio de telemetría SiK V3 (915 o 433 MHz, la legal en su país)", 1,
-     "https://www.amazon.com/Holybro-Telemetry-Open-Source-Plug-N-Play-Controller/dp/B0HNBJHVBC"),
-    ("Raspberry Pi 5 de 8 GB con disipador activo", 1,
-     "https://www.amazon.com/Raspberry-Basic-Including-Active-Cooler/dp/B0CX19SV2N"),
 ]
 
 # --- Supuestos del asistente (no medidos) ------------------------------------
@@ -103,45 +121,54 @@ IMPRESO_MEDIDO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "avion
 
 
 def impreso_medido():
-    """{masa_kg, centro_mm, proyecto} de lo pesado, o None si no se ha pesado."""
-    if not os.path.exists(IMPRESO_MEDIDO):
+    """{masa_kg, centro_mm, proyecto} de lo pesado, o None si no se ha pesado.
+    Con IMPRESO_ESTIMADO=1, None: la primera vuelta de un avión nuevo, cuyas
+    piezas aún no existen (lo pesado es del de antes)."""
+    if os.environ.get("IMPRESO_ESTIMADO") or not os.path.exists(IMPRESO_MEDIDO):
         return None
     with open(IMPRESO_MEDIDO, encoding="utf-8") as f:
         return json.load(f)
-CDA_ROTORES_M2 = 0.006          # cuatro hélices paradas en línea y sus motores
-# Controladora, ordenador de a bordo (una Raspberry Pi 5 con disipador:
-# la pidió él el 2026-11-16), GPS, telemetría, receptor y cables.
-AVIONICA_KG = 0.31
-SERVOS_KG = 4 * 0.025            # cuatro servos finos de ala, uno por elevón
-LARGUEROS_KG, VIGAS_KG = (0.06, 0.03), 0.09   # Ø10 y Ø6; las dos vigas Ø16
+# Cuatro hélices de 15″ paradas en línea, sus motores y las vigas de casi un
+# metro: algo más que con las de 13″ (0,006).
+CDA_ROTORES_M2 = 0.007
+# La Pixhawk 1 que ya tiene (38 g, los de la original), GPS, pitot, módulo de
+# potencia, receptor y unos 160 g de cables y conectores: la lista de compras.
+AVIONICA_KG = 0.291
+SERVOS_KG = 4 * 0.0135           # MG90D, su anuncio
+# Ø10 (31 g el metro, su anuncio) y Ø6 (calculado); las dos vigas de 16 × 12,
+# 136 g el metro de tubo (calculado: Amazon no lo da), contadas enteras.
+LARGUEROS_KG, VIGAS_KG = (0.062, 0.036), 0.272
 CARBONO_KG = sum(LARGUEROS_KG) + VIGAS_KG
 
 # --- Lo de dentro (mm): cajas que ocupan sitio -----------------------------------
-# La LiPo de 203 × 82 × 70 de su anuncio, con 2 mm de espuma por cada lado de
-# los de abajo y de los lados. Era la 6S6P de 21700, de 210 × 130 × 46.
+# La LiPo de 161 × 48 × 66 de su anuncio, tumbada (66 de ancho y 48 de alto:
+# así el fuselaje es más bajo), con 2 mm de espuma por cada lado de los de
+# abajo y de los lados.
 CAJA_BATERIA = (BATERIA["caja"][0] + 3, BATERIA["caja"][1] + 4, BATERIA["caja"][2] + 2)
-CAJA_CARGA = (160, 80, 50)       # dos cámaras y un lidar, en su bandeja
-# La controladora y la Raspberry Pi una detrás de otra. Con 110 × 70 en
-# x = -60 se salía del morro, que ahí mide 112 × 92 por dentro (cuentas del
-# 2026-11-16).
-CAJA_ELECTRONICA = (120, 60, 40)
-X_ELECTRONICA = -20
+CAJA_CARGA = (120, 60, 40)       # 300 g: dos cámaras pequeñas y un lidar ligero
+# La controladora (la Pixhawk 1 mide 82 × 50 × 16) con el receptor y el
+# módulo de potencia; sigue cabiendo una Raspberry Pi detrás, que él pidió
+# el 2026-11-16 y la lista de compras v4 no lleva.
+CAJA_ELECTRONICA = (110, 55, 35)
+X_ELECTRONICA = 10
 # Entra por la panza y se empuja hacia delante: tiene que pasar bajo el
 # larguero de Ø10 (z = -4,5 en el centro, menos 5, menos 1 de aire: -10,5).
 # En -28 su techo quedaba en -8 y no pasaba
 # (`test_la_electronica_entra_por_la_panza_y_se_desliza_hasta_su_sitio`).
 Z_ELECTRONICA = -33
-# El KST X10 Mini, tumbado: 30 × 10 × 30 según su anuncio, y las orejas de
-# los tornillos a lo largo del ala (supuesto del asistente hasta tenerlo en la
-# mano). Era una caja de 24 × 34 de un servo cualquiera.
-CAJA_SERVO = (31, 38, 10)
+# El MG90D, tumbado: 22,8 × 12,2 × 28,5 y 32,5 con las orejas (las medidas
+# del MG90 de siempre), con las orejas a lo largo del ala. Era el KST X10
+# Mini, de 10 mm de grueso.
+CAJA_SERVO = (30, 34, 13)
 # Dos elevones por lado, cada uno con su servo (él, el 2026-11-16: «debe
-# tener alerones, implica que debe tener 4 servos»). Por tramos de ala: el
-# interior es el 3 (570–730 mm) y el exterior, el 4 y el 5 pegados
-# (730–1050), que reparten la superficie entre los dos servos (7 000 y
-# 11 300 mm²); si uno falla, el avión sigue gobernable.
-ELEVONES = ((3,), (4, 5))
-SERVO_Y = (650, 850)             # cada servo, dentro de un tramo y en su elevón
+# tener alerones, implica que debe tener 4 servos»). Con la cama grande cada
+# elevón es un tramo de ala entero, de una pieza: el interior, el 2, y el
+# exterior, el 3. Si un servo falla, el avión sigue gobernable.
+ELEVONES = ((2,), (3,))
+SERVO_Y = (520, 735)             # cada servo, dentro de su tramo y en su elevón
+TRAMO_MAX_MM = 220.0             # de pie en la cama de 300 × 300 × 330
+CELDA_RAIZ_MM = 270.0
+CAMA_MM = (300, 300, 330)        # la CORE One L+
 # El margen estático que se acepta, con carga y sin ella. Un ala volante
 # vuela con poco (un 5–10 %); por debajo del 5 % se vuelve nerviosa y
 # pasado el punto neutro, inestable (criterio del asistente).
@@ -150,21 +177,25 @@ SERVO_CUERDA = 0.42              # entre los dos largueros (25 % y 60 %)
 # El techo de la batería: 3 mm bajo el larguero de Ø6, que cruza el fuselaje
 # a z ≈ -7 (el de Ø10, más adelante, a -4,5).
 Z_TECHO_BATERIA = -13
-MEDIO_GONDOLA = 40               # el de `avion.MEDIO_LARGO_GONDOLA`
-X_EMPUJE_MM = 720
+X_EMPUJE_MM = 610
 
 # --- La forma (m), x hacia atrás, y a la derecha, z arriba ----------------------
-ENVERGADURA = 2.10
+ENVERGADURA = 1.72           # sin las puntas levantadas
 FLECHA_GRADOS = 25.0
-Y_VIGA = 0.38
-HELICE_VTOL_PULG = 15        # la del motor de Amazon (de 15 a 18″); eran 13
-HELICE_EMPUJE_PULG = 10      # el crucero pide 4,4 N: sobra
+# La viga, tan cerca del fuselaje como deja la hélice de empuje: entre su
+# disco y el de un rotor trasero, el 15 % del diámetro de sustentación
+# (0,365 − 0,1905 − 0,1143 = 0,060 ≥ 0,057).
+Y_VIGA = 0.365
+HELICE_VTOL_PULG = 15        # la de la lista de compras, para el 4214 de 660 KV
+HELICE_EMPUJE_PULG = 9       # la Gemfan 9045
 Z_FUSELAJE = -0.02           # el eje del fuselaje y de la hélice de empuje
 # La viga va donde la pone el kit, justo bajo el ala. Las derivas y las patas
 # son el tren de aterrizaje: con 130 mm la hélice de empuje bajaba 5 mm más
 # que ellas y tocaba el suelo al posarse (cuentas del 2026-11-16); se alargan
-# hasta dejarle 30 mm.
-X_DERIVA, Z_VIGA = 0.72, -0.012
+# hasta dejarle 30 mm. La deriva va colgada de la góndola de atrás y centrada
+# en su motor (`avion._gondola_con_aleta`): su x sale de los rotores.
+Z_VIGA = -0.012
+PATA_CUERDA_MM = (90, 60)
 # El alto de las derivas (m) sale de pedirles estabilidad de guiñada:
 # Cn_beta de 0,001 por grado o más respecto al centro de gravedad, el borde
 # bajo de lo típico en un avión ligero (criterio del asistente). Se calculaba
@@ -175,7 +206,13 @@ X_DERIVA, Z_VIGA = 0.72, -0.012
 # a 0,076 (AeroSandbox, ese día). El alto mínimo es el del tren: 30 mm de la
 # hélice de empuje al suelo. Más alto, también las patas.
 CN_BETA_MINIMO = 0.001 * 180 / math.pi
-CUERDAS_DERIVA = (0.15, 0.09)
+# Más cortas que las de 150 y 90: con la deriva centrada en el motor de atrás,
+# la viga va de la punta de la pata a la de la deriva y no pasa del metro del
+# tubo que se compra.
+CUERDAS_DERIVA = (0.13, 0.08)
+# Donde empieza la deriva: la primera vuelta la supone; `dimensionar` la pone
+# centrada en el motor de atrás en cuanto sabe dónde va.
+X_DERIVA = 0.66
 HUECO_SUELO = 0.03
 ALTO_DERIVA = round(Z_VIGA - (Z_FUSELAJE - HELICE_EMPUJE_PULG * 0.0254 / 2 - HUECO_SUELO), 3)
 DERIVA = (*CUERDAS_DERIVA, ALTO_DERIVA)
@@ -190,25 +227,33 @@ DERIVA = (*CUERDAS_DERIVA, ALTO_DERIVA)
 # va la carga, con el techo donde estaba. Solo ahí: bajándolo desde x = 180
 # la unión del ala con el fuselaje del cuerpo central 2 volaba 5,4 mm y pedía
 # soportes (2026-11-16).
-FUSELAJE = ((-0.22, 0.02, 0.02, -0.02), (-0.14, 0.11, 0.09, -0.02), (0.0, 0.15, 0.13, -0.03),
-            (0.18, 0.16, 0.18, -0.05), (0.24, 0.16, 0.20, -0.06), (0.40, 0.16, 0.20, -0.06),
-            (0.60, 0.09, 0.08, -0.02),
-            (0.72, 0.04, 0.04, -0.02))
+#
+# El 2026-11-18, con la LiPo de 10 Ah (164 × 70 × 50 con su espuma) y la carga
+# de 300 g (120 × 60 × 40), el fuselaje es más corto y más estrecho: de 0,94 m
+# a 0,76 y de 160 mm de ancho a 130.
+FUSELAJE = ((-0.15, 0.02, 0.02, -0.02), (-0.08, 0.09, 0.08, -0.02), (0.02, 0.12, 0.11, -0.03),
+            (0.17, 0.13, 0.16, -0.05), (0.22, 0.13, 0.17, -0.055), (0.38, 0.13, 0.17, -0.055),
+            (0.53, 0.08, 0.07, -0.02),
+            (0.61, 0.04, 0.04, -0.02))
 
 
 def estaciones(torsion_punta):
-    """(y, x del borde de ataque, z, cuerda, torsión, perfil)."""
+    """(y, x del borde de ataque, z, cuerda, torsión, perfil).
+
+    El 2026-11-18: 1,72 m sin las puntas (eran 2,10) y cuerdas mayores, para
+    unos 0,5 m² de ala: con 4,5 kg y el aire de 1 500 m entra en pérdida a
+    unos 13 m/s (con CL máx. 1,0). Más corta, con menos tramos."""
     y_punta = ENVERGADURA / 2
-    x_punta = 0.19 + (y_punta - 0.25) * math.tan(math.radians(FLECHA_GRADOS))
+    x_punta = 0.17 + (y_punta - 0.22) * math.tan(math.radians(FLECHA_GRADOS))
     # La última sube 40°: la punta levantada del TerraHawk. Una aleta vertical
     # no se imprime de pie sobre la cara de la raíz del tramo; esta sí.
     sube = 0.085
-    return [(0.00, 0.00, 0.000, 0.62, 2.0, "mh78"),
-            (0.20, 0.17, 0.000, 0.28, 1.0, "mh60"),
-            (0.25, 0.19, 0.005, 0.23, 0.0, "mh60"),
-            (y_punta, x_punta, 0.050, 0.12, torsion_punta, "mh60"),
+    return [(0.00, 0.00, 0.000, 0.56, 2.0, "mh78"),
+            (0.17, 0.15, 0.000, 0.33, 1.0, "mh60"),
+            (0.22, 0.17, 0.005, 0.30, 0.0, "mh60"),
+            (y_punta, x_punta, 0.045, 0.16, torsion_punta, "mh60"),
             (y_punta + sube, x_punta + sube * math.tan(math.radians(FLECHA_GRADOS)) + 0.02,
-             0.050 + sube * math.tan(math.radians(40)), 0.08, torsion_punta, "mh60")]
+             0.045 + sube * math.tan(math.radians(40)), 0.11, torsion_punta, "mh60")]
 
 
 def avion(torsion_punta, x_cg=0.0, deriva=DERIVA):
@@ -238,7 +283,7 @@ def _num(x):
 
 
 def aero(aeronave, alfa):
-    r = asb.AeroBuildup(airplane=aeronave, op_point=asb.OperatingPoint(
+    r = asb.AeroBuildup(airplane=aeronave, op_point=asb.OperatingPoint(atmosphere=ATMOSFERA,
         velocity=V_CRUCERO, alpha=alfa)).run()
     return {k: _num(r[k]) for k in ("L", "D", "CL", "CD", "Cm")}
 
@@ -258,7 +303,7 @@ def equilibrado(peso, margen=0.07, deriva=DERIVA):
     for torsion in np.linspace(0, -8, 17):
         aeronave, ala = avion(float(torsion), deriva=deriva)
         alfa = alfa_que_sustenta(aeronave, peso)
-        est = asb.AeroBuildup(airplane=aeronave, op_point=asb.OperatingPoint(
+        est = asb.AeroBuildup(airplane=aeronave, op_point=asb.OperatingPoint(atmosphere=ATMOSFERA,
             velocity=V_CRUCERO, alpha=alfa)).run_with_stability_derivatives()
         x_np = _num(est["x_np"])
         x_cg = x_np - margen * ala.mean_aerodynamic_chord()
@@ -271,7 +316,7 @@ def equilibrado(peso, margen=0.07, deriva=DERIVA):
     # respecto a la referencia del avión, que arriba es el morro (x = 0). Así
     # se calculó hasta el 2026-11-16 y salía 0,0555 en vez de 0,0156.
     aeronave, _ = avion(mejor["torsion"], mejor["x_cg"], deriva)
-    est = asb.AeroBuildup(airplane=aeronave, op_point=asb.OperatingPoint(
+    est = asb.AeroBuildup(airplane=aeronave, op_point=asb.OperatingPoint(atmosphere=ATMOSFERA,
         velocity=V_CRUCERO, alpha=mejor["alfa"])).run_with_stability_derivatives()
     mejor["Cn_beta"] = _num(est["Cnb"])
     return mejor
@@ -293,18 +338,24 @@ def derivas_que_estabilizan(peso):
 def rotores(x_cg, ala, alto_deriva=ALTO_DERIVA):
     """Dónde van los cuatro motores de sustentación y el de empuje. Los discos
     no pisan el ala (el soplo del rotor contra el ala resta empuje) ni se
-    pisan entre sí: un 15 % del diámetro de sustentación de hueco."""
+    pisan entre sí: un 15 % del diámetro de sustentación de hueco entre
+    discos, y un 5 % entre un disco y el ala.
+
+    Del ala eran también el 15 %: con hélices de 15″ y la cuerda de esta
+    ala, la viga pedía 1 059 mm y el tubo que se compra mide 1 000
+    (2026-11-18). Con el 5 % (19 mm) el disco sigue sin pisar el ala."""
     rv = HELICE_VTOL_PULG * 0.0254 / 2
     re = HELICE_EMPUJE_PULG * 0.0254 / 2
     hueco = 0.15 * 2 * rv
+    hueco_ala = 0.05 * 2 * rv
     y, x, _, c, _, _ = estaciones(0)[2]
     y1, x1, _, c1, _, _ = estaciones(0)[3]
     t = (Y_VIGA - y) / (y1 - y)
     le, cu = x + (x1 - x) * t, c + (c1 - c) * t
-    delante = le - rv - hueco
-    detras = le + cu + rv + hueco
+    delante = le - rv - hueco_ala
+    detras = le + cu + rv + hueco_ala
     d = max(x_cg - delante, detras - x_cg)      # iguales respecto al centro de gravedad
-    x_empuje = 0.62 + 0.10                      # tras el borde de salida del centro
+    x_empuje = X_EMPUJE_MM / 1000               # tras la cola del fuselaje
     hueco_empuje = Y_VIGA - rv - re
     return {"y_viga": Y_VIGA, "x_delante": x_cg - d, "x_detras": x_cg + d,
             "x_empuje": x_empuje, "helice_vtol_pulg": HELICE_VTOL_PULG,
@@ -367,11 +418,12 @@ def dentro(r):
               "masa_kg": m["impreso"],
               "en": [ci[0] * 1000, 0, ci[1] * 1000]}]
     for (f, mk), nombre in zip(zip((0.25, 0.6), LARGUEROS_KG), ("Ø10", "Ø6")):
-        x, z = ala(505, f)   # de y = -20 a casi la punta: su mitad
+        x, z = ala(ENVERGADURA * 250, f)   # de y = -20 a casi la punta: su mitad
         cosas.append({"id": f"larguero-{nombre}", "nombre": f"largueros {nombre}", "masa_kg": mk,
                       "en": [x, 0, z]})
     cosas.append({"id": "vigas", "nombre": "vigas Ø16 de los rotores", "masa_kg": VIGAS_KG,
-                  "en": [(xd - MEDIO_GONDOLA + X_DERIVA * 1000 + 150) / 2, 0, Z_VIGA * 1000]})
+                  "en": [(xd - PATA_CUERDA_MM[0] / 2 + xt + CUERDAS_DERIVA[0] * 500) / 2, 0,
+                         Z_VIGA * 1000]})
     for lado, s in (("d", 1), ("i", -1)):
         for donde, x in (("delante", xd), ("detras", xt)):
             cosas.append({"id": f"motor-{lado}-{donde}",
@@ -380,7 +432,7 @@ def dentro(r):
     cosas += [{"id": "motor-empuje", "nombre": "motor y hélice de empuje",
                "masa_kg": 0.8 * m["empuje"], "en": [X_EMPUJE_MM + 15, 0, Z_FUSELAJE * 1000]},
               {"id": "variador-empuje", "nombre": "variador del motor de empuje",
-               "masa_kg": 0.2 * m["empuje"], "en": [600, 0, Z_FUSELAJE * 1000]},
+               "masa_kg": 0.2 * m["empuje"], "en": [X_EMPUJE_MM - 60, 0, Z_FUSELAJE * 1000]},
               {"id": "electronica", "nombre": "controladora, ordenador de a bordo, GPS, "
                "telemetría y receptor", "masa_kg": AVIONICA_KG, "en": [X_ELECTRONICA, 0, Z_ELECTRONICA],
                "caja": list(CAJA_ELECTRONICA)}]
@@ -424,14 +476,26 @@ def dimensionar():
     sustentacion = 4 * (MOTOR_VTOL["kg"] + VARIADOR_KG + HELICE_VTOL_KG)
     empuje = EMPUJE_KG
     masa = impreso + AVIONICA_KG + SERVOS_KG + CARBONO_KG + CARGA_KG + bateria + sustentacion + empuje
-    empuje_sobre_peso = 4 * MOTOR_VTOL["empuje_max_kg"] / masa
+    # A 1 500 m una hélice empuja lo que su aire pesa: un 13 % menos.
+    empuje_sobre_peso = 4 * MOTOR_VTOL["empuje_max_kg"] * RHO / 1.225 / masa
     if empuje_sobre_peso < EMPUJE_SOBRE_PESO_MINIMO:
         raise SystemExit(f"los cuatro rotores dan {4 * MOTOR_VTOL['empuje_max_kg']:g} kg y el "
                          f"avión pesa {masa:.2f}: {empuje_sobre_peso:.2f} veces su peso, menos "
                          f"de {EMPUJE_SOBRE_PESO_MINIMO}")
     peso = masa * G
+    # La deriva cuelga de la góndola de atrás, centrada en su motor; el motor
+    # va donde lo pone el centro de gravedad, que la deriva mueve un poco.
+    global X_DERIVA
     deriva = derivas_que_estabilizan(peso)
     eq = equilibrado(peso, deriva=deriva)
+    for _ in range(3):
+        _, ala = avion(eq["torsion"], eq["x_cg"], deriva)
+        x_deriva = rotores(eq["x_cg"], ala, deriva[2])["x_detras"] - CUERDAS_DERIVA[0] / 2
+        if abs(x_deriva - X_DERIVA) < 0.003:
+            break
+        X_DERIVA = x_deriva
+        deriva = derivas_que_estabilizan(peso)
+        eq = equilibrado(peso, deriva=deriva)
     aeronave, ala = avion(eq["torsion"], eq["x_cg"], deriva)
     a = aero(aeronave, eq["alfa"])
     resistencia = a["D"] + 0.5 * RHO * V_CRUCERO ** 2 * CDA_ROTORES_M2
@@ -458,8 +522,8 @@ def dimensionar():
                 round(impreso, 3),
             "carbono: largueros y vigas": CARBONO_KG,
             "4 motores de sustentación, variadores y hélices": round(sustentacion, 3),
-            "motor de empuje, variador y hélice plegable": round(empuje, 3),
-            "controladora, ordenador de a bordo, GPS, telemetría y cables": AVIONICA_KG,
+            "motor de empuje, variador y hélice": round(empuje, 3),
+            "controladora, GPS, pitot, receptor y cables": AVIONICA_KG,
             "cuatro servos de los elevones": SERVOS_KG,
             "carga útil": CARGA_KG,
             BATERIA["nombre"]: round(bateria, 3),
@@ -536,17 +600,39 @@ def diseno_mm(r):
                      for x, w, h, z in FUSELAJE],
         "z_fuselaje": round(Z_FUSELAJE * 1000),
         "largueros": [[0.25, 10], [0.6, 6]],
-        "elevon": [650, 0.75],
+        # Los elevones, en los tramos con el centro de 500 mm en adelante.
+        "elevon": [500, 0.75],
         "deriva": {"x": round(X_DERIVA * 1000),
                    "cuerda": [round(c * 1000) for c in r["_deriva_m"][:2]],
                    "alto": round(r["_deriva_m"][2] * 1000)},
+        "pata": {"cuerda": list(PATA_CUERDA_MM)},
+        # La pata y la deriva van en las góndolas (`avion._gondola_con_aleta`).
+        # El motor, el iFlight XING 4214: Ø50 × 33 según las tiendas.
         "rotores": {"y": round(ro["y_viga"] * 1000), "x": [round(ro["x_delante"] * 1000),
                                                          round(ro["x_detras"] * 1000)],
-                    "viga": 16, "helice": round(ro["helice_vtol_pulg"] * 25.4)},
-        "empuje": {"x": 720, "helice": round(ro["helice_empuje_pulg"] * 25.4)},
+                    "viga": 16, "helice": round(ro["helice_vtol_pulg"] * 25.4),
+                    "aletas": True, "motor": [50, 33]},
+        "empuje": {"x": X_EMPUJE_MM, "helice": round(ro["helice_empuje_pulg"] * 25.4)},
         # Bajo la carga, en el centro de gravedad: el lidar en medio y una
         # cámara a cada lado. Estaban en el morro.
-        "ventanas": [[x_cg - 62, 40, 34], [x_cg, 70, 60], [x_cg + 62, 40, 34]],
+        "ventanas": [[x_cg - 42, 30, 26], [x_cg, 50, 44], [x_cg + 42, 30, 26]],
+        # Las quillas bajo la bandeja, a los lados de la carga de 60 de ancho
+        # y dentro de la bandeja (71): a 42, como con la LiPo de 86, quedaban
+        # fuera de ella.
+        "quilla_y": 33,
+        # Celdas de 210 y no de 200: el corte que esquiva el borde de ataque
+        # (en x = −5) dejaba la segunda de 235, más del 15 % de 200 (el kit no
+        # la corta; primera vuelta del 2026-11-18). Con 290 una celda llevaba
+        # el borde de ataque y la boca de la panza, y pedía soportes.
+        "cama": list(CAMA_MM), "tramo_max": TRAMO_MAX_MM, "celda_raiz": CELDA_RAIZ_MM,
+        "celda_fuselaje": 210,
+        # Y cortadas a mano: el borde de ataque del centro va a 41° (de x = 0
+        # en y = 0 a 150 en y = 170) y la celda que lo llevaba, de pie sobre
+        # su corte de delante, pedía soportes en su morro. Detrás de él (en
+        # 105) se imprime sobre su cara de atrás; 230 y 420 parten la boca de
+        # la panza (de 156 a 324) como en las celdas que ya se imprimían.
+        "cortes_fuselaje": [round(FUSELAJE[0][0] * 1000), 105, 230, 420,
+                            round(FUSELAJE[-1][0] * 1000)],
         "elevones": [list(e) for e in ELEVONES],
         "dentro": r["dentro"],
         "equilibrio": {"punto_neutro_x": round(r["_x_np_m"] * 1000, 1),
@@ -571,7 +657,7 @@ if __name__ == "__main__":
     r["tubos_mm"] = {f"larguero Ø{di}": round(math.dist(*kit_avion.extremos_larguero(d, f, di)), 1)
                      for f, di in d["largueros"]}
     ro = d["rotores"]
-    r["tubos_mm"][f"viga Ø{ro['viga']}"] = ro["x"][1] - ro["x"][0] + 2 * kit_avion.MEDIO_LARGO_GONDOLA
+    r["tubos_mm"][f"viga Ø{ro['viga']}"] = round(kit_avion.extremos_viga(d)[1] - kit_avion.extremos_viga(d)[0], 1)
     # La varilla maciza de Ø2: los dos elevones exteriores y, desde el
     # 2026-11-16, las guías del cuerpo central.
     r["tubos_mm"]["varilla Ø2"] = round(kit_avion.largo_varilla(d), 1)

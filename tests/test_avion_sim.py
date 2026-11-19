@@ -103,8 +103,15 @@ def test_el_tensor_de_inercia_es_fisico(modelo):
     t = modelo.tensor
     assert np.all(np.linalg.eigvalsh(t) > 0)
     ixx, iyy, izz = np.diag(t)
-    # Un ala: alabear cuesta más que cabecear, y guiñar lo que los dos juntos.
-    assert ixx > iyy and izz == pytest.approx(ixx + iyy, rel=0.25)
+    # Casi plano: guiñar cuesta lo que alabear y cabecear juntos. Que alabear
+    # costara más que cabecear valía para el ala de 2,27 m; la de 1,89 m del
+    # 2026-11-18 lleva los motores a 427 mm del CG por delante y por detrás y
+    # a 365 de lado, y solo ellos ponen, a mano, 4 · 0,255 · 0,427² = 0,186
+    # kg·m² en cabeceo y 0,136 en alabeo. Lo de cualquier cuerpo: ningún
+    # momento principal pasa de la suma de los otros dos.
+    a, b, c = np.linalg.eigvalsh(t)
+    assert c <= a + b
+    assert izz == pytest.approx(ixx + iyy, rel=0.25)
 
 
 def test_los_rotores_de_px4_van_donde_en_el_dibujo():
@@ -113,8 +120,9 @@ def test_los_rotores_de_px4_van_donde_en_el_dibujo():
     texto = G.airframe(R)
     d = float(R["rotores"]["x_delante"]) * 1000
     t = float(R["rotores"]["x_detras"]) * 1000
-    esperados = {0: (CG[0] - d, 380), 1: (CG[0] - t, -380), 2: (CG[0] - d, -380),
-                 3: (CG[0] - t, 380)}
+    y = float(R["rotores"]["y_viga"]) * 1000
+    esperados = {0: (CG[0] - d, y), 1: (CG[0] - t, -y), 2: (CG[0] - d, -y),
+                 3: (CG[0] - t, y)}
     for n, (px, py) in esperados.items():
         assert f"CA_ROTOR{n}_PX {px / 1000:.4f}" in texto
         assert f"CA_ROTOR{n}_PY {py / 1000:.4f}" in texto
@@ -289,6 +297,23 @@ def test_el_airframe_mezcla_los_cuatro_elevones():
         assert f"CA_SV_CS{n}_TRQ_R {alabeo}" in texto
         assert f"CA_SV_CS{n}_TRQ_P 0.5" in texto
         assert f"SIM_GZ_SV_FUNC{n + 1} {201 + n}" in texto
+
+
+def test_con_aletas_las_patas_son_las_gondolas():
+    """Desde el 2026-11-18 la pata y la deriva van pegadas bajo su góndola
+    (`avion._gondola_con_aleta`) y no hay piezas «pata» ni «deriva»: sin
+    contarlas, el avión de Gazebo no tendría tren y caería por el suelo."""
+    impreso = {"centro-3": IMPRESO["centro-3"]}
+    for k, (x, y) in enumerate([(-90, 380), (-90, -380), (710, 380), (710, -380)]):
+        lado = "d" if y > 0 else "i"
+        sitio = "delante" if x < 0 else "detras"
+        impreso[f"gondola-{lado}-{sitio}"] = _triangulo([x, y, -150 - k], [x + 1, y, 10],
+                                                       [x, y + 1, 10])
+    r = json.loads(json.dumps(R))
+    r["diseno"]["rotores"]["aletas"] = True
+    m = G.Modelo(r, AERO, impreso)
+    assert sorted(round(p[2], 3) for p in m.patas) == pytest.approx(
+        sorted((-150 - k - CG[2]) / 1000 for k in range(4)), abs=1e-3)
 
 
 def test_el_avion_aparece_apoyado_en_sus_patas(modelo):

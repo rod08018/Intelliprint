@@ -40,12 +40,15 @@ def _stl(ruta, triangulos):
 
 
 def test_el_dimensionado_cuenta_lo_pesado_de_todas_las_piezas():
-    """El JSON del dimensionado lleva lo que pesaron las 44 piezas, no su
-    estimación de piel por área."""
+    """El JSON del dimensionado lleva lo que pesaron todas sus piezas (44 hasta
+    el 2026-11-17; menos y más grandes desde que el diseño dice su cama), no
+    su estimación de piel por área."""
     import json
+
+    from mech_toolkit import avion
     pesado = json.loads((RAIZ / "scripts" / "avion_vtol_impreso.json").read_text(encoding="utf-8"))
     dim = json.loads((RAIZ / "scripts" / "avion_vtol.json").read_text(encoding="utf-8"))
-    assert pesado["piezas_contadas"] == 44
+    assert pesado["piezas_contadas"] == len(avion.piezas(dim["diseno"]))
     assert dim["masa_kg"]["impreso, pesado en sus STL"] == pytest.approx(pesado["masa_kg"], abs=1e-3)
     assert dim["impreso_pesado_en"] == pesado["proyecto"]
 

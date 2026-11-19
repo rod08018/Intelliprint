@@ -56,6 +56,9 @@ def _deriva(r):
     dimensionado, en m: crecen de alto hasta dar la estabilidad de guiñada
     que se les pide (`D.CN_BETA_MINIMO`)."""
     de = r["diseno"]["deriva"]
+    # Y dónde empieza: desde el 2026-11-18 cuelga de la góndola de atrás y su
+    # x sale del dimensionado, no de una constante.
+    D.X_DERIVA = de["x"] / 1000
     return (*(c / 1000 for c in de["cuerda"]), de["alto"] / 1000)
 
 
@@ -68,7 +71,7 @@ def avion(r, desvio=None):
     grupos = r["diseno"]["elevones"]
     tramos = []   # los y donde empieza y acaba cada elevón, de los tramos del kit
     y0, y1 = est[2][0], est[3][0]
-    n = math.ceil((y1 - y0) * 1000 / 160 - 1e-9)
+    n = math.ceil((y1 - y0) * 1000 / r["diseno"].get("tramo_max", 160) - 1e-9)
     cortes = [y0 + (y1 - y0) * k / n for k in range(n + 1)]
     for g in grupos:
         tramos.append((cortes[g[0] - 1], cortes[g[-1]]))
@@ -122,7 +125,7 @@ def perdida_del_plugin(cl0, cla, clmax):
 
 
 def correr(aeronave, alfa, **giros):
-    return asb.AeroBuildup(airplane=aeronave, op_point=asb.OperatingPoint(
+    return asb.AeroBuildup(airplane=aeronave, op_point=asb.OperatingPoint(atmosphere=D.ATMOSFERA, 
         velocity=D.V_CRUCERO, alpha=alfa, **giros))
 
 

@@ -69,3 +69,15 @@ def test_lo_que_choca_se_pinta_de_rojo_solo_en_su_cuadro(tmp_path):
         assert rojos(img) == 0
         img.seek(1)
         assert rojos(img) > 100
+
+
+def test_el_lado_maximo_crece_con_el_tamano_del_invento():
+    """Los triángulos se parten hasta un lado máximo para que matplotlib los
+    ordene bien por profundidad. Con 6 mm fijos, las pieles del ala del avión
+    del 2026-11-18 (astillas de 213 mm) se partían en miles de trozos cada
+    una, y dibujarlo montado pasaba de 23 GB y lo mataban. Un 1/150 de lo que
+    mide el invento: en un brazo de 600 mm siguen siendo 6; en un avión de
+    1 960 mm, 13,1."""
+    from orchestrator.animation import _lado_maximo
+    assert _lado_maximo([0, 0, 0], [600, 100, 50]) == pytest.approx(6.0)
+    assert _lado_maximo([-200, -980, -260], [800, 980, 120]) == pytest.approx(1960 / 150)

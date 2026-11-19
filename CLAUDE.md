@@ -707,6 +707,43 @@ imprimir; lo que dejó abierto está abajo.
   motores de la vista (Ø50 × 30 y Ø42 × 25) son supuestos del asistente.
   Sin arreglar tampoco: el barrido del brazo quita entero el motorreductor
   en cuyo eje gira la pieza siguiente, no solo su eje.
+- **Dicho por él el 2026-11-18:** que 7 kg no es realista; una lista de
+  compras en Amazon que llegue a Guatemala, con sus pesos; lo mínimo para
+  una hora con una 6S de 10 Ah y 300 g de carga; los tubos en Amazon («ok
+  hagamos el cambio»); «¿por qué tiene como 40 partes… mi impresora es…
+  la core one L+?»; «Quiero 600KV» y, ante el único de unos 600 KV para
+  6S que llega, «Con el de 660KV». La lista está en un artifact
+  (`https://claude.ai/artifact/TcQZUxfZDBRm58CzQ28uqz`), no en el repo.
+  **Rehecho A MANO por el asistente, sin modelo:** ala volante de 1,89 m y
+  0,507 m², cuatro 4214 de 660 KV con hélice de 15″ y el gas limitado al
+  65 % en PX4 (a fondo pasarían de 12 000 rpm; así dan 3,0 kg cada uno, lo
+  del MAD de 440 KV), LiPo 6S de 10 000 mAh, 300 g de carga y la
+  aerodinámica a 1 500 m (`asb.Atmosphere`). Para su cama de 300 × 300 ×
+  330 el diseño dice la suya (`cama`, `tramo_max`, `celda_raiz`,
+  `celda_fuselaje`): **31 piezas, eran 44**; caben y ninguna pide soportes.
+  Cada góndola lleva debajo su pata o su deriva (`aletas`): una pieza, y ya
+  no se pisan; la viga va de la punta de la pata a la de la deriva (964 mm,
+  de un tubo de 1 m). Está en la web como versión 8 del avión
+  (`2026-11-18-ala-volante-660kv-a-mano-sin-modelo`).
+  **Pesado en sus STL, lo impreso es 2,01 kg, no los 0,86 estimados**: el
+  PETG del cuerpo (0,73), las góndolas con sus aletas (0,52), la panza y
+  los pilones; las alas de LW-PLA, 0,56. Total 5,49 kg, 1,07 h y 73 km
+  según AeroSandbox, 1,89 veces el peso en empuje, pérdida a 14,2 m/s; la
+  punta, a −6° de torsión. **Se le había dicho 4,46 kg y 49–61 min**,
+  con lo impreso estimado; la lista ya dice lo medido. **Sin decidir, por
+  contarle:** el cuerpo y la panza en LW-PLA (unos 0,45 kg menos).
+  Arreglado por el camino, cada uno con su test: un diseño puede dar los
+  cortes del cuerpo central (`cortes_fuselaje`; su borde de ataque va a
+  41° y la celda que lo llevaba de pie pedía soportes en el morro); un
+  tramo solo lleva la funda de los largueros que entran en él (la punta
+  salía en tres sólidos); dibujar un invento grande parte los triángulos
+  hasta 1/150 de lo que mide y no hasta 6 mm (el avión pasaba de 23 GB y
+  lo mataban); y Gazebo cuenta las góndolas como patas. **Sin comprobar:**
+  que el eje del 4214 y la hélice de 15″ encajen, que el vendedor (sin
+  marca) venda el XING original, y lo del 2026-11-17 que sigue igual (el
+  pitot sin hueco en el morro). En Gazebo, con PX4, vuela la misión
+  entera (`sim/pruebas`, 5 de 5); **que vuele en Gazebo no dice que vuele
+  impreso**.
 
 **2026-11-11 (noche): Fase 10, brazos con transmisión (ADR-021).** Decidido
 por él: **el brazo antes que el avión**; empezar por uno pequeño con servos;

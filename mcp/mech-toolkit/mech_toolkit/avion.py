@@ -45,7 +45,12 @@ TRAMO_MAX = 160.0
 """Lo que mide a lo largo de la envergadura un tramo de ala, de pie en la cama.
 Con la flecha, la huella de un tramo es su cuerda más lo que avanza el borde
 de salida: con 200 mm, el primero medía 296 × 33 y entraba en diagonal con
-2,4 mm de sobra (test del 2026-11-16); con 160, con 12."""
+2,4 mm de sobra (test del 2026-11-16); con 160, con 12.
+
+Esta y las dos de abajo son las de la cama del sistema (235 × 235 × 250).
+Un diseño dice las suyas con `tramo_max`, `celda_fuselaje` y `celda_raiz`:
+él imprime en una CORE One L+ de 300 × 300 × 330, y con estas salían 44
+piezas («porque estamos sacando muchisimas piezas», 2026-11-18)."""
 CELDA_FUSELAJE = 200.0
 CELDA_RAIZ = 230.0
 PARED = 1.2
@@ -122,6 +127,8 @@ punta: el ala se imprime de pie y el fondo del hueco sería un techo; así es
 una rampa a 50° de la horizontal."""
 LARGO_PIE = 150.0
 """El de la deriva y el de la pata, a lo largo de la viga."""
+PATA_CUERDA = (100.0, 70.0)
+"""La cuerda de la pata, en su raíz y en su pie: más corta que la de la deriva."""
 
 _PERFILES: dict | None = None
 
@@ -291,7 +298,7 @@ def _tramos_ala(d):
     tramos = []
     for i in range(d["raiz"], len(est) - 1):
         y0, y1 = est[i][0], est[i + 1][0]
-        n = max(1, math.ceil((y1 - y0) / TRAMO_MAX - 1e-9))
+        n = max(1, math.ceil((y1 - y0) / d.get("tramo_max", TRAMO_MAX) - 1e-9))
         tramos += [(y0 + (y1 - y0) * k / n, y0 + (y1 - y0) * (k + 1) / n, i) for k in range(n)]
     return tramos
 
@@ -351,8 +358,23 @@ def _celdas(d):
         le = a[1] + (b[1] - a[1]) * t
         return le, le + a[3] + (b[3] - a[3]) * t
 
-    n = math.ceil((x1 - x0) / CELDA_FUSELAJE - 1e-9)
-    cortes = [x0 + (x1 - x0) * k / n for k in range(n + 1)]
+    celda = d.get("celda_fuselaje", CELDA_FUSELAJE)
+    if d.get("cortes_fuselaje"):
+        # Dados por el diseño: el borde de ataque del centro del avión del
+        # 2026-11-18 va a 41°, y en la celda que lo lleva de pie sobre su
+        # corte de delante su morro volaba 24,4 mm fuera del fuselaje (cuerpo
+        # central 2). Se corta detrás de él y esa celda se imprime sobre su
+        # cara de atrás. Quien los da responde de que cada celda se imprima.
+        cortes = [float(c) for c in d["cortes_fuselaje"]]
+        if cortes[0] != x0 or cortes[-1] != x1:
+            raise _error(f"los cortes del cuerpo central van del morro (x = {x0:g}) a la "
+                         f"cola (x = {x1:g}), no de {cortes[0]:g} a {cortes[-1]:g}")
+        if any(b <= a for a, b in zip(cortes, cortes[1:])):
+            raise _error(f"los cortes del cuerpo central no van en orden: {cortes}")
+        n = len(cortes) - 1
+    else:
+        n = math.ceil((x1 - x0) / celda - 1e-9)
+        cortes = [x0 + (x1 - x0) * k / n for k in range(n + 1)]
     # Un corte no cae en los bordes de ataque y de salida del centro del ala:
     # con la flecha, cada uno queda a 50° de la vertical en una celda que se
     # imprime de pie, y solo vale si su celda se apoya del lado bueno. Un
@@ -362,9 +384,9 @@ def _celdas(d):
     ys = [y_medio * k / 8 for k in range(9)]
     les, tes = [borde(y)[0] for y in ys], [borde(y)[1] for y in ys]
     for a, b in ((min(les) - 5, max(les) + 30), (min(tes) - 25, max(tes) + 5)):
-        cortes = [a if a < c < b else c for c in cortes]
+        cortes = [a if a < c < b and not d.get("cortes_fuselaje") else c for c in cortes]
     for c0, c1 in zip(cortes, cortes[1:]):
-        if c1 - c0 > CELDA_FUSELAJE * 1.15:
+        if c1 - c0 > celda * 1.15 and not d.get("cortes_fuselaje"):
             raise _error(f"la celda del cuerpo central de x = {c0:g} a {c1:g} no cabe: "
                          "los bordes del ala no dejan cortar en otro sitio")
     celdas = {f"centro-{k + 1}": (cortes[k], cortes[k + 1], -y_medio, y_medio) for k in range(n)}
@@ -375,7 +397,7 @@ def _celdas(d):
     ys = [y_medio + (y_raiz - y_medio) * k / 8 for k in range(9)]
     lo = min(borde(y)[0] for y in ys) - 15
     hi = max(borde(y)[1] for y in ys) + 15
-    m = math.ceil((hi - lo) / CELDA_RAIZ - 1e-9)
+    m = math.ceil((hi - lo) / d.get("celda_raiz", CELDA_RAIZ) - 1e-9)
     for k in range(m):
         celdas[f"raiz-d-{k + 1}"] = (lo + (hi - lo) * k / m, lo + (hi - lo) * (k + 1) / m,
                                      y_medio, y_raiz)
@@ -426,6 +448,15 @@ def piezas(d) -> list[tuple[str, str, str]]:
                             f"una varilla de carbono de Ø{VARILLA_ELEVON:g}")
                 lista.append((f"elevon-{lado}-{k}", f"Elevón {el} {nombre}"
                               + (f" {trozos.index(k) + 1}" if len(trozos) > 1 else ""), que))
+        if d["rotores"].get("aletas"):
+            lista += [(f"gondola-{lado}-delante", f"Góndola delantera {ala}",
+                       "un motor de sustentación sobre la viga y, debajo, la pata delantera: "
+                       "para posarse"),
+                      (f"gondola-{lado}-detras", f"Góndola trasera {ala}",
+                       "un motor de sustentación sobre la viga y, debajo, la deriva: "
+                       "estabilidad de guiñada y pata trasera"),
+                      (f"pilon-{lado}", f"Pilón {el}", "une la viga al ala")]
+            continue
         lista += [(f"gondola-{lado}-delante", f"Góndola delantera {ala}",
                    "un motor de sustentación sobre la viga"),
                   (f"gondola-{lado}-detras", f"Góndola trasera {ala}",
@@ -522,9 +553,13 @@ def _tubo(kit, de, a_, diametro, puntas=False, holgura=HOLGURA_TUBO):
     return Cuerpo(forma, kit)
 
 
-def _largueros(kit, d, puntas=False, pared=0.0):
+def _largueros(kit, d, puntas=False, pared=0.0, desde=None):
+    """Los de `_larguero`, todos; con `desde`, solo los que pasan de esa y
+    (en el lado derecho)."""
     hueco = None
     for f, diametro in d["largueros"]:
+        if desde is not None and extremos_larguero(d, f, diametro)[1][2] <= desde:
+            continue
         t = _larguero(kit, d, f, diametro, puntas, pared)
         hueco = t if hueco is None else hueco + t
     return hueco
@@ -1047,7 +1082,7 @@ def _panza_pieza(kit, d):
     quillas = None
     for s in (1, -1):
         q = kit.caja(largo, PIEL_ALA * 2, z_bandeja - BANDEJA - (zc - 300),
-                     en=(x0, s * QUILLA_Y - PIEL_ALA, zc - 300)) & hueco
+                     en=(x0, s * d.get("quilla_y", QUILLA_Y) - PIEL_ALA, zc - 300)) & hueco
         quillas = q if quillas is None else quillas + q
     fuera = PARED + MARCO + HOLGURA_PANZA
     pestana = (_hueco_fuselaje(kit, d, fuera) - _hueco_fuselaje(kit, d, fuera + LABIO)) & kit.caja(
@@ -1232,25 +1267,38 @@ def _pala_tris(centro, largo_dir, normal, diametro, grueso=3.0, n=16):
     return tris
 
 
+def extremos_viga(d) -> tuple[float, float]:
+    """(x de delante, x de atrás) de cada viga de carbono. Con `aletas`, de la
+    punta de la pata a la de la deriva, que van en las góndolas; si no, de
+    punta a punta de las góndolas (y la deriva, detrás, se quedaba sin viga
+    en 120 mm: visto el 2026-11-17)."""
+    ro = d["rotores"]
+    if ro.get("aletas"):
+        pata = d.get("pata", {}).get("cuerda", PATA_CUERDA)
+        return ro["x"][0] - pata[0] / 2, ro["x"][1] + d["deriva"]["cuerda"][0] / 2
+    return ro["x"][0] - MEDIO_LARGO_GONDOLA, ro["x"][1] + MEDIO_LARGO_GONDOLA
+
+
 def comprado_a_la_vista(d) -> dict[str, list]:
     """Lo comprado que se ve por fuera, en triángulos y en su sitio: las dos
     vigas de carbono, los cinco motores y sus hélices. Solo para enseñarlo
     montado: sin ellos, la vista del avión dejaba las góndolas y las derivas
     sueltas junto al ala (él, 2026-11-17: «no se entiende qué son»)."""
-    ro, L = d["rotores"], MEDIO_LARGO_GONDOLA
+    ro = d["rotores"]
     zv, dv = _z_viga(d), ro["viga"]
     arriba = zv + dv / 2 + 12          # la cara de arriba de la góndola (`_gondola`)
+    motor = ro.get("motor", MOTOR_SUBIR)
     out = {}
     for lado, s in (("d", 1), ("i", -1)):
         y = s * ro["y"]
-        out[f"viga-{lado}"] = _cilindro_tris((ro["x"][0] - L, y, zv), (1, 0, 0),
-                                             ro["x"][1] - ro["x"][0] + 2 * L, dv / 2)
+        x0, x1 = extremos_viga(d)
+        out[f"viga-{lado}"] = _cilindro_tris((x0, y, zv), (1, 0, 0), x1 - x0, dv / 2)
         for donde, x in (("delante", ro["x"][0]), ("detras", ro["x"][1])):
             out[f"motor-{lado}-{donde}"] = _cilindro_tris((x, y, arriba), (0, 0, 1),
-                                                          MOTOR_SUBIR[1], MOTOR_SUBIR[0] / 2)
+                                                          motor[1], motor[0] / 2)
             g = 1 / math.sqrt(2)
             out[f"helice-{lado}-{donde}"] = _pala_tris(
-                (x, y, arriba + MOTOR_SUBIR[1] + SOBRE_EL_MOTOR), (g, s * g, 0), (0, 0, 1),
+                (x, y, arriba + motor[1] + SOBRE_EL_MOTOR), (g, s * g, 0), (0, 0, 1),
                 ro["helice"])
     xe, zf = d["empuje"]["x"], d["z_fuselaje"]
     out["motor-empuje"] = _cilindro_tris((xe, 0, zf), (1, 0, 0), MOTOR_EMPUJE[1],
@@ -1297,27 +1345,49 @@ def _pilon(kit, d):
     return placa - kit.cilindro(dv + HOLGURA_TUBO, 2 * c, en=(x - c / 2, y, zv), eje="x")
 
 
-def _pie(kit, d, x0, cuerda, alto):
+def _sin_viga(kit, d, p, x0, x1):
+    """`p` con el agujero de la viga de `x0` a `x1`. Lleva tejado hacia abajo,
+    que al imprimir la pieza boca abajo es arriba."""
+    ro = d["rotores"]
+    y, zv, dv = ro["y"], _z_viga(d), ro["viga"]
+    r = (dv + HOLGURA_TUBO) / 2
+    p = p - kit.cilindro(2 * r, x1 - x0 + 2, en=(x0 - 1, y, zv), eje="x")
+    k = r / math.sqrt(2)
+    return p - kit.extruir([(y - k, zv - k), (y + k, zv - k), (y, zv - r * math.sqrt(2))],
+                           x1 - x0 + 2, plano="yz", desde=x0 - 1)
+
+
+def _gondola_con_aleta(kit, d, x, cuerda, alto):
+    """La góndola de un motor con la pata o la deriva debajo, centrada en él:
+    una pieza. Separadas, la deriva se montaba 30 mm sobre la góndola de atrás
+    (11 383 mm³ comunes, medido el 2026-11-17). El pie de la aleta sube hasta
+    la cara del motor, para que toda la pieza apoye en ella boca abajo."""
+    zv, dv = _z_viga(d), d["rotores"]["viga"]
+    x0 = x - cuerda[0] / 2
+    p = _gondola(kit, d, x) + _pie(kit, d, x0, cuerda, alto, techo=zv + dv / 2 + 12,
+                                   viga=False)
+    return _sin_viga(kit, d, p, x0, x0 + cuerda[0])
+
+
+def _pie(kit, d, x0, cuerda, alto, techo=None, viga=True):
     """Una aleta bajo la viga (la deriva o la pata) con su pie: el pie abraza la
-    viga y tiene arriba una cara plana, sobre la que se imprime boca abajo. El
-    agujero de la viga lleva tejado hacia abajo, que al imprimir es arriba."""
+    viga y tiene arriba una cara plana, sobre la que se imprime boca abajo
+    (en `techo`; si no, 4 mm sobre la viga). El agujero de la viga lleva
+    tejado hacia abajo, que al imprimir es arriba."""
     ro = d["rotores"]
     y, zv, dv = ro["y"], _z_viga(d), ro["viga"]
     c0, c1 = cuerda
+    techo = zv + dv / 2 + 4 if techo is None else techo
 
     def sec(x, c):
         return kit.seccion([(x + u * c, y + v * c) for u, v in _perfil("naca0008")])
     aleta = kit.transicion([(sec(x0, c0), -(zv - dv / 2)), (sec(x0 + (c0 - c1), c1),
                                                             -(zv - alto))], eje="-z")
     pie = kit.transicion([(kit.rectangulo(c0, dv + 8, 4), zv - dv / 2 - 4),
-                          (kit.rectangulo(c0, dv + 8, 4), zv + dv / 2 + 4)],
+                          (kit.rectangulo(c0, dv + 8, 4), techo)],
                          eje="z", en=(x0 + c0 / 2, y, 0))
     p = aleta + pie
-    r = (dv + HOLGURA_TUBO) / 2
-    p = p - kit.cilindro(2 * r, c0 + 2, en=(x0 - 1, y, zv), eje="x")
-    k = r / math.sqrt(2)
-    return p - kit.extruir([(y - k, zv - k), (y + k, zv - k), (y, zv - r * math.sqrt(2))],
-                           c0 + 2, plano="yz", desde=x0 - 1)
+    return _sin_viga(kit, d, p, x0, x0 + c0) if viga else p
 
 
 def pieza(kit, d, id_):
@@ -1353,16 +1423,27 @@ def pieza(kit, d, id_):
                 # (2026-11-16). Antes de recortarlo a la forma, a la caja del
                 # hueco: cada nervio sale 200 mm por delante y por detrás del
                 # ala, y cruzar eso con la piel curva costaba el triple.
-                dentro = _largueros(kit, d, pared=FUNDA)
+                # Solo las fundas de los largueros que entran en el tramo más
+                # que el radio de la funda. Los del avión del 2026-11-18 acaban
+                # en el corte de la punta (y = 860), y por el diedro su disco
+                # final asomaba 2,4 mm en ella: dos rodajas sueltas dentro del
+                # hueco, y la pieza salía en tres sólidos.
+                dentro = _largueros(kit, d, pared=FUNDA,
+                                    desde=y0 + max(di for _, di in d["largueros"]) / 2 + FUNDA)
                 if not _levantado(d, i):
-                    dentro = dentro + _nervios(kit, d, y0, y1, i)
+                    nervios = _nervios(kit, d, y0, y1, i)
+                    dentro = nervios if dentro is None else dentro + nervios
                 for s in _servos(d):
                     if y0 < s["y"] < y1:
-                        dentro = dentro + _cajon_servo(kit, d, s)
-                bb = hueco._forma.BoundBox
-                dentro = dentro & kit.caja(bb.XLength + 2, bb.YLength + 2, bb.ZLength + 2,
-                                           en=(bb.XMin - 1, bb.YMin - 1, bb.ZMin - 1))
-                ala = (ala - hueco) + (dentro & ala)
+                        cajon = _cajon_servo(kit, d, s)
+                        dentro = cajon if dentro is None else dentro + cajon
+                if dentro is None:
+                    ala = ala - hueco
+                else:
+                    bb = hueco._forma.BoundBox
+                    dentro = dentro & kit.caja(bb.XLength + 2, bb.YLength + 2, bb.ZLength + 2,
+                                               en=(bb.XMin - 1, bb.YMin - 1, bb.ZMin - 1))
+                    ala = (ala - hueco) + (dentro & ala)
             ala = ala - _largueros(kit, d)
             canal = _canal(kit, d)
             if canal is not None and y0 < max(s["y"] for s in _servos(d)):
@@ -1380,7 +1461,13 @@ def pieza(kit, d, id_):
         return _lado(elevon, lado)
     ro = d["rotores"]
     if partes[0] == "gondola":
-        return _lado(_gondola(kit, d, ro["x"][0 if partes[2] == "delante" else 1]), lado)
+        delante = partes[2] == "delante"
+        x = ro["x"][0 if delante else 1]
+        if ro.get("aletas"):
+            cuerda = (d.get("pata", {}).get("cuerda", PATA_CUERDA) if delante
+                      else d["deriva"]["cuerda"])
+            return _lado(_gondola_con_aleta(kit, d, x, cuerda, d["deriva"]["alto"]), lado)
+        return _lado(_gondola(kit, d, x), lado)
     if partes[0] == "pilon":
         return _lado(_pilon(kit, d), lado)
     de = d["deriva"]
@@ -1388,4 +1475,4 @@ def pieza(kit, d, id_):
         return _lado(_pie(kit, d, de["x"], de["cuerda"], de["alto"]), lado)
     # La pata va justo detrás de la góndola delantera, con la cuerda de la
     # deriva más corta: la hélice va arriba y la pata abajo.
-    return _lado(_pie(kit, d, ro["x"][0] + MEDIO_LARGO_GONDOLA + 3, [100, 70], de["alto"]), lado)
+    return _lado(_pie(kit, d, ro["x"][0] + MEDIO_LARGO_GONDOLA + 3, PATA_CUERDA, de["alto"]), lado)

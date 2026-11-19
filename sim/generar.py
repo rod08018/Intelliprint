@@ -238,10 +238,13 @@ class Modelo:
         return bisagras
 
     def _patas(self):
-        """El punto más bajo de cada pata y cada deriva: el tren de aterrizaje."""
+        """El punto más bajo de cada pata y cada deriva: el tren de aterrizaje.
+        Desde el 2026-11-18 van pegadas bajo su góndola (`aletas`), y lo más
+        bajo de la góndola es su pie."""
         patas = []
+        aletas = self.r["diseno"]["rotores"].get("aletas")
         for id_, t in sorted(self.impreso.items()):
-            if id_.startswith(("pata", "deriva")):
+            if id_.startswith(("pata", "deriva")) or (aletas and id_.startswith("gondola")):
                 v = self._tri_flu(t).reshape(-1, 3)
                 patas.append(list(v[np.argmin(v[:, 2])]))
         return patas

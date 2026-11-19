@@ -87,6 +87,14 @@ def _colocar(vertices, pose: Placement):
     return v @ r.T + np.asarray(pose.origin)
 
 
+def _lado_maximo(lo, hi) -> float:
+    """Hasta dónde se parten los triángulos: 6 mm, o 1/150 de lo que mide el
+    invento si es grande. Con 6 fijos, las pieles del ala del avión del
+    2026-11-18 (astillas de 213 mm) se partían en miles de trozos y dibujarlo
+    montado pasaba de 23 GB."""
+    return max(6.0, max(float(b) - float(a) for a, b in zip(lo, hi)) / 150)
+
+
 def _subdividir(tris, max_lado: float):
     """Parte en 4 cada triángulo con algún lado mayor que `max_lado`."""
     import numpy as np
@@ -142,7 +150,7 @@ def render_gif(
     # Triángulos grandes (la cara de la base) rompen el orden por
     # profundidad de matplotlib, que usa el centro de cada triángulo:
     # se subdividen para que ninguno tape a una pieza que tiene encima.
-    tris_locales = {n: _subdividir(np.asarray(v)[np.asarray(t)], 6.0)
+    tris_locales = {n: _subdividir(np.asarray(v)[np.asarray(t)], _lado_maximo(lo, hi))
                     for n, (v, t) in meshes.items()}
     paleta = {**COLORES, **(colors or {})}
     colores = {n: np.array(to_rgb(paleta.get(n, COLOR_EJE))) for n in meshes}
