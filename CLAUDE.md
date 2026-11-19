@@ -730,8 +730,9 @@ imprimir; lo que dejó abierto está abajo.
   los pilones; las alas de LW-PLA, 0,56. Total 5,49 kg, 1,07 h y 73 km
   según AeroSandbox, 1,89 veces el peso en empuje, pérdida a 14,2 m/s; la
   punta, a −6° de torsión. **Se le había dicho 4,46 kg y 49–61 min**,
-  con lo impreso estimado; la lista ya dice lo medido. **Sin decidir, por
-  contarle:** el cuerpo y la panza en LW-PLA (unos 0,45 kg menos).
+  con lo impreso estimado; la lista ya dice lo medido. **Decidido por él ese
+  día: «solo alas de lwpla y el cuerpo central petg»**: el cuerpo no pasa
+  a LW-PLA (se le ofreció por unos 0,45 kg menos) y queda como está.
   Arreglado por el camino, cada uno con su test: un diseño puede dar los
   cortes del cuerpo central (`cortes_fuselaje`; su borde de ataque va a
   41° y la celda que lo llevaba de pie pedía soportes en el morro); un
